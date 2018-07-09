@@ -161,34 +161,42 @@ def read_info(info_file):
 #********************************************************************
 # update_package()
 #
+# package      - the name of the package to update
+# packages_mf  - the packages/packages.mf file
+# packages     - the packages.mf file for this package
+# package_deps - a dict of package-name to package_info
 #********************************************************************
 def update_package(
 	package,
     packages_mf,
-	packages,
+	dependencies,
 	packages_dir,
     package_deps
 	):
-  package_src = packages[package]
+  package_src = dependencies[package]
   must_update=False
   
-  print "update_package: " + package
+  print "********************************************************************"
+  print "Processing package " + package + ""
+  print "********************************************************************"
+  
 
   if package in packages_mf.keys():
     # See if we are up-to-date or require a change
     if os.path.isdir(packages_dir + "/" + package) == False:
         must_update = True
-    elif packages_mf[package] != packages[package]:
+    elif packages_mf[package] != dependencies[package]:
         # TODO: should check if we are switching from binary to source
         print "Removing existing package dir for " + package
+        sys.stdout.flush()
         os.system("rm -rf " + packages_dir + "/" + package)
-        print "PackagesMF: " + packages_mf[package] + " != " + packages[package]
+        print "PackagesMF: " + packages_mf[package] + " != " + dependencies[package]
         must_update = True
   else:
     must_update = True
     
   if must_update:
-    # Package isn't currently present in packages
+    # Package isn't currently present in dependencies
     scheme_idx = package_src.find("://")
     scheme = package_src[0:scheme_idx+3]
     print "Must add package " + package + " scheme=" + scheme
@@ -196,6 +204,7 @@ def update_package(
       path = package_src[scheme_idx+3:len(package_src)]
       cwd = os.getcwd()
       os.chdir(packages_dir)
+      sys.stdout.flush()
       status = os.system("tar xvzf " + path)
       os.chdir(cwd)
       
@@ -211,15 +220,18 @@ def update_package(
       if ext == ".git":
           cwd = os.getcwd()
           os.chdir(packages_dir)
+          sys.stdout.flush()
           status = os.system("git clone " + package_src)
           os.chdir(cwd)
           os.chdir(packages_dir + "/" + package)
+          sys.stdout.flush()
           status = os.system("git submodule update --init --recursive")
           os.chdir(cwd)
       elif ext == ".gz":
         # Just assume this is a .tar.gz
         cwd = os.getcwd()
         os.chdir(packages_dir)
+        sys.stdout.flush()
         os.system("wget -O " + package + ".tar.gz " + package_src)
         os.system("tar xvzf " + package + ".tar.gz")
         os.system("rm -rf " + package + ".tar.gz")
@@ -234,12 +246,29 @@ def update_package(
  
   # This is a source package, so keep track so we can properly build it 
   is_src = os.path.isfile(packages_dir + "/" + package + "/scripts/ivpm.mk")
+  
+  # Add a new entry for this package
   info = proj_info(is_src)
-  for p in this_package_mf.keys():
-      print "Add dependency: " + p
-      info.add_dependency(p)
-
   package_deps[package] = info
+  
+  for p in this_package_mf.keys():
+      print "Dependency: " + p
+      info.add_dependency(p)
+      if p in dependencies.keys():
+        print "  ... has already been handled"
+      else:
+        print "  ... loading now"
+        # Add the new package to the full dependency list we're building
+        dependencies[p] = this_package_mf[p]
+        
+        update_package(
+  	      p,            # The package to upate
+          packages_mf,  # The dependencies/dependencies.mf input file
+	      dependencies, # The dependencies/dependencies.mf output file 
+	      packages_dir, # Path to dependencies
+          package_deps) # Dependency information for each file
+     
+
 
 #********************************************************************
 # update()
