@@ -314,11 +314,9 @@ def update(project_dir, info):
 #********************************************************************
 # ivpm_main()
 #********************************************************************
-def ivpm_main(argv):
-    scripts_dir = os.path.dirname(os.path.realpath(__file__))
-    project_dir = os.path.dirname(scripts_dir)
-    etc_dir = os.path.dirname(scripts_dir) + "/etc"
-    packages_dir = os.path.dirname(scripts_dir) + "/packages"
+def ivpm_main(project_dir, argv):
+    etc_dir = project_dir + "/etc"
+    packages_dir = project_dir + "/packages"
     
     if os.path.isfile(etc_dir + "/ivpm.info") == False:
         print("Error: no ivpm.info file in the etc directory ("+etc_dir+")")
@@ -352,7 +350,9 @@ def ivpm_main(argv):
 #      print "Dependency: package=" + d + " " + dependencies[d];
     
 if __name__ == "__main__":
-    ivpm_main(sys.argv)
+    scripts_dir = os.path.dirname(os.path.realpath(__file__))
+    project_dir = os.path.dirname(scripts_dir)
+    ivpm_main(project_dir, sys.argv)
 
 
 

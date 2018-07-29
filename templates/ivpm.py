@@ -1,3 +1,4 @@
+#!/usr/bin/python
 #****************************************************************************
 #* ivpm.py
 #* 
@@ -48,7 +49,7 @@ def main():
     # Bring in the actual IVPM script and call it
     sys.path.insert(0, ivpm_dir + "/scripts")
     import ivpm
-    ivpm.ivpm_main(sys.argv)
+    ivpm.ivpm_main(project_dir, sys.argv)
     
 if __name__ == "__main__":
     main()
