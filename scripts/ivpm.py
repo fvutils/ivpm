@@ -19,6 +19,17 @@ import subprocess
 # Discover location
 # Need to determine the project that we're in
 
+class proj_info:
+    def __init__(self, is_src):
+        self.is_src = is_src
+        self.dependencies = []
+
+    def add_dependency(self, dep):
+        self.dependencies.append(dep)
+        
+    def deps(self):
+        return self.dependencies
+
 #********************************************************************
 #* read_packages
 #*
@@ -72,15 +83,46 @@ def write_packages(packages_mf, packages):
 # write_packages_mk
 #********************************************************************
 def write_packages_mk(
-        packages_dir, 
-        packages):
-  packages_mk = packages_dir + "/packages.mk"
+        packages_mk, 
+        project,
+        package_deps):
   
   fh = open(packages_mk, "w")
-  for package in packages.keys():
-    info = read_info(packages_dir + "/" + package + "/etc/ivpm.info")
-    if "rootvar" in info.keys():
-        fh.write(info["rootvar"] + "=$(PACKAGES_DIR)/" + package)
+  fh.write("#********************************************************************\n");
+  fh.write("# packages.mk for " + project + "\n");
+  fh.write("#********************************************************************\n");
+  fh.write("\n");
+  fh.write("ifneq (1,$(RULES))\n");
+  fh.write("package_deps = " + project + "\n")
+  for p in package_deps.keys():
+      info = package_deps[p]
+      fh.write(p + "_deps=")
+      for d in info.deps():
+          fh.write(d + " ")
+      fh.write("\n")
+      fh.write(p + "_clean_deps=")
+      for d in info.deps():
+          fh.write("clean_" + d + " ")
+      fh.write("\n")
+
+  fh.write("else # Rules\n");
+  for p in package_deps.keys():
+      info = package_deps[p]
+      fh.write(p + " : $(" + p + "_deps)\n");
+     
+      if info.is_src:
+          fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk build\n")
+      fh.write("\n");
+      fh.write("clean_" + p + " : $(" + p + "_clean_deps)\n");
+     
+      if info.is_src:
+          fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk clean\n")
+      fh.write("\n");
+
+  fh.write("\n")
+  fh.write("endif\n");
+  fh.write("\n")
+  
   fh.close()
     
 #********************************************************************
@@ -115,31 +157,46 @@ def read_info(info_file):
     
     return info
 
+        
 #********************************************************************
 # update_package()
 #
+# package      - the name of the package to update
+# packages_mf  - the packages/packages.mf file
+# packages     - the packages.mf file for this package
+# package_deps - a dict of package-name to package_info
 #********************************************************************
 def update_package(
 	package,
     packages_mf,
-	packages,
-	packages_dir
+	dependencies,
+	packages_dir,
+    package_deps
 	):
-  package_src = packages[package]
+  package_src = dependencies[package]
   must_update=False
   
-  print "update_package: " + package
-    
+  print "********************************************************************"
+  print "Processing package " + package + ""
+  print "********************************************************************"
+  
+
   if package in packages_mf.keys():
     # See if we are up-to-date or require a change
-    if packages_mf[package] != packages[package]:
-        print "PackagesMF: " + packages_mf[package] + " != " + packages[package]
+    if os.path.isdir(packages_dir + "/" + package) == False:
+        must_update = True
+    elif packages_mf[package] != dependencies[package]:
+        # TODO: should check if we are switching from binary to source
+        print "Removing existing package dir for " + package
+        sys.stdout.flush()
+        os.system("rm -rf " + packages_dir + "/" + package)
+        print "PackagesMF: " + packages_mf[package] + " != " + dependencies[package]
         must_update = True
   else:
     must_update = True
     
   if must_update:
-    # Package isn't currently present in packages
+    # Package isn't currently present in dependencies
     scheme_idx = package_src.find("://")
     scheme = package_src[0:scheme_idx+3]
     print "Must add package " + package + " scheme=" + scheme
@@ -147,6 +204,7 @@ def update_package(
       path = package_src[scheme_idx+3:len(package_src)]
       cwd = os.getcwd()
       os.chdir(packages_dir)
+      sys.stdout.flush()
       status = os.system("tar xvzf " + path)
       os.chdir(cwd)
       
@@ -155,21 +213,72 @@ def update_package(
           
       print "File: " + path
     elif scheme == "http://" or scheme == "https://":
+      ext_idx = package_src.rfind('.')
+      if ext_idx == -1:
+          print "Error: URL resource doesn't have an extension"
+      ext = package_src[ext_idx:len(package_src)]
+      if ext == ".git":
+          cwd = os.getcwd()
+          os.chdir(packages_dir)
+          sys.stdout.flush()
+          status = os.system("git clone " + package_src)
+          os.chdir(cwd)
+          os.chdir(packages_dir + "/" + package)
+          sys.stdout.flush()
+          status = os.system("git submodule update --init --recursive")
+          os.chdir(cwd)
+      elif ext == ".gz":
+        # Just assume this is a .tar.gz
+        cwd = os.getcwd()
+        os.chdir(packages_dir)
+        sys.stdout.flush()
+        os.system("wget -O " + package + ".tar.gz " + package_src)
+        os.system("tar xvzf " + package + ".tar.gz")
+        os.system("rm -rf " + package + ".tar.gz")
+        os.chdir(cwd)
+      else:
+          print "Error: unknown URL extension \"" + ext + "\""
       print "URL"
     else:
         print "Error: unknown scheme " + scheme
-    
+
+  this_package_mf = read_packages(packages_dir + "/" + package + "/etc/packages.mf")
+ 
+  # This is a source package, so keep track so we can properly build it 
+  is_src = os.path.isfile(packages_dir + "/" + package + "/scripts/ivpm.mk")
+  
+  # Add a new entry for this package
+  info = proj_info(is_src)
+  package_deps[package] = info
+  
+  for p in this_package_mf.keys():
+      print "Dependency: " + p
+      info.add_dependency(p)
+      if p in dependencies.keys():
+        print "  ... has already been handled"
+      else:
+        print "  ... loading now"
+        # Add the new package to the full dependency list we're building
+        dependencies[p] = this_package_mf[p]
         
+        update_package(
+  	      p,            # The package to upate
+          packages_mf,  # The dependencies/dependencies.mf input file
+	      dependencies, # The dependencies/dependencies.mf output file 
+	      packages_dir, # Path to dependencies
+          package_deps) # Dependency information for each file
+     
+
 
 #********************************************************************
 # update()
-#
-# 
 #********************************************************************
 def update(project_dir, info):
     etc_dir = project_dir + "/etc"
     packages_dir = project_dir + "/packages"
     packages_mf = {}
+    # Map between project name and proj_info
+    package_deps = {}
 
     if os.path.isdir(packages_dir) == False:
       os.makedirs(packages_dir);
@@ -183,22 +292,29 @@ def update(project_dir, info):
 
     # Load the root project dependencies
     dependencies = read_packages(etc_dir + "/packages.mf")
+    
+    # Add an entry for the root project
+    pinfo = proj_info(False)
+    for d in dependencies.keys():
+        pinfo.add_dependency(d)
+    package_deps[info["name"]] = pinfo
 
     for pkg in dependencies.keys():
       update_package(
 	    pkg, 
         packages_mf,
 	    dependencies, 
-	    packages_dir)
+	    packages_dir,
+        package_deps)
 
     write_packages(packages_dir + "/packages.mf", dependencies)
-    write_packages_mk(packages_dir, dependencies)
+    write_packages_mk(packages_dir + "/packages.mk", info["name"], package_deps)
     
 
 #********************************************************************
-# main()
+# ivpm_main()
 #********************************************************************
-def main():
+def ivpm_main(argv):
     scripts_dir = os.path.dirname(os.path.realpath(__file__))
     project_dir = os.path.dirname(scripts_dir)
     etc_dir = os.path.dirname(scripts_dir) + "/etc"
@@ -212,11 +328,11 @@ def main():
         print("Error: no packages.mf file in the etc directory ("+etc_dir+")")
         exit(1)
     
-    if len(sys.argv) < 2:
+    if len(argv) < 2:
         print("Error: too few args")
         exit(1)
         
-    cmd = sys.argv[1]
+    cmd = argv[1]
 
     info = read_info(etc_dir + "/ivpm.info");
     
@@ -236,7 +352,7 @@ def main():
 #      print "Dependency: package=" + d + " " + dependencies[d];
     
 if __name__ == "__main__":
-    main()
+    ivpm_main(sys.argv)
 
 
-    
+
