@@ -86,6 +86,7 @@ def write_packages_mk(
         packages_mk, 
         project,
         package_deps):
+  packages_dir = os.path.dirname(packages_mk)
   
   fh = open(packages_mk, "w")
   fh.write("#********************************************************************\n");
@@ -104,8 +105,13 @@ def write_packages_mk(
       for d in info.deps():
           fh.write("clean_" + d + " ")
       fh.write("\n")
+      
+      if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
+          fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
 
   fh.write("else # Rules\n");
+  fh.write("ifneq (1,$(PACKAGES_MK_RULES_INCLUDED))\n");
+  fh.write("PACKAGES_MK_RULES_INCLUDED := 1\n")
   for p in package_deps.keys():
       info = package_deps[p]
       fh.write(p + " : $(" + p + "_deps)\n");
@@ -118,8 +124,12 @@ def write_packages_mk(
       if info.is_src:
           fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk clean\n")
       fh.write("\n");
+      
+      if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
+          fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
 
   fh.write("\n")
+  fh.write("endif # PACKAGES_MK_RULES_INCLUDED\n")
   fh.write("endif\n");
   fh.write("\n")
   
@@ -212,7 +222,7 @@ def update_package(
           print "Error: while unpacking " + package
           
       print "File: " + path
-    elif scheme == "http://" or scheme == "https://":
+    elif scheme == "http://" or scheme == "https://" or scheme == "ssh://":
       ext_idx = package_src.rfind('.')
       if ext_idx == -1:
           print "Error: URL resource doesn't have an extension"
@@ -314,11 +324,9 @@ def update(project_dir, info):
 #********************************************************************
 # ivpm_main()
 #********************************************************************
-def ivpm_main(argv):
-    scripts_dir = os.path.dirname(os.path.realpath(__file__))
-    project_dir = os.path.dirname(scripts_dir)
-    etc_dir = os.path.dirname(scripts_dir) + "/etc"
-    packages_dir = os.path.dirname(scripts_dir) + "/packages"
+def ivpm_main(project_dir, argv):
+    etc_dir = project_dir + "/etc"
+    packages_dir = project_dir + "/packages"
     
     if os.path.isfile(etc_dir + "/ivpm.info") == False:
         print("Error: no ivpm.info file in the etc directory ("+etc_dir+")")
@@ -352,7 +360,9 @@ def ivpm_main(argv):
 #      print "Dependency: package=" + d + " " + dependencies[d];
     
 if __name__ == "__main__":
-    ivpm_main(sys.argv)
+    scripts_dir = os.path.dirname(os.path.realpath(__file__))
+    project_dir = os.path.dirname(scripts_dir)
+    ivpm_main(project_dir, sys.argv)
 
 
 
