@@ -134,7 +134,32 @@ def write_packages_mk(
   fh.write("\n")
   
   fh.close()
-    
+  
+#********************************************************************
+# write_sve_f
+#********************************************************************
+def write_sve_f(
+        sve_f, 
+        project,
+        package_deps):
+  packages_dir = os.path.dirname(sve_f)
+  
+  fh = open(sve_f, "w")
+  fh.write("//********************************************************************\n");
+  fh.write("//* sve.F for " + project + "\n");
+  fh.write("//********************************************************************\n");
+  fh.write("\n");
+
+  for p in package_deps.keys():
+      info = package_deps[p]
+      
+      if os.path.isfile(packages_dir + "/" + p + "/sve.F"):
+          fh.write("-F ./" + p + "/sve.F\n")
+      elif os.path.isfile(packages_dir + "/" + p + "/sve.f"):
+          fh.write("-F ./" + p + "/sve.f\n")
+
+  fh.close()
+      
 #********************************************************************
 # read_info
 #
@@ -319,6 +344,7 @@ def update(project_dir, info):
 
     write_packages(packages_dir + "/packages.mf", dependencies)
     write_packages_mk(packages_dir + "/packages.mk", info["name"], package_deps)
+    write_sve_f(packages_dir + "/sve.F", info["name"], package_deps)
     
 
 #********************************************************************
