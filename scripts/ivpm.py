@@ -328,10 +328,36 @@ def git_status(project_dir, info):
     elif os.path.isdir(packages_dir + "/" + dir):
       print "Note: skipping non-Git package \"" + dir + "\"";
 
-#  for package in packages.keys():
-#    if os.path.isdir(packages_dir + "/" + package + "/.git"):
-#    else:
-     
+#********************************************************************
+# git_update()
+#********************************************************************
+def git_update(project_dir, info):
+  packages_dir = project_dir + "/packages"
+  packages_mf = {}
+
+  if os.path.isfile(packages_dir + "/packages.mf"):
+    packages = read_packages(packages_dir + "/packages.mf")
+  else:
+    print "Error: no packages.mf file. Run ivpm.py update before git-status"
+    os.exit(1)
+
+  # After that check, go ahead and just check directories
+  for dir in os.listdir(packages_dir):
+    if os.path.isdir(packages_dir + "/" + dir + "/.git"):
+      print "Package: " + dir
+      cwd = os.getcwd()
+      os.chdir(packages_dir + "/" + dir)
+      branch = subprocess.check_output(["git", "branch"])
+      branch = branch.strip()
+      if branch[0] == "*":
+        branch = branch[1:].strip()
+
+      status = os.system("git fetch")
+      status = os.system("git merge origin/" + branch)
+      os.chdir(cwd)
+    elif os.path.isdir(packages_dir + "/" + dir):
+      print "Note: skipping non-Git package \"" + dir + "\"";
+
 #********************************************************************
 # update()
 #********************************************************************
@@ -401,6 +427,8 @@ def ivpm_main(project_dir, argv):
         update(project_dir, info)
     elif cmd == "git-status":
 	git_status(project_dir, info)
+    elif cmd == "git-update":
+	git_update(project_dir, info)
     elif cmd == "build":
         print("TODO: Build")
     else:
