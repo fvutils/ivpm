@@ -23,6 +23,7 @@ class proj_info:
     def __init__(self, is_src):
         self.is_src = is_src
         self.dependencies = []
+        self.ivpm_info = {}
 
     def add_dependency(self, dep):
         self.dependencies.append(dep)
@@ -159,6 +160,34 @@ def write_sve_f(
           fh.write("-F ./" + p + "/sve.f\n")
 
   fh.close()
+
+#********************************************************************
+# write_packages_env
+#********************************************************************
+def write_packages_env(
+        env_f,
+        is_csh,
+        project,
+        package_deps):
+  packages_dir = os.path.dirname(env_f)
+  
+  fh = open(env_f, "w")
+  fh.write("#********************************************************************\n");
+  fh.write("#* environment setup file for " + project + "\n");
+  fh.write("#********************************************************************\n");
+  fh.write("\n");
+
+  for p in package_deps.keys():
+      info = package_deps[p]
+      ivpm = info.ivpm_info
+
+      if "rootvar" in ivpm.keys():
+          if is_csh:
+            fh.write("setenv " + ivpm["rootvar"] + " $PACKAGES_DIR/" + ivpm["name"] + "\n")
+          else:
+            fh.write("export " + ivpm["rootvar"] + "=$PACKAGES_DIR/" + ivpm["name"] + "\n")
+
+  fh.close()
       
 #********************************************************************
 # read_info
@@ -284,6 +313,9 @@ def update_package(
   
   # Add a new entry for this package
   info = proj_info(is_src)
+
+  if os.path.isfile(packages_dir + "/" + package + "/etc/ivpm.info"):
+    info.ivpm_info = read_info(packages_dir + "/" + package + "/etc/ivpm.info")
   package_deps[package] = info
   
   for p in this_package_mf.keys():
@@ -398,6 +430,8 @@ def update(project_dir, info):
     write_packages(packages_dir + "/packages.mf", dependencies)
     write_packages_mk(packages_dir + "/packages.mk", info["name"], package_deps)
     write_sve_f(packages_dir + "/sve.F", info["name"], package_deps)
+    write_packages_env(packages_dir + "/packages_env.sh", False, info["name"], package_deps)
+    write_packages_env(packages_dir + "/packages_env.csh", True, info["name"], package_deps)
     
 
 #********************************************************************
