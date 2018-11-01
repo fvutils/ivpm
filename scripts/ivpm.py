@@ -381,6 +381,10 @@ def git_update(project_dir, info):
       os.chdir(packages_dir + "/" + dir)
       branch = subprocess.check_output(["git", "branch"])
       branch = branch.strip()
+      if len(branch) == 0:
+        print "Error: branch is empty"
+        os.exit(1)
+
       if branch[0] == "*":
         branch = branch[1:].strip()
 
