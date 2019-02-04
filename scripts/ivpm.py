@@ -100,11 +100,13 @@ def write_packages_mk(
       info = package_deps[p]
       fh.write(p + "_deps=")
       for d in info.deps():
-          fh.write(d + " ")
+          if d != project:
+            fh.write(d + " ")
       fh.write("\n")
       fh.write(p + "_clean_deps=")
       for d in info.deps():
-          fh.write("clean_" + d + " ")
+          if d != project:
+            fh.write("clean_" + d + " ")
       fh.write("\n")
       
       if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
@@ -232,7 +234,7 @@ def read_info(info_file):
 #********************************************************************
 def update_package(
 	package,
-    packages_mf,
+        packages_mf,
 	dependencies,
 	packages_dir,
     package_deps
@@ -416,6 +418,9 @@ def update(project_dir, info):
 
     # Load the root project dependencies
     dependencies = read_packages(etc_dir + "/packages.mf")
+
+    # The dependencies list should include this project
+    dependencies[info['name']] = "root";
     
     # Add an entry for the root project
     pinfo = proj_info(False)
@@ -424,6 +429,9 @@ def update(project_dir, info):
     package_deps[info["name"]] = pinfo
 
     for pkg in dependencies.keys():
+      if dependencies[pkg] == "root":
+        continue
+
       update_package(
 	    pkg, 
         packages_mf,
