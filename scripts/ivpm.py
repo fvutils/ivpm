@@ -283,12 +283,21 @@ def update_package(
       if ext_idx == -1:
           print "Error: URL resource doesn't have an extension"
       ext = package_src[ext_idx:len(package_src)]
+
       if ext == ".git":
           cwd = os.getcwd()
           os.chdir(packages_dir)
           sys.stdout.flush()
-          status = os.system("git clone " + package_src)
+
+          if scheme == "ssh://":
+            # This is an SSH checkout from Github
+            checkout_url = package_src[6:]            
+            status = os.system("git clone git@" + checkout_url)
+          else:
+            status = os.system("git clone " + package_src)
+
           os.chdir(cwd)
+
           os.chdir(packages_dir + "/" + package)
           sys.stdout.flush()
           status = os.system("git submodule update --init --recursive")
