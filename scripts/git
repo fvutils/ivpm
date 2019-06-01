@@ -1,0 +1,24 @@
+#!/bin/sh
+
+
+# Find second occurence of 'git'
+first=""
+second=""
+for elem in `echo $PATH | sed -e 's/:/ /g'`; do
+  if test -f ${elem}/git; then
+    if test "x$first" != "x"; then
+      second=$elem
+      break
+    else
+      first=$elem
+    fi
+  fi
+done
+
+if test "x$1" = "xreset"; then
+  echo "Skipping git reset"
+  exit 0
+else
+  exec $second/git ${@:1}
+fi
+

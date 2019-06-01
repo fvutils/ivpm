@@ -95,6 +95,10 @@ def write_packages_mk(
   fh.write("#********************************************************************\n");
   fh.write("\n");
   fh.write("ifneq (1,$(RULES))\n");
+  fh.write("  ifeq (,$(IVPM_PYTHON))\n")
+  fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
+  fh.write("  endif\n")
+  fh.write("  IVPM_PYTHON_BINDIR := $(dir $(IVPM_PYTHON))\n")
   fh.write("package_deps = " + project + "\n")
   for p in package_deps.keys():
       info = package_deps[p]
@@ -242,9 +246,9 @@ def update_package(
   package_src = dependencies[package]
   must_update=False
   
-  print "********************************************************************"
-  print "Processing package " + package + ""
-  print "********************************************************************"
+  print("********************************************************************")
+  print("Processing package " + package + "")
+  print("********************************************************************")
   
 
   if package in packages_mf.keys():
@@ -253,10 +257,10 @@ def update_package(
         must_update = True
     elif packages_mf[package] != dependencies[package]:
         # TODO: should check if we are switching from binary to source
-        print "Removing existing package dir for " + package
+        print("Removing existing package dir for " + package)
         sys.stdout.flush()
         os.system("rm -rf " + packages_dir + "/" + package)
-        print "PackagesMF: " + packages_mf[package] + " != " + dependencies[package]
+        print("PackagesMF: " + packages_mf[package] + " != " + dependencies[package])
         must_update = True
   else:
     must_update = True
@@ -265,7 +269,7 @@ def update_package(
     # Package isn't currently present in dependencies
     scheme_idx = package_src.find("://")
     scheme = package_src[0:scheme_idx+3]
-    print "Must add package " + package + " scheme=" + scheme
+    print("Must add package " + package + " scheme=" + scheme)
     if scheme == "file://":
       path = package_src[scheme_idx+3:len(package_src)]
       cwd = os.getcwd()
@@ -275,13 +279,13 @@ def update_package(
       os.chdir(cwd)
       
       if status != 0:
-          print "Error: while unpacking " + package
+          print("Error: while unpacking " + package)
           
-      print "File: " + path
+      print("File: " + path)
     elif scheme == "http://" or scheme == "https://" or scheme == "ssh://":
       ext_idx = package_src.rfind('.')
       if ext_idx == -1:
-          print "Error: URL resource doesn't have an extension"
+          print("Error: URL resource doesn't have an extension")
       ext = package_src[ext_idx:len(package_src)]
 
       if ext == ".git":
@@ -312,39 +316,42 @@ def update_package(
         os.system("rm -rf " + package + ".tar.gz")
         os.chdir(cwd)
       else:
-          print "Error: unknown URL extension \"" + ext + "\""
-      print "URL"
+          print("Error: unknown URL extension \"" + ext + "\"")
+      print("URL")
     else:
-        print "Error: unknown scheme " + scheme
+        print("Error: unknown scheme " + scheme)
 
-  this_package_mf = read_packages(packages_dir + "/" + package + "/etc/packages.mf")
+    if os.path.exists(os.path.join(packages_dir, "etc/packages.mf")):
+        this_package_mf = read_packages(packages_dir + "/" + package + "/etc/packages.mf")
  
-  # This is a source package, so keep track so we can properly build it 
-  is_src = os.path.isfile(packages_dir + "/" + package + "/scripts/ivpm.mk")
+        # This is a source package, so keep track so we can properly build it 
+        is_src = os.path.isfile(packages_dir + "/" + package + "/scripts/ivpm.mk")
   
-  # Add a new entry for this package
-  info = proj_info(is_src)
+        # Add a new entry for this package
+        info = proj_info(is_src)
 
-  if os.path.isfile(packages_dir + "/" + package + "/etc/ivpm.info"):
-    info.ivpm_info = read_info(packages_dir + "/" + package + "/etc/ivpm.info")
-  package_deps[package] = info
+        if os.path.isfile(packages_dir + "/" + package + "/etc/ivpm.info"):
+            info.ivpm_info = read_info(packages_dir + "/" + package + "/etc/ivpm.info")
+            package_deps[package] = info
   
-  for p in this_package_mf.keys():
-      print "Dependency: " + p
-      info.add_dependency(p)
-      if p in dependencies.keys():
-        print "  ... has already been handled"
-      else:
-        print "  ... loading now"
-        # Add the new package to the full dependency list we're building
-        dependencies[p] = this_package_mf[p]
+        for p in this_package_mf.keys():
+            print("Dependency: " + p)
+            info.add_dependency(p)
+            if p in dependencies.keys():
+                print("  ... has already been handled")
+            else:
+                print("  ... loading now")
+                # Add the new package to the full dependency list we're building
+                dependencies[p] = this_package_mf[p]
         
-        update_package(
-  	      p,            # The package to upate
-          packages_mf,  # The dependencies/dependencies.mf input file
-	      dependencies, # The dependencies/dependencies.mf output file 
-	      packages_dir, # Path to dependencies
-          package_deps) # Dependency information for each file
+                update_package(
+                    p,            # The package to upate
+                    packages_mf,  # The dependencies/dependencies.mf input file
+                    dependencies, # The dependencies/dependencies.mf output file 
+                    packages_dir, # Path to dependencies
+                    package_deps) # Dependency information for each file
+    else:
+        print("Note: package \"" + package + "\" is not an IVPM package")
      
 
 #********************************************************************
@@ -357,19 +364,19 @@ def git_status(project_dir, info):
   if os.path.isfile(packages_dir + "/packages.mf"):
     packages = read_packages(packages_dir + "/packages.mf")
   else:
-    print "Error: no packages.mf file. Run ivpm.py update before git-status"
+    print("Error: no packages.mf file. Run ivpm.py update before git-status")
     os.exit(1)
 
   # After that check, go ahead and just check directories
   for dir in os.listdir(packages_dir):
     if os.path.isdir(packages_dir + "/" + dir + "/.git"):
-      print "Package: " + dir
+      print("Package: " + dir)
       cwd = os.getcwd()
       os.chdir(packages_dir + "/" + dir)
       status = os.system("git status -s")
       os.chdir(cwd)
     elif os.path.isdir(packages_dir + "/" + dir):
-      print "Note: skipping non-Git package \"" + dir + "\"";
+      print("Note: skipping non-Git package \"" + dir + "\"")
 
 #********************************************************************
 # git_update()
@@ -381,19 +388,19 @@ def git_update(project_dir, info):
   if os.path.isfile(packages_dir + "/packages.mf"):
     packages = read_packages(packages_dir + "/packages.mf")
   else:
-    print "Error: no packages.mf file. Run ivpm.py update before git-status"
+    print("Error: no packages.mf file. Run ivpm.py update before git-status")
     os.exit(1)
 
   # After that check, go ahead and just check directories
   for dir in os.listdir(packages_dir):
     if os.path.isdir(packages_dir + "/" + dir + "/.git"):
-      print "Package: " + dir
+      print("Package: " + dir)
       cwd = os.getcwd()
       os.chdir(packages_dir + "/" + dir)
       branch = subprocess.check_output(["git", "branch"])
       branch = branch.strip()
       if len(branch) == 0:
-        print "Error: branch is empty"
+        print("Error: branch is empty")
         os.exit(1)
 
       if branch[0] == "*":
@@ -403,7 +410,16 @@ def git_update(project_dir, info):
       status = os.system("git merge origin/" + branch)
       os.chdir(cwd)
     elif os.path.isdir(packages_dir + "/" + dir):
-      print "Note: skipping non-Git package \"" + dir + "\"";
+      print("Note: skipping non-Git package \"" + dir + "\"")
+      
+def setup_virtualenv(virtualenv_dir):
+   
+    #
+    if os.path.isdir(virtualenv_dir):
+        print("Note: virtualenv already exists")
+        return
+    
+    os.system("python3 -m venv " + virtualenv_dir)
 
 #********************************************************************
 # update()
@@ -416,15 +432,32 @@ def update(project_dir, info):
     package_deps = {}
 
     if os.path.isdir(packages_dir) == False:
-      os.makedirs(packages_dir);
+        os.makedirs(packages_dir);
     else:
-      if os.path.isfile(packages_dir + "/packages.mf"):
-        packages_mf = read_packages(packages_dir + "/packages.mf")
-      else:
-        print "Error: no packages.mf file"
+        if os.path.isfile(packages_dir + "/packages.mf"):
+            packages_mf = read_packages(packages_dir + "/packages.mf")
+        else:
+            print("Error: no packages.mf file")
   
-    print "update"
+    print("update")
 
+    # Ensure that we have a python virtual environment setup
+    if 'IVPM_PYTHON' not in os.environ.keys() or os.environ['IVPM_PYTHON'] == "":
+        setup_virtualenv(os.path.join(packages_dir, "python"))
+        ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
+    else:
+        ivpm_python = os.environ['IVPM_PYTHON']
+
+    if os.path.isfile(os.path.join(project_dir, "requirements.txt")):
+        print("Note: Loading package Python dependencies")
+        ivpm_scripts_dir = os.path.dirname(os.path.realpath(__file__))
+        print("ivpm_scripts_dir: " + ivpm_scripts_dir)
+        # Ensure the Git wrapper is in place. This ensures we don't
+        # stomp on existing check-outs when updating dependencies
+        path = os.environ["PATH"]
+        os.environ["PATH"] = ivpm_scripts_dir + ":" + path
+        os.system("" + ivpm_python + " -m pip install -r " + os.path.join(project_dir, "requirements.txt"))
+        os.environ["PATH"] = path
     # Load the root project dependencies
     dependencies = read_packages(etc_dir + "/packages.mf")
 
@@ -490,8 +523,8 @@ def ivpm_main(project_dir, argv):
         print("Error: " + cmd)
         
     
-    print "Package: " + info["name"];
-    print "Version: " + info["version"];
+    print("Package: " + info["name"])
+    print("Version: " + info["version"])
 
     # Load the root dependencies
 #    for d in dependencies.keys():
