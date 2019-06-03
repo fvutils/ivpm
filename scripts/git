@@ -1,5 +1,12 @@
 #!/bin/sh
-
+#****************************************************************************
+#* git wrapper
+#*
+#* This wrapper is used when running 'pip install -r <requirements>' to
+#* avoid stomping on editable Git projects already checked out. Editable
+#* installs are checked out, then pip runs a 'git reset --hard'. This wrapper
+#* ignores the reset to preserve any changes in the area
+#****************************************************************************
 
 # Find second occurence of 'git'
 first=""

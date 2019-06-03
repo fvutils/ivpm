@@ -87,60 +87,66 @@ def write_packages_mk(
         packages_mk, 
         project,
         package_deps):
-  packages_dir = os.path.dirname(packages_mk)
+    packages_dir = os.path.dirname(packages_mk)
+    
+    print("write_packages_mk: " + packages_dir)
   
-  fh = open(packages_mk, "w")
-  fh.write("#********************************************************************\n");
-  fh.write("# packages.mk for " + project + "\n");
-  fh.write("#********************************************************************\n");
-  fh.write("\n");
-  fh.write("ifneq (1,$(RULES))\n");
-  fh.write("  ifeq (,$(IVPM_PYTHON))\n")
-  fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
-  fh.write("  endif\n")
-  fh.write("  IVPM_PYTHON_BINDIR := $(dir $(IVPM_PYTHON))\n")
-  fh.write("package_deps = " + project + "\n")
-  for p in package_deps.keys():
-      info = package_deps[p]
-      fh.write(p + "_deps=")
-      for d in info.deps():
-          if d != project:
-            fh.write(d + " ")
-      fh.write("\n")
-      fh.write(p + "_clean_deps=")
-      for d in info.deps():
-          if d != project:
-            fh.write("clean_" + d + " ")
-      fh.write("\n")
-      
-      if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
-          fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
-
-  fh.write("else # Rules\n");
-  fh.write("ifneq (1,$(PACKAGES_MK_RULES_INCLUDED))\n");
-  fh.write("PACKAGES_MK_RULES_INCLUDED := 1\n")
-  for p in package_deps.keys():
-      info = package_deps[p]
-      fh.write(p + " : $(" + p + "_deps)\n");
-     
-      if info.is_src:
-          fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk build\n")
-      fh.write("\n");
-      fh.write("clean_" + p + " : $(" + p + "_clean_deps)\n");
-     
-      if info.is_src:
-          fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk clean\n")
-      fh.write("\n");
-      
-      if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
-          fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
-
-  fh.write("\n")
-  fh.write("endif # PACKAGES_MK_RULES_INCLUDED\n")
-  fh.write("endif\n");
-  fh.write("\n")
+    fh = open(packages_mk, "w")
+    fh.write("#********************************************************************\n");
+    fh.write("# packages.mk for " + project + "\n");
+    fh.write("#********************************************************************\n");
+    fh.write("\n");
+    fh.write("ifneq (1,$(RULES))\n");
+    fh.write("  ifeq (,$(IVPM_PYTHON))\n")
+    fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
+    fh.write("  endif\n")
+    fh.write("  IVPM_PYTHON_BINDIR := $(dir $(IVPM_PYTHON))\n")
+    fh.write("  PATH := $(IVPM_PYTHON_BINDIR):$(PATH)\n")
+    fh.write("  export PATH\n")
+    fh.write("package_deps = " + project + "\n")
   
-  fh.close()
+    for p in package_deps.keys():
+        print("package_dep: " + str(p))
+        info = package_deps[p]
+        fh.write(p + "_deps=")
+        for d in info.deps():
+            if d != project:
+                fh.write(d + " ")
+        fh.write("\n")
+        fh.write(p + "_clean_deps=")
+        for d in info.deps():
+            if d != project:
+                fh.write("clean_" + d + " ")
+        fh.write("\n")
+      
+        if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
+            fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
+
+    fh.write("else # Rules\n");
+    fh.write("ifneq (1,$(PACKAGES_MK_RULES_INCLUDED))\n");
+    fh.write("PACKAGES_MK_RULES_INCLUDED := 1\n")
+    for p in package_deps.keys():
+        info = package_deps[p]
+        fh.write(p + " : $(" + p + "_deps)\n");
+     
+        if info.is_src:
+            fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk build\n")
+        fh.write("\n");
+        fh.write("clean_" + p + " : $(" + p + "_clean_deps)\n");
+     
+        if info.is_src:
+            fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk clean\n")
+        fh.write("\n");
+      
+        if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
+            fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
+
+    fh.write("\n")
+    fh.write("endif # PACKAGES_MK_RULES_INCLUDED\n")
+    fh.write("endif\n");
+    fh.write("\n")
+  
+    fh.close()
   
 #********************************************************************
 # write_sve_f
@@ -243,85 +249,87 @@ def update_package(
 	packages_dir,
     package_deps
 	):
-  package_src = dependencies[package]
-  must_update=False
+    package_src = dependencies[package]
+    must_update=False
   
-  print("********************************************************************")
-  print("Processing package " + package + "")
-  print("********************************************************************")
+    print("********************************************************************")
+    print("Processing package " + package + "")
+    print("********************************************************************")
   
 
-  if package in packages_mf.keys():
-    # See if we are up-to-date or require a change
-    if os.path.isdir(packages_dir + "/" + package) == False:
-        must_update = True
-    elif packages_mf[package] != dependencies[package]:
-        # TODO: should check if we are switching from binary to source
-        print("Removing existing package dir for " + package)
-        sys.stdout.flush()
-        os.system("rm -rf " + packages_dir + "/" + package)
-        print("PackagesMF: " + packages_mf[package] + " != " + dependencies[package])
-        must_update = True
-  else:
-    must_update = True
-    
-  if must_update:
-    # Package isn't currently present in dependencies
-    scheme_idx = package_src.find("://")
-    scheme = package_src[0:scheme_idx+3]
-    print("Must add package " + package + " scheme=" + scheme)
-    if scheme == "file://":
-      path = package_src[scheme_idx+3:len(package_src)]
-      cwd = os.getcwd()
-      os.chdir(packages_dir)
-      sys.stdout.flush()
-      status = os.system("tar xvzf " + path)
-      os.chdir(cwd)
-      
-      if status != 0:
-          print("Error: while unpacking " + package)
-          
-      print("File: " + path)
-    elif scheme == "http://" or scheme == "https://" or scheme == "ssh://":
-      ext_idx = package_src.rfind('.')
-      if ext_idx == -1:
-          print("Error: URL resource doesn't have an extension")
-      ext = package_src[ext_idx:len(package_src)]
-
-      if ext == ".git":
-          cwd = os.getcwd()
-          os.chdir(packages_dir)
-          sys.stdout.flush()
-
-          if scheme == "ssh://":
-            # This is an SSH checkout from Github
-            checkout_url = package_src[6:]            
-            status = os.system("git clone git@" + checkout_url)
-          else:
-            status = os.system("git clone " + package_src)
-
-          os.chdir(cwd)
-
-          os.chdir(packages_dir + "/" + package)
-          sys.stdout.flush()
-          status = os.system("git submodule update --init --recursive")
-          os.chdir(cwd)
-      elif ext == ".gz":
-        # Just assume this is a .tar.gz
-        cwd = os.getcwd()
-        os.chdir(packages_dir)
-        sys.stdout.flush()
-        os.system("wget -O " + package + ".tar.gz " + package_src)
-        os.system("tar xvzf " + package + ".tar.gz")
-        os.system("rm -rf " + package + ".tar.gz")
-        os.chdir(cwd)
-      else:
-          print("Error: unknown URL extension \"" + ext + "\"")
-      print("URL")
+    if package in packages_mf.keys():
+        print("package \"" + package + "\" in package_mf list")     
+        # See if we are up-to-date or require a change
+        if os.path.isdir(packages_dir + "/" + package) == False:
+            must_update = True
+        elif packages_mf[package] != dependencies[package]:
+            # TODO: should check if we are switching from binary to source
+            print("Removing existing package dir for " + package)
+            sys.stdout.flush()
+            os.system("rm -rf " + packages_dir + "/" + package)
+            print("PackagesMF: " + packages_mf[package] + " != " + dependencies[package])
+            must_update = True
     else:
-        print("Error: unknown scheme " + scheme)
+        must_update = True
+        print("package \"" + package + "\" NOT in package_mf list")     
+    
+    if must_update:
+        # Package isn't currently present in dependencies
+        scheme_idx = package_src.find("://")
+        scheme = package_src[0:scheme_idx+3]
+        print("Must add package " + package + " scheme=" + scheme)
+        if scheme == "file://":
+            path = package_src[scheme_idx+3:len(package_src)]
+            cwd = os.getcwd()
+            os.chdir(packages_dir)
+            sys.stdout.flush()
+            status = os.system("tar xvzf " + path)
+            os.chdir(cwd)
+      
+            if status != 0:
+                print("Error: while unpacking " + package)
+            
+            print("File: " + path)
+        elif scheme == "http://" or scheme == "https://" or scheme == "ssh://":
+            ext_idx = package_src.rfind('.')
+            if ext_idx == -1:
+                print("Error: URL resource doesn't have an extension")
+            ext = package_src[ext_idx:len(package_src)]
 
-    if os.path.exists(os.path.join(packages_dir, "etc/packages.mf")):
+            if ext == ".git":
+                cwd = os.getcwd()
+                os.chdir(packages_dir)
+                sys.stdout.flush()
+
+                if scheme == "ssh://":
+                    # This is an SSH checkout from Github
+                    checkout_url = package_src[6:]            
+                    status = os.system("git clone git@" + checkout_url)
+                else:
+                    status = os.system("git clone " + package_src)
+
+                os.chdir(cwd)
+
+                os.chdir(packages_dir + "/" + package)
+                sys.stdout.flush()
+                status = os.system("git submodule update --init --recursive")
+                os.chdir(cwd)
+            elif ext == ".gz":
+                # Just assume this is a .tar.gz
+                cwd = os.getcwd()
+                os.chdir(packages_dir)
+                sys.stdout.flush()
+                os.system("wget -O " + package + ".tar.gz " + package_src)
+                os.system("tar xvzf " + package + ".tar.gz")
+                os.system("rm -rf " + package + ".tar.gz")
+                os.chdir(cwd)
+            else:
+                print("Error: unknown URL extension \"" + ext + "\"")
+        else:
+            print("Error: unknown scheme " + scheme)
+
+    if os.path.exists(os.path.join(packages_dir, package, "etc/packages.mf")):
+        print("Note: package \"" + package + "\" is an IVPM package")
         this_package_mf = read_packages(packages_dir + "/" + package + "/etc/packages.mf")
  
         # This is a source package, so keep track so we can properly build it 
@@ -456,8 +464,9 @@ def update(project_dir, info):
         # stomp on existing check-outs when updating dependencies
         path = os.environ["PATH"]
         os.environ["PATH"] = ivpm_scripts_dir + ":" + path
-        os.system("" + ivpm_python + " -m pip install -r " + os.path.join(project_dir, "requirements.txt"))
+        os.system("" + ivpm_python + " -m pip install -r " + os.path.join(project_dir, "requirements.txt --src " + packages_dir))
         os.environ["PATH"] = path
+        
     # Load the root project dependencies
     dependencies = read_packages(etc_dir + "/packages.mf")
 
@@ -471,15 +480,15 @@ def update(project_dir, info):
     package_deps[info["name"]] = pinfo
 
     for pkg in dependencies.keys():
-      if dependencies[pkg] == "root":
-        continue
+        if dependencies[pkg] == "root":
+            continue
 
-      update_package(
-	    pkg, 
-        packages_mf,
-	    dependencies, 
-	    packages_dir,
-        package_deps)
+        update_package(
+            pkg, 
+            packages_mf,
+            dependencies, 
+            packages_dir,
+            package_deps)
 
     write_packages(packages_dir + "/packages.mf", dependencies)
     write_packages_mk(packages_dir + "/packages.mk", info["name"], package_deps)
