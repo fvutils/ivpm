@@ -110,12 +110,12 @@ def write_packages_mk(
         info = package_deps[p]
         fh.write(p + "_deps=")
         for d in info.deps():
-            if d != project:
+            if d != project and os.path.exists(os.path.join(packages_dir, d, "etc/packages.mf")):
                 fh.write(d + " ")
         fh.write("\n")
         fh.write(p + "_clean_deps=")
         for d in info.deps():
-            if d != project:
+            if d != project and os.path.exists(os.path.join(packages_dir, d, "etc/packages.mf")):
                 fh.write("clean_" + d + " ")
         fh.write("\n")
       
