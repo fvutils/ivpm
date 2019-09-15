@@ -101,7 +101,8 @@ def write_packages_mk(
     fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
     fh.write("  endif\n")
     fh.write("  IVPM_PYTHON_BINDIR := $(dir $(IVPM_PYTHON))\n")
-    fh.write("  PATH := $(IVPM_PYTHON_BINDIR):$(PATH)\n")
+# Remove this until we can figure out what's going on
+#    fh.write("  PATH := $(IVPM_PYTHON_BINDIR):$(PATH)\n")
     fh.write("  export PATH\n")
     fh.write("package_deps = " + project + "\n")
   
