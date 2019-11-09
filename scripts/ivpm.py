@@ -31,6 +31,30 @@ class proj_info:
     def deps(self):
         return self.dependencies
 
+class packages_info():
+    def __init__(self):
+        self.packages = {}
+        self.options = {}
+
+    def keys(self):
+        return self.packages.keys()
+
+    def get_options(self, package):
+        if package in self.options.keys():
+          return self.options[package]
+        else:
+          return {}
+
+    def set_options(self, package, options):
+        self.options[package] = options
+
+    def __getitem__(self, key):
+        return self.packages[key]
+
+    def __setitem__(self, key, value):
+        self.packages[key] = value
+
+
 #********************************************************************
 #* read_packages
 #*
@@ -38,7 +62,7 @@ class proj_info:
 #* with an entry per package with a non-null 
 #********************************************************************
 def read_packages(packages_mf):
-    packages = {}
+    packages = packages_info()
     
     fh = open(packages_mf, "rb")
 
@@ -53,9 +77,27 @@ def read_packages(packages_mf):
             continue
         
         at_idx = l.find("@")
+        options_m = {}
         if at_idx != -1:
             package=l[0:at_idx].strip()
             src=l[at_idx+1:len(l)].strip()
+            options = ""
+            # Determine if there are options
+            if src.find(" ") != -1:
+                options = src[src.find(" "):len(src)].strip()
+                src = src[:src.find(" ")].strip()
+            elif src.find("\t") != -1:
+                options = src[src.find("\t"):len(src)].strip()
+                src = src[:src.find("\t")].strip()
+
+            if options != "":
+                for opt in options.split():
+                    if opt.find("=") != -1:
+                        opt_k = opt[:opt.find("=")].strip()
+                        opt_v = opt[opt.find("=")+1:len(opt)].strip()
+                        options_m[opt_k] = opt_v
+                    else:
+                        print("Error: malformed option \"" + opt + "\"")
         else:
             package=l
             src=None
@@ -64,6 +106,7 @@ def read_packages(packages_mf):
             print("Error: multiple package listings")
             
         packages[package] = src
+        packages.set_options(package, options_m)
     
     fh.close()
     
@@ -301,14 +344,21 @@ def update_package(
                 cwd = os.getcwd()
                 os.chdir(packages_dir)
                 sys.stdout.flush()
+                options_m = dependencies.get_options(package)
+
+		git_cmd = "git clone "
+                if "depth" in options_m.keys():
+                    git_cmd += "--depth " + str(options_m["depth"] + " ")
 
                 if scheme == "ssh://":
                     # This is an SSH checkout from Github
                     checkout_url = package_src[6:]            
-                    status = os.system("git clone git@" + checkout_url)
+                    git_cmd += "git@" + checkout_url
                 else:
-                    status = os.system("git clone " + package_src)
+                    git_cmd += package_src
 
+                print("git_cmd: \"" + git_cmd + "\"")
+                status = os.system(git_cmd)
                 os.chdir(cwd)
 
                 os.chdir(packages_dir + "/" + package)
@@ -436,17 +486,14 @@ def setup_virtualenv(virtualenv_dir):
 def update(project_dir, info):
     etc_dir = project_dir + "/etc"
     packages_dir = project_dir + "/packages"
-    packages_mf = {}
+    packages_mf = packages_info()
     # Map between project name and proj_info
     package_deps = {}
 
     if os.path.isdir(packages_dir) == False:
         os.makedirs(packages_dir);
-    else:
-        if os.path.isfile(packages_dir + "/packages.mf"):
-            packages_mf = read_packages(packages_dir + "/packages.mf")
-        else:
-            print("Error: no packages.mf file")
+    elif os.path.isfile(packages_dir + "/packages.mf"):
+        packages_mf = read_packages(packages_dir + "/packages.mf")
   
     print("update")
 
