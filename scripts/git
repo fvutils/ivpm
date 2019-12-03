@@ -22,8 +22,6 @@ for elem in `echo $PATH | sed -e 's/:/ /g'`; do
   fi
 done
 
-echo "Note: ivpm-git first=$first second=$second"
-
 if test "x$1" = "xreset"; then
   echo "Skipping git reset"
   exit 0
