@@ -23,7 +23,7 @@ jobs:
       if test "$(Build.SourceBranchName)" = "master"; then
           python -m twine --version
           echo "Calling twine"
-          python -m twine upload -r rv_bfms --config-file $(PYPIRC_PATH) dist/*.whl
+          python -m twine upload -r ivpm --config-file $(PYPIRC_PATH) dist/*.whl
           echo "Calling twine complete"
       fi
     displayName: 'Upload to PyPi'
