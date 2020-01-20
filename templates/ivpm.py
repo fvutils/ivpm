@@ -48,9 +48,9 @@ def main():
         download_ivpm(packages_dir)
         
     # Bring in the actual IVPM script and call it
-    sys.path.insert(0, ivpm_dir + "/scripts")
-    import ivpm
-    ivpm.ivpm_main(project_dir, sys.argv)
+    sys.path.insert(0, os.path.join(ivpm_dir, "src"))
+    from ivpm.__main__ import main as ivpm_main
+    ivpm_main(project_dir)
     
 if __name__ == "__main__":
     main()

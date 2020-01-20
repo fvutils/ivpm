@@ -1,0 +1,3 @@
+[console_scripts]
+ivpm = ivpm.__main__:main
+
