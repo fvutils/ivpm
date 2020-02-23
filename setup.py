@@ -18,7 +18,7 @@ setup(
   name = "ivpm",
   packages=['ivpm'],
   package_dir = {'' : 'src'},
-  package_data = {'ivpm': ['scripts/*']},
+  package_data = {'ivpm': ['scripts/*', 'templates/*']},
   author = "Matthew Ballance",
   author_email = "matt.ballance@gmail.com",
   description = ("IVPM (IP and Verification Package Manager) is a project-internal package manager."),

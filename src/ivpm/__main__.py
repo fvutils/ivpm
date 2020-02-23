@@ -11,6 +11,9 @@ import sys
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
+from mimetypes import init
+from string import Template
+import stat
 
 
 #********************************************************************
@@ -22,7 +25,7 @@ from ivpm.proj_info import ProjInfo
 def read_packages(packages_mf):
     packages = PackagesInfo()
     
-    fh = open(packages_mf, "rb")
+    fh = open(packages_mf, "r")
 
     for l in fh.readlines():
         l = l.strip()
@@ -230,19 +233,19 @@ def write_packages_env(
 def read_info(info_file):
     info = {}
     
-    fh = open(info_file, "rb")
+    fh = open(info_file, "r")
 
     for l in fh.readlines():
         l = l.strip()
         
-        comment_idx = l.find("#")
+        comment_idx = l.find('#')
         if comment_idx != -1:
             l = l[0:comment_idx]
         
-        if l == "":
+        if l == '':
             continue
         
-        eq_idx = l.find("=")
+        eq_idx = l.find('=')
         if eq_idx != -1:
             key=l[0:eq_idx].strip()
             src=l[eq_idx+1:len(l)].strip()
@@ -529,6 +532,46 @@ def update(args):
         write_sve_f(packages_dir + "/sve.F", info["name"], package_deps)
         write_packages_env(packages_dir + "/packages_env.sh", False, info["name"], package_deps)
         write_packages_env(packages_dir + "/packages_env.csh", True, info["name"], package_deps)
+        
+def init(args):
+#     
+    params = dict(
+        name=args.name,
+        version=args.version
+    )
+
+    # TODO: allow override    
+    proj = os.getcwd()
+    
+    ivpm_dir = os.path.dirname(os.path.realpath(__file__))
+    templates_dir = os.path.join(ivpm_dir, "templates")
+    
+    for src,dir in zip(["ivpm.info", "packages.mf", "ivpm.py"],
+                    ["etc", "etc", "scripts"]):
+        
+        with open(os.path.join(templates_dir, src), "r") as fi:
+            content = fi.read()
+            
+            outdir = os.path.join(proj, dir)
+            
+            if not os.path.isdir(outdir):
+                print("Note: Creating directory " + str(outdir))
+                os.mkdir(outdir)
+
+            content_t = Template(content)
+            content = content_t.safe_substitute(params)
+            
+            dest = os.path.join(proj, dir, src)
+            if os.path.isfile(dest) and not args.force:
+                raise Exception("File " + str(dest) + " exists and --force not specified")
+            
+            with open(dest, "w") as fo:
+                fo.write(content)
+
+    # Finally, ensure scripts/ivpm.py is executable
+    ivpm_py = os.path.join(proj, "scripts", "ivpm.py")
+    st = os.stat(ivpm_py)
+    os.chmod(ivpm_py, st.st_mode | stat.S_IEXEC)
 
 def get_parser():
     parser = argparse.ArgumentParser(prog="ivpm")
@@ -541,6 +584,12 @@ def get_parser():
     update_cmd.set_defaults(func=update)
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir")
     update_cmd.add_argument("-r", "--requirements", dest="requirements")
+    
+    init_cmd = subparser.add_parser("init")
+    init_cmd.set_defaults(func=init)
+    init_cmd.add_argument("-v", "--version", default="0.0.1")
+    init_cmd.add_argument("-n", "--name", required=True)
+    init_cmd.add_argument("-f", "--force", default=False, action='store_const', const=True)
     
     git_status_cmd = subparser.add_parser("git-status")
     git_status_cmd.set_defaults(func=git_status)
