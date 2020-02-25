@@ -7,6 +7,7 @@ Created on Jan 19, 2020
 import argparse
 import os
 import subprocess
+from subprocess import check_output
 import sys
 
 from ivpm.packages_info import PackagesInfo
@@ -92,12 +93,14 @@ def find_project_dir():
 def ensure_have_project_dir(args):
     if args.project_dir is None:
         print("Note: Attempting to discover project_dir")
+        sys.stdout.flush()
         args.project_dir = find_project_dir()
         
         if args.project_dir is None:
             raise Exception("Failed to find project_dir ; specify with --project-dir")
         else:
             print("Note: project_dir is " + args.project_dir) 
+            sys.stdout.flush()
 
 #********************************************************************
 # write_packages
@@ -126,7 +129,10 @@ def write_packages_mk(
     fh.write("\n");
     fh.write("ifneq (1,$(RULES))\n");
     fh.write("  ifeq (,$(IVPM_PYTHON))\n")
-    fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
+    if os.isdir(os.path.join(packages_dir, "python", "Scripts")):
+        fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/Scripts/python\n")
+    else:
+        fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
     fh.write("  endif\n")
     fh.write("  PYTHON_BIN ?= $(IVPM_PYTHON)\n")
     fh.write("  IVPM_PYTHON_BINDIR := $(dir $(IVPM_PYTHON))\n")
@@ -360,6 +366,7 @@ def update_package(
 
     if os.path.exists(os.path.join(packages_dir, package, "etc/packages.mf")):
         print("Note: package \"" + package + "\" is an IVPM package")
+        sys.stdout.flush()
         this_package_mf = read_packages(packages_dir + "/" + package + "/etc/packages.mf")
  
         # This is a source package, so keep track so we can properly build it 
@@ -390,6 +397,7 @@ def update_package(
                     package_deps) # Dependency information for each file
     else:
         print("Note: package \"" + package + "\" is not an IVPM package")
+        sys.stdout.flush()
      
 
 #********************************************************************
@@ -410,6 +418,7 @@ def git_status(args):
             os.chdir(cwd)
         elif dir != "python" and os.path.isdir(os.path.join(packages_dir, dir)):
             print("Note: skipping non-Git package \"" + dir + "\"")
+            sys.stdout.flush()
 
 #********************************************************************
 # git_update()
@@ -438,6 +447,7 @@ def git_update(args):
             os.chdir(cwd)
         elif os.path.isdir(packages_dir + "/" + dir):
             print("Note: skipping non-Git package \"" + dir + "\"")
+            sys.stdout.flush()
 
 #********************************************************************
 # update()
@@ -465,15 +475,36 @@ def update(args):
         os.makedirs(packages_dir);
     elif os.path.isfile(packages_dir + "/packages.mf"):
         packages_mf = read_packages(packages_dir + "/packages.mf")
+
   
     # Ensure that we have a python virtual environment setup
     if 'IVPM_PYTHON' not in os.environ.keys() or os.environ['IVPM_PYTHON'] == "":
+        # First, find a Python to use
+        python = None
+        for p in ["python", "python3"]:
+            out = check_output([p, "--version"])
+
+            out_s = out.decode().split()
+
+            if len(out_s) == 2 and out_s[1][0] == "3":
+                python = p
+                break
+        
+        if python is None:
+            raise Exception("Failed to find Python3")
+
         if not os.path.isdir(os.path.join(packages_dir, "python")):
             print("Note: creating Python virtual environment")
-            os.system("python3 -m venv " + os.path.join(packages_dir, "python"))
+            sys.stdout.flush()
+            os.system(python + " -m venv " + os.path.join(packages_dir, "python"))
         else:
             print("Note: Python virtual environment already exists")
-        ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
+            sys.stdout.flush()
+
+        if os.path.isdir(os.path.join(packages_dir, "python", "Scripts")):
+            ivpm_python = os.path.join(packages_dir, "python", "Scripts", "python")
+        else:
+            ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
     else:
         ivpm_python = os.environ['IVPM_PYTHON']
 
