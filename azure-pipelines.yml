@@ -5,10 +5,14 @@ jobs:
 - job: PyPi_Linux
   pool:
    vmImage: 'ubuntu-18.04'
+
+  variables:
+  - name: build_num
+  - value: $(Build.BuildNumber)
+
   steps:
   - script: |
-      python -m pip install wheel
-      python -m pip install twine
+      python -m pip install wheel twine
     displayName: 'Install wheel+twine'
     
   - script: |

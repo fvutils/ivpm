@@ -13,9 +13,27 @@ class InstallCmd(install):
     st = os.stat(git_script)
     os.chmod(git_script, st.st_mode | stat.S_IEXEC)
 
+rootdir = os.path.dirname(os.path.realpath(__file__))
+
+version=None
+with open(os.path.join(rootdir, "etc", "ivpm.info"), "r") as fp:
+    while True:
+        l = fp.readline()
+        if l == "":
+            break
+        if l.find("version=") != -1:
+            version=l[l.find("=")+1:].strip()
+            break
+
+if version is None:
+    raise Exception("Failed to find version in ivpm.info")
+
+if "BUILD_NUM" in os.environ.keys():
+    version += "-" + os.environ["BUILD_NUM"]
 
 setup(
   name = "ivpm",
+  version = version,
   packages=['ivpm'],
   package_dir = {'' : 'src'},
   package_data = {'ivpm': ['scripts/*', 'templates/*']},
