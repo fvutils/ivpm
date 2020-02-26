@@ -510,9 +510,11 @@ def update(args):
 
     if args.requirements is None:
         # Check to see if a requirements.txt exists already
-        if os.path.isfile(os.path.join(args.project_dir, "requirements.txt")):
-            print("Note: Using default requirements.txt")
-            args.requirements = os.path.join(args.project_dir, "requirements.txt")
+        for reqs in ["requirements_dev.txt", "requirements.txt"]:
+            if os.path.isfile(os.path.join(args.project_dir, reqs)):
+                print("Note: Using default requirements \"" + reqs + "\"")
+                args.requirements = os.path.join(args.project_dir, reqs);
+                break
     
     if os.path.isfile(os.path.join(etc_dir, "packages.mf")):
         # Load the root project dependencies
