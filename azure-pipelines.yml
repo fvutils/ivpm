@@ -8,7 +8,7 @@ jobs:
 
   variables:
   - name: build_num
-  - value: $(Build.BuildNumber)
+    value: $(Build.BuildNumber)
 
   steps:
   - script: |
