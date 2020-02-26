@@ -29,7 +29,7 @@ if version is None:
     raise Exception("Failed to find version in ivpm.info")
 
 if "BUILD_NUM" in os.environ.keys():
-    version += "-" + os.environ["BUILD_NUM"]
+    version += "." + os.environ["BUILD_NUM"]
 
 setup(
   name = "ivpm",
