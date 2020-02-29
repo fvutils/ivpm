@@ -1,3 +1,4 @@
+import os
 
 def get_pkg_version(setup_py_path):
     """Returns the package version based on the etc/ivpm.info file"""
