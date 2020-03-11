@@ -129,7 +129,7 @@ def write_packages_mk(
     fh.write("\n");
     fh.write("ifneq (1,$(RULES))\n");
     fh.write("  ifeq (,$(IVPM_PYTHON))\n")
-    if os.isdir(os.path.join(packages_dir, "python", "Scripts")):
+    if os.path.isdir(os.path.join(packages_dir, "python", "Scripts")):
         fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/Scripts/python\n")
     else:
         fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
