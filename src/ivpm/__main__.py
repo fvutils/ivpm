@@ -497,6 +497,13 @@ def update(args):
             print("Note: creating Python virtual environment")
             sys.stdout.flush()
             os.system(python + " -m venv " + os.path.join(packages_dir, "python"))
+            print("Note: upgrading pip")
+            sys.stdout.flush()
+            if os.path.isdir(os.path.join(packages_dir, "python", "Scripts")):
+                ivpm_python = os.path.join(packages_dir, "python", "Scripts", "python")
+            else:
+                ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
+            os.system(ivpm_python + " -m pip install --upgrade pip")
         else:
             print("Note: Python virtual environment already exists")
             sys.stdout.flush()
