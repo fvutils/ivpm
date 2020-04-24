@@ -9,6 +9,7 @@ import os
 import subprocess
 from subprocess import check_output
 import sys
+import tarfile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
@@ -312,8 +313,16 @@ def update_package(
             path = package_src[scheme_idx+3:len(package_src)]
             cwd = os.getcwd()
             os.chdir(packages_dir)
+            tf = tarfile.open(path)
+
+            for fi in tf:
+                if fi.name.find("/") != -1:
+                    ext = fi.name[fi.name.find("/")+1:]
+                    destfile = os.path.join(package, ext)
+                    tf.extract(fi, path=destfile)
+            tf.close()
+
             sys.stdout.flush()
-            status = os.system("tar xvzf " + path)
             os.chdir(cwd)
       
             if status != 0:
@@ -356,7 +365,14 @@ def update_package(
                 os.chdir(packages_dir)
                 sys.stdout.flush()
                 os.system("wget -O " + package + ".tar.gz " + package_src)
-                os.system("tar xvzf " + package + ".tar.gz")
+                tf = tarfile.open(package + ".tar.gz")
+
+                for fi in tf:
+                    if fi.name.find("/") != -1:
+                        ext = fi.name[fi.name.find("/")+1:]
+                        destfile = os.path.join(package, ext)
+                        tf.extract(fi, path=destfile)
+                tf.close()
                 os.system("rm -rf " + package + ".tar.gz")
                 os.chdir(cwd)
             else:
