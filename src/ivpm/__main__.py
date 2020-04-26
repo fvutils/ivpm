@@ -317,9 +317,8 @@ def update_package(
 
             for fi in tf:
                 if fi.name.find("/") != -1:
-                    ext = fi.name[fi.name.find("/")+1:]
-                    destfile = os.path.join(package, ext)
-                    tf.extract(fi, path=destfile)
+                    fi.name = fi.name[fi.name.find("/")+1:]
+                    tf.extract(fi, package)
             tf.close()
 
             sys.stdout.flush()
@@ -369,9 +368,8 @@ def update_package(
 
                 for fi in tf:
                     if fi.name.find("/") != -1:
-                        ext = fi.name[fi.name.find("/")+1:]
-                        destfile = os.path.join(package, ext)
-                        tf.extract(fi, path=destfile)
+                        fi.name = fi.name[fi.name.find("/")+1:]
+                        tf.extract(fi, path=package)
                 tf.close()
                 os.system("rm -rf " + package + ".tar.gz")
                 os.chdir(cwd)
