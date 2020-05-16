@@ -463,6 +463,16 @@ def git_update(args):
             print("Note: skipping non-Git package \"" + dir + "\"")
             sys.stdout.flush()
 
+def which(exe : str):
+    for p in os.environ['PATH'].split(os.pathsep):
+        exe_file = os.path.join(p, exe)
+        exe_file_e = os.path.join(p, exe + ".exe")
+        if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
+            return exe_file
+        if os.path.isfile(exe_file_e) and os.access(exe_file_e, os.X_OK):
+            return exe_file_e
+    return None
+
 #********************************************************************
 # update()
 #********************************************************************
@@ -496,6 +506,8 @@ def update(args):
         # First, find a Python to use
         python = None
         for p in ["python", "python3"]:
+            if which(p) is None:
+                continue
             out = check_output([p, "--version"])
 
             out_s = out.decode().split()
