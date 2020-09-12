@@ -10,6 +10,7 @@ import subprocess
 from subprocess import check_output
 import sys
 import tarfile
+from zipfile import ZipFile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
@@ -372,6 +373,22 @@ def update_package(
                         tf.extract(fi, path=package)
                 tf.close()
                 os.system("rm -rf " + package + ".tar.gz")
+                os.chdir(cwd)
+            elif ext == ".zip":
+                cwd = os.getcwd()
+                os.chdir(packages_dir)
+                sys.stdout.flush()
+                os.system("wget -O " + package + ".zip " + package_src)
+                with ZipFile(package + ".zip", 'r') as zipObj:
+                    zipObj.extractall(package)
+
+                os.system("rm -rf " + package + ".zip")
+                os.chdir(cwd)
+            elif ext == ".jar":
+                cwd = os.getcwd()
+                os.chdir(packages_dir)
+                sys.stdout.flush()
+                os.system("wget -O " + package + ".jar " + package_src)
                 os.chdir(cwd)
             else:
                 print("Error: unknown URL extension \"" + ext + "\"")
