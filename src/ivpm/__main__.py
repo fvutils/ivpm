@@ -7,6 +7,7 @@ Created on Jan 19, 2020
 import argparse
 import os
 import subprocess
+import urllib.request
 from subprocess import check_output
 import sys
 import tarfile
@@ -265,6 +266,12 @@ def read_info(info_file):
     
     return info
 
+def fetch_file(
+        url,
+        dest):
+    urllib.request.urlretrieve(url, dest)
+    pass
+    
         
 #********************************************************************
 # update_package()
@@ -364,7 +371,7 @@ def update_package(
                 cwd = os.getcwd()
                 os.chdir(packages_dir)
                 sys.stdout.flush()
-                os.system("wget -O " + package + ".tar.gz " + package_src)
+                fetch_file(package_src, os.path.join(packages_dir, package + ".tar.gz"))
                 tf = tarfile.open(package + ".tar.gz")
 
                 for fi in tf:
@@ -378,7 +385,7 @@ def update_package(
                 cwd = os.getcwd()
                 os.chdir(packages_dir)
                 sys.stdout.flush()
-                os.system("wget -O " + package + ".zip " + package_src)
+                fetch_file(package_src, os.path.join(packages_dir, package + ".zip"))
                 with ZipFile(package + ".zip", 'r') as zipObj:
                     zipObj.extractall(package)
 
@@ -388,7 +395,7 @@ def update_package(
                 cwd = os.getcwd()
                 os.chdir(packages_dir)
                 sys.stdout.flush()
-                os.system("wget -O " + package + ".jar " + package_src)
+                fetch_file(package_src, os.path.join(packages_dir, package + ".jar"))
                 os.chdir(cwd)
             else:
                 print("Error: unknown URL extension \"" + ext + "\"")
