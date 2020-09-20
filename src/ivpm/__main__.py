@@ -607,7 +607,13 @@ def update(args):
             pinfo.add_dependency(d)
         package_deps[info["name"]] = pinfo
 
+        # Sub-requirements might be added, so copy the
+        # package set before iterating over it
+        pkgs = set()
         for pkg in dependencies.keys():
+            pkgs.add(pkg)
+            
+        for pkg in pkgs:
             if dependencies[pkg] == "root":
                 continue
 
