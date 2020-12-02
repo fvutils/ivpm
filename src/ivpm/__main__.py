@@ -472,11 +472,17 @@ def git_update(args):
             print("Package: " + dir)
             cwd = os.getcwd()
             os.chdir(packages_dir + "/" + dir)
-            branch = subprocess.check_output(["git", "branch"])
+            try:
+                branch = subprocess.check_output(["git", "branch"])
+            except Exception as e:
+                print("Note: Failed to get branch of package \"" + dir + "\"")
+                continue
+
             branch = branch.strip()
             if len(branch) == 0:
                 raise Exception("Error: branch is empty")
 
+            branch = branch.decode()
             if branch[0] == "*":
                 branch = branch[1:].strip()
 
