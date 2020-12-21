@@ -560,7 +560,7 @@ def update(args):
             else:
                 ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
             os.system(ivpm_python + " -m pip install --upgrade pip")
-            os.system(ivpm_python + " -m pip install --upgrade setuptools")
+            os.system(ivpm_python + " -m pip install --upgrade setuptools wheel")
         else:
             print("Note: Python virtual environment already exists")
             sys.stdout.flush()
