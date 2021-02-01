@@ -5,19 +5,19 @@ Created on Jan 19, 2020
 '''
 
 import argparse
+from mimetypes import init
 import os
-import subprocess
-import urllib.request
+import stat
+from string import Template
 from subprocess import check_output
+import subprocess
 import sys
 import tarfile
+import urllib.request
 from zipfile import ZipFile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from mimetypes import init
-from string import Template
-import stat
 
 
 #********************************************************************
@@ -202,12 +202,10 @@ def write_sve_f(
         fh.write("//********************************************************************\n");
         fh.write("\n");
 
-        for p in package_deps.keys():
-            if os.path.isfile(packages_dir + "/" + p + "/sve.F"):
+        for p in os.listdir(packages_dir):
+            if os.path.isfile(os.path.join(packages_dir, p, "sve.F")):
                 fh.write("-F ./" + p + "/sve.F\n")
-            elif os.path.isfile(packages_dir + "/" + p + "/sve.f"):
-                fh.write("-F ./" + p + "/sve.f\n")
-
+                
 
 #********************************************************************
 # write_packages_env
