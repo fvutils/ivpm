@@ -23,7 +23,7 @@ for elem in `echo $PATH | sed -e 's/:/ /g'`; do
 done
 
 if test "x$1" = "xreset"; then
-  echo "Skipping git reset"
+  echo "IVPM: Skipping git reset"
   exit 0
 else
   exec $second/git ${@:1}

@@ -5,12 +5,7 @@ Created on Jan 19, 2020
 '''
 
 import argparse
-from mimetypes import init
 import os
-import stat
-from string import Template
-from subprocess import check_output
-import subprocess
 import sys
 import tarfile
 import urllib.request
@@ -18,92 +13,11 @@ from zipfile import ZipFile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
+from ivpm.cmd_init import CmdInit
+from ivpm.cmd_update import CmdUpdate
+from ivpm.cmd_git_status import CmdGitStatus
+from ivpm.cmd_git_update import CmdGitUpdate
 
-
-#********************************************************************
-#* read_packages
-#*
-#* Read the content of a packages.info file and return a dictionary
-#* with an entry per package with a non-null 
-#********************************************************************
-def read_packages(packages_mf):
-    packages = PackagesInfo()
-    
-    fh = open(packages_mf, "r")
-
-    for l in fh.readlines():
-        l = l.strip()
-        
-        comment_idx = l.find("#")
-        if comment_idx != -1:
-            l = l[0:comment_idx]
-        
-        if l == "":
-            continue
-        
-        at_idx = l.find("@")
-        options_m = {}
-        if at_idx != -1:
-            package=l[0:at_idx].strip()
-            src=l[at_idx+1:len(l)].strip()
-            options = ""
-            # Determine if there are options
-            if src.find(" ") != -1:
-                options = src[src.find(" "):len(src)].strip()
-                src = src[:src.find(" ")].strip()
-            elif src.find("\t") != -1:
-                options = src[src.find("\t"):len(src)].strip()
-                src = src[:src.find("\t")].strip()
-
-            if options != "":
-                for opt in options.split():
-                    if opt.find("=") != -1:
-                        opt_k = opt[:opt.find("=")].strip()
-                        opt_v = opt[opt.find("=")+1:len(opt)].strip()
-                        options_m[opt_k] = opt_v
-                    else:
-                        print("Error: malformed option \"" + opt + "\"")
-        else:
-            package=l
-            src=None
-     
-        if package in packages.keys():
-            print("Error: multiple package listings")
-            
-        packages[package] = src
-        packages.set_options(package, options_m)
-    
-    fh.close()
-    
-    return packages
-
-def find_project_dir():
-    """Attempt to find the real project directory"""
-    cwd = os.getcwd()
-        
-    if os.path.isdir(os.path.join(cwd, "packages")):
-        return cwd
-    else:
-        # Go up the path
-        parent = os.path.dirname(cwd)
-        while parent != "" and parent != "/":
-            if os.path.isdir(os.path.join(parent, "packages")):
-                return parent
-            parent = os.path.dirname(parent)
-            
-    return None
-
-def ensure_have_project_dir(args):
-    if args.project_dir is None:
-        print("Note: Attempting to discover project_dir")
-        sys.stdout.flush()
-        args.project_dir = find_project_dir()
-        
-        if args.project_dir is None:
-            raise Exception("Failed to find project_dir ; specify with --project-dir")
-        else:
-            print("Note: project_dir is " + args.project_dir) 
-            sys.stdout.flush()
 
 #********************************************************************
 # write_packages
@@ -232,37 +146,7 @@ def write_packages_env(
                 else:
                     fh.write("export " + ivpm["rootvar"] + "=$PACKAGES_DIR/" + ivpm["name"] + "\n")
       
-#********************************************************************
-# read_info
-#
-# Reads an .info file, which has the format key=value
-#********************************************************************
-def read_info(info_file):
-    info = {}
-    
-    fh = open(info_file, "r")
 
-    for l in fh.readlines():
-        l = l.strip()
-        
-        comment_idx = l.find('#')
-        if comment_idx != -1:
-            l = l[0:comment_idx]
-        
-        if l == '':
-            continue
-        
-        eq_idx = l.find('=')
-        if eq_idx != -1:
-            key=l[0:eq_idx].strip()
-            src=l[eq_idx+1:len(l)].strip()
-            info[key] = src
-        else:
-            print("Error: malformed line \"" + l + "\" in " + info_file);
-     
-    fh.close()
-    
-    return info
 
 def fetch_file(
         url,
@@ -271,410 +155,11 @@ def fetch_file(
     pass
     
         
-#********************************************************************
-# update_package()
-#
-# package      - the name of the package to update
-# packages_mf  - the packages/packages.mf file
-# packages     - the packages.mf file for this package
-# package_deps - a dict of package-name to package_info
-#********************************************************************
-def update_package(
-    package,
-        packages_mf,
-    dependencies,
-    packages_dir,
-    package_deps
-    ):
-    package_src = dependencies[package]
-    must_update=False
-  
-    print("********************************************************************")
-    print("Processing package " + package + "")
-    print("********************************************************************")
-  
 
-    if package in packages_mf.keys():
-        print("package \"" + package + "\" in package_mf list")     
-        # See if we are up-to-date or require a change
-        if os.path.isdir(packages_dir + "/" + package) == False:
-            must_update = True
-        elif packages_mf[package] != dependencies[package]:
-            # TODO: should check if we are switching from binary to source
-            print("Removing existing package dir for " + package)
-            sys.stdout.flush()
-            os.system("rm -rf " + packages_dir + "/" + package)
-            print("PackagesMF: " + packages_mf[package] + " != " + dependencies[package])
-            must_update = True
-    else:
-        must_update = True
-        print("package \"" + package + "\" NOT in package_mf list")     
-    
-    if must_update:
-        # Package isn't currently present in dependencies
-        scheme_idx = package_src.find("://")
-        scheme = package_src[0:scheme_idx+3]
-        print("Must add package " + package + " scheme=" + scheme)
-        if scheme == "file://":
-            path = package_src[scheme_idx+3:len(package_src)]
-            cwd = os.getcwd()
-            os.chdir(packages_dir)
-            tf = tarfile.open(path)
-
-            for fi in tf:
-                if fi.name.find("/") != -1:
-                    fi.name = fi.name[fi.name.find("/")+1:]
-                    tf.extract(fi, package)
-            tf.close()
-
-            sys.stdout.flush()
-            os.chdir(cwd)
-      
-            if status != 0:
-                print("Error: while unpacking " + package)
-            
-            print("File: " + path)
-        elif scheme == "http://" or scheme == "https://" or scheme == "ssh://":
-            ext_idx = package_src.rfind('.')
-            if ext_idx == -1:
-                print("Error: URL resource doesn't have an extension")
-            ext = package_src[ext_idx:len(package_src)]
-
-            if ext == ".git":
-                cwd = os.getcwd()
-                os.chdir(packages_dir)
-                sys.stdout.flush()
-                options_m = dependencies.get_options(package)
-
-                git_cmd = "git clone "
-                if "depth" in options_m.keys():
-                    git_cmd += "--depth " + str(options_m["depth"] + " ")
-
-                if scheme == "ssh://":
-                    # This is an SSH checkout from Github
-                    checkout_url = package_src[6:]            
-                    git_cmd += "git@" + checkout_url
-                else:
-                    git_cmd += package_src
-
-                print("git_cmd: \"" + git_cmd + "\"")
-                status = os.system(git_cmd)
-                os.chdir(cwd)
-                os.chdir(packages_dir + "/" + package)
-                sys.stdout.flush()
-                status = os.system("git submodule update --init --recursive")
-                os.chdir(cwd)
-            elif ext == ".gz":
-                # Just assume this is a .tar.gz
-                cwd = os.getcwd()
-                os.chdir(packages_dir)
-                sys.stdout.flush()
-                fetch_file(package_src, os.path.join(packages_dir, package + ".tar.gz"))
-                tf = tarfile.open(package + ".tar.gz")
-
-                for fi in tf:
-                    if fi.name.find("/") != -1:
-                        fi.name = fi.name[fi.name.find("/")+1:]
-                        tf.extract(fi, path=package)
-                tf.close()
-                os.system("rm -rf " + package + ".tar.gz")
-                os.chdir(cwd)
-            elif ext == ".zip":
-                cwd = os.getcwd()
-                os.chdir(packages_dir)
-                sys.stdout.flush()
-                fetch_file(package_src, os.path.join(packages_dir, package + ".zip"))
-                with ZipFile(package + ".zip", 'r') as zipObj:
-                    zipObj.extractall(package)
-
-                os.system("rm -rf " + package + ".zip")
-                os.chdir(cwd)
-            elif ext == ".jar":
-                cwd = os.getcwd()
-                os.chdir(packages_dir)
-                sys.stdout.flush()
-                fetch_file(package_src, os.path.join(packages_dir, package + ".jar"))
-                os.chdir(cwd)
-            else:
-                print("Error: unknown URL extension \"" + ext + "\"")
-        else:
-            print("Error: unknown scheme " + scheme)
-
-    if os.path.exists(os.path.join(packages_dir, package, "etc/packages.mf")):
-        print("Note: package \"" + package + "\" is an IVPM package")
-        sys.stdout.flush()
-        this_package_mf = read_packages(packages_dir + "/" + package + "/etc/packages.mf")
- 
-        # This is a source package, so keep track so we can properly build it 
-        is_src = os.path.isfile(packages_dir + "/" + package + "/scripts/ivpm.mk")
-  
-        # Add a new entry for this package
-        info = ProjInfo(is_src)
-
-        if os.path.isfile(packages_dir + "/" + package + "/etc/ivpm.info"):
-            info.ivpm_info = read_info(packages_dir + "/" + package + "/etc/ivpm.info")
-            package_deps[package] = info
-  
-        for p in this_package_mf.keys():
-            print("Dependency: " + p)
-            info.add_dependency(p)
-            if p in dependencies.keys():
-                print("  ... has already been handled")
-            else:
-                print("  ... loading now")
-                # Add the new package to the full dependency list we're building
-                dependencies[p] = this_package_mf[p]
-        
-                update_package(
-                    p,            # The package to upate
-                    packages_mf,  # The dependencies/dependencies.mf input file
-                    dependencies, # The dependencies/dependencies.mf output file 
-                    packages_dir, # Path to dependencies
-                    package_deps) # Dependency information for each file
-    else:
-        print("Note: package \"" + package + "\" is not an IVPM package")
-        sys.stdout.flush()
      
 
-#********************************************************************
-# git_status()
-#********************************************************************
-def git_status(args):
-    ensure_have_project_dir(args)
-            
-    packages_dir = os.path.join(args.project_dir, "packages")
-
-    # After that check, go ahead and just check directories
-    for dir in os.listdir(packages_dir):
-        if os.path.isdir(os.path.join(packages_dir, dir, ".git")):
-            print("Package: " + dir)
-            cwd = os.getcwd()
-            os.chdir(packages_dir + "/" + dir)
-            status = os.system("git status -s")
-            os.chdir(cwd)
-        elif dir != "python" and os.path.isdir(os.path.join(packages_dir, dir)):
-            print("Note: skipping non-Git package \"" + dir + "\"")
-            sys.stdout.flush()
-
-#********************************************************************
-# git_update()
-#********************************************************************
-def git_update(args):
-    ensure_have_project_dir(args)
-    
-    packages_dir = os.path.join(args.project_dir, "packages")
-    
-    # After that check, go ahead and just check directories
-    for dir in os.listdir(packages_dir):
-        if os.path.isdir(os.path.join(packages_dir, dir, ".git")):
-            print("Package: " + dir)
-            cwd = os.getcwd()
-            os.chdir(packages_dir + "/" + dir)
-            try:
-                branch = subprocess.check_output(["git", "branch"])
-            except Exception as e:
-                print("Note: Failed to get branch of package \"" + dir + "\"")
-                continue
-
-            branch = branch.strip()
-            if len(branch) == 0:
-                raise Exception("Error: branch is empty")
-
-            branch = branch.decode()
-            if branch[0] == "*":
-                branch = branch[1:].strip()
-
-            status = os.system("git fetch")
-            status = os.system("git merge origin/" + branch)
-            os.chdir(cwd)
-        elif os.path.isdir(packages_dir + "/" + dir):
-            print("Note: skipping non-Git package \"" + dir + "\"")
-            sys.stdout.flush()
-
-def which(exe : str):
-    for p in os.environ['PATH'].split(os.pathsep):
-        exe_file = os.path.join(p, exe)
-        exe_file_e = os.path.join(p, exe + ".exe")
-        if os.path.isfile(exe_file) and os.access(exe_file, os.X_OK):
-            return exe_file
-        if os.path.isfile(exe_file_e) and os.access(exe_file_e, os.X_OK):
-            return exe_file_e
-    return None
-
-#********************************************************************
-# update()
-#********************************************************************
-def update(args):
-    
-    if args.project_dir is None:
-        # If a default is not provided, use the current directory
-        print("Note: project_dir not specified ; using working directory")
-        args.project_dir = os.getcwd()
-    
-    etc_dir = os.path.join(args.project_dir, "etc")
-    packages_dir = os.path.join(args.project_dir, "packages")
-    packages_mf = PackagesInfo()
-
-    if os.path.isfile(os.path.join(etc_dir, "ivpm.info")):
-        info = read_info(os.path.join(etc_dir, "ivpm.info"))
-    else:
-        info = None
-    
-    # Map between project name and ProjInfo
-    package_deps = {}
-
-    if os.path.isdir(packages_dir) == False:
-        os.makedirs(packages_dir);
-    elif os.path.isfile(packages_dir + "/packages.mf"):
-        packages_mf = read_packages(packages_dir + "/packages.mf")
-
-  
-    # Ensure that we have a python virtual environment setup
-    if 'IVPM_PYTHON' not in os.environ.keys() or os.environ['IVPM_PYTHON'] == "":
-        # First, find a Python to use
-        python = None
-        for p in ["python", "python3"]:
-            if which(p) is None:
-                continue
-            out = check_output([p, "--version"])
-
-            out_s = out.decode().split()
-
-            if len(out_s) == 2 and out_s[1][0] == "3":
-                python = p
-                break
-        
-        if python is None:
-            raise Exception("Failed to find Python3")
-
-        if not os.path.isdir(os.path.join(packages_dir, "python")):
-            print("Note: creating Python virtual environment")
-            sys.stdout.flush()
-            os.system(python + " -m venv " + os.path.join(packages_dir, "python"))
-            print("Note: upgrading pip")
-            sys.stdout.flush()
-            if os.path.isdir(os.path.join(packages_dir, "python", "Scripts")):
-                ivpm_python = os.path.join(packages_dir, "python", "Scripts", "python")
-            else:
-                ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
-            os.system(ivpm_python + " -m pip install --upgrade pip")
-            os.system(ivpm_python + " -m pip install --upgrade setuptools wheel")
-        else:
-            print("Note: Python virtual environment already exists")
-            sys.stdout.flush()
-
-        if os.path.isdir(os.path.join(packages_dir, "python", "Scripts")):
-            ivpm_python = os.path.join(packages_dir, "python", "Scripts", "python")
-        else:
-            ivpm_python = os.path.join(packages_dir, "python", "bin", "python")
-    else:
-        ivpm_python = os.environ['IVPM_PYTHON']
-
-    if args.requirements is None:
-        # Check to see if a requirements.txt exists already
-        for reqs in ["requirements_dev.txt", "requirements.txt"]:
-            if os.path.isfile(os.path.join(args.project_dir, reqs)):
-                print("Note: Using default requirements \"" + reqs + "\"")
-                args.requirements = os.path.join(args.project_dir, reqs);
-                break
-    
-    if os.path.isfile(os.path.join(etc_dir, "packages.mf")):
-        # Load the root project dependencies
-        dependencies = read_packages(etc_dir + "/packages.mf")
-    else:
-        dependencies = None
-
-    if args.requirements is None and dependencies is None:
-        raise Exception("Neither requirements nor packages.mf provided")
-
-    if args.requirements is not None:    
-        # Ensure the Git wrapper is in place. This ensures we don't
-        # stomp on existing check-outs when updating dependencies
-        scripts_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), "scripts")
-        print("scripts_dir: " + scripts_dir)
-        
-        path = os.environ["PATH"]
-        os.environ["PATH"] = scripts_dir + ":" + path
-        os.system("" + ivpm_python + " -m pip install -r " + args.requirements + " --src " + packages_dir)
-        os.environ["PATH"] = path
-
-    if dependencies is not None:
-        if info is None:
-            raise Exception("Found packages.mf, but no etc/ivpm.info exists")
-
-        # The dependencies list should include this project
-        dependencies[info['name']] = "root";
-    
-        # Add an entry for the root project
-        pinfo = ProjInfo(False)
-        for d in dependencies.keys():
-            pinfo.add_dependency(d)
-        package_deps[info["name"]] = pinfo
-
-        # Sub-requirements might be added, so copy the
-        # package set before iterating over it
-        pkgs = set()
-        for pkg in dependencies.keys():
-            pkgs.add(pkg)
-            
-        for pkg in pkgs:
-            if dependencies[pkg] == "root":
-                continue
-
-            update_package(
-                pkg, 
-                packages_mf,
-                dependencies, 
-                packages_dir,
-                package_deps)
-
-        write_packages(packages_dir + "/packages.mf", dependencies)
-        write_packages_mk(packages_dir + "/packages.mk", info["name"], package_deps)
-        write_sve_f(packages_dir + "/sve.F", info["name"], package_deps)
-        write_packages_env(packages_dir + "/packages_env.sh", False, info["name"], package_deps)
-        write_packages_env(packages_dir + "/packages_env.csh", True, info["name"], package_deps)
-        
-def init(args):
-#     
-    params = dict(
-        name=args.name,
-        version=args.version
-    )
-
-    # TODO: allow override    
-    proj = os.getcwd()
-    
-    ivpm_dir = os.path.dirname(os.path.realpath(__file__))
-    templates_dir = os.path.join(ivpm_dir, "templates")
-    
-    for src,dir in zip(["ivpm.info", "packages.mf", "ivpm.py"],
-                    ["etc", "etc", "scripts"]):
-        
-        with open(os.path.join(templates_dir, src), "r") as fi:
-            content = fi.read()
-            
-            outdir = os.path.join(proj, dir)
-            
-            if not os.path.isdir(outdir):
-                print("Note: Creating directory " + str(outdir))
-                os.mkdir(outdir)
-
-            content_t = Template(content)
-            content = content_t.safe_substitute(params)
-            
-            dest = os.path.join(proj, dir, src)
-            if os.path.isfile(dest) and not args.force:
-                raise Exception("File " + str(dest) + " exists and --force not specified")
-            
-            with open(dest, "w") as fo:
-                fo.write(content)
-
-    # Finally, ensure scripts/ivpm.py is executable
-    ivpm_py = os.path.join(proj, "scripts", "ivpm.py")
-    st = os.stat(ivpm_py)
-    os.chmod(ivpm_py, st.st_mode | stat.S_IEXEC)
-
 def get_parser():
+    """Create the argument parser"""
     parser = argparse.ArgumentParser(prog="ivpm")
     
     subparser = parser.add_subparsers()
@@ -682,22 +167,25 @@ def get_parser():
     subparser.dest = 'command'
     
     update_cmd = subparser.add_parser("update")
-    update_cmd.set_defaults(func=update)
-    update_cmd.add_argument("-p", "--project-dir", dest="project_dir")
-    update_cmd.add_argument("-r", "--requirements", dest="requirements")
+    update_cmd.set_defaults(func=CmdUpdate())
+    update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
+        help="Specifies the project directory to use (default: cwd)")
+    update_cmd.add_argument("-r", "--rls", dest="rls", action="store_true",
+        help="Setup project in 'release' mode")
+#    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
     init_cmd = subparser.add_parser("init")
-    init_cmd.set_defaults(func=init)
+    init_cmd.set_defaults(func=CmdInit())
     init_cmd.add_argument("-v", "--version", default="0.0.1")
     init_cmd.add_argument("-n", "--name", required=True)
     init_cmd.add_argument("-f", "--force", default=False, action='store_const', const=True)
     
     git_status_cmd = subparser.add_parser("git-status")
-    git_status_cmd.set_defaults(func=git_status)
+    git_status_cmd.set_defaults(func=CmdGitStatus())
     git_status_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     
     git_update_cmd = subparser.add_parser("git-update")
-    git_update_cmd.set_defaults(func=git_update)
+    git_update_cmd.set_defaults(func=CmdGitUpdate())
     git_update_cmd.add_argument("-p", "-project-dir", dest="project_dir")
 
     return parser

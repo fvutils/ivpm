@@ -1,0 +1,271 @@
+'''
+Created on Jun 22, 2021
+
+@author: mballance
+'''
+import os
+import shutil
+import subprocess
+import sys
+import tarfile
+import urllib
+from zipfile import ZipFile
+
+from ivpm.msg import note, fatal
+from ivpm.package import Package, SourceType, SourceType2Ext, PackageType
+from ivpm.packages_info import PackagesInfo
+from ivpm.proj_info import ProjInfo
+from ivpm.project_info_reader import ProjectInfoReader
+from typing import Dict
+from ivpm.utils import get_venv_python
+
+
+class PackageUpdater(object):
+    
+    def __init__(self, packages_dir, dev):
+        self.packages_dir = packages_dir
+        self.all_pkgs = PackagesInfo()
+        self.new_deps = []
+        self.python_pkgs = {}
+        self.dev = dev
+        pass
+    
+    def update(self, pkgs : PackagesInfo) -> PackagesInfo:
+        """Updates the specified packages, handling dependencies"""
+        
+        count = 1
+
+        pkg_q = []
+        
+        if len(pkgs.keys()) == 0:
+            print("No packages")
+        
+        for key in pkgs.keys():
+            print("Package: %s" % key)
+            pkg_q.append(pkgs[key])
+            
+        while True:        
+            pkg_deps = {}
+            
+            # Process this batch of packages
+            while len(pkg_q) > 0:
+                pkg : Package = pkg_q.pop(0)
+                
+                if pkg.src_type == SourceType.PyPi:
+                    # Save this one for later
+                    self.python_pkgs[pkg.name] = pkg
+                else:
+                    proj_info = self._update_pkg(pkg)
+
+                    for key in proj_info.deps.keys():
+                        dep = proj_info.deps[key]
+                    
+                        if dep.name not in pkg_deps.keys():
+                            pkg_deps[dep.name] = dep
+                        else:
+                            # TODO: warn about possible version conflict?
+                            pass
+                    
+            
+            # Collect new dependencies and add to queue
+            for key in pkg_deps.keys():
+                if not key in self.all_pkgs.keys():
+                    # New package
+                    pkg_q.append(pkg_deps[key])
+            note("%d new dependencies from iteration %d" % (len(pkg_q), count))
+                    
+            if len(pkg_q) == 0:
+                # We're done
+                break
+            
+            count += 1
+            
+        if len(self.python_pkgs):
+            note("Installing Python dependencies")
+            self._write_requirements_txt(
+                self.python_pkgs, 
+                os.path.join(self.packages_dir, "python_pkgs.txt"))
+            cwd = os.getcwd()
+            os.chdir(os.path.join(self.packages_dir))
+            cmd = [
+                get_venv_python(os.path.join(self.packages_dir, "python")),
+                "-m",
+                "pip",
+                "install",
+                "-r",
+                "python_pkgs.txt"]
+            
+            status = subprocess.run(cmd)
+            
+            if status.returncode != 0:
+                fatal("failed to install Python packages")
+        
+            os.chdir(cwd)
+        
+            
+        return self.all_pkgs
+    
+    def _update_pkg(self, pkg : Package) -> ProjInfo:
+        """Loads a single package. Returns any dependencies"""
+        must_update=False
+  
+        print("********************************************************************")
+        print("* Processing package %s" % pkg.name)
+        print("********************************************************************")
+
+        pkg_dir = os.path.join(self.packages_dir, pkg.name)
+        if os.path.isdir(pkg_dir):
+            note("package %s is already loaded" % pkg.name)
+        else:
+            note("loading package %s" % pkg.name)
+
+            # Package isn't currently present in dependencies
+            scheme_idx = pkg.url.find("://")
+            scheme = pkg.url[0:scheme_idx+3]
+            
+            if pkg.src_type == SourceType.Git:
+                self._clone_git(pkg)
+            else:
+                remove_pkg_src = False
+                pkg_path = None
+                print("Must add package " + pkg.name + " scheme=" + scheme)
+                
+                if scheme == "file://":
+                    pkg_path = pkg.url[scheme_idx+3:-1]
+                elif scheme in ("http://", "https://", "ssh://"):
+                    # Need to fetch, then unpack these
+                    download_dir = os.path.join(self.packages_dir, ".download")
+                
+                    if not os.path.isdir(download_dir):
+                        os.makedirs(download_dir)
+
+                    if pkg.src_type not in SourceType2Ext.keys():
+                        fatal("Unsupported source-type %s for package %s" % (str(pkg.src_type), pkg.name))                    
+                    filename = pkg.name + SourceType2Ext[pkg.src_type]
+                    
+                    pkg_path = os.path.join(download_dir, filename)
+                    
+                    # TODO: should this be an option?   
+                    remove_pkg_src = True
+
+                    self._fetch_file(pkg.url, pkg_path)
+                    
+                pkg.path = os.path.join(self.packages_dir, pkg.name)
+
+                if pkg.src_type in (SourceType.Jar,SourceType.Zip):
+                    self._install_zip(pkg, pkg_path)
+                elif pkg.src_type == SourceType.Tgz:
+                    self._install_tgz(pkg, pkg_path)
+                    
+
+                if remove_pkg_src:
+                    os.unlink(os.path.join(download_dir, filename))
+                    
+        # Now, check the package for dependencies
+        info = ProjectInfoReader(pkg_dir).read()
+
+        # After loading the package, or finding it already loaded,
+        # check what we have
+        if pkg.pkg_type == PackageType.Python:
+            if pkg.name not in self.python_pkgs.keys():
+                self.python_pkgs[pkg.name] = pkg
+        elif pkg.pkg_type == PackageType.Unknown:
+            if os.path.isfile(os.path.join(self.packages_dir, pkg.name, "setup.py")):
+                if pkg.name not in self.python_pkgs.keys():
+                    self.python_pkgs[pkg.name] = pkg
+        
+        if info is None:
+            info = ProjInfo(False)
+            info.name = pkg.name
+        
+        return info
+    
+    def _write_requirements_txt(self, 
+                                python_pkgs : Dict[str,Package],
+                                file):
+        with open(file, "w") as fp:
+            for key in python_pkgs.keys():
+                pkg = python_pkgs[key]
+                
+                if pkg.url is not None:
+                    # Editable package
+                    fp.write("-e file://%s/%s#egg=%s\n" % (self.packages_dir, pkg.name, pkg.name))
+                else:
+                    # PyPi package
+                    fp.write("%s\n" % pkg.name)
+    
+    
+    def _fetch_file(self, url, dest):
+        urllib.request.urlretrieve(url, dest)
+        
+                
+    def _install_tgz(self, pkg, pkg_path):
+        cwd = os.getcwd()
+        os.chdir(self.packages_dir)
+        
+        tf = tarfile.open(pkg_path)
+
+        for fi in tf:
+            if fi.name.find("/") != -1:
+                fi.name = fi.name[fi.name.find("/")+1:]
+                tf.extract(fi, path=pkg.name)
+        tf.close()
+
+        os.chdir(cwd)
+    
+    def _install_zip(self, pkg, pkg_path):
+        cwd = os.getcwd()
+        os.chdir(self.packages_dir)
+        sys.stdout.flush()
+        with ZipFile(pkg_path, 'r') as zipObj:
+            zipObj.extractall(pkg.name)
+        os.chdir(cwd)        
+    
+    def _clone_git(self, pkg):
+        cwd = os.getcwd()
+        os.chdir(self.packages_dir)
+        sys.stdout.flush()
+
+        git_cmd = ["git", "clone"]
+        
+        if pkg.depth is not None:
+            git_cmd.extend(["--depth", str(pkg.depth)])
+
+        if pkg.branch is not None:
+            git_cmd.extend(["-b", str(pkg.branch)])
+
+        # TODO: determine whether to use release of dev settings            
+        if self.dev:
+            print("NOTE: using dev URL")
+            delim_idx = pkg.url.find("://")
+            url = pkg.url[delim_idx+3:]
+            first_sl_idx = url.find('/')
+            url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
+            print("Final URL: %s" % url)
+            git_cmd.append(url)
+        else:
+            print("NOTE: using rls URL")
+            git_cmd.append(pkg.url)
+
+        # Clone to a directory with same name as package        
+        git_cmd.append(pkg.name)
+            
+#         if scheme == "ssh://":
+#             # This is an SSH checkout from Github
+#             checkout_url = package_src[6:]            
+#             git_cmd += "git@" + checkout_url
+#         else:
+#             git_cmd += package_src
+
+        print("git_cmd: \"" + str(git_cmd) + "\"")
+        status = subprocess.run(git_cmd)
+        os.chdir(cwd)
+        
+        if status.returncode != 0:
+            fatal("Git command \"%s\" failed" % str(git_cmd))
+        
+        # TODO: Existence of .gitmodules should trigger this
+        os.chdir(os.path.join(self.packages_dir, pkg.name))
+        sys.stdout.flush()
+        status = os.system("git submodule update --init --recursive")
+        os.chdir(cwd)        

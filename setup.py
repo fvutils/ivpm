@@ -42,7 +42,7 @@ setup(
   description = ("IVPM (IP and Verification Package Manager) is a project-internal package manager."),
   license = "Apache 2.0",
   keywords = ["SystemVerilog", "Verilog", "RTL", "Coverage"],
-  url = "https://github.com/mballance/ivpm",
+  url = "https://github.com/fvutils/ivpm",
   entry_points={
     'console_scripts': [
       'ivpm = ivpm.__main__:main'
@@ -52,6 +52,9 @@ setup(
     'setuptools_scm',
   ],
   install_requires=[
+      'pyyaml',
+      'pyyaml-srcinfo-loader',
+      'requirements-parser'
   ],
   cmdclass={
     'install': InstallCmd

@@ -1,0 +1,142 @@
+'''
+Created on Jun 8, 2021
+
+@author: mballance
+'''
+import os
+import yaml_srcinfo_loader
+from yaml_srcinfo_loader.srcinfo import SrcInfo
+
+import yaml
+
+from ivpm.msg import fatal
+from ivpm.package import Package, PackageType, SourceType, Ext2SourceType,\
+    Spec2SourceType, Spec2PackageType
+from ivpm.packages_info import PackagesInfo
+from ivpm.proj_info import ProjInfo
+from ivpm.utils import getlocstr
+
+
+class IvpmYamlReader(object):
+    
+    def __init__(self):
+        pass
+    
+    def read(self, fp, name) -> ProjInfo:
+        ret = ProjInfo(is_src=True)
+        
+        # File I/O streams have a name field that is read-only.
+        # Add a name field to non-I/O streams
+        if not hasattr(fp, "name"):
+            fp.name = name
+
+        data = yaml.load(fp, Loader=yaml_srcinfo_loader.Loader)
+        
+        if "package" not in data.keys():
+            raise Exception("Missing 'package' section YAML file %s" % name)
+        pkg = data["package"]
+        
+        if "name" not in pkg.keys():
+            raise Exception("Missing 'name' key in YAML file %s" % name)
+        if "version" not in pkg.keys():
+            raise Exception("Missing 'version' key in YAML file %s" % name)
+        
+        ret.name = pkg["name"]
+        ret.version = pkg["version"]
+        
+        if "deps" in pkg.keys() and pkg["deps"] is not None:
+            ret.deps = self.read_deps(pkg["deps"])
+        if "dev-deps" in pkg.keys() and pkg["dev-deps"] is not None:
+            ret.dev_deps = self.read_deps(pkg["dev-deps"])
+            
+        return ret
+        
+
+    def read_deps(self, deps):
+        ret = PackagesInfo()
+        
+        for d in deps:
+            si = d.srcinfo
+            
+            print("d::type=" + str(type(d)))
+            if not "name" in d.keys():
+                raise Exception("Missing 'name' key at %s:%d:%d" % (
+                    si.filename,
+                    si.lineno,
+                    si.linepos))
+                
+            url = d["url"] if "url" in d.keys() else None
+#            if not "url" in d.keys():
+#                raise Exception("Missing 'url' key at %s:%d:%d" % (
+#                    si.filename,
+#                    si.lineno,
+#                    si.linepos))
+                
+            pkg = Package(d["name"], url)
+            pkg.srcinfo = si
+            
+            if pkg.name in ret.keys():
+                pkg1 = ret[pkg.name]
+                fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (
+                    pkg.name, getlocstr(pkg), getlocstr(pkg1)))
+            else:
+                ret.add_package(pkg)
+
+
+            # Determine the source type (eg .git, .jar, etc)            
+            if "src" in d.keys():
+                if d["src"] not in Spec2SourceType.keys():
+                    fatal("unsupported source type %s @ %s" % (d["src"], getlocstr(d["src"])))
+                pkg.src_type = Spec2SourceType[d["src"]]
+            else:
+                if url is None:
+                    fatal("no src specified for package %s and no URL specified" % pkg.name)
+
+                ext = os.path.splitext(pkg.url)[1]
+
+                print("ext=" + str(ext))
+                
+                if not ext in Ext2SourceType.keys():
+                    fatal("unknown URL extension %s" % ext)
+                    
+                pkg.src_type = Ext2SourceType[ext]
+                
+            if pkg.src_type == SourceType.PyPi and pkg.pkg_type is None:
+                pkg.pkg_type = PackageType.Python
+                
+            # Determine the package type (eg Python, Raw)
+            if "type" in d.keys():
+                type_s = d["type"]
+                if not type_s in Spec2PackageType.keys():
+                    fatal("unknown package type %s @ %s ; Supported types 'raw', 'python'" % (
+                        type_s, getlocstr(d["type"])))
+                    
+                pkg.pkg_type = Spec2PackageType[type_s]
+            else:
+                if url is None and pkg.src_type != SourceType.PyPi:
+                    fatal("no type specified for package %s and no URL specified" % pkg.name)
+                else:
+                    # We'll need to auto-probe later once we have source
+                    pkg.pkg_type = PackageType.Unknown
+            
+            if "version" in d.keys():
+                print("TODO: Handle 'version' tag")
+                
+            if "depth" in d.keys():
+                print("TODO: Handle 'depth' tag")
+                
+            if "branch" in d.keys():
+                pkg.branch = d["branch"]
+                
+            if "tag" in d.keys():
+                pkg.tag = d["tag"]
+                
+            if pkg.src_type is None:
+                print("TODO: auto-detect source type")
+
+                            
+            print("d: " + str(d))
+        
+        return ret
+        
+        
