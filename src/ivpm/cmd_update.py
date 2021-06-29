@@ -57,9 +57,7 @@ class CmdUpdate(object):
         print("********************************************************************")
         print("* Processing root package %s" % proj_info.name)
         print("********************************************************************")
-        note("beginning update using %s packages" % (
-            "development" if not args.rls else "release"))
-        pkgs_info = PackageUpdater(packages_dir, not args.rls).update(
+        pkgs_info = PackageUpdater(packages_dir, args.anonymous).update(
             proj_info.dev_deps if not args.rls else proj_info.deps
             )
             

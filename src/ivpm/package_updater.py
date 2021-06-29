@@ -22,12 +22,12 @@ from ivpm.utils import get_venv_python
 
 class PackageUpdater(object):
     
-    def __init__(self, packages_dir, dev):
+    def __init__(self, packages_dir, anonymous_git):
         self.packages_dir = packages_dir
         self.all_pkgs = PackagesInfo()
         self.new_deps = []
         self.python_pkgs = {}
-        self.dev = dev
+        self.anonymous_git = anonymous_git
         pass
     
     def update(self, pkgs : PackagesInfo) -> PackagesInfo:
@@ -234,8 +234,9 @@ class PackageUpdater(object):
         if pkg.branch is not None:
             git_cmd.extend(["-b", str(pkg.branch)])
 
-        # TODO: determine whether to use release of dev settings            
-        if self.dev:
+        # Modify the URL to use SSH/key-based clones
+        # unless anonymous cloning was requested
+        if not self.anonymous_git:
             print("NOTE: using dev URL")
             delim_idx = pkg.url.find("://")
             url = pkg.url[delim_idx+3:]
@@ -244,7 +245,7 @@ class PackageUpdater(object):
             print("Final URL: %s" % url)
             git_cmd.append(url)
         else:
-            print("NOTE: using rls URL")
+            print("NOTE: using anonymous URL")
             git_cmd.append(pkg.url)
 
         # Clone to a directory with same name as package        

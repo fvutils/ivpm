@@ -170,8 +170,11 @@ def get_parser():
     update_cmd.set_defaults(func=CmdUpdate())
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
         help="Specifies the project directory to use (default: cwd)")
-    update_cmd.add_argument("-r", "--rls", dest="rls", action="store_true",
-        help="Setup project in 'release' mode")
+    update_cmd.add_argument("-r", "--rls-deps", dest="rls", action="store_true",
+        help="Uses release deps from project root instead of dev deps")
+    update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
+        action="store_true",
+        help="Clones git repositories in 'anonymous' mode")
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
     init_cmd = subparser.add_parser("init")

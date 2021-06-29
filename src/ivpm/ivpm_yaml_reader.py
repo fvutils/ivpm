@@ -58,7 +58,6 @@ class IvpmYamlReader(object):
         for d in deps:
             si = d.srcinfo
             
-            print("d::type=" + str(type(d)))
             if not "name" in d.keys():
                 raise Exception("Missing 'name' key at %s:%d:%d" % (
                     si.filename,
@@ -94,8 +93,6 @@ class IvpmYamlReader(object):
 
                 ext = os.path.splitext(pkg.url)[1]
 
-                print("ext=" + str(ext))
-                
                 if not ext in Ext2SourceType.keys():
                     fatal("unknown URL extension %s" % ext)
                     
@@ -123,7 +120,7 @@ class IvpmYamlReader(object):
                 print("TODO: Handle 'version' tag")
                 
             if "depth" in d.keys():
-                print("TODO: Handle 'depth' tag")
+                pkg.depth = d["depth"]
                 
             if "branch" in d.keys():
                 pkg.branch = d["branch"]
@@ -133,9 +130,6 @@ class IvpmYamlReader(object):
                 
             if pkg.src_type is None:
                 print("TODO: auto-detect source type")
-
-                            
-            print("d: " + str(d))
         
         return ret
         
