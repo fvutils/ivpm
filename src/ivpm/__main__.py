@@ -180,8 +180,8 @@ def get_parser():
     init_cmd = subparser.add_parser("init")
     init_cmd.set_defaults(func=CmdInit())
     init_cmd.add_argument("-v", "--version", default="0.0.1")
-    init_cmd.add_argument("-n", "--name", required=True)
     init_cmd.add_argument("-f", "--force", default=False, action='store_const', const=True)
+    init_cmd.add_argument("name")
     
     git_status_cmd = subparser.add_parser("git-status")
     git_status_cmd.set_defaults(func=CmdGitStatus())

@@ -24,8 +24,11 @@ class ProjectInfoReader(object):
         self.proj_dir = proj_dir
         pass
     
-    def read(self) -> ProjInfo:
-
+    def read(self):
+        return self._read()
+        pass
+    
+    def _read(self) -> ProjInfo:
         ret : ProjInfo = None
         
         # First, see if this is a new-style project

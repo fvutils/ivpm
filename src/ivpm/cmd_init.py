@@ -25,8 +25,7 @@ class CmdInit(object):
         ivpm_dir = os.path.dirname(os.path.realpath(__file__))
         templates_dir = os.path.join(ivpm_dir, "templates")
     
-        for src,dir in zip(["ivpm.info", "packages.mf", "ivpm.py"],
-                    ["etc", "etc", "scripts"]):
+        for src,dir in zip(["ivpm.yaml"], [""]):
         
             with open(os.path.join(templates_dir, src), "r") as fi:
                 content = fi.read()
@@ -47,8 +46,4 @@ class CmdInit(object):
                 with open(dest, "w") as fo:
                     fo.write(content)
 
-        # Finally, ensure scripts/ivpm.py is executable
-        ivpm_py = os.path.join(proj, "scripts", "ivpm.py")
-        st = os.stat(ivpm_py)
-        os.chmod(ivpm_py, st.st_mode | stat.S_IEXEC)        
         

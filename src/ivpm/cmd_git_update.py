@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 from ivpm.arg_utils import ensure_have_project_dir
+from ivpm.msg import fatal
 
 
 class CmdGitUpdate(object):
@@ -16,7 +17,8 @@ class CmdGitUpdate(object):
         pass
     
     def __call__(self, args):
-        ensure_have_project_dir(args)
+        if args.project_dir is None:
+            args.project_dir = os.getcwd()
     
         packages_dir = os.path.join(args.project_dir, "packages")
     
@@ -40,8 +42,12 @@ class CmdGitUpdate(object):
                 if branch[0] == "*":
                     branch = branch[1:].strip()
 
-                status = os.system("git fetch")
-                status = os.system("git merge origin/" + branch)
+                status = subprocess.run(["git", "fetch"])
+                if status.returncode != 0:
+                    fatal("Failed to run git fetch on package %s" % dir)
+                status = subprocess.run(["git", "merge", "origin/" + branch])
+                if status.returncode != 0:
+                    fatal("Failed to run git merge origin/%s on package %s" % (branch, dir))
                 os.chdir(cwd)
             elif os.path.isdir(packages_dir + "/" + dir):
                 print("Note: skipping non-Git package \"" + dir + "\"")

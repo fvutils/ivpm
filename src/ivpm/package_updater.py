@@ -51,6 +51,8 @@ class PackageUpdater(object):
             while len(pkg_q) > 0:
                 pkg : Package = pkg_q.pop(0)
                 
+                self.all_pkgs[pkg.name] = pkg
+                
                 if pkg.src_type == SourceType.PyPi:
                     # Save this one for later
                     self.python_pkgs[pkg.name] = pkg
@@ -114,6 +116,8 @@ class PackageUpdater(object):
         print("********************************************************************")
 
         pkg_dir = os.path.join(self.packages_dir, pkg.name)
+        pkg.path = pkg_dir
+        
         if os.path.isdir(pkg_dir):
             note("package %s is already loaded" % pkg.name)
         else:

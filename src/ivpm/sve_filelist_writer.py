@@ -3,8 +3,12 @@ Created on Jun 27, 2021
 
 @author: mballance
 '''
-from ivpm.packages_info import PackagesInfo
+import os
+
 from ivpm.out_wrapper import OutWrapper
+from ivpm.package import Package
+from ivpm.packages_info import PackagesInfo
+
 
 class SveFilelistWriter(object):
     
@@ -13,4 +17,12 @@ class SveFilelistWriter(object):
         pass
     
     def write(self, pkgs_info : PackagesInfo):
-        pass
+        
+        for key in pkgs_info.packages.keys():
+            pkg : Package = pkgs_info.packages[key]
+            
+            print("key=%s path=%s" % (key, str(pkg.path)))
+            
+            if pkg.path is not None and os.path.isfile(os.path.join(pkg.path, "sve.F")):
+                self.out.println("-F ./%s/sve.F", os.path.basename(pkg.path))
+                

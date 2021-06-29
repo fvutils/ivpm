@@ -6,6 +6,7 @@ Created on Jun 8, 2021
 import os
 import sys
 from ivpm.arg_utils import ensure_have_project_dir
+from ivpm.project_info_reader import ProjectInfoReader
 
 class CmdGitStatus(object):
     
@@ -13,8 +14,10 @@ class CmdGitStatus(object):
         pass
     
     def __call__(self, args):
-        ensure_have_project_dir(args)
-            
+        
+        if args.project_dir is None:
+            args.project_dir = os.getcwd()
+
         packages_dir = os.path.join(args.project_dir, "packages")
 
         # After that check, go ahead and just check directories
