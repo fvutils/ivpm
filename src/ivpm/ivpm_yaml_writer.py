@@ -39,5 +39,7 @@ class IvpmYamlWriter(object):
             self.out.println("  type: %s", PackageType2Spec[pkg.pkg_type])
         if pkg.src_type in (SourceType.PyPi,):
             self.out.println("  src: %s", SourceType2Spec[pkg.src_type])
+        if pkg.version is not None:
+            self.out.println("  version: %s", pkg.version)
             
         pass

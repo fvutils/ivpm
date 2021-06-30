@@ -17,6 +17,7 @@ from ivpm.cmd_init import CmdInit
 from ivpm.cmd_update import CmdUpdate
 from ivpm.cmd_git_status import CmdGitStatus
 from ivpm.cmd_git_update import CmdGitUpdate
+from ivpm.cmd_snapshot import CmdSnapshot
 
 
 #********************************************************************
@@ -190,6 +191,14 @@ def get_parser():
     git_update_cmd = subparser.add_parser("git-update")
     git_update_cmd.set_defaults(func=CmdGitUpdate())
     git_update_cmd.add_argument("-p", "-project-dir", dest="project_dir")
+    
+    snapshot_cmd = subparser.add_parser("snapshot")
+    snapshot_cmd.set_defaults(func=CmdSnapshot())
+    snapshot_cmd.add_argument("-p", "-project-dir", dest="project_dir")
+    snapshot_cmd.add_argument("-r", "--rls-deps", dest="rls", action="store_true",
+        help="Uses release deps from project root instead of dev deps")
+    snapshot_cmd.add_argument("snapshot_dir", 
+            help="Specifies the directory where the snapshot will be created")
 
     return parser
 

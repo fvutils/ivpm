@@ -11,7 +11,7 @@ import tarfile
 import urllib
 from zipfile import ZipFile
 
-from ivpm.msg import note, fatal
+from ivpm.msg import note, fatal, warning
 from ivpm.package import Package, SourceType, SourceType2Ext, PackageType
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
@@ -26,7 +26,6 @@ class PackageUpdater(object):
         self.packages_dir = packages_dir
         self.all_pkgs = PackagesInfo()
         self.new_deps = []
-        self.python_pkgs = {}
         self.anonymous_git = anonymous_git
         pass
     
@@ -53,10 +52,7 @@ class PackageUpdater(object):
                 
                 self.all_pkgs[pkg.name] = pkg
                 
-                if pkg.src_type == SourceType.PyPi:
-                    # Save this one for later
-                    self.python_pkgs[pkg.name] = pkg
-                else:
+                if pkg.src_type != SourceType.PyPi:
                     proj_info = self._update_pkg(pkg)
 
                     for key in proj_info.deps.keys():
@@ -81,29 +77,6 @@ class PackageUpdater(object):
                 break
             
             count += 1
-            
-        if len(self.python_pkgs):
-            note("Installing Python dependencies")
-            self._write_requirements_txt(
-                self.python_pkgs, 
-                os.path.join(self.packages_dir, "python_pkgs.txt"))
-            cwd = os.getcwd()
-            os.chdir(os.path.join(self.packages_dir))
-            cmd = [
-                get_venv_python(os.path.join(self.packages_dir, "python")),
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                "python_pkgs.txt"]
-            
-            status = subprocess.run(cmd)
-            
-            if status.returncode != 0:
-                fatal("failed to install Python packages")
-        
-            os.chdir(cwd)
-        
             
         return self.all_pkgs
     
@@ -170,34 +143,15 @@ class PackageUpdater(object):
 
         # After loading the package, or finding it already loaded,
         # check what we have
-        if pkg.pkg_type == PackageType.Python:
-            if pkg.name not in self.python_pkgs.keys():
-                self.python_pkgs[pkg.name] = pkg
-        elif pkg.pkg_type == PackageType.Unknown:
+        if pkg.pkg_type == PackageType.Unknown:
             if os.path.isfile(os.path.join(self.packages_dir, pkg.name, "setup.py")):
-                if pkg.name not in self.python_pkgs.keys():
-                    self.python_pkgs[pkg.name] = pkg
+                pkg.pkg_type = PackageType.Python
         
         if info is None:
             info = ProjInfo(False)
             info.name = pkg.name
         
         return info
-    
-    def _write_requirements_txt(self, 
-                                python_pkgs : Dict[str,Package],
-                                file):
-        with open(file, "w") as fp:
-            for key in python_pkgs.keys():
-                pkg = python_pkgs[key]
-                
-                if pkg.url is not None:
-                    # Editable package
-                    fp.write("-e file://%s/%s#egg=%s\n" % (self.packages_dir, pkg.name, pkg.name))
-                else:
-                    # PyPi package
-                    fp.write("%s\n" % pkg.name)
-    
     
     def _fetch_file(self, url, dest):
         urllib.request.urlretrieve(url, dest)

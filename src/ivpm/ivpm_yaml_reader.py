@@ -98,9 +98,6 @@ class IvpmYamlReader(object):
                     
                 pkg.src_type = Ext2SourceType[ext]
                 
-            if pkg.src_type == SourceType.PyPi and pkg.pkg_type is None:
-                pkg.pkg_type = PackageType.Python
-                
             # Determine the package type (eg Python, Raw)
             if "type" in d.keys():
                 type_s = d["type"]
@@ -115,6 +112,10 @@ class IvpmYamlReader(object):
                 else:
                     # We'll need to auto-probe later once we have source
                     pkg.pkg_type = PackageType.Unknown
+                    
+            print("pkg_type: %s" % str(pkg.pkg_type))                
+            if pkg.src_type == SourceType.PyPi and (pkg.pkg_type is None or pkg.pkg_type == PackageType.Unknown):
+                pkg.pkg_type = PackageType.Python
             
             if "version" in d.keys():
                 print("TODO: Handle 'version' tag")
