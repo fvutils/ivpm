@@ -92,6 +92,9 @@ class IvpmYamlReader(object):
                     fatal("no src specified for package %s and no URL specified" % pkg.name)
 
                 ext = os.path.splitext(pkg.url)[1]
+                
+                if pkg.url.endswith(".tar.gz"):
+                    ext = ".tar.gz"
 
                 if not ext in Ext2SourceType.keys():
                     fatal("unknown URL extension %s" % ext)
