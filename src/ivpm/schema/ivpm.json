@@ -1,0 +1,42 @@
+{
+	"$schema" : "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://github.com/fvutils/ivpm",
+	"title": "IVPM",
+	"description": "Schema for IP and Verification Package Manager (IVPM)",
+	"type": "object",
+	"properties": {
+		"package": {
+			"type": "string",
+			"description": "Specifies the name of the package",
+		},
+		"version": {
+			"type": "string",
+			"description": "Specifies the package version",
+		},
+		"deps": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/package-dep"
+			}
+		}
+		"dev-deps": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/package-dep"
+			}
+		}
+		"required": [ "package", "version" ]
+	},
+	"$defs": {
+		"package-dep": {
+			"type": "object",
+			"properties": {
+				"required": [ "name" ]
+				"name": {
+					"type": "string",
+					"description": "Package identifier",
+				},
+			}
+		}
+	}
+}

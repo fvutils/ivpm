@@ -167,7 +167,8 @@ def get_parser():
     subparser.required = True
     subparser.dest = 'command'
     
-    update_cmd = subparser.add_parser("update")
+    update_cmd = subparser.add_parser("update",
+        help="Fetches packages specified in ivpm.yaml that have not already been loaded");
     update_cmd.set_defaults(func=CmdUpdate())
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
         help="Specifies the project directory to use (default: cwd)")
@@ -178,13 +179,15 @@ def get_parser():
         help="Clones git repositories in 'anonymous' mode")
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
-    init_cmd = subparser.add_parser("init")
+    init_cmd = subparser.add_parser("init",
+        help="Creates an initial ivpm.yaml file")
     init_cmd.set_defaults(func=CmdInit())
     init_cmd.add_argument("-v", "--version", default="0.0.1")
     init_cmd.add_argument("-f", "--force", default=False, action='store_const', const=True)
     init_cmd.add_argument("name")
     
-    git_status_cmd = subparser.add_parser("git-status")
+    git_status_cmd = subparser.add_parser("git-status",
+        help="Runs git status on any git packages")
     git_status_cmd.set_defaults(func=CmdGitStatus())
     git_status_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     
@@ -192,7 +195,8 @@ def get_parser():
     git_update_cmd.set_defaults(func=CmdGitUpdate())
     git_update_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     
-    snapshot_cmd = subparser.add_parser("snapshot")
+    snapshot_cmd = subparser.add_parser("snapshot",
+        help="Creates a snapshot of required packages")
     snapshot_cmd.set_defaults(func=CmdSnapshot())
     snapshot_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     snapshot_cmd.add_argument("-r", "--rls-deps", dest="rls", action="store_true",

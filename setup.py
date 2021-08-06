@@ -54,6 +54,7 @@ setup(
   install_requires=[
       'pyyaml',
       'pyyaml-srcinfo-loader',
+      'jsonschema',
       'requirements-parser'
   ],
   cmdclass={

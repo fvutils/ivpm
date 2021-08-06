@@ -1,4 +1,5 @@
 
 pyyaml
+jsonschema
 
 -e git+ssh://git@github.com/mballance/pyyaml-srcinfo-loader.git#egg=pyyaml-srcinfo-loader
