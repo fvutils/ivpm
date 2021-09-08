@@ -95,6 +95,8 @@ class IvpmYamlReader(object):
                 
                 if pkg.url.endswith(".tar.gz"):
                     ext = ".tar.gz"
+                elif pkg.url.endswith(".tar.xz"):
+                    ext = ".tar.xz"
 
                 if not ext in Ext2SourceType.keys():
                     fatal("unknown URL extension %s" % ext)

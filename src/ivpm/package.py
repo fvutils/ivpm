@@ -26,6 +26,7 @@ class SourceType(Enum):
     Git = auto()
     Jar = auto()
     Tgz = auto()
+    Txz = auto()
     Zip = auto()
     PyPi = auto()
 
@@ -33,19 +34,22 @@ Ext2SourceType = {
         ".git" : SourceType.Git,
         ".jar" : SourceType.Jar,
         ".tar.gz" : SourceType.Tgz,
+        ".tar.xz" : SourceType.Txz,
         ".tgz" : SourceType.Tgz
         }
 
 SourceType2Ext = {
         SourceType.Git : ".git",
         SourceType.Jar : ".jar",
-        SourceType.Tgz : ".tar.gz"
+        SourceType.Tgz : ".tar.gz",
+        SourceType.Txz : ".tar.xz"
     }
 
 SourceType2Spec = {
         SourceType.Git  : "git",
         SourceType.Jar  : "jar",
         SourceType.Tgz  : "tgz",
+        SourceType.Txz  : "txz",
         SourceType.Zip  : "zip",
         SourceType.PyPi : "pypi",
     }
@@ -53,6 +57,7 @@ Spec2SourceType = {
         "git"  : SourceType.Git,
         "jar"  : SourceType.Jar,
         "tgz"  : SourceType.Tgz,
+        "txz"  : SourceType.Txz,
         "zip"  : SourceType.Zip,
         "pypi" : SourceType.PyPi
     }

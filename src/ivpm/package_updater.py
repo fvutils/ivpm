@@ -131,7 +131,7 @@ class PackageUpdater(object):
 
                 if pkg.src_type in (SourceType.Jar,SourceType.Zip):
                     self._install_zip(pkg, pkg_path)
-                elif pkg.src_type == SourceType.Tgz:
+                elif pkg.src_type == SourceType.Tgz or pkg.src_type == SourceType.Txz:
                     self._install_tgz(pkg, pkg_path)
                     
 
@@ -154,6 +154,8 @@ class PackageUpdater(object):
         return info
     
     def _fetch_file(self, url, dest):
+        print("fetch_file")
+        sys.stdout.flush()
         urllib.request.urlretrieve(url, dest)
         
                 

@@ -50,6 +50,8 @@ class PackagesMfReader(object):
                 
                 if ext == ".gz" and pkg.url.endswith(".tar.gz"):
                     ext = ".tar.gz"
+                elif ext == ".xz" and pkg.url.endswith(".tar.xz"):
+                    ext = ".tar.xz"
                 
                 if not ext in Ext2SourceType.keys():
                     fatal("Unknown URL extension %s" % ext)
