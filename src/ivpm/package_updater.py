@@ -89,7 +89,7 @@ class PackageUpdater(object):
         print("********************************************************************")
 
         pkg_dir = os.path.join(self.packages_dir, pkg.name)
-        pkg.path = pkg_dir
+        pkg.path = pkg_dir.replace("\\", "/")
         
         if os.path.isdir(pkg_dir):
             note("package %s is already loaded" % pkg.name)
@@ -128,6 +128,7 @@ class PackageUpdater(object):
                     self._fetch_file(pkg.url, pkg_path)
                     
                 pkg.path = os.path.join(self.packages_dir, pkg.name)
+                pkg.path = pkg.path.replace("\\", "/")
 
                 if pkg.src_type in (SourceType.Jar,SourceType.Zip):
                     self._install_zip(pkg, pkg_path)
