@@ -73,7 +73,9 @@ class Package(object):
         self.src_type = None
         self.url = url
         self.branch = None
+        self.commit = None
         self.tag = None
         self.version = None
         self.depth = None
+        self.process_deps = True
         

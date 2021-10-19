@@ -55,15 +55,15 @@ class PackageUpdater(object):
                 if pkg.src_type != SourceType.PyPi:
                     proj_info = self._update_pkg(pkg)
 
-                    for key in proj_info.deps.keys():
-                        dep = proj_info.deps[key]
+                    if proj_info.process_deps:
+                        for key in proj_info.deps.keys():
+                            dep = proj_info.deps[key]
                     
-                        if dep.name not in pkg_deps.keys():
-                            pkg_deps[dep.name] = dep
-                        else:
-                            # TODO: warn about possible version conflict?
-                            pass
-                    
+                            if dep.name not in pkg_deps.keys():
+                                pkg_deps[dep.name] = dep
+                            else:
+                                # TODO: warn about possible version conflict?
+                                pass
             
             # Collect new dependencies and add to queue
             for key in pkg_deps.keys():
@@ -140,6 +140,7 @@ class PackageUpdater(object):
                     
         # Now, check the package for dependencies
         info = ProjectInfoReader(pkg_dir).read()
+        
 
         # After loading the package, or finding it already loaded,
         # check what we have
@@ -150,6 +151,8 @@ class PackageUpdater(object):
         if info is None:
             info = ProjInfo(False)
             info.name = pkg.name
+            
+        info.process_deps = pkg.process_deps
         
         return info
     
@@ -224,9 +227,21 @@ class PackageUpdater(object):
         
         if status.returncode != 0:
             fatal("Git command \"%s\" failed" % str(git_cmd))
+
+        # Checkout a specific commit            
+        if pkg.commit is not None:
+            os.chdir(os.path.join(self.packages_dir, pkg.name))
+            git_cmd = "git reset --hard %s" % pkg.commit
+            status = os.system(git_cmd)
+            
+            if status != 0:
+                fatal("Git command \"%s\" failed" % str(git_cmd))
+            os.chdir(cwd)
+            
         
         # TODO: Existence of .gitmodules should trigger this
         os.chdir(os.path.join(self.packages_dir, pkg.name))
         sys.stdout.flush()
         status = os.system("git submodule update --init --recursive")
         os.chdir(cwd)        
+

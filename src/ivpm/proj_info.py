@@ -19,6 +19,7 @@ class ProjInfo():
         self.requirements_txt = None
         self.name = None
         self.version = None
+        self.process_deps = True
 
     def add_dependency(self, dep):
         self.dependencies.append(dep)

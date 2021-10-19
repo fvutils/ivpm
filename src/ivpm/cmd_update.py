@@ -30,6 +30,9 @@ class CmdUpdate(object):
             args.project_dir = os.getcwd()
             
         proj_info = ProjectInfoReader(args.project_dir).read()
+
+        if proj_info is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
             
         packages_dir = os.path.join(args.project_dir, "packages")
  

@@ -131,8 +131,17 @@ class IvpmYamlReader(object):
             if "branch" in d.keys():
                 pkg.branch = d["branch"]
                 
+            if "commit" in d.keys():
+                pkg.commit = d["commit"]
+                
             if "tag" in d.keys():
                 pkg.tag = d["tag"]
+                
+            if "deps" in d.keys():
+                if d["deps"] == "skip":
+                    pkg.process_deps = False
+                else:
+                    fatal("Unknown value for 'deps': %s" % d["deps"])
                 
             if pkg.src_type is None:
                 print("TODO: auto-detect source type")
