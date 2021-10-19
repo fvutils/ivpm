@@ -106,7 +106,10 @@ class CmdUpdate(object):
                 
                 if pkg.url is not None:
                     # Editable package
-                    fp.write("-e file://%s/%s#egg=%s\n" % (packages_dir, pkg.name, pkg.name))
+                    fp.write("-e file://%s/%s#egg=%s\n" % (
+                        packages_dir.replace("\\","/"), 
+                        pkg.name, 
+                        pkg.name))
                 else:
                     # PyPi package
                     fp.write("%s\n" % pkg.name)
