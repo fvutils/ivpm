@@ -26,6 +26,9 @@ class PackagesInfo():
     def set_options(self, package, options):
         self.options[package] = options
 
+    def pop(self, key):
+        self.packages.pop(key)
+
     def __getitem__(self, key):
         return self.packages[key]
 

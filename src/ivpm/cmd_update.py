@@ -53,9 +53,15 @@ class CmdUpdate(object):
         print("********************************************************************")
         print("* Processing root package %s" % proj_info.name)
         print("********************************************************************")
-        pkgs_info = PackageUpdater(packages_dir, args.anonymous).update(
+        updater = PackageUpdater(packages_dir, args.anonymous)
+        # Prevent an attempt to load the top-level project as a depedency
+        updater.all_pkgs[proj_info.name] = None
+        pkgs_info = updater.update(
             proj_info.dev_deps if not args.rls else proj_info.deps
             )
+
+        # Remove the root package before processing what's left
+        pkgs_info.pop(proj_info.name)
         
         python_pkgs = []
         for key in pkgs_info.keys():
