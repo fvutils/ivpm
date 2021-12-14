@@ -64,40 +64,66 @@ class CmdUpdate(object):
         pkgs_info.pop(proj_info.name)
         
         python_pkgs = []
+        python_prereq_pkgs_s = {"cython"}
+        python_prereq_pkgs = []
         for key in pkgs_info.keys():
             pkg : Package = pkgs_info[key]
             
             if pkg.pkg_type == PackageType.Python:
                 if pkg.path is None:
-                    python_pkgs.append(pkg)
+                    if key in python_prereq_pkgs_s:
+                        python_prereq_pkgs.append(pkg)
+                    else:
+                        python_pkgs.append(pkg)
                 elif os.path.isfile(os.path.join(pkg.path, "setup.py")):
                     python_pkgs.append(pkg)
                 else:
                     warning("Package %s (%s) is marked as Python, but is missing setup.py" % (
                         pkg.name, pkg.path))
         
-        if len(python_pkgs):
+        if len(python_pkgs) or len(python_prereq_pkgs):
             note("Installing Python dependencies")
-            self._write_requirements_txt(
-                packages_dir,
-                python_pkgs, 
-                os.path.join(packages_dir, "python_pkgs.txt"))
-            cwd = os.getcwd()
-            os.chdir(os.path.join(packages_dir))
-            cmd = [
-                get_venv_python(os.path.join(packages_dir, "python")),
-                "-m",
-                "pip",
-                "install",
-                "-r",
-                "python_pkgs.txt"]
+            if len(python_prereq_pkgs):
+                self._write_requirements_txt(
+                    packages_dir,
+                    python_prereq_pkgs, 
+                    os.path.join(packages_dir, "python_prereq_pkgs.txt"))
+                cwd = os.getcwd()
+                os.chdir(os.path.join(packages_dir))
+                cmd = [
+                    get_venv_python(os.path.join(packages_dir, "python")),
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    "python_prereq_pkgs.txt"]
             
-            status = subprocess.run(cmd)
+                status = subprocess.run(cmd)
             
-            if status.returncode != 0:
-                fatal("failed to install Python packages")
-        
-            os.chdir(cwd)        
+                if status.returncode != 0:
+                    fatal("failed to install Python packages")
+                os.chdir(cwd)        
+
+            if len(python_pkgs):
+                self._write_requirements_txt(
+                    packages_dir,
+                    python_pkgs, 
+                    os.path.join(packages_dir, "python_pkgs.txt"))
+                cwd = os.getcwd()
+                os.chdir(os.path.join(packages_dir))
+                cmd = [
+                    get_venv_python(os.path.join(packages_dir, "python")),
+                    "-m",
+                    "pip",
+                    "install",
+                    "-r",
+                    "python_pkgs.txt"]
+            
+                status = subprocess.run(cmd)
+            
+                if status.returncode != 0:
+                    fatal("failed to install Python packages")
+                os.chdir(cwd)        
             
         with open(os.path.join(packages_dir, "sve.F"), "w") as fp:
             SveFilelistWriter(OutWrapper(fp)).write(pkgs_info)
