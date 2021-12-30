@@ -144,6 +144,12 @@ class CmdUpdate(object):
                         pkg.name))
                 else:
                     # PyPi package
-                    fp.write("%s\n" % pkg.name)
+                    if pkg.version is not None:
+                        if pkg.version[0] in ['<','>','=']:
+                            fp.write("%s%s\n" % (pkg.name, pkg.version))
+                        else:
+                            fp.write("%s==%s\n" % (pkg.name, pkg.version))
+                    else:
+                        fp.write("%s\n" % pkg.name)
    
     

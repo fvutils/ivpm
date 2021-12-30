@@ -123,7 +123,7 @@ class IvpmYamlReader(object):
                 pkg.pkg_type = PackageType.Python
             
             if "version" in d.keys():
-                print("TODO: Handle 'version' tag")
+                pkg.version = d["version"]
                 
             if "depth" in d.keys():
                 pkg.depth = d["depth"]
