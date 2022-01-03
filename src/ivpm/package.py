@@ -78,4 +78,5 @@ class Package(object):
         self.version = None
         self.depth = None
         self.process_deps = True
+        self.setup_deps = set()
         

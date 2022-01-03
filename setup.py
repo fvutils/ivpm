@@ -52,10 +52,11 @@ setup(
     'setuptools_scm',
   ],
   install_requires=[
+      'jsonschema',
       'pyyaml',
       'pyyaml-srcinfo-loader',
-      'jsonschema',
-      'requirements-parser'
+      'requirements-parser',
+      'toposort'
   ],
   cmdclass={
     'install': InstallCmd

@@ -12,6 +12,7 @@ class ProjInfo():
         self.dependencies = []
         self.is_legacy = False
         
+        self.setup_deps = set()
         self.deps = PackagesInfo()
         self.dev_deps = PackagesInfo()
         

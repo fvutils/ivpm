@@ -3,12 +3,15 @@ Created on Jan 19, 2020
 
 @author: ballance
 '''
-from typing import Dict
+from typing import Dict, List, Set
 from ivpm.package import Package
 
 class PackagesInfo():
     def __init__(self):
         self.packages : Dict[str,Package] = {}
+        # Map of package name to set of packages
+        # required for setup. This is Python-specific
+        self.setup_deps : Dict[str, Set[str]] = {}
         self.options = {}
 
     def keys(self):

@@ -20,6 +20,7 @@ from ivpm.utils import getlocstr
 class IvpmYamlReader(object):
     
     def __init__(self):
+        self.debug = False
         pass
     
     def read(self, fp, name) -> ProjInfo:
@@ -41,9 +42,13 @@ class IvpmYamlReader(object):
         if "version" not in pkg.keys():
             raise Exception("Missing 'version' key in YAML file %s" % name)
         
+        
         ret.name = pkg["name"]
         ret.version = pkg["version"]
         
+        if "setup-deps" in pkg.keys():
+            for sd in pkg["setup-deps"]:
+                ret.setup_deps.add(sd)
         if "deps" in pkg.keys() and pkg["deps"] is not None:
             ret.deps = self.read_deps(pkg["deps"])
         if "dev-deps" in pkg.keys() and pkg["dev-deps"] is not None:
@@ -117,8 +122,9 @@ class IvpmYamlReader(object):
                 else:
                     # We'll need to auto-probe later once we have source
                     pkg.pkg_type = PackageType.Unknown
-                    
-            print("pkg_type: %s" % str(pkg.pkg_type))                
+
+            if self.debug:                    
+                print("pkg_type: %s" % str(pkg.pkg_type))                
             if pkg.src_type == SourceType.PyPi and (pkg.pkg_type is None or pkg.pkg_type == PackageType.Unknown):
                 pkg.pkg_type = PackageType.Python
             
@@ -142,6 +148,7 @@ class IvpmYamlReader(object):
                     pkg.process_deps = False
                 else:
                     fatal("Unknown value for 'deps': %s" % d["deps"])
+                    
                 
             if pkg.src_type is None:
                 print("TODO: auto-detect source type")

@@ -54,6 +54,14 @@ class PackageUpdater(object):
                 
                 if pkg.src_type != SourceType.PyPi:
                     proj_info = self._update_pkg(pkg)
+                    
+                    # proj_info contains info on any setup-deps that
+                    # might be required
+                    for sd in proj_info.setup_deps:
+                        print("Add setup-dep %s to package %s" % (sd, pkg.name))
+                        if pkg.name not in self.all_pkgs.setup_deps.keys():
+                            self.all_pkgs.setup_deps[pkg.name] = set()
+                        self.all_pkgs.setup_deps[pkg.name].add(sd)
 
                     if proj_info.process_deps:
                         for key in proj_info.deps.keys():

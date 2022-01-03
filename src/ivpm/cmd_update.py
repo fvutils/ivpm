@@ -15,12 +15,14 @@ from ivpm.out_wrapper import OutWrapper
 from ivpm.package_updater import PackageUpdater
 from ivpm.package import Package, PackageType
 import subprocess
+from toposort import toposort
 from typing import List
 
 
 class CmdUpdate(object):
     
     def __init__(self):
+        self.debug = False
         pass
     
     def __call__(self, args):
@@ -62,32 +64,100 @@ class CmdUpdate(object):
 
         # Remove the root package before processing what's left
         pkgs_info.pop(proj_info.name)
+
+        # Build up a dependency map for Python package installation        
+        python_deps_m = {}
+        python_pkgs_s = set()
+
+        # Collect the full set of packages
+        for pid in pkgs_info.keys():
+            p = pkgs_info[pid]
+            if p.pkg_type == PackageType.Python:
+                python_pkgs_s.add(pid)
+
+        setup_deps_s = set()
         
-        python_pkgs = []
-        python_prereq_pkgs_s = {"cython"}
-        python_prereq_pkgs = []
-        for key in pkgs_info.keys():
-            pkg : Package = pkgs_info[key]
-            
-            if pkg.pkg_type == PackageType.Python:
-                if pkg.path is None:
-                    if key in python_prereq_pkgs_s:
-                        python_prereq_pkgs.append(pkg)
-                    else:
-                        python_pkgs.append(pkg)
+        # Collect all packages that have a setup dependency
+        for sdp in pkgs_info.setup_deps.keys():
+            print("Package %s has a setup dependency" % sdp)
+            if sdp not in python_deps_m.keys():
+                python_deps_m[sdp] = set()
+            for sdp_d in pkgs_info.setup_deps[sdp]:
+                python_deps_m[sdp].add(sdp_d)
+                setup_deps_s.add(sdp_d)
+
+        if self.debug:
+            print("python_deps_m: %s" % str(python_deps_m))
+        
+        pypkg_order = list(toposort(python_deps_m))
+        
+        # Remove the original packages that asserted
+        # setup dependencies
+        for sdp in pkgs_info.setup_deps.keys():
+            if sdp not in setup_deps_s:
+                for pypkg_s in pypkg_order:
+                    pypkg_s.discard(sdp)
+        
+        if self.debug:            
+            print("ordered: %s" % str(pypkg_order))
+
+        python_requirements_paths = []
+        
+        # Now, build out the set of requirements files
+        for pydep_s in pypkg_order:
+            python_pkgs = []
+            for key in pydep_s:
+                
+                # A future iteration does not need to install this
+                python_pkgs_s.discard(key)
+                
+                # Note: for completeness, should collect Python 
+                # packages known to be required by this pre-dep
+                
+                pkg : Package = pkgs_info[key]
+                
+                if pkg.pkg_type == PackageType.Python:
+                    python_pkgs.append(pkg)
                 elif os.path.isfile(os.path.join(pkg.path, "setup.py")):
                     python_pkgs.append(pkg)
                 else:
                     warning("Package %s (%s) is marked as Python, but is missing setup.py" % (
                         pkg.name, pkg.path))
-        
-        if len(python_pkgs) or len(python_prereq_pkgs):
-            note("Installing Python dependencies")
-            if len(python_prereq_pkgs):
+
+            if len(python_pkgs):
+                requirements_path = os.path.join(
+                    packages_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
                 self._write_requirements_txt(
                     packages_dir,
-                    python_prereq_pkgs, 
-                    os.path.join(packages_dir, "python_prereq_pkgs.txt"))
+                    python_pkgs, 
+                    requirements_path)
+                python_requirements_paths.append(requirements_path)
+            
+        python_pkgs = []
+        for key in python_pkgs_s:
+            pkg : Package = pkgs_info[key]
+                
+            if pkg.pkg_type == PackageType.Python:
+                python_pkgs.append(pkg)
+            elif os.path.isfile(os.path.join(pkg.path, "setup.py")):
+                python_pkgs.append(pkg)
+            else:
+                warning("Package %s (%s) is marked as Python, but is missing setup.py" % (
+                    pkg.name, pkg.path))
+
+        if len(python_pkgs):
+            requirements_path = os.path.join(
+                packages_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
+            self._write_requirements_txt(
+                packages_dir,
+                python_pkgs, 
+                requirements_path)
+                
+            python_requirements_paths.append(requirements_path)
+                
+        if len(python_requirements_paths):
+            note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
+            for reqfile in python_requirements_paths:
                 cwd = os.getcwd()
                 os.chdir(os.path.join(packages_dir))
                 cmd = [
@@ -96,7 +166,7 @@ class CmdUpdate(object):
                     "pip",
                     "install",
                     "-r",
-                    "python_prereq_pkgs.txt"]
+                    reqfile]
             
                 status = subprocess.run(cmd)
             
@@ -104,27 +174,6 @@ class CmdUpdate(object):
                     fatal("failed to install Python packages")
                 os.chdir(cwd)        
 
-            if len(python_pkgs):
-                self._write_requirements_txt(
-                    packages_dir,
-                    python_pkgs, 
-                    os.path.join(packages_dir, "python_pkgs.txt"))
-                cwd = os.getcwd()
-                os.chdir(os.path.join(packages_dir))
-                cmd = [
-                    get_venv_python(os.path.join(packages_dir, "python")),
-                    "-m",
-                    "pip",
-                    "install",
-                    "-r",
-                    "python_pkgs.txt"]
-            
-                status = subprocess.run(cmd)
-            
-                if status.returncode != 0:
-                    fatal("failed to install Python packages")
-                os.chdir(cwd)        
-            
         with open(os.path.join(packages_dir, "sve.F"), "w") as fp:
             SveFilelistWriter(OutWrapper(fp)).write(pkgs_info)
 
