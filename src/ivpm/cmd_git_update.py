@@ -38,9 +38,14 @@ class CmdGitUpdate(object):
                 if len(branch) == 0:
                     raise Exception("Error: branch is empty")
 
-                branch = branch.decode()
-                if branch[0] == "*":
-                    branch = branch[1:].strip()
+                branch_lines = branch.decode().splitlines()
+                branch = None
+                for bl in branch_lines:
+                    if bl[0] == "*":
+                        branch = bl[1:].strip()
+                        break
+                if branch is None:
+                    raise Exception("Failed to identify branch")
 
                 status = subprocess.run(["git", "fetch"])
                 if status.returncode != 0:
