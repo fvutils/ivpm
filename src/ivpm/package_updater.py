@@ -23,6 +23,7 @@ from ivpm.utils import get_venv_python
 class PackageUpdater(object):
     
     def __init__(self, packages_dir, anonymous_git):
+        self.debug = False
         self.packages_dir = packages_dir
         self.all_pkgs = PackagesInfo()
         self.new_deps = []
@@ -138,6 +139,8 @@ class PackageUpdater(object):
                 pkg.path = os.path.join(self.packages_dir, pkg.name)
                 pkg.path = pkg.path.replace("\\", "/")
 
+                if self.debug:
+                    print("package %s: type=%s" % (pkg.path, str(pkg.src_type)))
                 if pkg.src_type in (SourceType.Jar,SourceType.Zip):
                     self._install_zip(pkg, pkg_path)
                 elif pkg.src_type == SourceType.Tgz or pkg.src_type == SourceType.Txz:
@@ -166,7 +169,8 @@ class PackageUpdater(object):
         return info
     
     def _fetch_file(self, url, dest):
-        print("fetch_file")
+        if self.debug:
+            print("fetch_file")
         sys.stdout.flush()
         urllib.request.urlretrieve(url, dest)
         
@@ -186,12 +190,24 @@ class PackageUpdater(object):
         os.chdir(cwd)
     
     def _install_zip(self, pkg, pkg_path):
-        cwd = os.getcwd()
-        os.chdir(self.packages_dir)
-        sys.stdout.flush()
-        with ZipFile(pkg_path, 'r') as zipObj:
-            zipObj.extractall(pkg.name)
-        os.chdir(cwd)        
+        ext = os.path.splitext(pkg.name)[1]
+
+        if ext == "":
+            if self.debug:
+                print("_install_zip: %s %s" % (str(pkg), str(pkg_path)))
+            cwd = os.getcwd()
+            os.chdir(self.packages_dir)
+            sys.stdout.flush()
+            with ZipFile(pkg_path, 'r') as zipObj:
+                zipObj.extractall(pkg.name)
+            os.chdir(cwd)        
+        else:
+            # Copy the .zip file to the destination
+            if self.debug:
+                print("_install_zip: copy file")
+            shutil.copyfile(
+                    pkg_path,
+                    os.path.join(self.packages_dir, pkg.name))
     
     def _clone_git(self, pkg):
         cwd = os.getcwd()

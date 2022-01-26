@@ -35,14 +35,16 @@ Ext2SourceType = {
         ".jar" : SourceType.Jar,
         ".tar.gz" : SourceType.Tgz,
         ".tar.xz" : SourceType.Txz,
-        ".tgz" : SourceType.Tgz
+        ".tgz" : SourceType.Tgz,
+        ".zip" : SourceType.Zip
         }
 
 SourceType2Ext = {
         SourceType.Git : ".git",
         SourceType.Jar : ".jar",
         SourceType.Tgz : ".tar.gz",
-        SourceType.Txz : ".tar.xz"
+        SourceType.Txz : ".tar.xz",
+        SourceType.Zip : ".zip"
     }
 
 SourceType2Spec = {

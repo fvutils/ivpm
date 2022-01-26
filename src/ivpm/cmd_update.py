@@ -55,6 +55,13 @@ class CmdUpdate(object):
         print("********************************************************************")
         print("* Processing root package %s" % proj_info.name)
         print("********************************************************************")
+
+        if self.debug:
+            for p in proj_info.dev_deps.packages.keys():
+                print("DevDep: %s" % p)
+            for p in proj_info.deps.packages.keys():
+                print("RlsDep: %s" % p)
+
         updater = PackageUpdater(packages_dir, args.anonymous)
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None

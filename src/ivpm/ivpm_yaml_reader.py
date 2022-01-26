@@ -124,7 +124,7 @@ class IvpmYamlReader(object):
                     pkg.pkg_type = PackageType.Unknown
 
             if self.debug:                    
-                print("pkg_type: %s" % str(pkg.pkg_type))                
+                print("pkg_type (%s): %s" % (pkg.url, str(pkg.pkg_type)))
             if pkg.src_type == SourceType.PyPi and (pkg.pkg_type is None or pkg.pkg_type == PackageType.Unknown):
                 pkg.pkg_type = PackageType.Python
             
@@ -152,7 +152,9 @@ class IvpmYamlReader(object):
                 
             if pkg.src_type is None:
                 print("TODO: auto-detect source type")
-        
+
+        if self.debug:
+            print("ret: %s %d packages" % (str(ret), len(ret.packages)))
         return ret
         
         
