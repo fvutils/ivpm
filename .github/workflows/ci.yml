@@ -23,7 +23,7 @@ jobs:
     - name: Build Docs
       run: |
         ./packages/python/bin/sphinx-build -M html ./doc/source build
-       touch build/html/.nojekyll
+        touch build/html/.nojekyll
 
     - name: Publish to PyPi
       if: startsWith(github.ref, 'refs/heads/master')
