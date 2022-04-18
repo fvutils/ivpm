@@ -14,6 +14,8 @@ jobs:
         python-version: '3.9'
     - name: Configure Python
       run: |
+        # Install dependencies required to load ivpm.yaml file
+        python3 -m pip install pyyaml pyyaml-srcinfo-loader toposort requirements-parser
         export PYTHONPATH=./src
         python3 -m ivpm update
         ./packages/python/bin/python3 -m pip install setuptools --upgrade
