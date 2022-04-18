@@ -1,0 +1,144 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+    <title>Introduction &#8212; IVPM  documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/alabaster.css" />
+    <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+    <script src="_static/jquery.js"></script>
+    <script src="_static/underscore.js"></script>
+    <script src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <section id="introduction">
+<h1>Introduction<a class="headerlink" href="#introduction" title="Permalink to this headline">¶</a></h1>
+<section id="what-is-ivpm">
+<h2>What is IVPM?<a class="headerlink" href="#what-is-ivpm" title="Permalink to this headline">¶</a></h2>
+<p>IVPM (short for IP and Verification Package Manager) is a
+lightweight project-local package manager. It excels at
+managing projects where dependencies are co-developed with
+the project.</p>
+<p>Let’s look at a simple example. A System-on-Chip
+(SoC) design targeting an FPGA or an ASIC is composed of
+multiple IPs written in a hardware-description language (HDL)
+like Verilog. These IPs must be present in order to
+simulate the SoC for verification or synthesize the SoC
+to an FPGA or ASIC implementation. In order to run
+functional verification on the SoC, Bus Functional
+Models (BFMs) are used by the testbench to interact
+with the design. If the project dependencies are
+open source or developed in-house, it is often
+necessary to either propose fixes or enhancements to the
+original developers.</p>
+<ul class="simple">
+<li><p>IVPM manages a project-local package repository
+where project dependencies are stored.</p></li>
+<li><p>IVPM manages package sub-dependencies. When one
+package depends on another, IVPM ensures all
+required packages are fetched.</p></li>
+<li><p>IPVM allows packages to express their ‘development’
+and ‘release’ dependencies separately. This means that
+adding a design IP to your project will only bring what
+is needed to <strong>use</strong> that IP into the package repository,
+and not all the verification libraries used to verify that IP.</p></li>
+<li><p>IVPM provides first-class support for Python packages,
+enabling them to be installed as binary packages or
+developed inside editable packages.</p></li>
+<li><p>IVPM provides Git integration, with commands to quickly
+assess the status of editable projects and update
+project source from it’s upstream repository.</p></li>
+<li><p>IVPM enables ‘snapshotting’ project dependencies to
+create a project that contains all its required
+dependencies.</p></li>
+</ul>
+</section>
+<section id="contributors">
+<h2>Contributors<a class="headerlink" href="#contributors" title="Permalink to this headline">¶</a></h2>
+</section>
+</section>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">IVPM</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2022, Matthew Ballance.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.5.0</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/introduction.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
