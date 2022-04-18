@@ -14,11 +14,12 @@ jobs:
         python-version: '3.9'
     - name: Configure Python
       run: |
-        export PYTHONPATH=`pwd`/src
+        export PYTHONPATH=./src
         python3 -m ivpm update
         ./packages/python/bin/python3 -m pip install setuptools --upgrade
         export BUILD_NUM=$GITHUB_RUN_ID
         ./packages/python/bin/python3 setup.py bdist_wheel --universal
+
     - name: Build Docs
       run: |
         ./packages/python/bin/sphinx-build -M html ./doc/source build
@@ -30,6 +31,7 @@ jobs:
       with:
         user: __token__
         password: ${{ secrets.PYPI_API_TOKEN }}
+
     - name: Publish Docs
       if: startsWith(github.ref, 'refs/heads/master')
       uses: JamesIves/github-pages-deploy-action@4.1.7
