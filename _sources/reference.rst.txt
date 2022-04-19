@@ -14,3 +14,10 @@ Commands
 
 YAML File Format
 ================
+
+.. jsonschema:: ../../src/ivpm/schema/ivpm.json#/defs/package-def
+
+.. jsonschema:: ../../src/ivpm/schema/ivpm.json#/defs/dep-set
+
+.. jsonschema:: ../../src/ivpm/schema/ivpm.json#/defs/package-dep
+
