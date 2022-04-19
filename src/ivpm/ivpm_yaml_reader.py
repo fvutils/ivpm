@@ -39,31 +39,70 @@ class IvpmYamlReader(object):
         
         if "name" not in pkg.keys():
             raise Exception("Missing 'name' key in YAML file %s" % name)
-        if "version" not in pkg.keys():
-            raise Exception("Missing 'version' key in YAML file %s" % name)
         
         
         ret.name = pkg["name"]
-        ret.version = pkg["version"]
+        
+        if "version" in pkg.keys():
+            ret.version = pkg["version"]
+        else:
+            ret.version = None
+        
+        if "deps" in pkg.keys() or "dev-deps" in pkg.keys():
+            # old-style format
+            if "deps" in pkg.keys() and pkg["deps"] is not None:
+                ds = PackagesInfo("default")
+                self.read_deps(ds, pkg["deps"])
+                
+                ret.set_dep_set("deps", ds)
+                ret.set_dep_set("default", ds)
+            if "dev-deps" in pkg.keys() and pkg["dev-deps"] is not None:
+                ds = PackagesInfo("default-dev")
+                self.read_deps(ds, pkg["dev-deps"])
+                ret.set_dep_set("dev-deps", ds)
+                ret.set_dep_set("default-dev", ds)
+        elif "dep-sets" in pkg.keys():
+            # new-style format
+            self.read_dep_sets(ret, pkg["dep-sets"])
+        else:
+            # no dependencies at all
+            print("Warning: no dependencies")
         
         if "setup-deps" in pkg.keys():
             for sd in pkg["setup-deps"]:
                 ret.setup_deps.add(sd)
-        if "deps" in pkg.keys() and pkg["deps"] is not None:
-            ret.deps = self.read_deps(pkg["deps"])
-        if "dev-deps" in pkg.keys() and pkg["dev-deps"] is not None:
-            ret.dev_deps = self.read_deps(pkg["dev-deps"])
             
         return ret
+
+    def read_dep_sets(self, info : ProjInfo, dep_sets):
+        if not isinstance(dep_sets, list):
+            raise Exception("Expect body of dep-sets to be a list, not %s" % str(type(dep_sets)))
+        
+        for ds_ent in dep_sets:
+            if not isinstance(ds_ent, dict):
+                raise Exception("Dependency set is not a dict")
+            if "name" not in ds_ent.keys():
+                raise Exception("No name associated with dependency set")
+            if "deps" not in ds_ent.keys():
+                raise Exception("No 'deps' entry in dependency set")
+            
+            ds_name = ds_ent["name"]
+            ds = PackagesInfo(ds_name)
+            
+            deps = ds_ent["deps"]
+            
+            if not isinstance(deps, list):
+                raise Exception("deps is not a list")
+            self.read_deps(ds, ds_ent["deps"])
+            info.set_dep_set(ds.name, ds)
         
 
-    def read_deps(self, deps):
-        ret = PackagesInfo()
+    def read_deps(self, ret, deps):
         
         for d in deps:
             si = d.srcinfo
             
-            if not "name" in d.keys():
+            if "name" not in d.keys():
                 raise Exception("Missing 'name' key at %s:%d:%d" % (
                     si.filename,
                     si.lineno,
@@ -133,6 +172,9 @@ class IvpmYamlReader(object):
                 
             if "depth" in d.keys():
                 pkg.depth = d["depth"]
+                
+            if "dep-set" in d.keys():
+                pkg.dep_set = d["dep-set"]
                 
             if "branch" in d.keys():
                 pkg.branch = d["branch"]

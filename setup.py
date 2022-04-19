@@ -15,18 +15,7 @@ class InstallCmd(install):
 
 rootdir = os.path.dirname(os.path.realpath(__file__))
 
-version=None
-with open(os.path.join(rootdir, "etc", "ivpm.info"), "r") as fp:
-    while True:
-        l = fp.readline()
-        if l == "":
-            break
-        if l.find("version=") != -1:
-            version=l[l.find("=")+1:].strip()
-            break
-
-if version is None:
-    raise Exception("Failed to find version in ivpm.info")
+version="1.0.6"
 
 if "BUILD_NUM" in os.environ.keys():
     version += "." + os.environ["BUILD_NUM"]

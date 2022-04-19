@@ -48,9 +48,3 @@ original developers.
   dependencies.
 
 
-Contributors
-============
-
-.. spelling::
-   Ballance
-

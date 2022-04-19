@@ -25,7 +25,7 @@ class PackageUpdater(object):
     def __init__(self, packages_dir, anonymous_git):
         self.debug = False
         self.packages_dir = packages_dir
-        self.all_pkgs = PackagesInfo()
+        self.all_pkgs = PackagesInfo("root")
         self.new_deps = []
         self.anonymous_git = anonymous_git
         pass
@@ -65,8 +65,13 @@ class PackageUpdater(object):
                         self.all_pkgs.setup_deps[pkg.name].add(sd)
 
                     if proj_info.process_deps:
-                        for key in proj_info.deps.keys():
-                            dep = proj_info.deps[key]
+                        if not proj_info.has_dep_set(pkg.dep_set):
+                            note("package %s does not contain specified dep-set %s ; skipping" % (proj_info.name, pkg.dep_set))
+                            continue
+                        
+                        ds : PackagesInfo = proj_info.get_dep_set(pkg.dep_set)
+                        for d in ds.packages.keys():
+                            dep = ds.packages[d]
                     
                             if dep.name not in pkg_deps.keys():
                                 pkg_deps[dep.name] = dep

@@ -81,4 +81,5 @@ class Package(object):
         self.depth = None
         self.process_deps = True
         self.setup_deps = set()
+        self.dep_set = "default"
         

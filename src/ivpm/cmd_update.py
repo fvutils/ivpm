@@ -45,29 +45,30 @@ class CmdUpdate(object):
             note("python virtual environment already exists")
             ivpm_python = get_venv_python(os.path.join(packages_dir, "python"))
             
-        if not args.rls:
-            if proj_info.dev_deps is None:
-                fatal("development mode selected, but no dev-deps specified")
-        else:
-            if proj_info.deps is None:
-                fatal("release mode selected, but no deps specified")
-
         print("********************************************************************")
         print("* Processing root package %s" % proj_info.name)
         print("********************************************************************")
 
         if self.debug:
-            for p in proj_info.dev_deps.packages.keys():
-                print("DevDep: %s" % p)
-            for p in proj_info.deps.packages.keys():
-                print("RlsDep: %s" % p)
+            for ds_name in proj_info.dep_set_m.keys():
+                print("DepSet: %s" % ds_name)
+                for d in proj_info.dep_set_m[ds_name].packages.keys():
+                    print("  Package: %s" % d)
+                    
+        ds_name = "default-dev"
+        
+        if hasattr(args, "dep_set") and args.dep_set is not None:
+            ds_name = args.dep_set
+            
+        if ds_name not in proj_info.dep_set_m.keys():
+            raise Exception("Dep-set %s is not present" % ds_name)
+        else:
+            ds = proj_info.dep_set_m[ds_name]
 
         updater = PackageUpdater(packages_dir, args.anonymous)
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None
-        pkgs_info = updater.update(
-            proj_info.dev_deps if not args.rls else proj_info.deps
-            )
+        pkgs_info = updater.update(ds)
 
         # Remove the root package before processing what's left
         pkgs_info.pop(proj_info.name)
@@ -120,6 +121,9 @@ class CmdUpdate(object):
                 
                 # Note: for completeness, should collect Python 
                 # packages known to be required by this pre-dep
+                
+                if key not in pkgs_info.keys():
+                    raise Exception("Package %s not found in packages-info %s" % (key, pkgs_info.name))
                 
                 pkg : Package = pkgs_info[key]
                 

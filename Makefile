@@ -6,12 +6,19 @@ endif
 
 export PACKAGES_DIR
 
-pdf : 
+$(PACKAGES_DIR)/python :
+	mkdir -p $(PACKAGES_DIR)
+	python3 -m venv $(PACKAGES_DIR)/python
+	$(PACKAGES_DIR)/python/bin/python3 -m pip install --upgrade pip
+	$(PACKAGES_DIR)/python/bin/python3 -m pip install -r $(IVPM_DIR)/requirements.txt
+	PYTHONPATH=$(IVPM_DIR)/src $(PACKAGES_DIR)/python/bin/python3 -m ivpm update
+
+pdf : $(PACKAGES_DIR)/python
 	$(PACKAGES_DIR)/python/bin/sphinx-build -M latexpdf \
 		$(IVPM_DIR)/doc/source \
 		build
 
-html : 
+html : $(PACKAGES_DIR)/python
 	$(PACKAGES_DIR)/python/bin/sphinx-build -M html \
 		$(IVPM_DIR)/doc/source \
 			build

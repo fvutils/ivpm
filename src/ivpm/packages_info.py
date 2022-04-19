@@ -7,8 +7,12 @@ from typing import Dict, List, Set
 from ivpm.package import Package
 
 class PackagesInfo():
-    def __init__(self):
+    """Holds information about a set of packages"""
+    
+    def __init__(self, name):
+        self.name = name
         self.packages : Dict[str,Package] = {}
+        
         # Map of package name to set of packages
         # required for setup. This is Python-specific
         self.setup_deps : Dict[str, Set[str]] = {}
