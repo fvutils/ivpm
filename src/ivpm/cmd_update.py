@@ -13,7 +13,7 @@ from ivpm.msg import note, fatal, warning
 from ivpm.sve_filelist_writer import SveFilelistWriter
 from ivpm.out_wrapper import OutWrapper
 from ivpm.package_updater import PackageUpdater
-from ivpm.package import Package, PackageType
+from ivpm.package import Package, PackageType, SourceType
 import subprocess
 from toposort import toposort
 from typing import List
@@ -83,36 +83,82 @@ class CmdUpdate(object):
             if p.pkg_type == PackageType.Python:
                 python_pkgs_s.add(pid)
 
-        setup_deps_s = set()
-        
-        # Collect all packages that have a setup dependency
-        for sdp in pkgs_info.setup_deps.keys():
-            print("Package %s has a setup dependency" % sdp)
-            if sdp not in python_deps_m.keys():
-                python_deps_m[sdp] = set()
-            for sdp_d in pkgs_info.setup_deps[sdp]:
-                python_deps_m[sdp].add(sdp_d)
-                setup_deps_s.add(sdp_d)
+        pypi_pkg_s = set() # List of packages on PyPi to install
+        # Map between package name and a set of python
+        # packages it depends on
+        py_pkg_m = {}
+        for pyp in python_pkgs_s:
+            p = pkgs_info[pyp]
+            if p.src_type == SourceType.PyPi:
+                pypi_pkg_s.add(p.name)
+            else:
+                # Read the package-info
+                if pyp not in python_deps_m.keys():
+                    python_deps_m[pyp] = set()
 
+                proj_info = ProjectInfoReader(p.path).read()
+                # TODO: see if the package specifies the package set
+                for dp in proj_info.get_dep_set("default").keys():
+                    if dp in python_pkgs_s:
+                        dp_p = pkgs_info[dp]
+                        if dp_p.src_type != SourceType.PyPi:
+                            python_deps_m[pyp].add(dp)
+            pass
+
+        # Order the source packages based on their dependencies 
+        pysrc_pkg_order = list(toposort(python_deps_m))
         if self.debug:
-            print("python_deps_m: %s" % str(python_deps_m))
-        
-        pypkg_order = list(toposort(python_deps_m))
-        
-        # Remove the original packages that asserted
-        # setup dependencies
-        for sdp in pkgs_info.setup_deps.keys():
-            if sdp not in setup_deps_s:
-                for pypkg_s in pypkg_order:
-                    pypkg_s.discard(sdp)
-        
-        if self.debug:            
-            print("ordered: %s" % str(pypkg_order))
+            print("pysrc_pkg_order: %s" % str(pysrc_pkg_order))
 
-        python_requirements_paths = []
+        setup_deps_s = set()
+        python_deps_m = {}
         
-        # Now, build out the set of requirements files
-        for pydep_s in pypkg_order:
+#        # Collect all packages that have a setup dependency
+#        for sdp in pkgs_info.setup_deps.keys():
+#            print("Package %s has a setup dependency" % sdp)
+#            if sdp not in python_deps_m.keys():
+#                python_deps_m[sdp] = set()
+#            for sdp_d in pkgs_info.setup_deps[sdp]:
+#                python_deps_m[sdp].add(sdp_d)
+#                setup_deps_s.add(sdp_d)
+#
+#        if self.debug:
+#            print("python_deps_m: %s" % str(python_deps_m))
+#        
+#        pypkg_order = list(toposort(python_deps_m))
+#        print("pypkg_order: %s" % str(pypkg_order))
+#        
+#        # Remove the original packages that asserted
+#        # setup dependencies
+#        for sdp in pkgs_info.setup_deps.keys():
+#            if sdp not in setup_deps_s:
+#                for pypkg_s in pypkg_order:
+#                    pypkg_s.discard(sdp)
+#        
+#        if self.debug:            
+#            print("ordered: %s" % str(pypkg_order))
+#
+        python_requirements_paths = []
+
+        # First, create a requirements file for all
+        # PyPi packages
+        python_pkgs = []
+        for pypi_p in pypi_pkg_s:
+            python_pkgs.append(pkgs_info[pypi_p])
+
+        if len(python_pkgs) > 0:
+            requirements_path = os.path.join(
+                packages_dir, "python_pkgs_%d.txt" % (
+                len(python_requirements_paths)+1))
+
+            self._write_requirements_txt(
+                packages_dir,
+                python_pkgs, 
+                requirements_path)
+            python_requirements_paths.append(requirements_path)
+
+        # Now, add requirement files for any source packages
+        for pydep_s in pysrc_pkg_order:
             python_pkgs = []
             for key in pydep_s:
                 
@@ -144,27 +190,27 @@ class CmdUpdate(object):
                     requirements_path)
                 python_requirements_paths.append(requirements_path)
             
-        python_pkgs = []
-        for key in python_pkgs_s:
-            pkg : Package = pkgs_info[key]
-                
-            if pkg.pkg_type == PackageType.Python:
-                python_pkgs.append(pkg)
-            elif os.path.isfile(os.path.join(pkg.path, "setup.py")):
-                python_pkgs.append(pkg)
-            else:
-                warning("Package %s (%s) is marked as Python, but is missing setup.py" % (
-                    pkg.name, pkg.path))
-
-        if len(python_pkgs):
-            requirements_path = os.path.join(
-                packages_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
-            self._write_requirements_txt(
-                packages_dir,
-                python_pkgs, 
-                requirements_path)
-                
-            python_requirements_paths.append(requirements_path)
+#        python_pkgs = []
+#        for key in python_pkgs_s:
+#            pkg : Package = pkgs_info[key]
+#                
+#            if pkg.pkg_type == PackageType.Python:
+#                python_pkgs.append(pkg)
+#            elif os.path.isfile(os.path.join(pkg.path, "setup.py")):
+#                python_pkgs.append(pkg)
+#            else:
+#                warning("Package %s (%s) is marked as Python, but is missing setup.py" % (
+#                    pkg.name, pkg.path))
+#
+#        if len(python_pkgs):
+#            requirements_path = os.path.join(
+#                packages_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
+#            self._write_requirements_txt(
+#                packages_dir,
+#                python_pkgs, 
+#                requirements_path)
+#                
+#            python_requirements_paths.append(requirements_path)
                 
         if len(python_requirements_paths):
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
