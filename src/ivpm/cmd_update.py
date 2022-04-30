@@ -98,12 +98,12 @@ class CmdUpdate(object):
 
                 proj_info = ProjectInfoReader(p.path).read()
                 # TODO: see if the package specifies the package set
-                for dp in proj_info.get_dep_set("default").keys():
-                    if dp in python_pkgs_s:
-                        dp_p = pkgs_info[dp]
-                        if dp_p.src_type != SourceType.PyPi:
-                            python_deps_m[pyp].add(dp)
-            pass
+                if proj_info.has_dep_set("default"):
+                    for dp in proj_info.get_dep_set("default").keys():
+                        if dp in python_pkgs_s:
+                            dp_p = pkgs_info[dp]
+                            if dp_p.src_type != SourceType.PyPi:
+                                python_deps_m[pyp].add(dp)
 
         # Order the source packages based on their dependencies 
         pysrc_pkg_order = list(toposort(python_deps_m))
