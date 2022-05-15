@@ -97,6 +97,10 @@ class CmdUpdate(object):
                     python_deps_m[pyp] = set()
 
                 proj_info = ProjectInfoReader(p.path).read()
+
+                if proj_info is None:
+                    continue
+
                 # TODO: see if the package specifies the package set
                 if proj_info.has_dep_set("default"):
                     for dp in proj_info.get_dep_set("default").keys():

@@ -70,14 +70,14 @@ class ProjectInfoReader(object):
                     self.process_requirements(ret.dev_deps, 
                                     os.path.join(self.proj_dir, "requirements_dev.txt"))
                 
-            elif os.path.isfile(os.path.join(self.proj_dir, "requirements.txt")):
-                msg.warning("Reading legacy requirements.txt-based project")
-                if os.path.isfile(os.path.join(self.proj_dir, "requirements.txt")):
-                    self.process_requirements(ret.deps, 
-                                    os.path.join(self.proj_dir, "requirements.txt"))
-                if os.path.isfile(os.path.join(self.proj_dir, "requirements_dev.txt")):
-                    self.process_requirements(ret.dev_deps, 
-                                    os.path.join(self.proj_dir, "requirements_dev.txt"))
+#            elif os.path.isfile(os.path.join(self.proj_dir, "requirements.txt")):
+#                msg.warning("Reading legacy requirements.txt-based project")
+#                if os.path.isfile(os.path.join(self.proj_dir, "requirements.txt")):
+#                    self.process_requirements(ret.deps, 
+#                                    os.path.join(self.proj_dir, "requirements.txt"))
+#                if os.path.isfile(os.path.join(self.proj_dir, "requirements_dev.txt")):
+#                    self.process_requirements(ret.dev_deps, 
+#                                    os.path.join(self.proj_dir, "requirements_dev.txt"))
             else:
                 # No IVPM-specific data to rely on here
                 return None
