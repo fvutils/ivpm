@@ -29,6 +29,11 @@ setup(
   author = "Matthew Ballance",
   author_email = "matt.ballance@gmail.com",
   description = ("IVPM (IP and Verification Package Manager) is a project-internal package manager."),
+  long_description="""
+  IVPM fetches Python and non-Python packages from package and source
+  repositories. Python packages are installed into a local Python 
+  virtual environment. Source packages are installed in editable mode
+  """,
   license = "Apache 2.0",
   keywords = ["SystemVerilog", "Verilog", "RTL", "Coverage"],
   url = "https://github.com/fvutils/ivpm",
