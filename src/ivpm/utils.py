@@ -20,13 +20,15 @@ def get_sys_python():
         for p in ["python", "python3"]:
             if which(p) is None:
                 continue
-            out = check_output([p, "--version"])
+            try:
+                out = check_output([p, "--version"])
+                out_s = out.decode().split()
 
-            out_s = out.decode().split()
-
-            if len(out_s) == 2 and out_s[1][0] == "3":
-                python = p
-                break
+                if len(out_s) == 2 and out_s[1][0] == "3":
+                    python = p
+                    break
+            except Exception: # Ignore execution errors in the search
+                pass
             
     if python is None:
         fatal("failed to find Python3")
