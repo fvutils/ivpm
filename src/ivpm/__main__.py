@@ -17,6 +17,7 @@ from ivpm.cmd_init import CmdInit
 from ivpm.cmd_update import CmdUpdate
 from ivpm.cmd_git_status import CmdGitStatus
 from ivpm.cmd_git_update import CmdGitUpdate
+from ivpm.cmd_share import CmdShare
 from ivpm.cmd_snapshot import CmdSnapshot
 
 
@@ -166,9 +167,14 @@ def get_parser():
     subparser = parser.add_subparsers()
     subparser.required = True
     subparser.dest = 'command'
-    
+
+    share_cmd = subparser.add_parser("share",
+        help="Returns the 'share' directory, which includes cmake files, etc")
+    share_cmd.add_argument("path", nargs=argparse.REMAINDER)
+    share_cmd.set_defaults(func=CmdShare())
+
     update_cmd = subparser.add_parser("update",
-        help="Fetches packages specified in ivpm.yaml that have not already been loaded");
+        help="Fetches packages specified in ivpm.yaml that have not already been loaded")
     update_cmd.set_defaults(func=CmdUpdate())
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
         help="Specifies the project directory to use (default: cwd)")

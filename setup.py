@@ -25,7 +25,7 @@ setup(
   version = version,
   packages=['ivpm'],
   package_dir = {'' : 'src'},
-  package_data = {'ivpm': ['scripts/*', 'templates/*']},
+  package_data = {'ivpm': ['scripts/*', 'templates/*', 'share/*', 'share/cmake/*']},
   author = "Matthew Ballance",
   author_email = "matt.ballance@gmail.com",
   description = ("IVPM (IP and Verification Package Manager) is a project-internal package manager."),
