@@ -57,7 +57,7 @@ def setup_venv(python_dir):
     ivpm_python = get_venv_python(python_dir)
             
     os.system(ivpm_python + " -m pip install --upgrade pip")
-    os.system(ivpm_python + " -m pip install --upgrade setuptools wheel")
+    os.system(ivpm_python + " -m pip install --upgrade ivpm setuptools wheel")
     
     return ivpm_python
     
