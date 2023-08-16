@@ -4,6 +4,7 @@ Created on Jun 22, 2021
 @author: mballance
 '''
 import os
+import sys
 from subprocess import check_output
 from ivpm.msg import note, fatal
 
@@ -15,23 +16,13 @@ def get_sys_python():
         note("Using user-specified Python %s" % os.environ["IVPM_PYTHON"])
         python = os.environ["IVPM_PYTHON"]
     else:
-        # First, find a Python to use
-        python = None
-        for p in ["python", "python3"]:
-            if which(p) is None:
-                continue
-            try:
-                out = check_output([p, "--version"])
-                out_s = out.decode().split()
+        # Default to the executing python
+        python = sys.executable
+        out = check_output([python, "--version"])
+        out_s = out.decode().split()
 
-                if len(out_s) == 2 and out_s[1][0] == "3":
-                    python = p
-                    break
-            except Exception: # Ignore execution errors in the search
-                pass
-            
-    if python is None:
-        fatal("failed to find Python3")
+        if len(out_s) < 2 or out_s[1][0] == "3":
+            fatal("Wrong Python version: %s" % out_s)
             
     return python
     
