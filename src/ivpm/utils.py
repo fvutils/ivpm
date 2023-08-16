@@ -21,8 +21,7 @@ def get_sys_python():
         out = check_output([python, "--version"])
         out_s = out.decode().split()
 
-        if len(out_s) < 2 or out_s[1][0] == "3":
-            fatal("Wrong Python version: %s" % out_s)
+        print("Note: using Python version: %s" % out_s)
             
     return python
     
