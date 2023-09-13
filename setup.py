@@ -1,6 +1,6 @@
 
 import os, stat
-from setuptools import setup
+from setuptools import setup, find_namespace_packages
 from setuptools.command.install import install
 
 class InstallCmd(install):
@@ -23,7 +23,7 @@ if "BUILD_NUM" in os.environ.keys():
 setup(
   name = "ivpm",
   version = version,
-  packages=['ivpm'],
+  packages=find_namespace_packages(where='src'),
   package_dir = {'' : 'src'},
   package_data = {'ivpm': ['scripts/*', 'templates/*', 'share/*', 'share/cmake/*']},
   author = "Matthew Ballance",
