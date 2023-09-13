@@ -13,12 +13,13 @@ from zipfile import ZipFile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from ivpm.cmd_init import CmdInit
-from ivpm.cmd_update import CmdUpdate
-from ivpm.cmd_git_status import CmdGitStatus
-from ivpm.cmd_git_update import CmdGitUpdate
-from ivpm.cmd_share import CmdShare
-from ivpm.cmd_snapshot import CmdSnapshot
+from .cmds.cmd_init import CmdInit
+from .cmds.cmd_update import CmdUpdate
+from .cmds.cmd_git_status import CmdGitStatus
+from .cmds.cmd_git_update import CmdGitUpdate
+from .cmds.cmd_share import CmdShare
+from .cmds.cmd_snapshot import CmdSnapshot
+from .cmds.cmd_c_flags import CmdCFlags
 
 
 #********************************************************************
@@ -167,6 +168,11 @@ def get_parser():
     subparser = parser.add_subparsers()
     subparser.required = True
     subparser.dest = 'command'
+
+    cflags_cmd = subparser.add_parser("pkg-flags",
+        help="Collect cflags for a listed set of packages")
+    cflags_cmd.add_argument("pkgs", nargs="+")
+    cflags_cmd.set_defaults(func=CmdCFlags())
 
     share_cmd = subparser.add_parser("share",
         help="Returns the 'share' directory, which includes cmake files, etc")
