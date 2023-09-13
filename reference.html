@@ -11,11 +11,11 @@
     <script src="_static/js/html5shiv.min.js"></script>
   <![endif]-->
   
-        <script src="_static/jquery.js"></script>
-        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
-        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
-        <script src="_static/doctools.js"></script>
-        <script src="_static/sphinx_highlight.js"></script>
+        <script src="_static/jquery.js?v=5d32c60e"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="_static/documentation_options.js?v=5929fcd5"></script>
+        <script src="_static/doctools.js?v=888ff710"></script>
+        <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -93,14 +93,14 @@
            <div itemprop="articleBody">
              
   <section id="reference">
-<h1>Reference<a class="headerlink" href="#reference" title="Permalink to this heading"></a></h1>
+<h1>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h1>
 <section id="commands">
-<h2>Commands<a class="headerlink" href="#commands" title="Permalink to this heading"></a></h2>
+<h2>Commands<a class="headerlink" href="#commands" title="Link to this heading"></a></h2>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">{</span><span class="n">share</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">status</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">update</span><span class="p">,</span><span class="n">snapshot</span><span class="p">}</span> <span class="o">...</span>
 </pre></div>
 </div>
 <section id="positional-arguments">
-<h3>Positional Arguments<a class="headerlink" href="#positional-arguments" title="Permalink to this heading"></a></h3>
+<h3>Positional Arguments<a class="headerlink" href="#positional-arguments" title="Link to this heading"></a></h3>
 <dl class="option-list">
 <dt><kbd>command</kbd></dt>
 <dd><p>Possible choices: share, update, init, git-status, git-update, snapshot</p>
@@ -108,15 +108,15 @@
 </dl>
 </section>
 <section id="Sub-commands">
-<h3>Sub-commands<a class="headerlink" href="#Sub-commands" title="Permalink to this heading"></a></h3>
+<h3>Sub-commands<a class="headerlink" href="#Sub-commands" title="Link to this heading"></a></h3>
 <section id="share">
-<h4>share<a class="headerlink" href="#share" title="Permalink to this heading"></a></h4>
+<h4>share<a class="headerlink" href="#share" title="Link to this heading"></a></h4>
 <p>Returns the ‘share’ directory, which includes cmake files, etc</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">share</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="o">...</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat1">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat1" title="Permalink to this heading"></a></h5>
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat1" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>path</kbd></dt>
 <dd></dd>
@@ -124,13 +124,13 @@
 </section>
 </section>
 <section id="update">
-<h4>update<a class="headerlink" href="#update" title="Permalink to this heading"></a></h4>
+<h4>update<a class="headerlink" href="#update" title="Link to this heading"></a></h4>
 <p>Fetches packages specified in ivpm.yaml that have not already been loaded</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments" title="Permalink to this heading"></a></h5>
+<h5>Named Arguments<a class="headerlink" href="#named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd><p>Specifies the project directory to use (default: cwd)</p>
@@ -146,20 +146,20 @@
 </section>
 </section>
 <section id="init">
-<h4>init<a class="headerlink" href="#init" title="Permalink to this heading"></a></h4>
+<h4>init<a class="headerlink" href="#init" title="Link to this heading"></a></h4>
 <p>Creates an initial ivpm.yaml file</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">init</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span> <span class="n">VERSION</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="n">name</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat2">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat2" title="Permalink to this heading"></a></h5>
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat2" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd></dd>
 </dl>
 </section>
 <section id="named-arguments_repeat1">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat1" title="Permalink to this heading"></a></h5>
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat1" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-v, --version</kbd></dt>
 <dd><p>Default: “0.0.1”</p>
@@ -171,13 +171,13 @@
 </section>
 </section>
 <section id="git-status">
-<h4>git-status<a class="headerlink" href="#git-status" title="Permalink to this heading"></a></h4>
+<h4>git-status<a class="headerlink" href="#git-status" title="Link to this heading"></a></h4>
 <p>Runs git status on any git packages</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">status</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat2">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Permalink to this heading"></a></h5>
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -185,13 +185,13 @@
 </section>
 </section>
 <section id="git-update">
-<h4>git-update<a class="headerlink" href="#git-update" title="Permalink to this heading"></a></h4>
+<h4>git-update<a class="headerlink" href="#git-update" title="Link to this heading"></a></h4>
 <p>Undocumented</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat3">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Permalink to this heading"></a></h5>
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -199,13 +199,13 @@
 </section>
 </section>
 <section id="snapshot">
-<h4>snapshot<a class="headerlink" href="#snapshot" title="Permalink to this heading"></a></h4>
+<h4>snapshot<a class="headerlink" href="#snapshot" title="Link to this heading"></a></h4>
 <p>Creates a snapshot of required packages</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">snapshot</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">r</span><span class="p">]</span> <span class="n">snapshot_dir</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat3">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat3" title="Permalink to this heading"></a></h5>
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat3" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>snapshot_dir</kbd></dt>
 <dd><p>Specifies the directory where the snapshot will be created</p>
@@ -213,7 +213,7 @@
 </dl>
 </section>
 <section id="named-arguments_repeat4">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Permalink to this heading"></a></h5>
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -227,9 +227,9 @@
 </section>
 </section>
 <section id="yaml-file-format">
-<h2>YAML File Format<a class="headerlink" href="#yaml-file-format" title="Permalink to this heading"></a></h2>
+<h2>YAML File Format<a class="headerlink" href="#yaml-file-format" title="Link to this heading"></a></h2>
 <section id="package-definition">
-<span id="package-definition"></span><h3>Package Definition<a class="headerlink" href="#package-definition" title="Permalink to this heading"></a></h3>
+<span id="package-definition"></span><h3>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
@@ -262,7 +262,7 @@
 </table>
 </section>
 <section id="named-package-dependency-set">
-<span id="named-package-dependency-set"></span><h3>Named package-dependency set<a class="headerlink" href="#named-package-dependency-set" title="Permalink to this heading"></a></h3>
+<span id="named-package-dependency-set"></span><h3>Named package-dependency set<a class="headerlink" href="#named-package-dependency-set" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
@@ -295,7 +295,7 @@
 </table>
 </section>
 <section id="package-dependency-specification">
-<span id="package-dependency-specification"></span><h3>Package Dependency specification<a class="headerlink" href="#package-dependency-specification" title="Permalink to this heading"></a></h3>
+<span id="package-dependency-specification"></span><h3>Package Dependency specification<a class="headerlink" href="#package-dependency-specification" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
