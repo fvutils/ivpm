@@ -65,6 +65,14 @@ class CmdUpdate(object):
         else:
             ds = proj_info.dep_set_m[ds_name]
 
+        # If the root dependency set doesn't specify a source
+        # for IVPM, auto-load it from PyPi
+        if "ivpm" not in ds.packages.keys():
+            print("Note: will install IVPM from PyPi")
+            ivpm = Package("ivpm")
+            ivpm.src_type = SourceType.PyPi
+            ds.packages["ivpm"] = ivpm
+
         updater = PackageUpdater(packages_dir, args.anonymous)
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None
