@@ -43,7 +43,7 @@ class PackagesInfo():
         self.packages[key] = value
         
     def copy(self) -> 'PackagesInfo':
-        ret = PackagesInfo()
+        ret = PackagesInfo(self.name)
         ret.packages = self.packages.copy()
         ret.options  = self.options.copy()
         
