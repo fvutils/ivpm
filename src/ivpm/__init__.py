@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import os
+import build
 from .pkg_info_loader import PkgInfoLoader
 from .pkg_compile_flags import PkgCompileFlags
 
