@@ -17,7 +17,7 @@ class PackagesMfReader(object):
         pass
     
     def read(self, fp, name) -> PackagesInfo:
-        ret = PackagesInfo()
+        ret = PackagesInfo(name)
     
         for l in fp.readlines():
             l = l.strip()
