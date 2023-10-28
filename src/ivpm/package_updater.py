@@ -66,8 +66,10 @@ class PackageUpdater(object):
 
                     if proj_info.process_deps:
                         if not proj_info.has_dep_set(pkg.dep_set):
-                            note("package %s does not contain specified dep-set %s ; skipping" % (proj_info.name, pkg.dep_set))
+                            warning("package %s does not contain specified dep-set %s ; skipping" % (proj_info.name, pkg.dep_set))
                             continue
+                        else:
+                            note("Loading package %s dependencies from dep-set %s" % (proj_info.name, pkg.dep_set))
                         
                         ds : PackagesInfo = proj_info.get_dep_set(pkg.dep_set)
                         for d in ds.packages.keys():
@@ -162,8 +164,10 @@ class PackageUpdater(object):
         # After loading the package, or finding it already loaded,
         # check what we have
         if pkg.pkg_type == PackageType.Unknown:
-            if os.path.isfile(os.path.join(self.packages_dir, pkg.name, "setup.py")):
-                pkg.pkg_type = PackageType.Python
+            for py in ("setup.py", "pyproject.toml"):
+                if os.path.isfile(os.path.join(self.packages_dir, pkg.name, py)):
+                    pkg.pkg_type = PackageType.Python
+                    break
         
         if info is None:
             info = ProjInfo(False)

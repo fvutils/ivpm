@@ -22,7 +22,7 @@ from typing import List
 class CmdUpdate(object):
     
     def __init__(self):
-        self.debug = False
+        self.debug = True
         pass
     
     def __call__(self, args):
@@ -110,6 +110,7 @@ class CmdUpdate(object):
                     continue
 
                 # TODO: see if the package specifies the package set
+                print("proj_info: %s" % str(type(proj_info)))
                 if proj_info.has_dep_set("default"):
                     for dp in proj_info.get_dep_set("default").keys():
                         if dp in python_pkgs_s:
@@ -120,6 +121,7 @@ class CmdUpdate(object):
         # Order the source packages based on their dependencies 
         pysrc_pkg_order = list(toposort(python_deps_m))
         if self.debug:
+            print("python_deps_m: %s" % str(python_deps_m))
             print("pysrc_pkg_order: %s" % str(pysrc_pkg_order))
 
         setup_deps_s = set()

@@ -146,6 +146,8 @@ class IvpmYamlReader(object):
                     fatal("unknown URL extension %s" % ext)
                     
                 pkg.src_type = Ext2SourceType[ext]
+            if "dep-set" in d.keys():
+                pkg.dep_set = d["dep-set"]
                 
             # Determine the package type (eg Python, Raw)
             if "type" in d.keys():
