@@ -13,6 +13,8 @@ class ProjInfo():
         self.dependencies = []
         self.is_legacy = False
 
+        # Dep-set to use when loading sub-dependencies
+        self.target_dep_set = "default"
         self.dep_set_m : Dict[str,PackagesInfo] = {}
         self.setup_deps = set()
         
@@ -27,6 +29,14 @@ class ProjInfo():
             
     def get_dep_set(self, name):
         return self.dep_set_m[name]
+    
+    def get_target_dep_set(self):
+        if self.target_dep_set is None:
+            raise Exception("target_dep_set is not specified")
+        if self.target_dep_set not in self.dep_set_m.keys():
+            raise Exception("Dep-set %s is not present in project %s" % (
+                self.target_dep_set, self.name))
+        return self.dep_set_m[self.target_dep_set]
     
     def set_dep_set(self, name, ds):
         self.dep_set_m[name] = ds

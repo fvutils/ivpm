@@ -50,6 +50,7 @@ class IvpmYamlReader(object):
         
         if "deps" in pkg.keys() or "dev-deps" in pkg.keys():
             # old-style format
+            print("Note: Package %s uses old-style ivpm.yaml format" % ret.name)
             if "deps" in pkg.keys() and pkg["deps"] is not None:
                 ds = PackagesInfo("default")
                 self.read_deps(ds, pkg["deps"])
@@ -97,7 +98,7 @@ class IvpmYamlReader(object):
             info.set_dep_set(ds.name, ds)
         
 
-    def read_deps(self, ret, deps):
+    def read_deps(self, ret : PackagesInfo, deps):
         
         for d in deps:
             si = d.srcinfo

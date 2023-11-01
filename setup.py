@@ -15,7 +15,7 @@ class InstallCmd(install):
 
 rootdir = os.path.dirname(os.path.realpath(__file__))
 
-version="1.0.9"
+version="1.1.0"
 
 if "BUILD_NUM" in os.environ.keys():
     version += "." + os.environ["BUILD_NUM"]

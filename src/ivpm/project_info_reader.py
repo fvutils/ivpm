@@ -33,7 +33,7 @@ class ProjectInfoReader(object):
         
         # First, see if this is a new-style project
         if os.path.isfile(os.path.join(self.proj_dir, "ivpm.yaml")):
-            msg.note("Reading ivpm.yaml")
+            msg.note("Reading ivpm.yaml from project %s" % self.proj_dir)
             path = os.path.join(self.proj_dir, "ivpm.yaml");
             with open(path, "r") as fp:
                 ret = IvpmYamlReader().read(fp, path)

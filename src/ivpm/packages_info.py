@@ -21,7 +21,7 @@ class PackagesInfo():
     def keys(self):
         return self.packages.keys()
     
-    def add_package(self, pkg):
+    def add_package(self, pkg : Package):
         self.packages[pkg.name] = pkg
 
     def get_options(self, package):

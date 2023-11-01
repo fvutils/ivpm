@@ -31,7 +31,12 @@ class PackageUpdater(object):
         pass
     
     def update(self, pkgs : PackagesInfo) -> PackagesInfo:
-        """Updates the specified packages, handling dependencies"""
+        """
+        Updates the specified packages, handling dependencies
+        The 'pkgs' parameter holds the dependency information
+        from the root project
+        """
+
         
         count = 1
 
@@ -54,7 +59,7 @@ class PackageUpdater(object):
                 self.all_pkgs[pkg.name] = pkg
                 
                 if pkg.src_type != SourceType.PyPi:
-                    proj_info = self._update_pkg(pkg)
+                    proj_info : ProjInfo = self._update_pkg(pkg)
                     
                     # proj_info contains info on any setup-deps that
                     # might be required
@@ -70,7 +75,11 @@ class PackageUpdater(object):
                             continue
                         else:
                             note("Loading package %s dependencies from dep-set %s" % (proj_info.name, pkg.dep_set))
-                        
+
+                        note("Processing dep-set %s of project %s" % (
+                            pkg.dep_set,
+                            pkg.name))                        
+
                         ds : PackagesInfo = proj_info.get_dep_set(pkg.dep_set)
                         for d in ds.packages.keys():
                             dep = ds.packages[d]
@@ -158,7 +167,8 @@ class PackageUpdater(object):
                     os.unlink(os.path.join(download_dir, filename))
                     
         # Now, check the package for dependencies
-        info = ProjectInfoReader(pkg_dir).read()
+        info : ProjInfo = ProjectInfoReader(pkg_dir).read()
+
         
 
         # After loading the package, or finding it already loaded,
@@ -172,6 +182,9 @@ class PackageUpdater(object):
         if info is None:
             info = ProjInfo(False)
             info.name = pkg.name
+
+        # Ensure that we use the requested dep-set
+        info.target_dep_set = pkg.dep_set
             
         info.process_deps = pkg.process_deps
         

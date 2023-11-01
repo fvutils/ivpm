@@ -22,7 +22,7 @@ from typing import List
 class CmdUpdate(object):
     
     def __init__(self):
-        self.debug = True
+        self.debug = False
         pass
     
     def __call__(self, args):
@@ -78,6 +78,8 @@ class CmdUpdate(object):
         updater.all_pkgs[proj_info.name] = None
         pkgs_info = updater.update(ds)
 
+        print("Setup-deps: %s" % str(pkgs_info.setup_deps))
+
         # Remove the root package before processing what's left
         pkgs_info.pop(proj_info.name)
 
@@ -110,13 +112,18 @@ class CmdUpdate(object):
                     continue
 
                 # TODO: see if the package specifies the package set
-                print("proj_info: %s" % str(type(proj_info)))
-                if proj_info.has_dep_set("default"):
-                    for dp in proj_info.get_dep_set("default").keys():
+                if proj_info.has_dep_set(proj_info.target_dep_set):
+                    for dp in proj_info.get_dep_set(proj_info.target_dep_set).keys():
                         if dp in python_pkgs_s:
                             dp_p = pkgs_info[dp]
                             if dp_p.src_type != SourceType.PyPi:
                                 python_deps_m[pyp].add(dp)
+                else:
+                    print("Warning: project %s does not contain its target dependency set (%s)" % (
+                        proj_info.name,
+                        proj_info.target_dep_set))
+                    for d in proj_info.dep_set_m.keys():
+                        print("Dep-Set: %s" % d)
 
         # Order the source packages based on their dependencies 
         pysrc_pkg_order = list(toposort(python_deps_m))
@@ -149,14 +156,39 @@ class CmdUpdate(object):
 #                for pypkg_s in pypkg_order:
 #                    pypkg_s.discard(sdp)
 #        
-#        if self.debug:            
+#        if self.debug:           
 #            print("ordered: %s" % str(pypkg_order))
 #
         python_requirements_paths = []
 
-        # First, create a requirements file for all
-        # PyPi packages
+        # First, collect the setup-deps
+        setup_deps_s = set()
+        for proj,deps in pkgs_info.setup_deps.items():
+            for dep in deps:
+                if dep not in setup_deps_s:
+                    setup_deps_s.add(dep)
+                    if dep in pypi_pkg_s:
+                        pypi_pkg_s.remove(dep)
+        print("setup_deps_s: %s" % str(setup_deps_s))
+
+        if len(setup_deps_s) > 0:
+            setup_deps_pkgs = []
+            for dep in setup_deps_s:
+                setup_deps_pkgs.append(pkgs_info[dep])
+
+            requirements_path = os.path.join(
+                packages_dir, "python_pkgs_%d.txt" % (
+                len(python_requirements_paths)+1))
+            self._write_requirements_txt(
+                packages_dir,
+                setup_deps_pkgs, 
+                requirements_path)
+            python_requirements_paths.append(requirements_path)
+
+        # Next, create a requirements file for all
+        # non-setup-dep PyPi packages
         python_pkgs = []
+        print("pypi_pkg_s: %s" % str(pypi_pkg_s))
         for pypi_p in pypi_pkg_s:
             python_pkgs.append(pkgs_info[pypi_p])
 
