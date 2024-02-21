@@ -28,6 +28,25 @@ class PkgInfo(object):
         self._incdirs = []
         self._libdirs = []
         self._libs = []
-        pass
+
+    @property
+    def name(self):
+        return self._name
+
+    def getDeps(self):
+        return self._deps
+    
+    def getIncDirs(self):
+        return self._incdirs
+    
+    def getLibDirs(self):
+        return self._libdirs
+    
+    def getLibs(self):
+        return self._libs
+    
+    def getPaths(self, kind):
+        return []
+
 
 

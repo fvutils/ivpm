@@ -22,6 +22,9 @@
 import os
 from .pkg_info_loader import PkgInfoLoader
 from .pkg_compile_flags import PkgCompileFlags
+from .pkg_info import PkgInfo
+from .pkg_info_rgy import PkgInfoRgy
+from .utils import load_project_package_info
 import ivpm.build
 
 def get_pkg_version(setup_py_path):

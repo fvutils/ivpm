@@ -6,7 +6,41 @@ Created on Jun 22, 2021
 import os
 import sys
 from subprocess import check_output
+from typing import List
 from ivpm.msg import note, fatal
+from .proj_info import ProjInfo
+
+def find_project_root(path):
+    pt = path
+    while pt != "/" and pt != "":
+        if os.path.isfile(os.path.join(pt, "ivpm.yaml")) and os.path.isdir(os.path.join(pt, "packages")):
+            break
+        else:
+            pt = os.path.dirname(pt)
+
+    if pt == "/":
+        raise Exception("Failed to find project root directory from %s" % path)
+    return pt
+
+def load_project_package_info(project_dir) -> List[ProjInfo]:
+    from .ivpm_yaml_reader import IvpmYamlReader
+    ret = []
+
+    if not os.path.isfile(os.path.join(project_dir, "ivpm.yaml")):
+        raise Exception("Invalid project format: no ivpm.yaml file in %s" % project_dir)
+
+    with open(os.path.join(project_dir, "ivpm.yaml"), "r") as fp:
+        ret.append(IvpmYamlReader().read(fp, os.path.join(project_dir, "ivpm.yaml")))
+
+    if os.path.isdir(os.path.join(project_dir, "packages")):
+        pkgs_dir = os.path.join(project_dir, "packages")
+        for f in os.listdir(pkgs_dir):
+            if f != "." and f != ".." and os.path.isdir(os.path.join(pkgs_dir, f)):
+                if os.path.isfile(os.path.join(pkgs_dir, f, "ivpm.yaml")):
+                    with open(os.path.join(pkgs_dir, f, "ivpm.yaml"), "r") as fp:
+                        ret.append(IvpmYamlReader().read(fp, os.path.join(pkgs_dir, f, "ivpm.yaml")))
+
+    return ret
 
 
 def get_sys_python():

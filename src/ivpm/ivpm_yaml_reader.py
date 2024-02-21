@@ -72,6 +72,15 @@ class IvpmYamlReader(object):
         if "setup-deps" in pkg.keys():
             for sd in pkg["setup-deps"]:
                 ret.setup_deps.add(sd)
+
+        if "paths" in pkg.keys():
+            ps = pkg["paths"]
+            for ps_kind in ps.keys():
+                self.read_path_set(
+                    ret,
+                    os.path.dirname(name),
+                    ps_kind,
+                    ps[ps_kind])
             
         return ret
 
@@ -201,5 +210,16 @@ class IvpmYamlReader(object):
         if self.debug:
             print("ret: %s %d packages" % (str(ret), len(ret.packages)))
         return ret
-        
+
+    def read_path_set(self, info : ProjInfo, path, ps_kind : str, ps):
+        if ps_kind not in info.paths.keys():
+            info.paths[ps_kind] = {}
+        path_kind_s = info.paths[ps_kind]
+
+        for p_kind in ps.keys():
+            if p_kind not in path_kind_s.keys():
+                path_kind_s[p_kind] = []
+            for p in ps[p_kind]:
+                path_kind_s[p_kind].append(os.path.join(path, p))
+
         

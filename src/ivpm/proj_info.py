@@ -5,7 +5,7 @@ Created on Jan 19, 2020
 '''
 from enum import Enum, auto
 from ivpm.packages_info import PackagesInfo
-from typing import Dict
+from typing import Dict, List
 
 class ProjInfo():
     def __init__(self, is_src):
@@ -23,6 +23,7 @@ class ProjInfo():
         self.name = None
         self.version = None
         self.process_deps = True
+        self.paths : Dict[str, Dict[str, List[str]]] = {}
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()
