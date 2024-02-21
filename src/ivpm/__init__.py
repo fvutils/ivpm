@@ -24,6 +24,7 @@ from .pkg_info_loader import PkgInfoLoader
 from .pkg_compile_flags import PkgCompileFlags
 from .pkg_info import PkgInfo
 from .pkg_info_rgy import PkgInfoRgy
+from .pkg_info_loader import PkgInfoLoader
 from .utils import load_project_package_info
 import ivpm.build
 

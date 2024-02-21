@@ -19,8 +19,9 @@ def find_project_root(path):
             pt = os.path.dirname(pt)
 
     if pt == "/":
-        raise Exception("Failed to find project root directory from %s" % path)
-    return pt
+        return None
+    else:
+        return pt
 
 def load_project_package_info(project_dir) -> List[ProjInfo]:
     from .ivpm_yaml_reader import IvpmYamlReader
