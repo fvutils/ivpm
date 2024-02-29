@@ -172,13 +172,12 @@ class BuildExt(_build_ext):
         install_cmd[cmake_build_tool](self, build_dir, env)
 
     def build_ninja(self, build_dir, env):
-        result = subprocess.run(
-            ["ninja",
-             "-j",
-             "%d" % os.cpu_count()
-            ],
-            cwd=build_dir,
-            env=env)
+        cmd = ["ninja", "-j", "%d" % os.cpu_count() ]
+        print("Command: %s" % str(cmd))
+        try:
+            result = subprocess.run(cmd, cwd=build_dir, env=env)
+        except Exception as e:
+            print("Exception: %s" % str(e))
         if result.returncode != 0:
             raise Exception("build failed")
     
