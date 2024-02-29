@@ -39,7 +39,7 @@ def setup(*args, **kwargs):
     if os.path.isdir(os.path.join(project_dir, 'packages')):
         packages_dir = os.path.join(project_dir, 'packages')
     else:
-        packages_dir = os.path.abspath(os.path.join(project_dir, '../packages'))
+        packages_dir = os.path.dirname(os.path.join(project_dir))
 
         if not os.path.isdir(packages_dir):
             raise Exception("Failed to locate packages directory: project_dir=%s ; packages_dir=%s" % (
