@@ -94,8 +94,7 @@ class InstallLib(_install_lib):
                             shutil.rmtree(os.path.join(install_root, p, dst))
                         shutil.copytree(
                             src, 
-                            os.path.join(install_root, p, dst, os.path.basename(src)),
-                            dirs_exist_ok=True)
+                            os.path.join(install_root, p, dst, os.path.basename(src)))
                     else:
                         raise Exception("Source path \"%s\" doesn't exist" % src)
                     print("Copy: %s" % str(spec))
