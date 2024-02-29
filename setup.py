@@ -46,6 +46,7 @@ setup(
     'setuptools_scm',
   ],
   install_requires=[
+      'setuptools',
       'jsonschema',
       'pyyaml',
       'pyyaml-srcinfo-loader',
