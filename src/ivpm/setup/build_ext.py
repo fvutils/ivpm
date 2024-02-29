@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import os
+import platform
 import subprocess
 import sys
 from setuptools.command.build_ext import build_ext as _build_ext
@@ -148,19 +149,21 @@ class BuildExt(_build_ext):
             env["PATH"] = python_bindir + os.pathsep + env["PATH"]
         else:
             env["PATH"] = python_bindir
+
+        config_cmd = ["cmake", proj_dir, "-G%s" % cmake_build_tool, BUILD_TYPE]
+
+        config_cmd.append("-DPACKAGES_DIR=%s" % packages_dir)
+        config_cmd.append("-DCMAKE_INSTALL_PREFIX=%s" % os.path.join(cwd, "build"))
+
+        if platform.system() == "Windows":
+            config_cmd.extend(["-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang"])
+        elif platform.system() == "Darwin":
+            config_cmd.append("-DCMAKE_OSX_ARCHITECTURES='x86_64;arm64'")
+
+        print("cmake config command: %s" % str(config_cmd))
             
         # Run configure...
-        result = subprocess.run(
-            ["cmake", 
-                proj_dir,
-                "-G%s" % cmake_build_tool,
-                BUILD_TYPE,
-                "-DPACKAGES_DIR=%s" % packages_dir,
-                "-DCMAKE_INSTALL_PREFIX=%s" % os.path.join(cwd, "build"),
-                "-DCMAKE_OSX_ARCHITECTURES='x86_64;arm64'",
-            ],
-            cwd=os.path.join(cwd, "build"),
-            env=env)
+        result = subprocess.run(config_cmd, cwd=os.path.join(cwd, "build"), env=env)
 
         if result.returncode != 0:
             raise Exception("cmake configure failed")
