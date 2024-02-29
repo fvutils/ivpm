@@ -25,7 +25,7 @@ import sys
 from setuptools.command.build_ext import build_ext as _build_ext
 
 class BuildExt(_build_ext):
-    
+
     def build_extensions(self):
 #        print("build_extesions %s" % os.getcwd())
 #        build_py = self.get_finalized_command('install').root
@@ -104,9 +104,9 @@ class BuildExt(_build_ext):
             'Ninja': BuildExt.install_ninja,
             'Unix Makefiles': BuildExt.install_make
         }
+
         DEBUG = False
         if "-DDEBUG" in sys.argv:
-#            sys.argv.remove("-DDEBUG")
             DEBUG = True
         elif "DEBUG" in os.environ.keys() and os.environ["DEBUG"] in ("1", "y", "Y"):
             DEBUG = True

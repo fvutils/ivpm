@@ -26,7 +26,7 @@ from .pkg_info import PkgInfo
 from .pkg_info_rgy import PkgInfoRgy
 from .pkg_info_loader import PkgInfoLoader
 from .utils import load_project_package_info
-import ivpm.build
+import ivpm.setup
 
 def get_pkg_version(setup_py_path):
     """Returns the package version based on the etc/ivpm.info file"""
