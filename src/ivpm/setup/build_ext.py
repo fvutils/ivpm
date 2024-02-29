@@ -156,7 +156,8 @@ class BuildExt(_build_ext):
         config_cmd.append("-DCMAKE_INSTALL_PREFIX=%s" % os.path.join(cwd, "build"))
 
         if platform.system() == "Windows":
-            config_cmd.extend(["-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang"])
+#            config_cmd.extend(["-DCMAKE_C_COMPILER=clang", "-DCMAKE_CXX_COMPILER=clang"])
+            pass
         elif platform.system() == "Darwin":
             config_cmd.append("-DCMAKE_OSX_ARCHITECTURES='x86_64;arm64'")
 
