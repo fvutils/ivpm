@@ -62,22 +62,8 @@ class InstallLib(_install_lib):
         for p in build_py.packages:
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
-                    src = spec[0]
+                    src = self.expand(subst_m, spec[0])
                     dst = spec[1]
-                    elems = src.split("/")
-
-                    # Perform path meta-variable substitution
-                    for i,e in enumerate(elems):
-                        found = True
-                        while found:
-                            found = False
-                            for k in subst_m.keys():
-                                if e.find(k) != -1:
-                                    found = True
-                                    e = e.replace(k, subst_m[k])
-                            elems[i] = e
-                    src = "/".join(elems)
-
 
                     if os.path.isfile(src):
                         if not os.path.isdir(os.path.dirname(os.path.join(install_root, p, dst))):
@@ -86,6 +72,19 @@ class InstallLib(_install_lib):
                             src,
                             os.path.join(install_root, p, dst, os.path.basename(src))
                         )
+
+                        if "{dllext}" in spec[0] and platform.system() == "Windows":
+                            # See if there is a link library to copy as well
+                            link_lib = src.replace(".dll", ".lib")
+                            print("Test link_lib: %s" % link_lib)
+                            if os.path.isfile(link_lib):
+                                print("Found")
+                                shutil.copyfile(
+                                    link_lib,
+                                    os.path.join(install_root, p, dst, os.path.basename(link_lib))
+                                )
+                            else:
+                                print("Not Found")
                     elif os.path.isdir(src):
 #                        if not os.path.isdir(os.path.join(install_root, p, spec[1])):
 #                            os.makedirs(os.path.join(install_root, p, spec[1]), exist_ok=True)
@@ -131,4 +130,20 @@ class InstallLib(_install_lib):
 #                 pass
                 
         return super().install()
+    
+    def expand(self, subst_m, path):
+        elems = path.split("/")
+
+        # Perform path meta-variable substitution
+        for i,e in enumerate(elems):
+            found = True
+            while found:
+                found = False
+                for k in subst_m.keys():
+                    if e.find(k) != -1:
+                        found = True
+                        e = e.replace(k, subst_m[k])
+                        elems[i] = e
+        return "/".join(elems)
+
 
