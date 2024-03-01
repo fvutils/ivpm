@@ -22,8 +22,9 @@
 
 class PkgInfo(object):
 
-    def __init__(self, name):
+    def __init__(self, name, path=None):
         self._name = name
+        self._path = path
         self._deps = []
         self._incdirs = []
         self._libdirs = []
@@ -35,6 +36,9 @@ class PkgInfo(object):
 
     def getDeps(self):
         return self._deps
+
+    def getPath(self):
+        return self._path
     
     def getIncDirs(self):
         return self._incdirs

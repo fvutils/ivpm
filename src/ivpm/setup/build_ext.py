@@ -36,8 +36,6 @@ class BuildExt(_build_ext):
 #        print("Package dir: %s" % build_py.get_package_dir())
         proj_dir = os.getcwd()
 
-        for f in os.listdir(proj_dir):
-            print("File: %s" % f)        
         if os.path.isfile(os.path.join(proj_dir, "CMakeLists.txt")):
             print("build_cmake")
             self.build_cmake(proj_dir)
@@ -48,7 +46,7 @@ class BuildExt(_build_ext):
         proj_dir = os.getcwd()
         print("build_extension: %s" % str(ext))
         include_dirs = getattr(ext, 'include_dirs', [])
-        include_dirs.append("foobar")
+#        include_dirs.append("foobar")
 #        include_dirs.append(os.path.join(proj_dir, 'src', 'include'))
         setattr(ext, 'include_dirs', include_dirs)
         

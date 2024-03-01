@@ -37,11 +37,22 @@ class PkgInfoRgy(object):
 
         plugins = entry_points(group='ivpm.pkginfo')
 
+        print("plugins: %s" % str(plugins))
+
         for p in plugins:
             print("p: %s" % str(p))
             ext_t = p.load()
             ext = ext_t()
             self.info_m[ext.name] = ext
+
+    def hasPkg(self, pkg):
+        return pkg in self.info_m.keys()
+
+    def getPkg(self, pkg):
+        if pkg in self.info_m.keys():
+            return self.info_m[pkg]
+        else:
+            raise Exception("Package %s is not present" % pkg)
 
     def getPaths(self, kind):
         ret = []
