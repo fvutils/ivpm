@@ -26,6 +26,7 @@ from setuptools import setup as _setup
 from .build_ext import BuildExt
 from .install_lib import InstallLib
 import inspect
+import platform
 from ivpm.pkg_info_rgy import PkgInfoRgy
 
 _ivpm_extra_data = {}
@@ -78,6 +79,15 @@ def setup(*args, **kwargs):
             raise Exception("Failed to locate packages directory: project_dir=%s ; packages_dir=%s" % (
                 project_dir, packages_dir
             ))
+
+    # Update extension flags based on common requirements
+    if "ext_modules" in kwargs.keys():
+        for m in kwargs["ext_modules"]:
+            if "language" in m.keys() and m["language"] == "c++":
+                if platform.system() == "Darwin":
+                    if "extra_compile_args" not in m.keys():
+                        m["extra_compile_args"] = []
+                    m["extra_compile_args"].append("-std=c++17")
 
     if "ivpm_extdep_pkgs" in kwargs.keys():
         include_dirs = []
