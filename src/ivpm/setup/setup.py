@@ -29,10 +29,15 @@ import inspect
 from ivpm.pkg_info_rgy import PkgInfoRgy
 
 _ivpm_extra_data = {}
+_ivpm_extdep_data = []
 
 def get_ivpm_extra_data():
     global _ivpm_extra_data
     return _ivpm_extra_data
+
+def get_ivpm_extdep_data():
+    global _ivpm_extdep_data
+    return _ivpm_extdep_data
 
 _package_dir = {}
 def get_package_dir():
@@ -40,7 +45,7 @@ def get_package_dir():
 
 
 def setup(*args, **kwargs):
-    global _ivpm_extra_data
+    global _ivpm_extra_data, _ivpm_extdep_data
 
     stack = inspect.stack()
     caller = stack[1][0]
@@ -54,6 +59,10 @@ def setup(*args, **kwargs):
     if "ivpm_extra_data" in kwargs.keys():
         _ivpm_extra_data = kwargs["ivpm_extra_data"]
         kwargs.pop("ivpm_extra_data")
+
+    if "ivpm_extdep_data" in kwargs.keys():
+        _ivpm_extdep_data = kwargs["ivpm_extdep_data"]
+        kwargs.pop("ivpm_extdep_data")
 
     project_dir = os.path.dirname(os.path.abspath(
         inspect.getmodule(caller).__file__))
