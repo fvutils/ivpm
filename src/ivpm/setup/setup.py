@@ -83,11 +83,14 @@ def setup(*args, **kwargs):
     # Update extension flags based on common requirements
     if "ext_modules" in kwargs.keys():
         for m in kwargs["ext_modules"]:
-            if "language" in m.keys() and m["language"] == "c++":
+            if hasattr(m, "language") and m.language == "c++":
+                print("C++ extension")
                 if platform.system() == "Darwin":
-                    if "extra_compile_args" not in m.keys():
-                        m["extra_compile_args"] = []
-                    m["extra_compile_args"].append("-std=c++17")
+                    if not hasattr(m, "extra_compile_args"):
+                        setattr(m, "extra_compile_args", [])
+                    m.extra_compile_args.append("-std=c++17")
+            else:
+                print("No 'language': %s" % getattr(m, "language", "<notpresent>"))
 
     if "ivpm_extdep_pkgs" in kwargs.keys():
         include_dirs = []
