@@ -47,6 +47,8 @@ def get_package_dir():
 def setup(*args, **kwargs):
     global _ivpm_extra_data, _ivpm_extdep_data
 
+    print("IVPM setup: %s" % kwargs["name"])
+
     stack = inspect.stack()
     caller = stack[1][0]
 
@@ -93,7 +95,8 @@ def setup(*args, **kwargs):
                 paths)
         kwargs.pop("ivpm_extdep_pkgs")
 
-        print("paths: %s\n" % str(paths), flush=True)
+        print("paths: %s" % str(paths), flush=True)
+        print("include_dirs: %s" % str(include_dirs), flush=True)
 #        sys.path.extend(paths)
 
         if "ext_modules" in kwargs.keys():
@@ -147,6 +150,9 @@ def _collect_extdeps(
     
     rgy = PkgInfoRgy.inst()
 
+    for pkg in rgy.getPkgs():
+        print("Package: %s" % pkg, flush=True)
+
     if rgy.hasPkg(dep):
         print("Package %s is an IVPM package" % dep)
         pkg = rgy.getPkg(dep)
@@ -190,7 +196,7 @@ def _collect_extdeps(
             if pkg_dir not in include_dirs:
                 include_dirs.append(pkg_dir)
         except ImportError as e:
-            print("Failed to import dependency %s" % dep)
+            print("Failed to import dependency %s (%s)" % (dep, str(e)))
 
 
 def _apply_extdeps(
@@ -204,6 +210,6 @@ def _apply_extdeps(
     for libdir in library_dirs:
         if libdir not in m.library_dirs:
             m.library_dirs.append(libdir)
-    for lib in libraries:
-        if lib not in m.libraries:
-            m.libraries.append(lib)
+#    for lib in libraries:
+#        if lib not in m.libraries:
+#            m.libraries.append(lib)

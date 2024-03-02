@@ -40,13 +40,19 @@ class PkgInfoRgy(object):
         print("plugins: %s" % str(plugins))
 
         for p in plugins:
-            print("p: %s" % str(p))
+            print("Plugin: %s" % str(p))
             ext_t = p.load()
             ext = ext_t()
-            self.info_m[ext.name] = ext
+            if ext.name not in self.info_m.keys():
+                self.info_m[ext.name] = ext
+            else:
+                raise Exception("Duplicate package %s" % ext.name)
 
     def hasPkg(self, pkg):
         return pkg in self.info_m.keys()
+    
+    def getPkgs(self):
+        return self.info_m.keys()
 
     def getPkg(self, pkg):
         if pkg in self.info_m.keys():
