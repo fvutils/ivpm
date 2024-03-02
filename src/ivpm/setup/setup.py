@@ -91,6 +91,7 @@ def setup(*args, **kwargs):
                 library_dirs,
                 libraries,
                 paths)
+        kwargs.pop("ivpm_extdep_pkgs")
 
         print("paths: %s\n" % str(paths), flush=True)
 #        sys.path.extend(paths)
