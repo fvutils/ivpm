@@ -25,7 +25,6 @@ import shutil
 import subprocess
 import sys
 from setuptools.command.build_ext import build_ext as _build_ext
-from ivpm.setup.setup import get_ivpm_extdep_data
 
 class BuildExt(_build_ext):
 
@@ -172,6 +171,10 @@ class BuildExt(_build_ext):
         build_cmd[cmake_build_tool](self, build_dir, env)
         install_cmd[cmake_build_tool](self, build_dir, env)
 
+        from ivpm.setup.setup import get_ivpm_extdep_data
+        for src,dst in get_ivpm_extdep_data():
+            shutil.copyfile(src, dst)
+
     def build_ninja(self, build_dir, env):
         cmd = ["ninja", "-j", "%d" % os.cpu_count() ]
         print("Command: %s" % str(cmd))
@@ -215,5 +218,3 @@ class BuildExt(_build_ext):
         if result.returncode != 0:
             raise Exception("install failed")
     
-    for src,dst in get_ivpm_extdep_data():
-        shutil.copyfile(src, dst)
