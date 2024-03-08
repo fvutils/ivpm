@@ -115,11 +115,16 @@ def setup(*args, **kwargs):
         if "ext_modules" in kwargs.keys():
             for m in kwargs["ext_modules"]:
                 # Configure include paths, libraries, etc
+                print("Applying extension updates to: %s" % m.name)
                 _apply_extdeps(
                     m,
                     include_dirs,
                     library_dirs,
                     libraries)
+                print("Final settings for %s:" % m.name)
+                print("   incdirs: %s" % str(m.include_dirs))
+        else:
+            print("Note: no extension libraries")
 
 #    if "BUILD_NUM" in os.environ.keys() and "version" in kwargs:
 #        kwargs["version"] += ".%s" % os.environ["BUILD_NUM"]
@@ -219,6 +224,7 @@ def _apply_extdeps(
     libraries):
     for incdir in include_dirs:
         if incdir not in m.include_dirs:
+            print("Add incdir %s" % incdir)
             m.include_dirs.append(incdir)
     for libdir in library_dirs:
         if libdir not in m.library_dirs:
