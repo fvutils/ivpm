@@ -19,8 +19,12 @@
 #*     Author: 
 #*
 #****************************************************************************
+import platform
 
 class PkgInfo(object):
+
+    KIND_DPI = "dpi"
+    KIND_VPI = "vpi"
 
     def __init__(self, name, path=None):
         self._name = name
@@ -29,6 +33,21 @@ class PkgInfo(object):
         self._incdirs = []
         self._libdirs = []
         self._libs = []
+        self._libpref = "lib" if platform.system() != "Windows" else ""
+        if platform.system() == "Windows":
+            self._dllext = ".dll"
+        elif platform.system() == "Darwin":
+            self._dllext = ".dylib"
+        else:
+            self._dllext = ".so"
+
+    @property
+    def libpref(self):
+        return self._libpref
+    
+    @property
+    def dllext(self):
+        return self._dllext
 
     @property
     def name(self):
@@ -43,10 +62,10 @@ class PkgInfo(object):
     def getIncDirs(self):
         return self._incdirs
     
-    def getLibDirs(self):
+    def getLibDirs(self, kind=None):
         return self._libdirs
     
-    def getLibs(self):
+    def getLibs(self, kind=None):
         return self._libs
     
     def getPaths(self, kind):

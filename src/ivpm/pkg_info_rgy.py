@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import sys
+from typing import Callable
 
 class PkgInfoRgy(object):
 
@@ -59,6 +60,38 @@ class PkgInfoRgy(object):
             return self.info_m[pkg]
         else:
             raise Exception("Package %s is not present" % pkg)
+        
+    def getLibDirs(self, kind=None, filter : Callable=None):
+        libdirs = []
+
+        for pkg_id in self.info_m.keys():
+            pkg = self.info_m[pkg_id]
+            if filter is not None and not filter(pkg.name):
+                continue
+            pkg_libdirs = pkg.getLibDirs(kind)
+
+            if pkg_libdirs is not None:
+                for ld in pkg_libdirs:
+                    if ld not in libdirs:
+                        libdirs.append(ld)
+
+        return libdirs
+
+    def getLibs(self, kind=None, filter : Callable=None):
+        libs = []
+
+        for pkg_id in self.info_m.keys():
+            pkg = self.info_m[pkg_id]
+            if filter is not None and not filter(pkg.name):
+                continue
+            pkg_libs = pkg.getLibs(kind)
+
+            if pkg_libs is not None:
+                for lib in pkg_libs:
+                    if lib not in libs:
+                        libs.append(lib)
+
+        return libs
 
     def getPaths(self, kind):
         ret = []
