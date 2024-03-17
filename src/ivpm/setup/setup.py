@@ -22,6 +22,7 @@
 import importlib
 import os
 import sys
+from enum import Enum, auto
 from setuptools import setup as _setup
 from .build_ext import BuildExt
 from .install_lib import InstallLib
@@ -29,8 +30,19 @@ import inspect
 import platform
 from ivpm.pkg_info_rgy import PkgInfoRgy
 
+Phase_BuildPre = "build.pre"
+Phase_BuildPost = "build.post"
+
 _ivpm_extra_data = {}
 _ivpm_extdep_data = []
+_ivpm_hooks = {}
+
+def get_hooks(kind : str):
+    global _ivpm_hooks
+    if kind in _ivpm_hooks.keys():
+        return _ivpm_hooks[kind]
+    else:
+        return []
 
 def get_ivpm_extra_data():
     global _ivpm_extra_data
@@ -46,7 +58,7 @@ def get_package_dir():
 
 
 def setup(*args, **kwargs):
-    global _ivpm_extra_data, _ivpm_extdep_data
+    global _ivpm_extra_data, _ivpm_extdep_data, _ivpm_hooks
 
     print("IVPM setup: %s" % kwargs["name"])
 
@@ -66,6 +78,10 @@ def setup(*args, **kwargs):
     if "ivpm_extdep_data" in kwargs.keys():
         _ivpm_extdep_data = kwargs["ivpm_extdep_data"]
         kwargs.pop("ivpm_extdep_data")
+
+    if "ivpm_hooks" in kwargs.keys():
+        _ivpm_hooks = kwargs["ivpm_hooks"]
+        kwargs.pop("ivpm_hooks")
 
     project_dir = os.path.dirname(os.path.abspath(
         inspect.getmodule(caller).__file__))

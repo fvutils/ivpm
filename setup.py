@@ -47,7 +47,6 @@ setup(
   ],
   install_requires=[
       'setuptools',
-      'jsonschema',
       'pyyaml',
       'pyyaml-srcinfo-loader',
       'requirements-parser',

@@ -54,9 +54,16 @@ class BuildExt(_build_ext):
         return super().build_extension(ext)
     
     def copy_extensions_to_source(self):
+        import ivpm.setup.setup as setup
         """ Like the base class method, but copy libs into proper directory in develop. """
         print("copy_extensions_to_source")
+        for hook in setup.get_hooks(setup.Phase_BuildPre):
+            hook(self)
         super().copy_extensions_to_source()
+
+        # Appy any post-copy hooks
+        for hook in setup.get_hooks(setup.Phase_BuildPost):
+            hook(self)
         
         return
 
