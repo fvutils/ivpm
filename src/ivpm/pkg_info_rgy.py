@@ -31,14 +31,10 @@ class PkgInfoRgy(object):
         pass
 
     def load(self):
-        try:
+        if sys.version_info < (3,10):
+            from importlib_metadata import entry_points
+        else:
             from importlib.metadata import entry_points
-        except ImportError as e1:
-            try:
-                from importlib_metadata import entry_points
-            except ImportError as e2:
-                raise Exception("Failed to import importlib.metadata (%s) and importlib_metadata (%s)" % (
-                    str(e1), str(e2)))
 
         plugins = entry_points(group='ivpm.pkginfo')
 

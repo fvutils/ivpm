@@ -20,6 +20,21 @@ version="1.1.1"
 if "BUILD_NUM" in os.environ.keys():
     version += "." + os.environ["BUILD_NUM"]
 
+install_requires=[
+    'setuptools',
+    'pyyaml',
+    'pyyaml-srcinfo-loader',
+    'requirements-parser',
+    'toposort'
+]
+
+if sys.version_info < (3,10):
+    install_requires.append('importlib_metadata')
+
+if sys.version_info > (3,9):
+    install_requires.append('jsonschema')
+
+
 setup(
   name = "ivpm",
   version = version,
@@ -47,6 +62,7 @@ setup(
   ],
   install_requires=[
       'setuptools',
+      'importlib_metadata',
       'pyyaml',
       'pyyaml-srcinfo-loader',
       'requirements-parser',
