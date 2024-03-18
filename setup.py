@@ -1,5 +1,7 @@
 
-import os, stat
+import os
+import stat
+import sys
 from setuptools import setup, find_namespace_packages
 from setuptools.command.install import install
 
