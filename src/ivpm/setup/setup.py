@@ -167,6 +167,7 @@ def setup(*args, **kwargs):
         for ext in kwargs["ext_modules"]:
             if hasattr(ext, "package_deps"):
                 print("package_deps")
+    
     _setup(*args, **kwargs)
 
 def _collect_extdeps(
