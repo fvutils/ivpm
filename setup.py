@@ -62,14 +62,7 @@ setup(
   setup_requires=[
     'setuptools_scm',
   ],
-  install_requires=[
-      'setuptools',
-      'importlib_metadata',
-      'pyyaml',
-      'pyyaml-srcinfo-loader',
-      'requirements-parser',
-      'toposort'
-  ],
+  install_requires=install_requires,
   cmdclass={
     'install': InstallCmd
   },
