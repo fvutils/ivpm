@@ -157,6 +157,10 @@ class BuildExt(_build_ext):
         else:
             env["PATH"] = python_bindir
 
+        # Isolate the cmake call from the environment PYTHONPATH
+        if "PYTHONPATH" in env.keys():
+            env.pop("PYTHONPATH")
+
         config_cmd = ["cmake", proj_dir, "-G%s" % cmake_build_tool, BUILD_TYPE]
 
         config_cmd.append("-DPACKAGES_DIR=%s" % packages_dir)

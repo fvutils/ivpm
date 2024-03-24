@@ -259,6 +259,12 @@ class CmdUpdate(object):
 #            python_requirements_paths.append(requirements_path)
                 
         if len(python_requirements_paths):
+            import sys
+            import platform
+            ps = ";" if platform.system() == "Windows" else ":"
+            env = os.environ.copy()
+            env["PYTHONPATH"] = ps.join(sys.path)
+
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
             for reqfile in python_requirements_paths:
                 cwd = os.getcwd()
@@ -266,12 +272,15 @@ class CmdUpdate(object):
                 cmd = [
                     get_venv_python(os.path.join(packages_dir, "python")),
                     "-m",
+                    "ivpm.pywrap",
+                    get_venv_python(os.path.join(packages_dir, "python")),
+                    "-m",
                     "pip",
                     "install",
                     "-r",
                     reqfile]
             
-                status = subprocess.run(cmd)
+                status = subprocess.run(cmd, env=env)
             
                 if status.returncode != 0:
                     fatal("failed to install Python packages")

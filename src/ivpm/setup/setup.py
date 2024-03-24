@@ -83,18 +83,18 @@ def setup(*args, **kwargs):
         _ivpm_hooks = kwargs["ivpm_hooks"]
         kwargs.pop("ivpm_hooks")
 
-    project_dir = os.path.dirname(os.path.abspath(
-        inspect.getmodule(caller).__file__))
+    # project_dir = os.path.dirname(os.path.abspath(
+    #     inspect.getmodule(caller).__file__))
 
-    if os.path.isdir(os.path.join(project_dir, 'packages')):
-        packages_dir = os.path.join(project_dir, 'packages')
-    else:
-        packages_dir = os.path.dirname(os.path.join(project_dir))
+    # if os.path.isdir(os.path.join(project_dir, 'packages')):
+    #     packages_dir = os.path.join(project_dir, 'packages')
+    # else:
+    #     packages_dir = os.path.dirname(os.path.join(project_dir))
 
-        if not os.path.isdir(packages_dir):
-            raise Exception("Failed to locate packages directory: project_dir=%s ; packages_dir=%s" % (
-                project_dir, packages_dir
-            ))
+    #     if not os.path.isdir(packages_dir):
+    #         raise Exception("Failed to locate packages directory: project_dir=%s ; packages_dir=%s" % (
+    #             project_dir, packages_dir
+    #         ))
 
     # Update extension flags based on common requirements
     if "ext_modules" in kwargs.keys():
