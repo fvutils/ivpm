@@ -218,18 +218,21 @@ def _collect_extdeps(
                 paths)
     else:
         # Dep is not an IVPM package
-        print("TODO: not an IVPM package")
+        print("TODO: %s is not an IVPM package" % str(dep))
         try:
             mod = importlib.import_module(dep)
             pkg_path = mod.__file__
 
-            if os.path.isfile(pkg_path):
-                pkg_dir = os.path.join(os.path.dirname(pkg_path), dep)
+            if pkg_path is not None:
+                if os.path.isfile(pkg_path):
+                    pkg_dir = os.path.join(os.path.dirname(pkg_path), dep)
+                else:
+                    pkg_dir = pkg_path
+                print("pkg_path: %s ; pkg_dir: %s" % (pkg_path, pkg_dir))
+                if pkg_dir not in include_dirs:
+                    include_dirs.append(pkg_dir)
             else:
-                pkg_dir = pkg_path
-            print("pkg_path: %s ; pkg_dir: %s" % (pkg_path, pkg_dir))
-            if pkg_dir not in include_dirs:
-                include_dirs.append(pkg_dir)
+                print("Package %s does not have a non-null module path" % dep)
         except ImportError as e:
             print("Failed to import dependency %s (%s)" % (dep, str(e)))
 
