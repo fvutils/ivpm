@@ -11,5 +11,5 @@ class CmdShare(object):
         if args.path is not None:
             for p in args.path:
                 ivpm_sharedir = os.path.join(ivpm_sharedir, p)
-        sys.stdout.write(ivpm_sharedir)
+        sys.stdout.write(ivpm_sharedir.replace('\\', '/'))
 #        print(ivpm_sharedir)
