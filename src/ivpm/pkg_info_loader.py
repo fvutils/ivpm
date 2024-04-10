@@ -52,30 +52,41 @@ class PkgInfoLoader(object):
     def _load_pkg(self, name):
         pkg = importlib.import_module(name)
 
-        pkg_info = PkgInfo(name)
+        if hasattr(pkg, "pkginfo"):
+            # Load the dedicated class
+            pkginfo_m = getattr(pkg, "pkginfo")
+            if not hasattr(pkginfo_m, "PkgInfo"):
+                raise Exception("Failed to find pkginfo:PkgInfo in %s" % name)
+            
+            pkg_info = getattr(pkginfo_m, "PkgInfo")()
 
-        deps = []
-        if hasattr(pkg, "get_deps"):
-            deps.extend(pkg.get_deps())
+            for dep in pkg_info.getDeps():
+                pass
+        else:
+            pkg_info = PkgInfo(name)
 
-        if hasattr(pkg, "get_libs"):
-            pkg_info._libs.extend(pkg.get_libs())
+            deps = []
+            if hasattr(pkg, "get_deps"):
+                deps.extend(pkg.get_deps())
 
-        if hasattr(pkg, "get_libdirs"):
-            pkg_info._libdirs.extend(pkg.get_libdirs())
+            if hasattr(pkg, "get_libs"):
+                pkg_info._libs.extend(pkg.get_libs())
 
-        if hasattr(pkg, "get_incdirs"):
-            pkg_info._incdirs.extend(pkg.get_incdirs())
+            if hasattr(pkg, "get_libdirs"):
+                pkg_info._libdirs.extend(pkg.get_libdirs())
 
-        self._pkg_info_m[name] = pkg_info
+            if hasattr(pkg, "get_incdirs"):
+                pkg_info._incdirs.extend(pkg.get_incdirs())
 
-        for d in deps:
-            if d not in self._pkg_info_m.keys():
-                dep = self._load_pkg(d)
-                self._pkg_info_m[d] = dep
-                pkg_info._deps.append(dep)
-            else:
-                pkg_info._deps.append(self._pkg_info_m[d])
+            self._pkg_info_m[name] = pkg_info
+
+            for d in deps:
+                if d not in self._pkg_info_m.keys():
+                    dep = self._load_pkg(d)
+                    self._pkg_info_m[d] = dep
+                    pkg_info._deps.append(dep)
+                else:
+                    pkg_info._deps.append(self._pkg_info_m[d])
 
         return pkg_info
 

@@ -30,47 +30,51 @@ class PkgCompileFlags(object):
     def cflags(self, pkg : PkgInfo):
         ret = []
         self._processed_pkgs.clear()
-        if isinstance(pkg, list):
-            for p in pkg:
-                self._collect_cflags(ret, p)
-        else:
-            self._collect_cflags(ret, pkg)
+        for p in pkg:
+            self._collect_cflags(ret, p)
 
         return ret
 
     def lflags(self, pkg : PkgInfo):
         ret = []
         self._processed_pkgs.clear()
-        if isinstance(pkg, list):
-            for p in pkg:
-                self._collect_lflags(ret, p)
-        else:
-            self._collect_lflags(ret, pkg)
+        for p in pkg:
+            self._collect_lflags(ret, p)
 
         return ret
 
     def flags(self, pkg):
         ret = []
         self._processed_pkgs.clear()
-        if isinstance(pkg, list):
-            for p in pkg:
-                self._collect_cflags(ret, p)
-        else:                
-            self._collect_cflags(ret, pkg)
+        for p in pkg:
+            self._collect_cflags(ret, p)
 
         self._processed_pkgs.clear()
-        if isinstance(pkg, list):
-            for p in pkg:
-                self._collect_lflags(ret, p)
-        else:
-            self._collect_lflags(ret, pkg)
+        for p in pkg:
+            self._collect_lflags(ret, p)
+
+        return ret
+
+    def libs(self, pkg, kind):
+        ret = []
+        self._processed_pkgs.clear()
+        for p in pkg:
+            self._collect_libs(ret, p, kind)
+
+        return ret
+
+    def paths(self, pkg, kind):
+        ret = []
+        self._processed_pkgs.clear()
+        for p in pkg:
+            self._collect_paths(ret, p, kind)
 
         return ret
     
-    def ldirs(self, pkg : PkgInfo):
+    def ldirs(self, pkg : PkgInfo, kind):
         ret = []
         self._processed_pkgs.clear()
-        self._collect_ldirs(ret, pkg)
+        self._collect_ldirs(ret, pkg, kind)
         return ret
 
     def _collect_cflags(self, ret, pkg : PkgInfo):
@@ -84,15 +88,36 @@ class PkgCompileFlags(object):
                 self._processed_pkgs.add(d._name)
                 self._collect_cflags(ret, d)
 
-    def _collect_ldirs(self, ret, pkg : PkgInfo):
-        for d in pkg._libdirs:
+    def _collect_paths(self, ret, pkg : PkgInfo, kind):
+        for path in pkg.getPaths(kind):
+            if path not in ret:
+                ret.append(path)
+
+        for d in pkg._deps:
+            if d._name not in self._processed_pkgs:
+                self._processed_pkgs.add(d._name)
+                self._collect_paths(ret, d, kind)
+
+    def _collect_libs(self, ret, pkg : PkgInfo, kind):
+        libs = pkg.getLibs(kind)
+        for path in [] if libs is None else libs:
+            if path not in ret:
+                ret.append(path)
+
+        for d in pkg._deps:
+            if d._name not in self._processed_pkgs:
+                self._processed_pkgs.add(d._name)
+                self._collect_libs(ret, d, kind)
+
+    def _collect_ldirs(self, ret, pkg : PkgInfo, kind):
+        for d in pkg.getLibDirs(kind):
             if d not in ret:
                 ret.append(d)
 
         for d in pkg._deps:
             if d._name not in self._processed_pkgs:
                 self._processed_pkgs.add(d._name)
-                self._collect_ldirs(ret, d)
+                self._collect_ldirs(ret, d, kind)
 
     def _collect_lflags(self, ret, pkg : PkgInfo):
         for d in pkg._libdirs:

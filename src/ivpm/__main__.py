@@ -20,6 +20,7 @@ from .cmds.cmd_git_update import CmdGitUpdate
 from .cmds.cmd_share import CmdShare
 from .cmds.cmd_snapshot import CmdSnapshot
 from .cmds.cmd_c_flags import CmdCFlags
+from .cmds.cmd_pkg_info import CmdPkgInfo
 
 
 #********************************************************************
@@ -169,10 +170,15 @@ def get_parser():
     subparser.required = True
     subparser.dest = 'command'
 
-    cflags_cmd = subparser.add_parser("pkg-flags",
+    pkginfo_cmd = subparser.add_parser("pkg-info",
         help="Collect cflags for a listed set of packages")
-    cflags_cmd.add_argument("pkgs", nargs="+")
-    cflags_cmd.set_defaults(func=CmdCFlags())
+    pkginfo_cmd.add_argument("type", 
+            choices=("paths", "libdirs", "libs", "flags"),
+            help="Specifies what info to query")
+    pkginfo_cmd.add_argument("-k", "--kind",
+            help="Specifies qualifiers on the type of info to query")
+    pkginfo_cmd.add_argument("pkgs", nargs="+")
+    pkginfo_cmd.set_defaults(func=CmdPkgInfo())
 
     share_cmd = subparser.add_parser("share",
         help="Returns the 'share' directory, which includes cmake files, etc")

@@ -19,7 +19,9 @@
 #*     Author: 
 #*
 #****************************************************************************
+import os
 import sys
+import importlib
 from typing import Callable
 
 class PkgInfoRgy(object):
@@ -38,16 +40,26 @@ class PkgInfoRgy(object):
 
         plugins = entry_points(group='ivpm.pkginfo')
 
-        print("plugins: %s" % str(plugins))
-
         for p in plugins:
-            print("Plugin: %s" % str(p))
             ext_t = p.load()
             ext = ext_t()
             if ext.name not in self.info_m.keys():
                 self.info_m[ext.name] = ext
             else:
                 raise Exception("Duplicate package %s" % ext.name)
+            
+        # Finally, iterate through the path looking for leftovers (?)
+        for path in sys.path:
+            if os.path.isdir(path):
+                for pkg in os.listdir(path):
+                    if os.path.isfile(os.path.join(path, pkg, "pkginfo.py")):
+                        pkginfo_m = importlib.import_module("%s.pkginfo" % pkg)
+                        if not hasattr(pkginfo_m, "PkgInfo"):
+                            raise Exception("pkginfo missing PkgInfo")
+                        pkginfo = getattr(pkginfo_m, "PkgInfo")()
+                        if pkginfo.name not in self.info_m.keys():
+                            self.info_m[pkginfo.name] = pkginfo
+
 
     def hasPkg(self, pkg):
         return pkg in self.info_m.keys()
