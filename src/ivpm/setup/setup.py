@@ -225,7 +225,7 @@ def _collect_extdeps(
 
             if pkg_path is not None:
                 if os.path.isfile(pkg_path):
-                    pkg_dir = os.path.join(os.path.dirname(pkg_path), dep)
+                    pkg_dir = os.path.dirname(pkg_path)
                 else:
                     pkg_dir = pkg_path
                 print("pkg_path: %s ; pkg_dir: %s" % (pkg_path, pkg_dir))
