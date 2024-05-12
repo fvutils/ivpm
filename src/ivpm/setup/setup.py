@@ -30,6 +30,8 @@ import inspect
 import platform
 from ivpm.pkg_info_rgy import PkgInfoRgy
 
+Phase_SetupPre = "setup.pre"
+Phase_SetupPost = "setup.post"
 Phase_BuildPre = "build.pre"
 Phase_BuildPost = "build.post"
 
@@ -167,8 +169,14 @@ def setup(*args, **kwargs):
         for ext in kwargs["ext_modules"]:
             if hasattr(ext, "package_deps"):
                 print("package_deps")
-    
+   
+    for hook in get_hooks(Phase_SetupPre):
+        hook(None)
+
     _setup(*args, **kwargs)
+
+    for hook in get_hooks(Phase_SetupPost):
+        hook(None)
 
 def _collect_extdeps(
     dep,
