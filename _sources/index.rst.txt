@@ -11,6 +11,7 @@ Welcome to IVPM's documentation!
    :caption: Contents:
    
    introduction
+   getting_started
    reference
 
 

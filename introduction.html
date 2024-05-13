@@ -21,7 +21,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Reference" href="reference.html" />
+    <link rel="next" title="Getting Started with IVPM" href="getting_started.html" />
     <link rel="prev" title="Welcome to IVPM’s documentation!" href="index.html" /> 
 </head>
 
@@ -50,6 +50,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#what-is-ivpm">What is IVPM?</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
 
@@ -85,6 +86,7 @@
 lightweight project-local package manager. It excels at
 managing projects where dependencies are co-developed with
 the project.</p>
+<img alt="_images/IVPM_System_Diagram.png" src="_images/IVPM_System_Diagram.png" />
 <p>Let’s look at a simple example. A System-on-Chip
 (SoC) design targeting an FPGA or an ASIC is composed of
 multiple IPs written in a hardware-description language (HDL)
@@ -117,6 +119,11 @@ project source from it’s upstream repository.</p></li>
 <li><p>IVPM enables ‘snapshotting’ project dependencies to
 create a project that contains all its required
 dependencies.</p></li>
+<li><p>IVPM provides build/release utilities for C/C++ packages
+that provide a Python interface</p></li>
+<li><p>IVPM provides features for discovering source and library paths
+across Python and non-Python packages. This support is
+currently focused on the needs of managing FuseSoC libraries.</p></li>
 </ul>
 </section>
 </section>
@@ -126,7 +133,7 @@ dependencies.</p></li>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="index.html" class="btn btn-neutral float-left" title="Welcome to IVPM’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="reference.html" class="btn btn-neutral float-right" title="Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="getting_started.html" class="btn btn-neutral float-right" title="Getting Started with IVPM" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
