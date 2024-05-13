@@ -18,7 +18,7 @@
 # -- Project information -----------------------------------------------------
 
 project = 'IVPM'
-copyright = '2018-2022, Matthew Ballance'
+copyright = '2018-2024, Matthew Ballance'
 author = 'Matthew Ballance'
 
 
