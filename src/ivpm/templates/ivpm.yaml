@@ -3,9 +3,12 @@
 #*****************************************************************************
 package:
    name: ${name}
-   version: ${version}
+
+   dep-sets:
+
+   - name: default
+     deps: []
+
+   - name: default-dev
+     deps: [] 
    
-   deps:
-   
-   dev-deps:
-  

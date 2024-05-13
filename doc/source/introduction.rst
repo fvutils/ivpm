@@ -9,6 +9,8 @@ lightweight project-local package manager. It excels at
 managing projects where dependencies are co-developed with
 the project. 
 
+.. image:: imgs/IVPM_System_Diagram.png
+
 Let's look at a simple example. A System-on-Chip 
 (SoC) design targeting an FPGA or an ASIC is composed of
 multiple IPs written in a hardware-description language (HDL)
@@ -46,5 +48,13 @@ original developers.
 - IVPM enables 'snapshotting' project dependencies to 
   create a project that contains all its required 
   dependencies.
+
+- IVPM provides build/release utilities for C/C++ packages
+  that provide a Python interface
+
+- IVPM provides features for discovering source and library paths
+  across Python and non-Python packages. This support is 
+  currently focused on the needs of managing FuseSoC libraries.
+
 
 

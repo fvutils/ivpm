@@ -22,7 +22,8 @@ class CmdInit(object):
         # TODO: allow override    
         proj = os.getcwd()
     
-        ivpm_dir = os.path.dirname(os.path.realpath(__file__))
+        ivpm_dir = os.path.dirname(
+            os.path.dirname(os.path.realpath(__file__)))
         templates_dir = os.path.join(ivpm_dir, "templates")
     
         for src,dir in zip(["ivpm.yaml"], [""]):
