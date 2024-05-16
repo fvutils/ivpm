@@ -246,7 +246,12 @@ class PackageUpdater(object):
 
         # Modify the URL to use SSH/key-based clones
         # unless anonymous cloning was requested
-        if not self.anonymous_git:
+        use_anonymous = self.anonymous_git
+
+        if pkg.anonymous is not None:
+            use_anonymous = pkg.anonymous
+
+        if not use_anonymous:
             print("NOTE: using dev URL")
             delim_idx = pkg.url.find("://")
             url = pkg.url[delim_idx+3:]

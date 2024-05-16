@@ -17,10 +17,14 @@ class InstallCmd(install):
 
 rootdir = os.path.dirname(os.path.realpath(__file__))
 
-version="1.1.1"
+version="1.1.2"
 
-if "BUILD_NUM" in os.environ.keys():
-    version += "." + os.environ["BUILD_NUM"]
+try:
+   sys.path.insert(0, os.path.join(rootdir, "src/ivpm"))
+   from __build_num__ import BUILD_NUM
+   version += ".%s" % str(BUILD_NUM)
+except ImportError as e:
+   print("Failed to load build_num: %s" % str(e))
 
 install_requires=[
     'setuptools',

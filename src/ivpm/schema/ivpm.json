@@ -125,6 +125,10 @@
 					"type": "string",
 					"title": "Version-specification string for Python packages from PyPi"
 				},
+				"anonymous": {
+					"type": "boolean",
+					"title": "Clone using anonymous (non-PAT) Git"
+				},
 				"branch": {
 					"type": "string",
 					"title": "Git branch to checkout"

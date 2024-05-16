@@ -79,6 +79,7 @@ class Package(object):
         self.tag = None
         self.version = None
         self.depth = None
+        self.anonymous = None
         self.process_deps = True
         self.setup_deps = set()
         self.dep_set = "default"

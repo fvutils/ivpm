@@ -19,7 +19,7 @@ jobs:
         export PYTHONPATH=./src
         python3 -m ivpm update
         ./packages/python/bin/python3 -m pip install setuptools --upgrade
-        export BUILD_NUM=$GITHUB_RUN_ID
+        echo "BUILD_NUM=$GITHUB_RUN_ID" > src/ivpm/__build_num__.py
         ./packages/python/bin/python3 setup.py bdist_wheel --universal
 
     - name: Build Docs

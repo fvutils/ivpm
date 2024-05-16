@@ -181,6 +181,9 @@ class IvpmYamlReader(object):
             
             if "version" in d.keys():
                 pkg.version = d["version"]
+
+            if "anonymous" in d.keys():
+                pkg.anonymous = d["anonymous"]
                 
             if "depth" in d.keys():
                 pkg.depth = d["depth"]
