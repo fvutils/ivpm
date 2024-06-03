@@ -22,12 +22,16 @@ from ivpm.utils import get_venv_python
 
 class PackageUpdater(object):
     
-    def __init__(self, packages_dir, anonymous_git):
+    def __init__(self, 
+                 packages_dir, 
+                 anonymous_git=False,
+                 load=True):
         self.debug = False
         self.packages_dir = packages_dir
         self.all_pkgs = PackagesInfo("root")
         self.new_deps = []
         self.anonymous_git = anonymous_git
+        self.load = load
         pass
     
     def update(self, pkgs : PackagesInfo) -> PackagesInfo:
@@ -116,9 +120,9 @@ class PackageUpdater(object):
         pkg_dir = os.path.join(self.packages_dir, pkg.name)
         pkg.path = pkg_dir.replace("\\", "/")
         
-        if os.path.isdir(pkg_dir):
+        if os.path.exists(pkg_dir):
             note("package %s is already loaded" % pkg.name)
-        else:
+        elif self.load:
             note("loading package %s" % pkg.name)
 
             # Package isn't currently present in dependencies
@@ -165,11 +169,12 @@ class PackageUpdater(object):
 
                 if remove_pkg_src:
                     os.unlink(os.path.join(download_dir, filename))
+        else:
+            # Package doesn't exist, and we won't load it
+            raise Exception("Package %s is not present" % pkg.name)
                     
         # Now, check the package for dependencies
         info : ProjInfo = ProjectInfoReader(pkg_dir).read()
-
-        
 
         # After loading the package, or finding it already loaded,
         # check what we have

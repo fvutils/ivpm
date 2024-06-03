@@ -13,6 +13,7 @@ from zipfile import ZipFile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
+from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_init import CmdInit
 from .cmds.cmd_update import CmdUpdate
 from .cmds.cmd_git_status import CmdGitStatus
@@ -169,6 +170,13 @@ def get_parser():
     subparser = parser.add_subparsers()
     subparser.required = True
     subparser.dest = 'command'
+
+    build_cmd = subparser.add_parser("build",
+        help="Build all sub-projects with an IVPM-supported build infrastructure (Python)")
+    build_cmd.add_argument("-d", "--debug", 
+        action="store_true",
+        help="Enables debug for native extensions")
+    build_cmd.set_defaults(func=CmdBuild())
 
     pkginfo_cmd = subparser.add_parser("pkg-info",
         help="Collect cflags for a listed set of packages")

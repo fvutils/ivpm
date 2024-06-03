@@ -76,7 +76,7 @@ def setup_venv(python_dir):
     
     python = get_sys_python()
     
-    os.system(python + " -m venv " + python_dir)
+    os.system(python + " -m venv --system-site-packages " + python_dir)
     note("upgrading pip")
     
     ivpm_python = get_venv_python(python_dir)
