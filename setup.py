@@ -31,7 +31,8 @@ install_requires=[
     'pyyaml',
     'pyyaml-srcinfo-loader',
     'requirements-parser',
-    'toposort'
+    'toposort',
+    'httpx'
 ]
 
 if sys.version_info < (3,10):

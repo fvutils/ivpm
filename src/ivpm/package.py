@@ -3,7 +3,9 @@ Created on Jun 8, 2021
 
 @author: mballance
 '''
+import dataclasses as dc
 from enum import Enum, auto
+from typing import Dict, List, Set
 
 class PackageType(Enum):
     Raw = auto()
@@ -64,23 +66,27 @@ Spec2SourceType = {
         "pypi" : SourceType.PyPi
     }
 
+@dc.dataclass
 class Package(object):
     """Contains leaf-level information about a single package"""
+
+    name : str
+    srcinfo : object = None
+    path : str = None
+    pkg_type : PackageType = PackageType.Raw
+    src_type : str = None
+
+    process_deps : bool = True
+    setup_deps : Set = dc.field(default_factory=set)
+    dep_set : str = "default"
+
+    def build(self, pkgs_info):
+        pass
+
+    def update(self, pkgs_info):
+        pass
     
-    def __init__(self, name, url=None):
-        self.srcinfo = None
-        self.name = name
-        self.path = None
-        self.pkg_type = PackageType.Raw
-        self.src_type = None
-        self.url = url
-        self.branch = None
-        self.commit = None
-        self.tag = None
-        self.version = None
-        self.depth = None
-        self.anonymous = None
-        self.process_deps = True
-        self.setup_deps = set()
-        self.dep_set = "default"
-        
+    def sync(self, pkgs_info):
+        pass
+
+

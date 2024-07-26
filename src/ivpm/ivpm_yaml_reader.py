@@ -6,6 +6,9 @@ Created on Jun 8, 2021
 import os
 import yaml_srcinfo_loader
 from yaml_srcinfo_loader.srcinfo import SrcInfo
+from .package_factory_rgy import PackageFactoryRgy
+from .package_factory import PackageFactory
+from .package import Package
 
 import yaml
 
@@ -117,98 +120,66 @@ class IvpmYamlReader(object):
                     si.filename,
                     si.lineno,
                     si.linepos))
-                
-            url = d["url"] if "url" in d.keys() else None
-#            if not "url" in d.keys():
-#                raise Exception("Missing 'url' key at %s:%d:%d" % (
-#                    si.filename,
-#                    si.lineno,
-#                    si.linepos))
-                
-            pkg = Package(d["name"], url)
-            pkg.srcinfo = si
-            
-            if pkg.name in ret.keys():
-                pkg1 = ret[pkg.name]
+
+            if d["name"] in ret.keys():
+                pkg1 = ret[d["name"]]
                 fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (
-                    pkg.name, getlocstr(pkg), getlocstr(pkg1)))
-            else:
-                ret.add_package(pkg)
+                    d["name"], getlocstr(pkg), getlocstr(pkg1)))
 
+            url = getattr(d, "url", None)
 
-            # Determine the source type (eg .git, .jar, etc)            
+            # Determine the source of this package:
+            # - Git
+            # - http
+            # ...
+
+            src = "<unknown>"
             if "src" in d.keys():
-                if d["src"] not in Spec2SourceType.keys():
-                    fatal("unsupported source type %s @ %s" % (d["src"], getlocstr(d["src"])))
-                pkg.src_type = Spec2SourceType[d["src"]]
+                src = d["src"]
             else:
                 if url is None:
                     fatal("no src specified for package %s and no URL specified" % pkg.name)
 
-                ext = os.path.splitext(pkg.url)[1]
-                
-                if pkg.url.endswith(".tar.gz"):
-                    ext = ".tar.gz"
-                elif pkg.url.endswith(".tar.xz"):
-                    ext = ".tar.xz"
-
-                if not ext in Ext2SourceType.keys():
-                    fatal("unknown URL extension %s" % ext)
-                    
-                pkg.src_type = Ext2SourceType[ext]
-            if "dep-set" in d.keys():
-                pkg.dep_set = d["dep-set"]
-                
-            # Determine the package type (eg Python, Raw)
-            if "type" in d.keys():
-                type_s = d["type"]
-                if not type_s in Spec2PackageType.keys():
-                    fatal("unknown package type %s @ %s ; Supported types 'raw', 'python'" % (
-                        type_s, getlocstr(d["type"])))
-                    
-                pkg.pkg_type = Spec2PackageType[type_s]
-            else:
-                if url is None and pkg.src_type != SourceType.PyPi:
-                    fatal("no type specified for package %s and no URL specified" % pkg.name)
+                if url.endswith(".git"):
+                    src = "git"                
+                elif url.startswith("http://") or url.startswith("https://"):
+                    src = "http"
+                elif url.startswith("file://"):
+                    src = "file"
                 else:
-                    # We'll need to auto-probe later once we have source
-                    pkg.pkg_type = PackageType.Unknown
+                    raise Exception("Cannot determine source type from url %s" % url)
+
+            pf_rgy = PackageFactoryRgy.inst()
+            
+            if not pf_rgy.hasFactory(src):
+                raise Exception("Package %s has unknown type %s" % (d["name"], src))
+            pf = PackageFactoryRgy.getFactory(src)
+
+            pkg : Package = pf().create(d["name"], d, si)
+
+            #     ext = os.path.splitext(pkg.url)[1]
+                
+            #     if pkg.url.endswith(".tar.gz"):
+            #         ext = ".tar.gz"
+            #     elif pkg.url.endswith(".tar.xz"):
+            #         ext = ".tar.xz"
+
+            #     if not ext in Ext2SourceType.keys():
+            #         fatal("unknown URL extension %s" % ext)
+                    
+            #     pkg.src_type = Ext2SourceType[ext]
+                
+            # pkg = Package(d["name"], url)
+            # pkg.srcinfo = si
+
+            ret.add_package(pkg)
 
             if self.debug:                    
                 print("pkg_type (%s): %s" % (pkg.url, str(pkg.pkg_type)))
+
+            # TODO:
             if pkg.src_type == SourceType.PyPi and (pkg.pkg_type is None or pkg.pkg_type == PackageType.Unknown):
                 pkg.pkg_type = PackageType.Python
-            
-            if "version" in d.keys():
-                pkg.version = d["version"]
-
-            if "anonymous" in d.keys():
-                pkg.anonymous = d["anonymous"]
-                
-            if "depth" in d.keys():
-                pkg.depth = d["depth"]
-                
-            if "dep-set" in d.keys():
-                pkg.dep_set = d["dep-set"]
-                
-            if "branch" in d.keys():
-                pkg.branch = d["branch"]
-                
-            if "commit" in d.keys():
-                pkg.commit = d["commit"]
-                
-            if "tag" in d.keys():
-                pkg.tag = d["tag"]
-                
-            if "deps" in d.keys():
-                if d["deps"] == "skip":
-                    pkg.process_deps = False
-                else:
-                    fatal("Unknown value for 'deps': %s" % d["deps"])
-                    
-                
-            if pkg.src_type is None:
-                print("TODO: auto-detect source type")
 
         if self.debug:
             print("ret: %s %d packages" % (str(ret), len(ret.packages)))
