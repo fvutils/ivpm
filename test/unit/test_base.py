@@ -8,8 +8,6 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__)))), "src"));
 
-print(sys.path)
-
 from ivpm.project_update import ProjectUpdate
 
 class TestBase(unittest.TestCase):
@@ -42,8 +40,12 @@ class TestBase(unittest.TestCase):
         with open(fullpath, "w") as fp:
             fp.write(content)
 
-    def ivpm_update(self, dep_set="default-dev", anonymous=False):
+    def ivpm_update(self, dep_set="default-dev", anonymous=False, skip_venv=False):
         
-        ProjectUpdate(self.testdir, dep_set=dep_set, anonymous=anonymous).update()
+        ProjectUpdate(
+            self.testdir, 
+            dep_set=dep_set, 
+            anonymous=anonymous,
+            skip_venv=skip_venv).update()
 
 

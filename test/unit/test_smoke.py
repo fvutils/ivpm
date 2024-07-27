@@ -32,7 +32,7 @@ class TestSmoke(TestBase):
                       src: dir
         """)
 
-        self.ivpm_update()
+        self.ivpm_update(skip_venv=True)
 
         self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/nonleaf_refleaf_proj1")))
         self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/leaf_proj1")))

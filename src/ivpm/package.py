@@ -3,9 +3,11 @@ Created on Jun 8, 2021
 
 @author: mballance
 '''
+import os
 import dataclasses as dc
 from enum import Enum, auto
 from typing import Dict, List, Set
+from .update_info import UpdateInfo
 
 class PackageType(Enum):
     Raw = auto()
@@ -83,8 +85,12 @@ class Package(object):
     def build(self, pkgs_info):
         pass
 
-    def update(self, pkgs_info):
-        pass
+    def update(self, update_info : UpdateInfo) -> 'ProjInfo':
+        from .project_info_reader import ProjectInfoReader
+        info = ProjectInfoReader(
+            os.path.join(update_info.packages_dir, self.name)).read()
+        
+        return info
     
     def sync(self, pkgs_info):
         pass

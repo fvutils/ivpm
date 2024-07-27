@@ -31,6 +31,7 @@ class ProjectUpdate(object):
     root_dir : str
     dep_set : str = "default-dev"
     anonymous : bool = False
+    skip_venv : bool = False
     debug : bool = False
 
     def update(self):
@@ -42,11 +43,12 @@ class ProjectUpdate(object):
         packages_dir = os.path.join(self.root_dir, "packages")
  
         # Ensure that we have a python virtual environment setup
-        if not os.path.isdir(os.path.join(packages_dir, "python")):
-            ivpm_python = setup_venv(os.path.join(packages_dir, "python"))
-        else:
-            note("python virtual environment already exists")
-            ivpm_python = get_venv_python(os.path.join(packages_dir, "python"))
+        if not self.skip_venv:
+            if not os.path.isdir(os.path.join(packages_dir, "python")):
+                ivpm_python = setup_venv(os.path.join(packages_dir, "python"))
+            else:
+                note("python virtual environment already exists")
+                ivpm_python = get_venv_python(os.path.join(packages_dir, "python"))
             
         print("********************************************************************")
         print("* Processing root package %s" % proj_info.name)

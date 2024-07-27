@@ -50,3 +50,5 @@ class PackageDir(PackageURL):
         else:
             note("Populating package %s from %s" % (self.name, src_path))
             shutil.copytree(src_path, dst_path)
+
+        return super().update(update_info)
