@@ -1,5 +1,5 @@
 #****************************************************************************
-#* package_factory_http.py
+#* package_type_handler.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -19,17 +19,9 @@
 #*     Author: 
 #*
 #****************************************************************************
-from ivpm.package import Package
-from .package_factory_url import PackageFactoryURL
-from .package_http import PackageHttp
 
-class PackageFactoryHttp(PackageFactoryURL):
-    src = "http"
-    description = "HTTP fetcher"
+class PackageTypeHandler(object):
 
-    def create(self, name, opts, si) -> PackageHttp:
-        p = PackageHttp(name)
-        self.process_options(p, opts, si)
-        return p
-
+    def __init__(self):
+        pass
 

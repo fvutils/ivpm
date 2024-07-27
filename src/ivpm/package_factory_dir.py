@@ -1,5 +1,5 @@
 #****************************************************************************
-#* package_factory_git.py
+#* package_factory_dir.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -21,36 +21,22 @@
 #****************************************************************************
 from typing import Dict
 from .package import Package
-from .package_git import PackageGit
+from .package_dir import PackageDir
+from .package_url import PackageURL
 from .package_factory_url import PackageFactoryURL
+from .package_file import PackageFile
 
-class PackageFactoryGit(PackageFactoryURL):
-    src = "git"
-    description = "Package is hosted in a Git repository"
+class PackageFactoryDir(PackageFactoryURL):
+    src = "dir"
+    description = "Copies a directory"
 
-    def process_options(self, p: PackageGit, d: Dict, si):
+    def process_options(self, p: PackageURL, d: Dict, si):
         super().process_options(p, d, si)
+        if "link" in d.keys():
+            p.link = bool(d["link"])
 
-        if "anonymous" in d.keys():
-            p.anonymous = d["anonymous"]
-                
-        if "depth" in d.keys():
-            p.depth = d["depth"]
-                
-        if "dep-set" in d.keys():
-            p.dep_set = d["dep-set"]
-               
-        if "branch" in d.keys():
-            p.branch = d["branch"]
-                
-        if "commit" in d.keys():
-            p.commit = d["commit"]
-               
-        if "tag" in d.keys():
-            p.tag = d["tag"]
-    
     def create(self, name, opts, si) -> Package:
-        p = PackageGit(name)
+        p = PackageDir(name)
         self.process_options(p, opts, si)
         return p
 

@@ -23,6 +23,8 @@ from .package_factory_url import PackageFactoryURL
 from .package_file import PackageFile
 
 class PackageFactoryFile(PackageFactoryURL):
+    src = "file"
+    description = "Core fetch fetcher"
 
     def create(self, name, opts, si) -> PackageFile:
         p = PackageFile(name)

@@ -97,7 +97,7 @@ class PackageGit(Package):
             
         
             # TODO: Existence of .gitmodules should trigger this
-            os.chdir(os.path.join(self.packages_dir, pkg.name))
+            os.chdir(os.path.join(update_info.packages_dir, self.name))
             sys.stdout.flush()
             status = os.system("git submodule update --init --recursive")
             os.chdir(cwd)

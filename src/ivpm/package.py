@@ -73,7 +73,7 @@ class Package(object):
     name : str
     srcinfo : object = None
     path : str = None
-    pkg_type : PackageType = PackageType.Raw
+    pkg_type : PackageType = None
     src_type : str = None
 
     process_deps : bool = True

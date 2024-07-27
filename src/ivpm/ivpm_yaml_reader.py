@@ -126,7 +126,7 @@ class IvpmYamlReader(object):
                 fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (
                     d["name"], getlocstr(pkg), getlocstr(pkg1)))
 
-            url = getattr(d, "url", None)
+            url = d["url"] if "url" in d.keys() else None
 
             # Determine the source of this package:
             # - Git
@@ -153,7 +153,7 @@ class IvpmYamlReader(object):
             
             if not pf_rgy.hasFactory(src):
                 raise Exception("Package %s has unknown type %s" % (d["name"], src))
-            pf = PackageFactoryRgy.getFactory(src)
+            pf = PackageFactoryRgy.inst().getFactory(src)
 
             pkg : Package = pf().create(d["name"], d, si)
 

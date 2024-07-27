@@ -22,6 +22,7 @@
 import dataclasses as dc
 from typing import Dict
 from .package_factory import PackageFactory
+from .package_factory_dir import PackageFactoryDir
 from .package_factory_file import PackageFactoryFile
 from .package_factory_http import PackageFactoryHttp
 from .package_factory_git import PackageFactoryGit
@@ -42,10 +43,14 @@ class PackageFactoryRgy(object):
 
     def register(self, f : PackageFactory):
         if f.src in self.src2fact_m.keys():
-            raise Exception("Duplicate registration of src %s" % f.src)
+            raise Exception("Duplicate registration of src %s ; this type=%s ; original type=%s" % (
+                            f.src,
+                            str(f),
+                            str(self.src2fact_m[f.src])))
         self.src2fact_m[f.src] = f
 
     def _load(self):
+        self.register(PackageFactoryDir)
         self.register(PackageFactoryFile)
         self.register(PackageFactoryHttp)
         self.register(PackageFactoryGit)
@@ -57,4 +62,5 @@ class PackageFactoryRgy(object):
         if cls._inst is None:
             cls._inst = PackageFactoryRgy()
             cls._inst._load()
+        return cls._inst
 

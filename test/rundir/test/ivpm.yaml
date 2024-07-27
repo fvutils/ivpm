@@ -1,0 +1,10 @@
+
+        package:
+            name: smoke
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: nonleaf_refleaf_proj1
+                      url: file://${DATA_DIR}/nonleaf_refleaf_proj1
+                      src: dir
+        

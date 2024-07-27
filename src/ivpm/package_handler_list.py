@@ -1,5 +1,5 @@
 #****************************************************************************
-#* package_factory_http.py
+#* package_handler_list.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -19,17 +19,24 @@
 #*     Author: 
 #*
 #****************************************************************************
+import dataclasses as dc
+from typing import List
+
 from ivpm.package import Package
-from .package_factory_url import PackageFactoryURL
-from .package_http import PackageHttp
+from .package_handler import PackageHandler
 
-class PackageFactoryHttp(PackageFactoryURL):
-    src = "http"
-    description = "HTTP fetcher"
+@dc.dataclass
+class PackageHandlerList(PackageHandler):
+    handlers : List[PackageHandler] = dc.field(default_factory=list)
 
-    def create(self, name, opts, si) -> PackageHttp:
-        p = PackageHttp(name)
-        self.process_options(p, opts, si)
-        return p
+    def addHandler(self, h):
+        self.handlers.append(h)
 
+    def process_pkg(self, pkg: Package):
+        for h in self.handlers:
+            h.process_pkg(pkg) 
+
+    def update(self, update_info):
+        for h in self.handlers:
+            h.update(update_info) 
 

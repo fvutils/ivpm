@@ -1,5 +1,5 @@
 #****************************************************************************
-#* package_factory_http.py
+#* package_handler_rgy.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -19,17 +19,33 @@
 #*     Author: 
 #*
 #****************************************************************************
-from ivpm.package import Package
-from .package_factory_url import PackageFactoryURL
-from .package_http import PackageHttp
+import dataclasses as dc
+from .package_handler_list import PackageHandlerList
+from .package_handler_python import PackageHandlerPython
 
-class PackageFactoryHttp(PackageFactoryURL):
-    src = "http"
-    description = "HTTP fetcher"
+class PackageHandlerRgy(object):
 
-    def create(self, name, opts, si) -> PackageHttp:
-        p = PackageHttp(name)
-        self.process_options(p, opts, si)
-        return p
+    _inst = None
 
+    def __init__(self):
+        self.handlers = []
+
+    def addHandler(self, h):
+        print("Handler: %s" % h.name)
+        self.handlers.append(h)
+
+    def _load(self):
+        self.addHandler(PackageHandlerPython)
+
+    def mkHandler(self):
+        h = PackageHandlerList()
+        for h_t in self.handlers:
+            h.addHandler(h_t())
+        return h
+
+    @classmethod
+    def inst(cls):
+        if cls._inst is None:
+            cls._inst = PackageHandlerRgy()
+            cls._inst._load()
 
