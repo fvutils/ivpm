@@ -51,6 +51,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#commands">Commands</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#positional-arguments">Positional Arguments</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#Sub-commands">Sub-commands</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#activate">activate</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#build">build</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#pkg-info">pkg-info</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#share">share</a></li>
@@ -102,7 +103,7 @@
 <section id="commands">
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading"></a></h2>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span>
-            <span class="p">{</span><span class="n">build</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">status</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">update</span><span class="p">,</span><span class="n">snapshot</span><span class="p">}</span>
+            <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">status</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">update</span><span class="p">,</span><span class="n">snapshot</span><span class="p">}</span>
             <span class="o">...</span>
 </pre></div>
 </div>
@@ -110,20 +111,36 @@
 <h3>Positional Arguments<a class="headerlink" href="#positional-arguments" title="Link to this heading"></a></h3>
 <dl class="option-list">
 <dt><kbd>command</kbd></dt>
-<dd><p>Possible choices: build, pkg-info, share, update, init, git-status, git-update, snapshot</p>
+<dd><p>Possible choices: activate, build, pkg-info, share, update, init, git-status, git-update, snapshot</p>
 </dd>
 </dl>
 </section>
 <section id="Sub-commands">
 <h3>Sub-commands<a class="headerlink" href="#Sub-commands" title="Link to this heading"></a></h3>
+<section id="activate">
+<h4>activate<a class="headerlink" href="#activate" title="Link to this heading"></a></h4>
+<p>Starts a new shell that contains the activated python virtual environment</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">activate</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="named-arguments">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments" title="Link to this heading"></a></h5>
+<dl class="option-list">
+<dt><kbd>-d, --debug</kbd></dt>
+<dd><p>Enables debug for native extensions</p>
+<p>Default: False</p>
+</dd>
+</dl>
+</section>
+</section>
 <section id="build">
 <h4>build<a class="headerlink" href="#build" title="Link to this heading"></a></h4>
 <p>Build all sub-projects with an IVPM-supported build infrastructure (Python)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">build</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat1">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat1" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-d, --debug</kbd></dt>
 <dd><p>Enables debug for native extensions</p>
@@ -149,8 +166,8 @@
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments_repeat1">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat1" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat2">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-k, --kind</kbd></dt>
 <dd><p>Specifies qualifiers on the type of info to query</p>
@@ -178,8 +195,8 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat2">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat3">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd><p>Specifies the project directory to use (default: cwd)</p>
@@ -207,8 +224,8 @@
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments_repeat3">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat4">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-v, --version</kbd></dt>
 <dd><p>Default: “0.0.1”</p>
@@ -225,8 +242,8 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">status</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat4">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat5">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat5" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -239,8 +256,8 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat5">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat5" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat6">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat6" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -261,8 +278,8 @@
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat6">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat6" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat7">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat7" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
