@@ -41,12 +41,15 @@ class PkgInfoRgy(object):
         plugins = entry_points(group='ivpm.pkginfo')
 
         for p in plugins:
-            ext_t = p.load()
-            ext = ext_t()
-            if ext.name not in self.info_m.keys():
-                self.info_m[ext.name] = ext
-            else:
-                raise Exception("Duplicate package %s" % ext.name)
+            try:
+                ext_t = p.load()
+                ext = ext_t()
+                if ext.name not in self.info_m.keys():
+                    self.info_m[ext.name] = ext
+                else:
+                    raise Exception("Duplicate package %s" % ext.name)
+            except Exception as e:
+                print("IVPM: failed to load plugin (%s)" % str(e))
             
         # Finally, iterate through the path looking for leftovers (?)
         for path in sys.path:
