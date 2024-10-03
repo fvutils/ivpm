@@ -181,7 +181,9 @@ def get_parser():
 
     build_cmd = subparser.add_parser("build",
         help="Build all sub-projects with an IVPM-supported build infrastructure (Python)")
-    build_cmd.add_argument("-d", "--debug", 
+    build_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
+        help="Uses dependencies from specified dep-set instead of 'default-dev'")
+    build_cmd.add_argument("-g", "--debug", 
         action="store_true",
         help="Enables debug for native extensions")
     build_cmd.set_defaults(func=CmdBuild())
