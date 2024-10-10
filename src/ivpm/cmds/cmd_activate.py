@@ -41,7 +41,17 @@ class CmdActivate(object):
         cmd.extend(args.args)
 
         env = os.environ.copy()
-        env["PROJECT_ROOT"] = args.project_dir
+        env["IVPM_PROJECT"] = args.project_dir
+        env["IVPM_PACKAGES"] = os.path.join(args.project_dir, "packages")
+        # env["VIRTUAL_ENV_DISABLE_PROMPT"] = "1"
+
+        # PS1 = getattr(env, "PS1", None)
+        # print("PS1: %s" % str(PS1))
+        # if PS1 is not None:
+        #     PS1 = "(ivpm) %s" % PS1
+        # else:
+        #     PS1 = "\\[\\](ivpm) "
+        # env["PS1"] = PS1
 
         for es in proj_info.env_settings:
             es.apply(env)
