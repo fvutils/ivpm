@@ -174,9 +174,11 @@ def get_parser():
 
     activate_cmd = subparser.add_parser("activate",
         help="Starts a new shell that contains the activated python virtual environment")
-    activate_cmd.add_argument("-d", "--debug", 
-        action="store_true",
-        help="Enables debug for native extensions")
+    activate_cmd.add_argument("-c",
+        help="When specified, executes the specified string")
+    activate_cmd.add_argument("-p", "--project-dir", dest="project_dir",
+        help="Specifies the project directory to use (default: cwd)")
+    activate_cmd.add_argument("args", nargs='*')
     activate_cmd.set_defaults(func=CmdActivate())
 
     build_cmd = subparser.add_parser("build",

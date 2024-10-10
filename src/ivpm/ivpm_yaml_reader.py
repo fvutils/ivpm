@@ -5,7 +5,9 @@ Created on Jun 8, 2021
 '''
 import os
 import yaml_srcinfo_loader
+from typing import Dict, List
 from yaml_srcinfo_loader.srcinfo import SrcInfo
+from .env_spec import EnvSpec
 
 import yaml
 
@@ -81,6 +83,13 @@ class IvpmYamlReader(object):
                     os.path.dirname(name),
                     ps_kind,
                     ps[ps_kind])
+        
+        if "env" in pkg.keys():
+            es = pkg["env"]
+            for evar in es:
+                self.process_env_directive(
+                    ret,
+                    evar)
             
         return ret
 
@@ -224,5 +233,33 @@ class IvpmYamlReader(object):
                 path_kind_s[p_kind] = []
             for p in ps[p_kind]:
                 path_kind_s[p_kind].append(os.path.join(path, p))
+
+    def process_env_directive(self,
+                              info : ProjInfo,
+                              evar : Dict):
+        if "name" not in evar.keys():
+            raise Exception("No variable-name specified: %s" % str(evar))
+        act = None
+        act_s = None
+        val = None
+        for an,av in [
+            ("value", EnvSpec.Act.Set),
+            ("path", EnvSpec.Act.Path),
+            ("path-append", EnvSpec.Act.PathAppend),
+            ("path-prepend", EnvSpec.Act.PathPrepend)]:
+            if an in evar.keys():
+                if act is not None:
+                    raise Exception("Multiple variable-setting directives specified: %s and %s" % (
+                        act_s, an))
+                act_s = an
+                act = av
+                val = evar[an]
+            
+        if act is None:
+            raise Exception(
+                "No variable-directive setting (value, path, path-append, path-prepend) specified")
+        info.env_settings.append(EnvSpec(evar["name"], val, act))
+
+
 
         
