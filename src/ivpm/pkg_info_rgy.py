@@ -63,6 +63,7 @@ class PkgInfoRgy(object):
                             continue
                         if not hasattr(pkginfo_m, "PkgInfo"):
                             print("Note: pkginfo (%s) module exists, but is missing PkgInfo", os.path.join(path, pkg))
+                            continue
                         pkginfo = getattr(pkginfo_m, "PkgInfo")()
                         if pkginfo.name not in self.info_m.keys():
                             self.info_m[pkginfo.name] = pkginfo
