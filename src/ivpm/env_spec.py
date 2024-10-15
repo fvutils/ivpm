@@ -62,12 +62,16 @@ class EnvSpec(object):
                 val = ":".join(val)
             if self.var in env.keys():
                 env[self.var] = env[self.var] + ":" + val
+            else:
+                env[self.var] = val
         elif self.act == EnvSpec.Act.PathPrepend:
             val = self.val
             if isinstance(val, list):
                 val = ":".join(val)
             if self.var in env.keys():
                 env[self.var] = val + ":" + env[self.var]
+            else:
+                env[self.var] = val
         else:
             raise Exception("Unknown action: %s" % str(self.act))
         
