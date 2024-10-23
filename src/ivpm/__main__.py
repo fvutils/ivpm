@@ -163,7 +163,7 @@ def fetch_file(
 
      
 
-def get_parser():
+def get_parser(parser_ext = None):
     """Create the argument parser"""
     parser = argparse.ArgumentParser(prog="ivpm")
     
@@ -230,10 +230,35 @@ def get_parser():
     snapshot_cmd.add_argument("snapshot_dir", 
             help="Specifies the directory where the snapshot will be created")
 
+    if parser_ext is not None:
+        for ext in parser_ext:
+            ext(subparser)
+
     return parser
 
 def main(project_dir=None):
-    parser = get_parser()
+
+    # First things first: load any extensions
+    import sys
+    if sys.version_info < (3, 10):
+        from importlib_metadata import entry_points
+    else:
+        from importlib.metadata import entry_points
+
+    discovered_plugins = entry_points(group='ivpm.ext')
+    parser_ext = []
+    for p in discovered_plugins:
+        try:
+            mod = p.load()
+            if hasattr(mod, "ivpm_subcommand"):
+                parser_ext.append(getattr(mod, "ivpm_subcommand"))
+        except Exception as e:
+            print("Error: caught exception while loading IVPM extension %s (%s)" %(
+                p.name,
+                str(e)))
+            raise e
+
+    parser = get_parser(parser_ext)
     
     args = parser.parse_args()
 

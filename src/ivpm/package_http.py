@@ -26,22 +26,23 @@ import urllib
 import dataclasses as dc
 from .package_file import PackageFile
 from .update_info import UpdateInfo
+from .package import SourceType2Ext
 
 class PackageHttp(PackageFile):
 
     def update(self, update_info : UpdateInfo):
-        pkg_dir = os.path.join(update_info.packages_dir, self.name)
+        pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
         # Need to fetch, then unpack these
-        download_dir = os.path.join(update_info.packages_dir, ".download")
+        download_dir = os.path.join(update_info.deps_dir, ".download")
                 
         if not os.path.isdir(download_dir):
                         os.makedirs(download_dir)
 
 #        if pkg.src_type not in SourceType2Ext.keys():
 #            fatal("Unsupported source-type %s for package %s" % (str(pkg.src_type), pkg.name))                    
-        filename = self.name + SourceType2Ext[pkg.src_type]
+        filename = self.name + SourceType2Ext[self.src_type]
                     
         pkg_path = os.path.join(download_dir, filename)
                     

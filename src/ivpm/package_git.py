@@ -36,7 +36,7 @@ class PackageGit(Package):
     anonymous : bool = None
 
     def update(self, update_info : UpdateInfo):
-        pkg_dir = os.path.join(update_info.packages_dir, self.name)
+        pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
         if os.path.exists(pkg_dir):
@@ -45,7 +45,7 @@ class PackageGit(Package):
             note("loading package %s" % self.name)
 
             cwd = os.getcwd()
-            os.chdir(update_info.packages_dir)
+            os.chdir(update_info.deps_dir)
             sys.stdout.flush()
 
             git_cmd = ["git", "clone"]
@@ -87,7 +87,7 @@ class PackageGit(Package):
 
             # Checkout a specific commit            
             if self.commit is not None:
-                os.chdir(os.path.join(self.packages_dir, self.name))
+                os.chdir(os.path.join(self.deps_dir, self.name))
                 git_cmd = "git reset --hard %s" % self.commit
                 status = os.system(git_cmd)
             
@@ -97,7 +97,7 @@ class PackageGit(Package):
             
         
             # TODO: Existence of .gitmodules should trigger this
-            os.chdir(os.path.join(update_info.packages_dir, self.name))
+            os.chdir(os.path.join(update_info.deps_dir, self.name))
             sys.stdout.flush()
             status = os.system("git submodule update --init --recursive")
             os.chdir(cwd)

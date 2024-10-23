@@ -28,6 +28,11 @@ from .pkg_info_loader import PkgInfoLoader
 from .utils import load_project_package_info
 import ivpm.setup
 
+from .package import Package
+from .package_factory import PackageFactory
+from .package_factory_rgy import PackageFactoryRgy
+from .update_info import UpdateInfo
+
 def get_pkg_version(setup_py_path):
     """Returns the package version based on the etc/ivpm.info file"""
     rootdir = os.path.dirname(os.path.realpath(setup_py_path))

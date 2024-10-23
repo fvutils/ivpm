@@ -35,7 +35,7 @@ class PackageFile(PackageURL):
     def update(self, update_info : UpdateInfo) -> ProjInfo:
         from .project_info_reader import ProjectInfoReader
 
-        pkg_dir = os.path.join(update_info.packages_dir, self.name)
+        pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
         # Install (unpack) the file 

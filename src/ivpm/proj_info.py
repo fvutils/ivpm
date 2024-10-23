@@ -20,8 +20,11 @@ class ProjInfo():
         
         self.ivpm_info = {}
         self.requirements_txt = None
+
         self.name = None
         self.version = None
+        self.deps_dir = "packages"
+
         self.process_deps = True
         self.paths : Dict[str, Dict[str, List[str]]] = {}
 

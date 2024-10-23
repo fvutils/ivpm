@@ -88,7 +88,7 @@ class Package(object):
     def update(self, update_info : UpdateInfo) -> 'ProjInfo':
         from .project_info_reader import ProjectInfoReader
         info = ProjectInfoReader(
-            os.path.join(update_info.packages_dir, self.name)).read()
+            os.path.join(update_info.deps_dir, self.name)).read()
         
         return info
     

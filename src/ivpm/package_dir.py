@@ -43,7 +43,7 @@ class PackageDir(PackageURL):
                 src_path,
                 self.name
             ))
-        dst_path = os.path.join(update_info.packages_dir, self.name)
+        dst_path = os.path.join(update_info.deps_dir, self.name)
 
         if os.path.isdir(dst_path):
             note("Destination directory for %s exists ... skipping copy" % self.name)

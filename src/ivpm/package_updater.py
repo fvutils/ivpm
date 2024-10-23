@@ -28,7 +28,7 @@ class PackageUpdater(object):
                  anonymous_git=False,
                  load=True):
         self.debug = False
-        self.packages_dir = packages_dir
+        self.deps_dir = packages_dir
         self.all_pkgs = PackagesInfo("root")
         self.new_deps = []
         self.anonymous_git = anonymous_git
@@ -114,14 +114,14 @@ class PackageUpdater(object):
         """Loads a single package. Returns any dependencies"""
         must_update=False
 
-        update_info = UpdateInfo(self.packages_dir)
+        update_info = UpdateInfo(self.deps_dir)
   
         print("********************************************************************")
         print("* Processing package %s" % pkg.name)
         print("********************************************************************")
 
 
-        pkg_dir = os.path.join(self.packages_dir, pkg.name)
+        pkg_dir = os.path.join(self.deps_dir, pkg.name)
         pkg.path = pkg_dir.replace("\\", "/")
 
         info = pkg.update(update_info)
@@ -169,7 +169,7 @@ class PackageUpdater(object):
         # check what we have
         if pkg.pkg_type == PackageType.Unknown:
             for py in ("setup.py", "pyproject.toml"):
-                if os.path.isfile(os.path.join(self.packages_dir, pkg.name, py)):
+                if os.path.isfile(os.path.join(self.deps_dir, pkg.name, py)):
                     pkg.pkg_type = PackageType.Python
                     break
         

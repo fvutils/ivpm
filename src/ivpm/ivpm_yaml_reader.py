@@ -51,6 +51,10 @@ class IvpmYamlReader(object):
         else:
             ret.version = None
         
+        if "deps-dir" in pkg.keys():
+            ret.deps_dir = pkg["deps-dir"]
+
+        
         if "deps" in pkg.keys() or "dev-deps" in pkg.keys():
             # old-style format
             print("Note: Package %s uses old-style ivpm.yaml format" % ret.name)

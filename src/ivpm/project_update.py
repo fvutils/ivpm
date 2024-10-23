@@ -40,7 +40,7 @@ class ProjectUpdate(object):
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
             
-        packages_dir = os.path.join(self.root_dir, "packages")
+        packages_dir = os.path.join(self.root_dir, proj_info.deps_dir)
  
         # Ensure that we have a python virtual environment setup
         if not self.skip_venv:

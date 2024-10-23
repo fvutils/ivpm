@@ -145,10 +145,10 @@ class PackageHandlerPython(PackageHandler):
                 setup_deps_pkgs.append(pkgs_info[dep])
 
             requirements_path = os.path.join(
-                update_info.packages_dir, "python_pkgs_%d.txt" % (
+                update_info.deps_dir, "python_pkgs_%d.txt" % (
                 len(python_requirements_paths)+1))
             self._write_requirements_txt(
-                update_info.packages_dir,
+                update_info.deps_dir,
                 setup_deps_pkgs, 
                 requirements_path)
             python_requirements_paths.append(requirements_path)
@@ -162,11 +162,11 @@ class PackageHandlerPython(PackageHandler):
 
         if len(python_pkgs) > 0:
             requirements_path = os.path.join(
-                update_info.packages_dir, "python_pkgs_%d.txt" % (
+                update_info.deps_dir, "python_pkgs_%d.txt" % (
                 len(python_requirements_paths)+1))
 
             self._write_requirements_txt(
-                update_info.packages_dir,
+                update_info.deps_dir,
                 python_pkgs, 
                 requirements_path)
             python_requirements_paths.append(requirements_path)
@@ -197,9 +197,9 @@ class PackageHandlerPython(PackageHandler):
 
             if len(python_pkgs):
                 requirements_path = os.path.join(
-                    packages_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
+                    deps_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
                 self._write_requirements_txt(
-                    packages_dir,
+                    deps_dir,
                     python_pkgs, 
                     requirements_path)
                 python_requirements_paths.append(requirements_path)
@@ -214,12 +214,12 @@ class PackageHandlerPython(PackageHandler):
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
             for reqfile in python_requirements_paths:
                 cwd = os.getcwd()
-                os.chdir(os.path.join(packages_dir))
+                os.chdir(os.path.join(deps_dir))
                 cmd = [
-                    get_venv_python(os.path.join(packages_dir, "python")),
+                    get_venv_python(os.path.join(deps_dir, "python")),
                     "-m",
                     "ivpm.pywrap",
-                    get_venv_python(os.path.join(packages_dir, "python")),
+                    get_venv_python(os.path.join(deps_dir, "python")),
                     "-m",
                     "pip",
                     "install",

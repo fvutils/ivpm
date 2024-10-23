@@ -23,7 +23,7 @@ import dataclasses as dc
 
 @dc.dataclass
 class UpdateInfo(object):
-    packages_dir : str
+    deps_dir : str
     anonymous_git : bool = False
 
 

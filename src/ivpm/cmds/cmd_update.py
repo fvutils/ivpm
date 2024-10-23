@@ -41,7 +41,7 @@ class CmdUpdate(object):
             args.project_dir,
             dep_set=ds_name,
             anonymous=args.anonymous
-        )            
+        ).update()
 
 
 #        with open(os.path.join(packages_dir, "sve.F"), "w") as fp:
