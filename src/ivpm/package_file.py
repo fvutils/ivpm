@@ -39,12 +39,15 @@ class PackageFile(PackageURL):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
-        # Install (unpack) the file 
+        if not os.path.isdir(pkg_dir):
+            # Install (unpack) the file 
+            if self.unpack:
+                self._install(self.url, pkg_dir)
 
-        # Now, check the package for dependencies
-        info : ProjInfo = ProjectInfoReader(pkg_dir).read()
-
-        return info
+        if os.path.isdir(pkg_dir):
+            return ProjectInfoReader(pkg_dir).read()
+        else:
+            return None
     
     def _install(self, pkg_src, pkg_path):
         if self.src_type in (".tar.gz", ".tar.xz", ".tar.bz2"):
