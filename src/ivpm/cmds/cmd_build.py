@@ -48,7 +48,7 @@ class CmdBuild(object):
                     
         ds_name = "default-dev"
         
-        if hasattr(args, "dep_set") and args.dep_set is not None:
+        if getattr(args, "dep_set") is not None:
             ds_name = args.dep_set
             
         if ds_name not in proj_info.dep_set_m.keys():

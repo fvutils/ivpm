@@ -8,7 +8,6 @@ import os
 from ivpm.msg import fatal
 from ivpm.package import Package, Ext2SourceType, SourceType
 from ivpm.packages_info import PackagesInfo
-from lib2to3.pgen2.token import COLON
 
 
 class PackagesMfReader(object):

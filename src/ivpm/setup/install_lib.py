@@ -43,6 +43,9 @@ class InstallLib(_install_lib):
         install_cmd = self.get_finalized_command('install')
         install_root = self.get_finalized_command('install').root
 
+        if install_root is None:
+            return
+
         libpref = "lib"
         dllext = ".so"
         if platform.system() == "Windows":

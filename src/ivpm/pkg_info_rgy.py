@@ -41,12 +41,15 @@ class PkgInfoRgy(object):
         plugins = entry_points(group='ivpm.pkginfo')
 
         for p in plugins:
-            ext_t = p.load()
-            ext = ext_t()
-            if ext.name not in self.info_m.keys():
-                self.info_m[ext.name] = ext
-            else:
-                raise Exception("Duplicate package %s" % ext.name)
+            try:
+                ext_t = p.load()
+                ext = ext_t()
+                if ext.name not in self.info_m.keys():
+                    self.info_m[ext.name] = ext
+                else:
+                    raise Exception("Duplicate package %s" % ext.name)
+            except Exception as e:
+                print("IVPM: failed to load plugin (%s)" % str(e))
             
         # Finally, iterate through the path looking for leftovers (?)
         for path in sys.path:
@@ -55,16 +58,15 @@ class PkgInfoRgy(object):
                     if os.path.isfile(os.path.join(path, pkg, "pkginfo.py")):
                         try:
                             pkginfo_m = importlib.import_module("%s.pkginfo" % pkg)
-                            if not hasattr(pkginfo_m, "PkgInfo"):
-                                raise Exception("pkginfo missing PkgInfo")
-                            pkginfo_c = getattr(pkginfo_m, "PkgInfo", None)
-                            if pkginfo_c is not None:
-                                pkginfo = pkginfo_c()
-                                if pkginfo.name not in self.info_m.keys():
-                                    self.info_m[pkginfo.name] = pkginfo
-                        except Exception as e:
-                            pass
-
+                        except ModuleNotFoundError as e:
+                            print("Note: package @ %s has pkginfo.py, but cannot load %s.pkginfo (%s)" % (path, pkg, str(e)))
+                            continue
+                        if not hasattr(pkginfo_m, "PkgInfo"):
+                            print("Note: pkginfo (%s) module exists, but is missing PkgInfo", os.path.join(path, pkg))
+                            continue
+                        pkginfo = getattr(pkginfo_m, "PkgInfo")()
+                        if pkginfo.name not in self.info_m.keys():
+                            self.info_m[pkginfo.name] = pkginfo
 
     def hasPkg(self, pkg):
         return pkg in self.info_m.keys()
