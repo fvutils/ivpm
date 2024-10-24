@@ -26,6 +26,7 @@ import urllib
 import dataclasses as dc
 from .package_file import PackageFile
 from .update_info import UpdateInfo
+from .utils import note
 from .package import SourceType2Ext
 
 class PackageHttp(PackageFile):
@@ -34,26 +35,40 @@ class PackageHttp(PackageFile):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
-        # Need to fetch, then unpack these
-        download_dir = os.path.join(update_info.deps_dir, ".download")
+        if os.path.isdir(pkg_dir):
+            note("Skipping %s, since it is already loaded" % self.name)
+        else:
+            # Need to fetch, then unpack these
+            download_dir = os.path.join(update_info.deps_dir, ".download")
                 
-        if not os.path.isdir(download_dir):
-                        os.makedirs(download_dir)
+            if not os.path.isdir(download_dir):
+                os.makedirs(download_dir)
 
-#        if pkg.src_type not in SourceType2Ext.keys():
-#            fatal("Unsupported source-type %s for package %s" % (str(pkg.src_type), pkg.name))                    
-        filename = self.name + SourceType2Ext[self.src_type]
+            if self.unpack:
+                pkg_path = os.path.join(download_dir, 
+                                        os.path.basename(self.url))
+            else:
+                pkg_path = os.path.join(update_info.deps_dir, 
+                                        os.path.basename(self.url))
                     
-        pkg_path = os.path.join(download_dir, filename)
-                    
-        # TODO: should this be an option?   
-        remove_pkg_src = True
+            # TODO: should this be an option?   
+            remove_pkg_src = True
 
-        if self.debug:
-            print("fetch_file")
-        sys.stdout.flush()
-        urllib.request.urlretrieve(self.url, pkg_path)
+            print("http: unpack=%s url=%s" % (str(self.unpack), str(self.url)))
+#        if self.debug:
+#            print("fetch_file")
+#            sys.stdout.flush()
+            urllib.request.urlretrieve(self.url, pkg_path)
 
-        os.unlink(os.path.join(download_dir, filename))
+            if self.unpack:
+                self._install(pkg_path, pkg_dir)
+                os.unlink(os.path.join(download_dir, 
+                                       os.path.basename(self.url)))
+            else:
+                # 
+                pass
+
+
+
 
 

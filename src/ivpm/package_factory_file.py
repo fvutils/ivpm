@@ -19,12 +19,39 @@
 #*     Author: 
 #*
 #****************************************************************************
+import os
+from typing import Dict
 from .package_factory_url import PackageFactoryURL
 from .package_file import PackageFile
 
 class PackageFactoryFile(PackageFactoryURL):
     src = "file"
     description = "Core fetch fetcher"
+
+    def process_options(self, p: PackageFile, d: Dict, si):
+        super().process_options(p, d, si)
+
+
+        if "src" in d.keys():
+            p.src_type = d["src"]
+        else:
+            ext = os.path.splitext(p.url)
+            if ext == ".tgz":
+                p.src_type = ".tar.gz"
+            else:
+                p.src_type = os.path.splitext(p.url)[1]
+                if p.src_type in [".gz", ".xz", ".bz2"]:
+                    pdot = p.url.rfind('.')
+                    pdot = p.url.rfind('.', 0, pdot-1)
+                    p.src_type = p.url[pdot:]
+
+        if "unpack" in d.keys():
+            p.unpack = d["unpack"]
+        else:
+            if p.src_type in [".jar"]:
+                p.unpack = False
+            else:
+                p.unpack = True
 
     def create(self, name, opts, si) -> PackageFile:
         p = PackageFile(name)

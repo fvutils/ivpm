@@ -48,30 +48,5 @@ class CmdUpdate(object):
 #            SveFilelistWriter(OutWrapper(fp)).write(pkgs_info)
 
 
-    # def _write_requirements_txt(self, 
-    #                             packages_dir,
-    #                             python_pkgs : List[Package],
-    #                             file):
-    #     with open(file, "w") as fp:
-    #         for pkg in python_pkgs:
-                
-    #             if pkg.url is not None:
-    #                 # Editable package
-    #                 # fp.write("-e file://%s/%s#egg=%s\n" % (
-    #                 #     packages_dir.replace("\\","/"), 
-    #                 #     pkg.name, 
-    #                 #     pkg.name))
-    #                 fp.write("-e %s/%s\n" % (
-    #                     packages_dir.replace("\\","/"), 
-    #                     pkg.name))
-    #             else:
-    #                 # PyPi package
-    #                 if pkg.version is not None:
-    #                     if pkg.version[0] in ['<','>','=']:
-    #                         fp.write("%s%s\n" % (pkg.name, pkg.version))
-    #                     else:
-    #                         fp.write("%s==%s\n" % (pkg.name, pkg.version))
-    #                 else:
-    #                     fp.write("%s\n" % pkg.name)
    
     

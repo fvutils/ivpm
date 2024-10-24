@@ -6,7 +6,6 @@ Created on Jun 8, 2021
 import os
 import yaml_srcinfo_loader
 from yaml_srcinfo_loader.srcinfo import SrcInfo
-from .package_factory_rgy import PackageFactoryRgy
 from .package_factory import PackageFactory
 from .package import Package
 
@@ -115,6 +114,7 @@ class IvpmYamlReader(object):
         
 
     def read_deps(self, ret : PackagesInfo, deps):
+        from .package_factory_rgy import PackageFactoryRgy
         
         for d in deps:
             si = d.srcinfo

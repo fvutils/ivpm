@@ -44,8 +44,9 @@ class PackageHandlerRgy(object):
         return h
 
     @classmethod
-    def inst(cls):
+    def inst(cls) -> 'PackageHandlerRgy':
         if cls._inst is None:
             cls._inst = PackageHandlerRgy()
             cls._inst._load()
+        return cls._inst
 

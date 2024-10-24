@@ -24,11 +24,13 @@ from .update_info import UpdateInfo
 class PackageUpdater(object):
     
     def __init__(self, 
-                 packages_dir, 
+                 deps_dir, 
+                 pkg_handler,
                  anonymous_git=False,
                  load=True):
         self.debug = False
-        self.deps_dir = packages_dir
+        self.deps_dir = deps_dir
+        self.pkg_handler = pkg_handler
         self.all_pkgs = PackagesInfo("root")
         self.new_deps = []
         self.anonymous_git = anonymous_git
@@ -63,11 +65,11 @@ class PackageUpdater(object):
                 
                 self.all_pkgs[pkg.name] = pkg
                 
-                if pkg.src_type != SourceType.PyPi:
-                    proj_info : ProjInfo = self._update_pkg(pkg)
-                    
-                    # proj_info contains info on any setup-deps that
-                    # might be required
+                proj_info : ProjInfo = self._update_pkg(pkg)
+
+                # proj_info contains info on any setup-deps that
+                # might be required
+                if proj_info is not None:
                     for sd in proj_info.setup_deps:
                         print("Add setup-dep %s to package %s" % (sd, pkg.name))
                         if pkg.name not in self.all_pkgs.setup_deps.keys():
@@ -124,7 +126,11 @@ class PackageUpdater(object):
         pkg_dir = os.path.join(self.deps_dir, pkg.name)
         pkg.path = pkg_dir.replace("\\", "/")
 
-        info = pkg.update(update_info)
+        pkg.proj_info = pkg.update(update_info)
+
+        # Notify the package handlers after the source is 
+        # loaded so they can take further action if required 
+        self.pkg_handler.process_pkg(pkg)
         
         # if os.path.exists(pkg_dir):
         #     note("package %s is already loaded" % pkg.name)
@@ -167,22 +173,22 @@ class PackageUpdater(object):
 
         # After loading the package, or finding it already loaded,
         # check what we have
-        if pkg.pkg_type == PackageType.Unknown:
-            for py in ("setup.py", "pyproject.toml"):
-                if os.path.isfile(os.path.join(self.deps_dir, pkg.name, py)):
-                    pkg.pkg_type = PackageType.Python
-                    break
+        # if pkg.pkg_type == PackageType.Unknown:
+        #     for py in ("setup.py", "pyproject.toml"):
+        #         if os.path.isfile(os.path.join(self.deps_dir, pkg.name, py)):
+        #             pkg.pkg_type = PackageType.Python
+        #             break
         
-        if info is None:
-            info = ProjInfo(False)
-            info.name = pkg.name
+        # if info is None:
+        #     info = ProjInfo(False)
+        #     info.name = pkg.name
 
         # Ensure that we use the requested dep-set
-        info.target_dep_set = pkg.dep_set
-        info.process_deps = pkg.process_deps
+        if pkg.proj_info is not None:
+            pkg.proj_info.target_dep_set = pkg.dep_set
+            pkg.proj_info.process_deps = pkg.process_deps
         
-        return info
-    
+        return pkg.proj_info
 
     
 

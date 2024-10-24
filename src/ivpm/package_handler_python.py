@@ -20,86 +20,93 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+import subprocess
 import toposort
 import os
-from typing import List
+from typing import Dict, List, Set
 from .update_info import UpdateInfo
-from .utils import note, fatal
+from .utils import note, fatal, get_venv_python
 
-from .package import Package
+from .package import Package, SourceType
 from .package_handler import PackageHandler
 
 @dc.dataclass
 class PackageHandlerPython(PackageHandler):
     name="python"
-    packages : List[Package] = dc.field(default_factory=list)
+    pkgs_info  : Dict[str,Package] = dc.field(default_factory=dict)
+    src_pkg_s  : Set[str] = dc.field(default_factory=set)
+    pypi_pkg_s : Set[str] = dc.field(default_factory=set)
+    debug : bool = True
 
     def process_pkg(self, pkg: Package):
-        print("process_pkg: %s" % pkg.name)
-        if pkg.pkg_type is not None and pkg.pkg_type == PackageHandlerPython.name:
-            self.packages.append(pkg)
-        elif pkg.pkg_type is None:
+        print("process_pkg: %s (%s %s)" % (pkg.name, pkg.src_type, pkg.pkg_type))
+        add = False
+        if pkg.src_type == "pypi":
+            self.pypi_pkg_s.add(pkg.name)
+            add = True
+        elif pkg.pkg_type is not None and pkg.pkg_type == PackageHandlerPython.name:
+            self.src_pkg_s.add(pkg.name)
+            add = True
+        elif pkg.pkg_type is None and hasattr(pkg, "path"):
             # Check if there are known Python files
+            print("Check files (%s)" % pkg.path)
             for py in ("setup.py", "setup.cfg", "pyproject.toml"):
-                if os.path.isfile(os.path.join(pkg.pkg_path, py)):
-                    pkg.pkg_type = PackageHandlerPython.name
-                    self.packages.append(pkg)
+                if os.path.isfile(os.path.join(pkg.path, py)):
+                    print("Add to src_pkg_s")
+                    add = True
+                    self.src_pkg_s.add(pkg.name)
                     break            
+        if add:
+            pkg.pkg_type = PackageHandlerPython.name
+            self.pkgs_info[pkg.name] = pkg
     
     def update(self, update_info : UpdateInfo):
-        # TODO:
-        pkgs_info = {}
-
-        # Remove the root package before processing what's left
-        pkgs_info.pop(proj_info.name)
 
         # Build up a dependency map for Python package installation        
         python_deps_m = {}
-        python_pkgs_s = set()
+#        python_pkgs_s = set()
 
         # Collect the full set of packages
-        for pkg in self.packages:
-            python_pkgs_s.add(pkg.name)
+#        for pkg in self.packages:
+#            python_pkgs_s.add(pkg.name)
 
-        pypi_pkg_s = set() # List of packages on PyPi to install
         # Map between package name and a set of python
         # packages it depends on
         py_pkg_m = {}
-        for pyp in python_pkgs_s:
-            p = pkgs_info[pyp]
-            if p.src_type == SourceType.PyPi:
-                pypi_pkg_s.add(p.name)
-            else:
-                # Read the package-info
-                if pyp not in python_deps_m.keys():
-                    python_deps_m[pyp] = set()
+        print("src_pkg_s: %s" % str(self.src_pkg_s))
+        for pyp in self.src_pkg_s:
+            print("pyp: %s" % pyp) 
+            p = self.pkgs_info[pyp]
+            if pyp not in python_deps_m.keys():
+                python_deps_m[pyp] = set()
 
-                proj_info = ProjectInfoReader(p.path).read()
-
-                if proj_info is None:
-                    continue
-
+            if p.proj_info is not None:
+                print("non-none proj_info")
                 # TODO: see if the package specifies the package set
-                if proj_info.has_dep_set(proj_info.target_dep_set):
-                    for dp in proj_info.get_dep_set(proj_info.target_dep_set).keys():
-                        if dp in python_pkgs_s:
-                            dp_p = pkgs_info[dp]
-                            if dp_p.src_type != SourceType.PyPi:
+                if p.proj_info.has_dep_set(p.proj_info.target_dep_set):
+                    for dp in p.proj_info.get_dep_set(p.proj_info.target_dep_set).keys():
+                        if dp in self.pkgs_info.keys():
+                            dp_p = self.pkgs_info[dp]
+                            if dp_p.src_type != "pypi":
                                 python_deps_m[pyp].add(dp)
+                        # if dp in python_pkgs_s:
+                        #     dp_p = pkgs_info[dp]
+                        #     if dp_p.src_type != SourceType.PyPi:
+                        #         python_deps_m[pyp].add(dp)
                 else:
                     print("Warning: project %s does not contain its target dependency set (%s)" % (
-                        proj_info.name,
-                        proj_info.target_dep_set))
-                    for d in proj_info.dep_set_m.keys():
+                        p.proj_info.name,
+                        p.proj_info.target_dep_set))
+                    for d in p.proj_info.dep_set_m.keys():
                         print("Dep-Set: %s" % d)
 
         # Order the source packages based on their dependencies 
-        pysrc_pkg_order = list(toposort(python_deps_m))
+        it = toposort.toposort(python_deps_m)
+        pysrc_pkg_order = list(it)
         if self.debug:
             print("python_deps_m: %s" % str(python_deps_m))
             print("pysrc_pkg_order: %s" % str(pysrc_pkg_order))
 
-        setup_deps_s = set()
         python_deps_m = {}
         
 #        # Collect all packages that have a setup dependency
@@ -129,20 +136,29 @@ class PackageHandlerPython(PackageHandler):
 #
         python_requirements_paths = []
 
-        # First, collect the setup-deps
+        # Setup deps are a special category. We need to 
+        # install them first -- possibly even before
+        # installing other pypi packages
         setup_deps_s = set()
-        for proj,deps in pkgs_info.setup_deps.items():
-            for dep in deps:
-                if dep not in setup_deps_s:
-                    setup_deps_s.add(dep)
-                    if dep in pypi_pkg_s:
-                        pypi_pkg_s.remove(dep)
+        # for pkg,deps in update_info.setup_deps.items():
+        #     for dep in deps:
+        #         if dep not in setup_deps_s:
+        #             setup_deps_s.add(dep)
+        #             if dep in self.pypi_pkg_s:
+        #                 self.pypi_pkg_s.remove(dep)
+
+        # for proj,deps in self.pkgs_info.setup_deps.items():
+        #     for dep in deps:
+        #         if dep not in setup_deps_s:
+        #             setup_deps_s.add(dep)
+        #             if dep in self.pypi_pkg_s:
+        #                 self.pypi_pkg_s.remove(dep)
         print("setup_deps_s: %s" % str(setup_deps_s))
 
         if len(setup_deps_s) > 0:
             setup_deps_pkgs = []
             for dep in setup_deps_s:
-                setup_deps_pkgs.append(pkgs_info[dep])
+                setup_deps_pkgs.append(self.pkgs_info[dep])
 
             requirements_path = os.path.join(
                 update_info.deps_dir, "python_pkgs_%d.txt" % (
@@ -156,9 +172,9 @@ class PackageHandlerPython(PackageHandler):
         # Next, create a requirements file for all
         # non-setup-dep PyPi packages
         python_pkgs = []
-        print("pypi_pkg_s: %s" % str(pypi_pkg_s))
-        for pypi_p in pypi_pkg_s:
-            python_pkgs.append(pkgs_info[pypi_p])
+        print("pypi_pkg_s: %s" % str(self.pypi_pkg_s))
+        for pypi_p in self.pypi_pkg_s:
+            python_pkgs.append(self.pkgs_info[pypi_p])
 
         if len(python_pkgs) > 0:
             requirements_path = os.path.join(
@@ -177,29 +193,23 @@ class PackageHandlerPython(PackageHandler):
             for key in pydep_s:
                 
                 # A future iteration does not need to install this
-                python_pkgs_s.discard(key)
+                self.pypi_pkg_s.discard(key)
+                self.src_pkg_s.discard(key)
                 
                 # Note: for completeness, should collect Python 
                 # packages known to be required by this pre-dep
                 
-                if key not in pkgs_info.keys():
-                    raise Exception("Package %s not found in packages-info %s" % (key, pkgs_info.name))
+                if key not in self.pkgs_info.keys():
+                    raise Exception("Package %s not found in packages-info" % key)
                 
-                pkg : Package = pkgs_info[key]
+                pkg : Package = self.pkgs_info[key]
+                python_pkgs.append(pkg)
                 
-                if pkg.pkg_type == PackageType.Python:
-                    python_pkgs.append(pkg)
-                elif os.path.isfile(os.path.join(pkg.path, "setup.py")):
-                    python_pkgs.append(pkg)
-                else:
-                    warning("Package %s (%s) is marked as Python, but is missing setup.py" % (
-                        pkg.name, pkg.path))
-
             if len(python_pkgs):
                 requirements_path = os.path.join(
-                    deps_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
+                    update_info.deps_dir, "python_pkgs_%d.txt" % (len(python_requirements_paths)+1))
                 self._write_requirements_txt(
-                    deps_dir,
+                    update_info.deps_dir,
                     python_pkgs, 
                     requirements_path)
                 python_requirements_paths.append(requirements_path)
@@ -214,12 +224,12 @@ class PackageHandlerPython(PackageHandler):
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
             for reqfile in python_requirements_paths:
                 cwd = os.getcwd()
-                os.chdir(os.path.join(deps_dir))
+                os.chdir(os.path.join(update_info.deps_dir))
                 cmd = [
-                    get_venv_python(os.path.join(deps_dir, "python")),
+                    get_venv_python(os.path.join(update_info.deps_dir, "python")),
                     "-m",
                     "ivpm.pywrap",
-                    get_venv_python(os.path.join(deps_dir, "python")),
+                    get_venv_python(os.path.join(update_info.deps_dir, "python")),
                     "-m",
                     "pip",
                     "install",
@@ -231,6 +241,32 @@ class PackageHandlerPython(PackageHandler):
                 if status.returncode != 0:
                     fatal("failed to install Python packages")
                 os.chdir(cwd)        
-        return super().update()
+
+
+    def _write_requirements_txt(self, 
+                                packages_dir,
+                                python_pkgs : List[Package],
+                                file):
+        with open(file, "w") as fp:
+            for pkg in python_pkgs:
+                
+                if hasattr(pkg, "url"):
+                    # Editable package
+                    # fp.write("-e file://%s/%s#egg=%s\n" % (
+                    #     packages_dir.replace("\\","/"), 
+                    #     pkg.name, 
+                    #     pkg.name))
+                    fp.write("-e %s/%s\n" % (
+                        packages_dir.replace("\\","/"), 
+                        pkg.name))
+                else:
+                    # PyPi package
+                    if pkg.version is not None:
+                        if pkg.version[0] in ['<','>','=']:
+                            fp.write("%s%s\n" % (pkg.name, pkg.version))
+                        else:
+                            fp.write("%s==%s\n" % (pkg.name, pkg.version))
+                    else:
+                        fp.write("%s\n" % pkg.name)
 
 

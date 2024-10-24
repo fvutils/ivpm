@@ -71,7 +71,6 @@ Spec2SourceType = {
 @dc.dataclass
 class Package(object):
     """Contains leaf-level information about a single package"""
-
     name : str
     srcinfo : object = None
     path : str = None
@@ -79,14 +78,17 @@ class Package(object):
     src_type : str = None
 
     process_deps : bool = True
-    setup_deps : Set = dc.field(default_factory=set)
+    setup_deps : Set[str] = dc.field(default_factory=set)
     dep_set : str = "default"
+    proj_info : 'ProjInfo'= None
 
     def build(self, pkgs_info):
         pass
 
     def update(self, update_info : UpdateInfo) -> 'ProjInfo':
         from .project_info_reader import ProjectInfoReader
+        from .proj_info import ProjInfo
+
         info = ProjectInfoReader(
             os.path.join(update_info.deps_dir, self.name)).read()
         

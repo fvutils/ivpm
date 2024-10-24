@@ -24,6 +24,8 @@ import sys
 import subprocess
 import dataclasses as dc
 from .package import Package
+from .proj_info import ProjInfo
+from .project_info_reader import ProjectInfoReader
 from .update_info import UpdateInfo
 from .utils import note, fatal
 
@@ -35,7 +37,7 @@ class PackageGit(Package):
     depth : str = None
     anonymous : bool = None
 
-    def update(self, update_info : UpdateInfo):
+    def update(self, update_info : UpdateInfo) -> ProjInfo:
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
@@ -97,9 +99,13 @@ class PackageGit(Package):
             
         
             # TODO: Existence of .gitmodules should trigger this
-            os.chdir(os.path.join(update_info.deps_dir, self.name))
-            sys.stdout.flush()
-            status = os.system("git submodule update --init --recursive")
-            os.chdir(cwd)
+            if os.path.isfile(os.path.join(update_info.deps_dir, self.name, ".gitmodules")):
+                os.chdir(os.path.join(update_info.deps_dir, self.name))
+                sys.stdout.flush()
+                status = os.system("git submodule update --init --recursive")
+                os.chdir(cwd)
+
+        proj_info = ProjectInfoReader(pkg_dir).read()
+        return proj_info
 
 

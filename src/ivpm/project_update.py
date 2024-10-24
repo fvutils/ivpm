@@ -24,6 +24,8 @@ import dataclasses as dc
 from .package import Package, SourceType
 from .project_info_reader import ProjectInfoReader
 from .package_updater import PackageUpdater
+from .package_handler_rgy import PackageHandlerRgy
+from .update_info import UpdateInfo
 from .utils import fatal, note, get_venv_python, setup_venv
 
 @dc.dataclass
@@ -40,15 +42,15 @@ class ProjectUpdate(object):
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
             
-        packages_dir = os.path.join(self.root_dir, proj_info.deps_dir)
+        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
  
         # Ensure that we have a python virtual environment setup
         if not self.skip_venv:
-            if not os.path.isdir(os.path.join(packages_dir, "python")):
-                ivpm_python = setup_venv(os.path.join(packages_dir, "python"))
+            if not os.path.isdir(os.path.join(deps_dir, "python")):
+                ivpm_python = setup_venv(os.path.join(deps_dir, "python"))
             else:
                 note("python virtual environment already exists")
-                ivpm_python = get_venv_python(os.path.join(packages_dir, "python"))
+                ivpm_python = get_venv_python(os.path.join(deps_dir, "python"))
             
         print("********************************************************************")
         print("* Processing root package %s" % proj_info.name)
@@ -73,12 +75,21 @@ class ProjectUpdate(object):
             ivpm.src_type = SourceType.PyPi
             ds.packages["ivpm"] = ivpm
 
-        updater = PackageUpdater(packages_dir, self.anonymous)
+        pkg_handler = PackageHandlerRgy.inst().mkHandler()
+        updater = PackageUpdater(
+            deps_dir, 
+            pkg_handler,
+            anonymous_git=self.anonymous)
+
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None
         pkgs_info = updater.update(ds)
 
         print("Setup-deps: %s" % str(pkgs_info.setup_deps))
-        pass
+
+        # Finally, call the handlers to take care of project-level setup work
+        update_info = UpdateInfo(deps_dir)
+        pkg_handler.update(update_info)
+
                
 

@@ -24,7 +24,6 @@ from .package import Package
 
 @dc.dataclass
 class PackageURL(Package):
-
     url : str = None
 
 

@@ -47,12 +47,6 @@ class PackageFactory(object):
                     type_s, getlocstr(d["type"])))
                     
             p.pkg_type = Spec2PackageType[type_s]
-        else:
-#            if url is None and pkg.src_type != SourceType.PyPi:
-#                fatal("no type specified for package %s and no URL specified" % pkg.name)
-#            else:
-#                # We'll need to auto-probe later once we have source
-            p.pkg_type = PackageType.Unknown
 
     def create(self, name, opts, si) -> Package:
         p = Package(name)

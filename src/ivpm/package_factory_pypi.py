@@ -30,9 +30,10 @@ class PackageFactoryPyPi(PackageFactory):
 
     def process_options(self, p: Package, d: Dict, si):
         super().process_options(p, d, si)
+        p.src_type = PackageFactoryPyPi.src
 
         if "version" in d.keys():
-            p = d["version"]
+            p.version = d["version"]
 
     def create(self, name, opts, si) -> PackagePyPi:
         p = PackagePyPi(name)

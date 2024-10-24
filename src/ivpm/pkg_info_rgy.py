@@ -53,12 +53,17 @@ class PkgInfoRgy(object):
             if os.path.isdir(path):
                 for pkg in os.listdir(path):
                     if os.path.isfile(os.path.join(path, pkg, "pkginfo.py")):
-                        pkginfo_m = importlib.import_module("%s.pkginfo" % pkg)
-                        if not hasattr(pkginfo_m, "PkgInfo"):
-                            raise Exception("pkginfo missing PkgInfo")
-                        pkginfo = getattr(pkginfo_m, "PkgInfo")()
-                        if pkginfo.name not in self.info_m.keys():
-                            self.info_m[pkginfo.name] = pkginfo
+                        try:
+                            pkginfo_m = importlib.import_module("%s.pkginfo" % pkg)
+                            if not hasattr(pkginfo_m, "PkgInfo"):
+                                raise Exception("pkginfo missing PkgInfo")
+                            pkginfo_c = getattr(pkginfo_m, "PkgInfo", None)
+                            if pkginfo_c is not None:
+                                pkginfo = pkginfo_c()
+                                if pkginfo.name not in self.info_m.keys():
+                                    self.info_m[pkginfo.name] = pkginfo
+                        except Exception as e:
+                            pass
 
 
     def hasPkg(self, pkg):

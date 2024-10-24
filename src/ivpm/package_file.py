@@ -31,6 +31,7 @@ from .update_info import UpdateInfo
 
 @dc.dataclass
 class PackageFile(PackageURL):
+    unpack : bool = None
 
     def update(self, update_info : UpdateInfo) -> ProjInfo:
         from .project_info_reader import ProjectInfoReader
@@ -44,39 +45,38 @@ class PackageFile(PackageURL):
         info : ProjInfo = ProjectInfoReader(pkg_dir).read()
 
         return info
-
-    def _install_tgz(self, pkg, pkg_path):
-        cwd = os.getcwd()
-        os.chdir(self.packages_dir)
-        
-        tf = tarfile.open(pkg_path)
-
-        for fi in tf:
-            if fi.name.find("/") != -1:
-                fi.name = fi.name[fi.name.find("/")+1:]
-                tf.extract(fi, path=pkg.name)
-        tf.close()
-
-        os.chdir(cwd)
-
-    def _install_zip(self, pkg, pkg_path):
-        ext = os.path.splitext(pkg.name)[1]
-
-        if ext == "":
-            if self.debug:
-                print("_install_zip: %s %s" % (str(pkg), str(pkg_path)))
-            cwd = os.getcwd()
-            os.chdir(self.packages_dir)
-            sys.stdout.flush()
-            with ZipFile(pkg_path, 'r') as zipObj:
-                zipObj.extractall(pkg.name)
-            os.chdir(cwd)        
+    
+    def _install(self, pkg_src, pkg_path):
+        if self.src_type in (".tar.gz", ".tar.xz", ".tar.bz2"):
+            self._install_tgz(pkg_src, pkg_path)
+        elif self.src_type in (".jar", ".zip"):
+            self._install_zip(pkg_src, pkg_path)
         else:
-            # Copy the .zip file to the destination
-            if self.debug:
-                print("_install_zip: copy file")
-            shutil.copyfile(
-                    pkg_path,
-                    os.path.join(self.packages_dir, pkg.name))    
+            raise Exception("Unsupported src_type: %s" % self.src_type)
+
+    def _install_tgz(self, pkg_src, pkg_path):
+        cwd = os.getcwd()
+        try:
+            os.chdir(os.path.dirname(pkg_path))
+        
+            tf = tarfile.open(pkg_src)
+
+            for fi in tf:
+                if fi.name.find("/") != -1:
+                    fi.name = fi.name[fi.name.find("/")+1:]
+                    tf.extract(fi, path=os.path.basename(pkg_path))
+            tf.close()
+        finally:
+            os.chdir(cwd)
+
+    def _install_zip(self, pkg_src, pkg_path):
+            cwd = os.getcwd()
+            try:
+                os.chdir(os.path.dirname(pkg_path))
+                sys.stdout.flush()
+                with ZipFile(pkg_src, 'r') as zipObj:
+                    zipObj.extractall(os.path.basename(pkg_path))
+            finally:
+                os.chdir(cwd)        
 
 

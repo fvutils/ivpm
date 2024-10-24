@@ -20,10 +20,10 @@
 #*
 #****************************************************************************
 from ivpm.package import Package
-from .package_factory_url import PackageFactoryURL
+from .package_factory_file import PackageFactoryFile
 from .package_http import PackageHttp
 
-class PackageFactoryHttp(PackageFactoryURL):
+class PackageFactoryHttp(PackageFactoryFile):
     src = "http"
     description = "HTTP fetcher"
 
