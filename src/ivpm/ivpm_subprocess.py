@@ -26,8 +26,11 @@ def ivpm_popen(cmd, **kwargs):
 
         if proj_info is None:
             raise Exception("Failed to read ivpm.yaml @ %s" % ivpm_project)
-        
-        env = getattr(kwargs, "env", os.environ.copy())
+       
+        if "env" in kwargs.keys():
+            env = kwargs["env"]
+        else:
+            env = os.environ.copy()
         env["IVPM_PROJECT"] = ivpm_project
         env["IVPM_PACKAGES"] = os.path.join(ivpm_project, "packages")
 
