@@ -28,7 +28,7 @@ class InstallLib(_install_lib):
     
     def install(self):
         import ivpm.setup.setup as ivpms
-        from ivpm.setup.setup import get_ivpm_extra_data
+        from ivpm.setup.setup import get_ivpm_extra_data, get_ivpm_ext_name_m, expand_libvars
         # Assume 
         # May need to install some additional libraries and data
         # - data and/or include files to package 'share'
@@ -50,6 +50,7 @@ class InstallLib(_install_lib):
 
 
         build_py = self.get_finalized_command('build_py')
+        ext_name_m = get_ivpm_ext_name_m()
         for p in build_py.packages:
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
@@ -119,8 +120,11 @@ class InstallLib(_install_lib):
 #                     dst
 #                 )
 #                 pass
-                
-        return super().install()
+
+        print("--> super.install")
+        ret = super().install()
+        print("<-- super.install")
+        return ret
     
 
 
