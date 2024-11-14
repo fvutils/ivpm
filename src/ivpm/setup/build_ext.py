@@ -24,6 +24,7 @@ import platform
 import shutil
 import subprocess
 import sys
+from distutils.file_util import copy_file
 from setuptools.command.build_ext import build_ext as _build_ext
 
 class BuildExt(_build_ext):
@@ -54,13 +55,40 @@ class BuildExt(_build_ext):
         return super().build_extension(ext)
     
     def copy_extensions_to_source(self):
-        import ivpm.setup.setup as ivpms
-        from ivpm.setup.setup import get_hooks, Phase_BuildPre, Phase_BuildPost
+        from ivpm.setup.setup import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
         """ Like the base class method, but copy libs into proper directory in develop. """
         print("copy_extensions_to_source")
         for hook in get_hooks(Phase_BuildPre):
             hook(self)
-        super().copy_extensions_to_source()
+        
+        build_py = self.get_finalized_command("build_py")
+        ext_name_m = get_ivpm_ext_name_m()
+        for ext in self.extensions:
+            fullname = self.get_ext_fullname(ext.name)
+            filename = self.get_ext_filename(fullname)
+
+            print("fullname=%s filename=%s" % (fullname, filename), flush=True)
+
+            modpath = fullname.split(".")
+            package = ".".join(modpath[:-1])
+            package_dir = build_py.get_package_dir(package)
+
+            if fullname in ext_name_m.keys():
+                # replace last path element
+                mapped_filename = expand_libvars(ext_name_m[fullname])
+                dest_filename = os.path.join(package_dir, mapped_filename)
+            else:
+                dest_filename = os.path.join(package_dir, filename)
+            src_filename = os.path.join(self.build_lib, filename)
+
+            os.makedirs(os.path.dirname(dest_filename), exist_ok=True)
+
+            copy_file(
+                src_filename,
+                dest_filename,
+                verbose=self.verbose,
+                dry_run=self.dry_run
+            )
 
         # Appy any post-copy hooks
         for hook in get_hooks(Phase_BuildPost):

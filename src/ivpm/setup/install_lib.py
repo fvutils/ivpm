@@ -27,6 +27,7 @@ from setuptools.command.install_lib import install_lib as _install_lib
 class InstallLib(_install_lib):
     
     def install(self):
+        import ivpm.setup.setup as ivpms
         from ivpm.setup.setup import get_ivpm_extra_data
         # Assume 
         # May need to install some additional libraries and data
@@ -46,26 +47,13 @@ class InstallLib(_install_lib):
         if install_root is None:
             return
 
-        libpref = "lib"
-        dllext = ".so"
-        if platform.system() == "Windows":
-            libpref = ""
-            dllext = ".dll"
-        elif platform.system() == "Darwin":
-            libpref = "lib"
-            dllext = ".dylib"
 
-        subst_m = {
-            "{libdir}" : "lib64" if os.path.isdir(os.path.join("build", "lib64")) else "lib",
-            "{libpref}" : libpref,
-            "{dllext}" : dllext
-        }
 
         build_py = self.get_finalized_command('build_py')
         for p in build_py.packages:
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
-                    src = self.expand(subst_m, spec[0])
+                    src = ivpms.expand_libvars(spec[0])
                     dst = spec[1]
 
                     if os.path.isfile(src):
@@ -134,19 +122,6 @@ class InstallLib(_install_lib):
                 
         return super().install()
     
-    def expand(self, subst_m, path):
-        elems = path.split("/")
 
-        # Perform path meta-variable substitution
-        for i,e in enumerate(elems):
-            found = True
-            while found:
-                found = False
-                for k in subst_m.keys():
-                    if e.find(k) != -1:
-                        found = True
-                        e = e.replace(k, subst_m[k])
-                        elems[i] = e
-        return "/".join(elems)
 
 

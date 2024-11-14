@@ -38,6 +38,7 @@ Phase_BuildPost = "build.post"
 _ivpm_extra_data = {}
 _ivpm_extdep_data = []
 _ivpm_hooks = {}
+_ivpm_ext_name_m = {}
 
 def get_hooks(kind : str):
     global _ivpm_hooks
@@ -54,13 +55,51 @@ def get_ivpm_extdep_data():
     global _ivpm_extdep_data
     return _ivpm_extdep_data
 
+def get_ivpm_ext_name_m():
+    global _ivpm_ext_name_m
+    return _ivpm_ext_name_m
+
 _package_dir = {}
 def get_package_dir():
     return _package_dir
 
+def expand(subst_m, path):
+    elems = path.split("/")
+
+    # Perform path meta-variable substitution
+    for i,e in enumerate(elems):
+        found = True
+        while found:
+            found = False
+            for k in subst_m.keys():
+                if e.find(k) != -1:
+                    found = True
+                    e = e.replace(k, subst_m[k])
+                    elems[i] = e
+    return "/".join(elems)
+
+def expand_libvars(src):
+    libpref = "lib"
+    dllext = ".so"
+    if platform.system() == "Windows":
+        libpref = ""
+        dllext = ".dll"
+    elif platform.system() == "Darwin":
+        libpref = "lib"
+        dllext = ".dylib"
+
+    subst_m = {
+        "{libdir}" : "lib64" if os.path.isdir(os.path.join("build", "lib64")) else "lib",
+        "{libpref}" : libpref,
+        "{dllpref}" : libpref,
+        "{dllext}" : dllext
+    }
+
+    return expand(subst_m, src)
+
 
 def setup(*args, **kwargs):
-    global _ivpm_extra_data, _ivpm_extdep_data, _ivpm_hooks
+    global _ivpm_extra_data, _ivpm_extdep_data, _ivpm_hooks, _ivpm_ext_name_m
 
     print("IVPM setup: %s" % kwargs["name"])
 
@@ -84,6 +123,10 @@ def setup(*args, **kwargs):
     if "ivpm_hooks" in kwargs.keys():
         _ivpm_hooks = kwargs["ivpm_hooks"]
         kwargs.pop("ivpm_hooks")
+
+    if "ivpm_ext_name_m" in kwargs.keys():
+        _ivpm_ext_name_m = kwargs["ivpm_ext_name_m"]
+        kwargs.pop("ivpm_ext_name_m") 
 
     # project_dir = os.path.dirname(os.path.abspath(
     #     inspect.getmodule(caller).__file__))
