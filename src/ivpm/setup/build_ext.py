@@ -104,7 +104,7 @@ class BuildExt(_build_ext):
                 # replace last path element
                 mapped_filename = expand_libvars(ext_name_m[fullname])
                 dest_filename = os.path.join(package_dir, mapped_filename)
-                src_filename = os.path.join(self.build_lib, mapped_filename)
+                src_filename = os.path.join(self.build_lib, "/".join(modpath[:-1]), mapped_filename)
             else:
                 dest_filename = os.path.join(package_dir, filename)
                 src_filename = os.path.join(self.build_lib, filename)
