@@ -27,8 +27,8 @@ from setuptools.command.install_lib import install_lib as _install_lib
 class InstallLib(_install_lib):
     
     def install(self):
-        import ivpm.setup.setup as ivpms
-        from ivpm.setup.setup import get_ivpm_extra_data, get_ivpm_ext_name_m, expand_libvars
+        from ivpm import setup as ivpms
+        from ivpm.setup.ivpm_data import get_ivpm_extra_data, get_ivpm_ext_name_m, expand_libvars
         # Assume 
         # May need to install some additional libraries and data
         # - data and/or include files to package 'share'
@@ -54,7 +54,7 @@ class InstallLib(_install_lib):
         for p in build_py.packages:
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
-                    src = ivpms.expand_libvars(spec[0])
+                    src = expand_libvars(spec[0])
                     dst = spec[1]
 
                     if os.path.isfile(src):

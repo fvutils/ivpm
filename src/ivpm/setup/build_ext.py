@@ -45,7 +45,7 @@ class BuildExt(_build_ext):
         super().build_extensions()
 
     def build_extension(self, ext):
-        from ivpm.setup.setup import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
+        from ivpm.setup.ivpm_data import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
         proj_dir = os.getcwd()
         print("build_extension: %s" % str(ext))
         include_dirs = getattr(ext, 'include_dirs', [])
@@ -82,7 +82,7 @@ class BuildExt(_build_ext):
         return ret
     
     def copy_extensions_to_source(self):
-        from ivpm.setup.setup import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
+        from ivpm.setup.ivpm_data import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
         """ Like the base class method, but copy libs into proper directory in develop. """
         print("copy_extensions_to_source")
         for hook in get_hooks(Phase_BuildPre):
@@ -239,7 +239,7 @@ class BuildExt(_build_ext):
         build_cmd[cmake_build_tool](self, build_dir, env)
         install_cmd[cmake_build_tool](self, build_dir, env)
 
-        from ivpm.setup.setup import get_ivpm_extdep_data
+        from ivpm.setup.ivpm_data import get_ivpm_extdep_data
         for src,dst in get_ivpm_extdep_data():
             shutil.copyfile(src, dst)
 
