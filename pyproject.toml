@@ -1,0 +1,26 @@
+
+[build-system]
+requires = ["setuptools>=64", "setuptools-scm>=8"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ivpm"
+version = "1.0.6"
+dependencies = [
+    "httpx",
+    "pyyaml",
+    "pyyaml-srcinfo-loader",
+    "toposort",
+]
+authors = [
+    {name = "Matthew Ballance", email = "matt.ballance@gmail.com"},
+]
+description = "IVPM (IP and Verification Package Manager) is a project-internal package manager."
+license = {file = "LICENSE" }
+
+[project.scripts]
+ivpm = "ivpm.__main__:main"
+
+[tool.setuptools.package-data]
+ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/cmake/*']
+
