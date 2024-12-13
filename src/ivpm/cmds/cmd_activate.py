@@ -2,8 +2,8 @@ import os
 import sys
 import dataclasses as dc
 import subprocess
-from ivpm.proj_info import ProjInfo
-from ivpm.utils import fatal
+from ..proj_info import ProjInfo
+from ..utils import fatal
 
 @dc.dataclass
 class CmdActivate(object):

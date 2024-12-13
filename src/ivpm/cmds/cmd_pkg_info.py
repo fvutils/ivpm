@@ -20,9 +20,9 @@
 #*
 #****************************************************************************
 
-from ..pkg_info_rgy import PkgInfoRgy
-from ..pkg_info_loader import PkgInfoLoader
-from ..pkg_compile_flags import PkgCompileFlags
+from ..pkg_info.pkg_info_rgy import PkgInfoRgy
+from ..pkg_info.pkg_info_loader import PkgInfoLoader
+from ..pkg_info.pkg_compile_flags import PkgCompileFlags
 
 class CmdPkgInfo(object):
 
