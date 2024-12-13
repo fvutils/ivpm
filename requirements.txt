@@ -2,5 +2,4 @@
 pyyaml 
 pyyaml-srcinfo-loader 
 toposort 
-requirements-parser
 
