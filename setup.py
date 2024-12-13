@@ -10,10 +10,11 @@ class InstallCmd(install):
   def run(self):
 # install_lib
 # ./lib/python3.6/site-packages/ivpm/scripts/git
-    # install.run(self)
-    # git_script = os.path.join(self.install_lib, "ivpm", "scripts", "git")
-    # st = os.stat(git_script)
-    # os.chmod(git_script, st.st_mode | stat.S_IEXEC)
+#    install.run(self)
+#    git_script = os.path.join(self.install_lib, "ivpm", "scripts", "git")
+#    st = os.stat(git_script)
+#    os.chmod(git_script, st.st_mode | stat.S_IEXEC)
+    pass
 
 rootdir = os.path.dirname(os.path.realpath(__file__))
 
