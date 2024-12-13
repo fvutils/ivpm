@@ -16,7 +16,7 @@ jobs:
         export PYTHONPATH=./src
         python3 -m ivpm update
         ./packages/python/bin/python3 -m pip install setuptools build --upgrade
-        sed -i -e "s/version = \"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)\"/version = \"\1.${GITHUB_RUN_ID}\"/g"
+        sed -i -e "s/version = \"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)\"/version = \"\1.${GITHUB_RUN_ID}\"/g" pyproject.toml
         ./packages/python/bin/python3 -m build .
 
     - name: Build Docs
