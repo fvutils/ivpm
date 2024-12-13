@@ -23,12 +23,8 @@ import importlib
 import os
 import sys
 from enum import Enum, auto
-from setuptools import setup as _setup
-from .build_ext import BuildExt
-from .install_lib import InstallLib
 import inspect
 import platform
-from ivpm.pkg_info_rgy import PkgInfoRgy
 
 Phase_SetupPre = "setup.pre"
 Phase_SetupPost = "setup.post"
@@ -60,6 +56,9 @@ def get_package_dir():
 
 
 def setup(*args, **kwargs):
+    from setuptools import setup as _setup
+    from .build_ext import BuildExt
+    from .install_lib import InstallLib
     global _ivpm_extra_data, _ivpm_extdep_data, _ivpm_hooks
 
     print("IVPM setup: %s" % kwargs["name"])
@@ -185,7 +184,7 @@ def _collect_extdeps(
     library_dirs,
     libraries,
     paths):
-    from ivpm.pkg_info_rgy import PkgInfoRgy
+    from ..pkg_info.pkg_info_rgy import PkgInfoRgy
     if dep in processed:
         return
     else:

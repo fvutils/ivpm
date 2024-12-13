@@ -23,11 +23,10 @@ import os
 import sys
 import subprocess
 import dataclasses as dc
-from .package import Package
-from .proj_info import ProjInfo
-from .project_info_reader import ProjectInfoReader
-from .update_info import UpdateInfo
-from .utils import note, fatal
+from ..package import Package
+from ..proj_info import ProjInfo
+from ..update_info import UpdateInfo
+from ..utils import note, fatal
 
 @dc.dataclass
 class PackageGit(Package):
@@ -105,7 +104,33 @@ class PackageGit(Package):
                 status = os.system("git submodule update --init --recursive")
                 os.chdir(cwd)
 
-        proj_info = ProjectInfoReader(pkg_dir).read()
-        return proj_info
+        return ProjInfo.mkFromProj(pkg_dir)
+    
+    def process_options(self, opts, si):
+        super().process_options(opts, si)
 
+        if "anonymous" in opts.keys():
+            self.anonymous = opts["anonymous"]
+                
+        if "depth" in opts.keys():
+            self.depth = opts["depth"]
+                
+        if "dep-set" in opts.keys():
+            self.dep_set = opts["dep-set"]
+               
+        if "branch" in opts.keys():
+            self.branch = opts["branch"]
+                
+        if "commit" in opts.keys():
+            self.commit = opts["commit"]
+               
+        if "tag" in opts.keys():
+            self.tag = opts["tag"]
+
+
+    @staticmethod
+    def create(name, opts, si) -> 'PackageGit':
+        pkg = PackageGit(name)
+        pkg.process_options(opts, si)
+        return pkg
 

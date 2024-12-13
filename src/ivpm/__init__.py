@@ -21,17 +21,13 @@
 #****************************************************************************
 import os
 from .ivpm_subprocess import ivpm_popen
-from .pkg_info_loader import PkgInfoLoader
-from .pkg_compile_flags import PkgCompileFlags
-from .pkg_info import PkgInfo
-from .pkg_info_rgy import PkgInfoRgy
-from .pkg_info_loader import PkgInfoLoader
+from .pkg_info.pkg_compile_flags import PkgCompileFlags
+from .pkg_info.pkg_info import PkgInfo
+from .pkg_info.pkg_info_rgy import PkgInfoRgy
 from .utils import load_project_package_info
 import ivpm.setup
 
 from .package import Package
-from .package_factory import PackageFactory
-from .package_factory_rgy import PackageFactoryRgy
 from .update_info import UpdateInfo
 
 def get_pkg_version(setup_py_path):
@@ -57,6 +53,7 @@ def get_pkg_version(setup_py_path):
     return version
 
 def get_pkg_info(name):
+    from .pkg_info.pkg_info_loader import PkgInfoLoader
     if isinstance(name, list):
         return PkgInfoLoader().load_pkgs(name)
     else:

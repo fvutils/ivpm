@@ -23,8 +23,8 @@ import os
 import shutil
 import dataclasses as dc
 from .package_url import PackageURL
-from .update_info import UpdateInfo
-from .utils import note, fatal
+from ..update_info import UpdateInfo
+from ..utils import note, fatal
 
 @dc.dataclass
 class PackageDir(PackageURL):
@@ -52,3 +52,18 @@ class PackageDir(PackageURL):
             shutil.copytree(src_path, dst_path)
 
         return super().update(update_info)
+    
+    def process_options(self, opts, si):
+        super().process_options(opts, si)
+
+        if "link" in opts.keys():
+            self.link = bool(opts["link"]) 
+
+    @staticmethod
+    def create(name, opts, si) -> 'PackageDir':
+        print("create: name=%s" % name)
+        pkg = PackageDir(name)
+        print("pkg.name: %s" % pkg.name)
+        pkg.process_options(opts, si)
+        print("pkg.name: %s" % pkg.name)
+        return pkg

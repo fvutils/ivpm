@@ -15,7 +15,6 @@ from ivpm.msg import note, fatal, warning
 from ivpm.package import Package, SourceType, SourceType2Ext, PackageType
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from ivpm.project_info_reader import ProjectInfoReader
 from typing import Dict
 from ivpm.utils import get_venv_python
 from .update_info import UpdateInfo
@@ -43,8 +42,6 @@ class PackageUpdater(object):
         The 'pkgs' parameter holds the dependency information
         from the root project
         """
-
-        
         count = 1
 
         pkg_q = []
@@ -132,57 +129,6 @@ class PackageUpdater(object):
         # loaded so they can take further action if required 
         self.pkg_handler.process_pkg(pkg)
         
-        # if os.path.exists(pkg_dir):
-        #     note("package %s is already loaded" % pkg.name)
-        # elif self.load:
-        #     note("loading package %s" % pkg.name)
-
-        #     # Package isn't currently present in dependencies
-        #     scheme_idx = pkg.url.find("://")
-        #     scheme = pkg.url[0:scheme_idx+3]
-            
-        #     if pkg.src_type == SourceType.Git:
-        #         self._clone_git(pkg)
-        #     else:
-        #         remove_pkg_src = False
-        #         pkg_path = None
-        #         print("Must add package " + pkg.name + " scheme=" + scheme)
-                
-        #         if scheme == "file://":
-        #             pkg_path = pkg.url[scheme_idx+3:-1]
-        #         elif scheme in ("http://", "https://", "ssh://"):
-
-                    
-        #         pkg.path = os.path.join(self.packages_dir, pkg.name)
-        #         pkg.path = pkg.path.replace("\\", "/")
-
-        #         if self.debug:
-        #             print("package %s: type=%s" % (pkg.path, str(pkg.src_type)))
-        #         if pkg.src_type in (SourceType.Jar,SourceType.Zip):
-        #             self._install_zip(pkg, pkg_path)
-        #         elif pkg.src_type == SourceType.Tgz or pkg.src_type == SourceType.Txz:
-        #             self._install_tgz(pkg, pkg_path)
-                    
-
-        #         if remove_pkg_src:
-        #             os.unlink(os.path.join(download_dir, filename))
-        # else:
-        #     # Package doesn't exist, and we won't load it
-        #     raise Exception("Package %s is not present" % pkg.name)
-                    
-
-        # After loading the package, or finding it already loaded,
-        # check what we have
-        # if pkg.pkg_type == PackageType.Unknown:
-        #     for py in ("setup.py", "pyproject.toml"):
-        #         if os.path.isfile(os.path.join(self.deps_dir, pkg.name, py)):
-        #             pkg.pkg_type = PackageType.Python
-        #             break
-        
-        # if info is None:
-        #     info = ProjInfo(False)
-        #     info.name = pkg.name
-
         # Ensure that we use the requested dep-set
         if pkg.proj_info is not None:
             pkg.proj_info.target_dep_set = pkg.dep_set

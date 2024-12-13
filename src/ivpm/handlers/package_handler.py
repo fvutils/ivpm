@@ -1,7 +1,7 @@
 #****************************************************************************
-#* cmd_c_flags.py
+#* package_handler.py
 #*
-#* Copyright 2022 Matthew Ballance and Contributors
+#* Copyright 2023 Matthew Ballance and Contributors
 #*
 #* Licensed under the Apache License, Version 2.0 (the "License"); you may 
 #* not use this file except in compliance with the License.  
@@ -19,17 +19,21 @@
 #*     Author: 
 #*
 #****************************************************************************
+import dataclasses as dc
+from ..package import Package
+from ..update_info import UpdateInfo
 
-from ..pkg_info_loader import PkgInfoLoader
-from ..pkg_compile_flags import PkgCompileFlags
+@dc.dataclass
+class PackageHandler(object):
+    name : str = None
+    description : str = None
 
-class CmdCFlags(object):
 
-    def __init__(self):
+    def process_pkg(self, pkg : Package):
+        """Called each time a package description is added to the active set"""
         pass
 
-    def __call__(self, args):
-        pkgs = PkgInfoLoader().load_pkgs(args.pkgs)
-        flags = PkgCompileFlags().flags(pkgs)
-        print("%s" % " ".join(flags))
+    def update(self, update_info : UpdateInfo):
+        """Called after an 'update' action completes"""
+        pass
 

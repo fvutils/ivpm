@@ -2,7 +2,7 @@ import os
 import sys
 import dataclasses as dc
 import subprocess
-from ivpm.project_info_reader import ProjectInfoReader
+from ivpm.proj_info import ProjInfo
 from ivpm.utils import fatal
 
 @dc.dataclass
@@ -14,7 +14,7 @@ class CmdActivate(object):
 #            print("Note: project_dir not specified ; using working directory")
             args.project_dir = os.getcwd()
             
-        proj_info = ProjectInfoReader(args.project_dir).read()
+        proj_info = ProjInfo.mkFromProj(args.project_dir)
 
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")

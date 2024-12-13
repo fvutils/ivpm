@@ -7,9 +7,6 @@ Created on Jan 19, 2020
 import argparse
 import os
 import sys
-import tarfile
-import urllib.request
-from zipfile import ZipFile
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
@@ -21,148 +18,8 @@ from .cmds.cmd_git_status import CmdGitStatus
 from .cmds.cmd_git_update import CmdGitUpdate
 from .cmds.cmd_share import CmdShare
 from .cmds.cmd_snapshot import CmdSnapshot
-from .cmds.cmd_c_flags import CmdCFlags
 from .cmds.cmd_pkg_info import CmdPkgInfo
 
-
-#********************************************************************
-# write_packages
-#********************************************************************
-def write_packages(packages_mf, packages):
-    
-    with open(packages_mf, "w") as fh:
-        for package in packages.keys():
-            fh.write(package + "@" + packages[package] + "\n")
-  
-#********************************************************************
-# write_packages_mk
-#********************************************************************
-def write_packages_mk(
-        packages_mk, 
-        project,
-        package_deps):
-    packages_dir = os.path.dirname(packages_mk)
-    
-    print("write_packages_mk: " + packages_dir)
-  
-    fh = open(packages_mk, "w")
-    fh.write("#********************************************************************\n");
-    fh.write("# packages.mk for " + project + "\n");
-    fh.write("#********************************************************************\n");
-    fh.write("\n");
-    fh.write("ifneq (1,$(RULES))\n");
-    fh.write("  ifeq (,$(IVPM_PYTHON))\n")
-    if os.path.isdir(os.path.join(packages_dir, "python", "Scripts")):
-        fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/Scripts/python\n")
-    else:
-        fh.write("    IVPM_PYTHON := $(PACKAGES_DIR)/python/bin/python\n")
-    fh.write("  endif\n")
-    fh.write("  PYTHON_BIN ?= $(IVPM_PYTHON)\n")
-    fh.write("  IVPM_PYTHON_BINDIR := $(dir $(IVPM_PYTHON))\n")
-# Remove this until we can figure out what's going on
-    fh.write("  PATH := $(IVPM_PYTHON_BINDIR):$(PATH)\n")
-    fh.write("  export PATH\n")
-    fh.write("package_deps = " + project + "\n")
-  
-    for p in package_deps.keys():
-        print("package_dep: " + str(p))
-        info = package_deps[p]
-        fh.write(p + "_deps=")
-        for d in info.deps():
-            if d != project and os.path.exists(os.path.join(packages_dir, d, "etc/packages.mf")):
-                fh.write(d + " ")
-        fh.write("\n")
-        fh.write(p + "_clean_deps=")
-        for d in info.deps():
-            if d != project and os.path.exists(os.path.join(packages_dir, d, "etc/packages.mf")):
-                fh.write("clean_" + d + " ")
-        fh.write("\n")
-      
-        if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
-            fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
-
-    fh.write("else # Rules\n");
-    fh.write("ifneq (1,$(PACKAGES_MK_RULES_INCLUDED))\n");
-    fh.write("PACKAGES_MK_RULES_INCLUDED := 1\n")
-    for p in package_deps.keys():
-        info = package_deps[p]
-        fh.write(p + " : $(" + p + "_deps)\n");
-     
-        if info.is_src:
-            fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk build\n")
-        fh.write("\n");
-        fh.write("clean_" + p + " : $(" + p + "_clean_deps)\n");
-     
-        if info.is_src:
-            fh.write("\t$(Q)$(MAKE) PACKAGES_DIR=$(PACKAGES_DIR) PHASE2=true -C $(PACKAGES_DIR)/" + p + "/scripts -f ivpm.mk clean\n")
-        fh.write("\n");
-      
-        if os.path.isfile(packages_dir + "/" + p + "/mkfiles/" + p + ".mk"):
-            fh.write("include $(PACKAGES_DIR)/" + p + "/mkfiles/" + p + ".mk\n")
-
-    fh.write("\n")
-    fh.write("endif # PACKAGES_MK_RULES_INCLUDED\n")
-    fh.write("endif\n");
-    fh.write("\n")
-  
-    fh.close()
-  
-#********************************************************************
-# write_sve_f
-#********************************************************************
-def write_sve_f(
-        sve_f, 
-        project,
-        package_deps):
-    packages_dir = os.path.dirname(sve_f)
-  
-    with open(sve_f, "w") as fh:
-        fh.write("//********************************************************************\n");
-        fh.write("//* sve.F for " + project + "\n");
-        fh.write("//********************************************************************\n");
-        fh.write("\n");
-
-        for p in os.listdir(packages_dir):
-            if os.path.isfile(os.path.join(packages_dir, p, "sve.F")):
-                fh.write("-F ./" + p + "/sve.F\n")
-                
-
-#********************************************************************
-# write_packages_env
-#********************************************************************
-def write_packages_env(
-        env_f,
-        is_csh,
-        project,
-        package_deps):
-  
-    with open(env_f, "w") as fh:
-        fh.write("#********************************************************************\n");
-        fh.write("#* environment setup file for " + project + "\n");
-        fh.write("#********************************************************************\n");
-        fh.write("\n");
-
-        for p in package_deps.keys():
-            info = package_deps[p]
-            ivpm = info.ivpm_info
-
-            if "rootvar" in ivpm.keys():
-                if is_csh:
-                    fh.write("setenv " + ivpm["rootvar"] + " $PACKAGES_DIR/" + ivpm["name"] + "\n")
-                else:
-                    fh.write("export " + ivpm["rootvar"] + "=$PACKAGES_DIR/" + ivpm["name"] + "\n")
-      
-
-
-def fetch_file(
-        url,
-        dest):
-    urllib.request.urlretrieve(url, dest)
-    pass
-    
-        
-
-     
 
 def get_parser(parser_ext = None):
     """Create the argument parser"""
@@ -191,7 +48,7 @@ def get_parser(parser_ext = None):
     build_cmd.set_defaults(func=CmdBuild())
 
     pkginfo_cmd = subparser.add_parser("pkg-info",
-        help="Collect cflags for a listed set of packages")
+        help="Collect paths/files for a listed set of packages")
     pkginfo_cmd.add_argument("type", 
             choices=("paths", "libdirs", "libs", "flags"),
             help="Specifies what info to query")
@@ -249,6 +106,7 @@ def get_parser(parser_ext = None):
     return parser
 
 def main(project_dir=None):
+    from .pkg_types.pkg_type_rgy import PkgTypeRgy
 
     # First things first: load any extensions
     import sys
@@ -264,6 +122,11 @@ def main(project_dir=None):
             mod = p.load()
             if hasattr(mod, "ivpm_subcommand"):
                 parser_ext.append(getattr(mod, "ivpm_subcommand"))
+            elif hasattr(mod, "ivpm_pkgtype"):
+                pkg_types = []
+                getattr(mod, "ivpm_pkgtype")(pkg_types)
+                for pt in pkg_types:
+                    PkgTypeRgy.inst().register(pt[0], pt[1], pt[2] if len(pt) > 2 else "")
         except Exception as e:
             print("Error: caught exception while loading IVPM extension %s (%s)" %(
                 p.name,
@@ -280,7 +143,6 @@ def main(project_dir=None):
         args.project_dir = project_dir
 
     args.func(args)
-    pass
 
 if __name__ == "__main__":
     main()

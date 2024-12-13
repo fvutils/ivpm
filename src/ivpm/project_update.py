@@ -22,9 +22,8 @@
 import os
 import dataclasses as dc
 from .package import Package, SourceType
-from .project_info_reader import ProjectInfoReader
 from .package_updater import PackageUpdater
-from .package_handler_rgy import PackageHandlerRgy
+from .handlers.package_handler_rgy import PackageHandlerRgy
 from .update_info import UpdateInfo
 from .utils import fatal, note, get_venv_python, setup_venv
 
@@ -37,7 +36,9 @@ class ProjectUpdate(object):
     debug : bool = False
 
     def update(self):
-        proj_info = ProjectInfoReader(self.root_dir).read()
+        from .proj_info import ProjInfo
+
+        proj_info = ProjInfo.mkFromProj(self.root_dir)
 
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")

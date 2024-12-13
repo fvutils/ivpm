@@ -1,5 +1,5 @@
 #****************************************************************************
-#* package_type_handler.py
+#* package_py_pi.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -19,9 +19,24 @@
 #*     Author: 
 #*
 #****************************************************************************
+import dataclasses as dc
+from ..package import Package
 
-class PackageTypeHandler(object):
+@dc.dataclass
+class PackagePyPi(Package):
+    version : str = None
 
-    def __init__(self):
-        pass
+    def process_options(self, opts, si):
+        super().process_options(opts, si)
+
+        self.src_type = "pypi"
+        
+        if "version" in opts.keys():
+            self.version = opts["version"]
+
+    @staticmethod
+    def create(name, opts, si) -> 'Package':
+        pkg = PackagePyPi(name)
+        pkg.process_options(opts, si)
+        return pkg
 

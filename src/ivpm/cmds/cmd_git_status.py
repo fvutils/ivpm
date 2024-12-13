@@ -6,7 +6,6 @@ Created on Jun 8, 2021
 import os
 import sys
 from ivpm.arg_utils import ensure_have_project_dir
-from ivpm.project_info_reader import ProjectInfoReader
 
 class CmdGitStatus(object):
     

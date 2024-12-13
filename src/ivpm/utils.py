@@ -8,7 +8,6 @@ import sys
 from subprocess import check_output
 from typing import List
 from ivpm.msg import note, fatal
-from .proj_info import ProjInfo
 
 def find_project_root(path):
     pt = path
@@ -23,7 +22,7 @@ def find_project_root(path):
     else:
         return pt
 
-def load_project_package_info(project_dir) -> List[ProjInfo]:
+def load_project_package_info(project_dir) -> List['ProjInfo']:
     from .ivpm_yaml_reader import IvpmYamlReader
     ret = []
 

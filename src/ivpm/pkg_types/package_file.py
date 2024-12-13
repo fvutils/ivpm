@@ -26,15 +26,14 @@ import tarfile
 from zipfile import ZipFile
 import dataclasses as dc
 from .package_url import PackageURL
-from .proj_info import ProjInfo
-from .update_info import UpdateInfo
+from ..proj_info import ProjInfo
+from ..update_info import UpdateInfo
 
 @dc.dataclass
 class PackageFile(PackageURL):
     unpack : bool = None
 
     def update(self, update_info : UpdateInfo) -> ProjInfo:
-        from .project_info_reader import ProjectInfoReader
 
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
@@ -45,7 +44,7 @@ class PackageFile(PackageURL):
                 self._install(self.url, pkg_dir)
 
         if os.path.isdir(pkg_dir):
-            return ProjectInfoReader(pkg_dir).read()
+            return ProjInfo.mkFromProj(pkg_dir)
         else:
             return None
     
@@ -82,4 +81,33 @@ class PackageFile(PackageURL):
             finally:
                 os.chdir(cwd)        
 
+    def process_options(self, opts, si):
+        super().process_options(opts, si)
+
+        if "src" in opts.keys():
+            self.src_type = opts["src"]
+        else:
+            ext = os.path.splitext(self.url)
+            if ext == ".tgz":
+                self.src_type = ".tar.gz"
+            else:
+                self.src_type = os.path.splitext(self.url)[1]
+                if self.src_type in [".gz", ".xz", ".bz2"]:
+                    pdot = self.url.rfind('.')
+                    pdot = self.url.rfind('.', 0, pdot-1)
+                    self.src_type = self.url[pdot:]
+
+        if "unpack" in opts.keys():
+            self.unpack = opts["unpack"]
+        else:
+            if self.src_type in [".jar"]:
+                self.unpack = False
+            else:
+                self.unpack = True
+
+    @staticmethod
+    def create(name, opts, si) -> 'PackageFile':
+        pkg = PackageFile(name)
+        pkg.process_options(opts, si)
+        return pkg
 

@@ -3,12 +3,16 @@ Created on Jan 19, 2020
 
 @author: ballance
 '''
+import os
 from enum import Enum, auto
 from ivpm.packages_info import PackagesInfo
+from .ivpm_yaml_reader import IvpmYamlReader
+from .msg import error, fatal, note
 from typing import Dict, List
 from .env_spec import EnvSpec
 
 class ProjInfo():
+    """Holds information read about a project from its IVPM file"""
     def __init__(self, is_src):
         self.is_src = is_src
         self.dependencies = []
@@ -49,6 +53,22 @@ class ProjInfo():
 
     def add_dependency(self, dep):
         self.dependencies.append(dep)
+
+    @staticmethod
+    def mkFromProj(proj_dir : str) -> 'ProjInfo':
+        ret : ProjInfo = None
+        
+        # First, see if this is a new-style project
+        if os.path.isfile(os.path.join(proj_dir, "ivpm.yaml")):
+            note("Reading ivpm.yaml from project %s" % proj_dir)
+            path = os.path.join(proj_dir, "ivpm.yaml");
+            with open(path, "r") as fp:
+                ret = IvpmYamlReader().read(fp, path)
+        else:
+            # This doesn't appear to be an IVPM project
+            # No IVPM-specific data to rely on here
+            pass
+        return ret
 
 #    @property        
 #    def deps(self):

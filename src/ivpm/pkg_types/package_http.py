@@ -25,9 +25,9 @@ import sys
 import urllib
 import dataclasses as dc
 from .package_file import PackageFile
-from .update_info import UpdateInfo
-from .utils import note
-from .package import SourceType2Ext
+from ..update_info import UpdateInfo
+from ..utils import note
+from ..package import SourceType2Ext
 
 class PackageHttp(PackageFile):
 
@@ -67,6 +67,12 @@ class PackageHttp(PackageFile):
             else:
                 # 
                 pass
+            
+    @staticmethod
+    def create(name, opts, si) -> 'PackageHttp':
+        pkg = PackageHttp(name)
+        pkg.process_options(opts, si)
+        return pkg
 
 
 

@@ -7,18 +7,14 @@ import os
 import yaml_srcinfo_loader
 from typing import Dict, List
 from yaml_srcinfo_loader.srcinfo import SrcInfo
-from .package_factory import PackageFactory
 from .package import Package
 from .env_spec import EnvSpec
 
 import yaml
 
-from ivpm.msg import fatal
-from ivpm.package import Package, PackageType, SourceType, Ext2SourceType,\
-    Spec2SourceType, Spec2PackageType
+from .utils import fatal, getlocstr
+from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
-from ivpm.proj_info import ProjInfo
-from ivpm.utils import getlocstr
 
 
 class IvpmYamlReader(object):
@@ -27,7 +23,9 @@ class IvpmYamlReader(object):
         self.debug = False
         pass
     
-    def read(self, fp, name) -> ProjInfo:
+    def read(self, fp, name) -> 'ProjInfo':
+        from ivpm.proj_info import ProjInfo
+
         ret = ProjInfo(is_src=True)
         
         # File I/O streams have a name field that is read-only.
@@ -99,7 +97,7 @@ class IvpmYamlReader(object):
             
         return ret
 
-    def read_dep_sets(self, info : ProjInfo, dep_sets):
+    def read_dep_sets(self, info : 'ProjInfo', dep_sets):
         if not isinstance(dep_sets, list):
             raise Exception("Expect body of dep-sets to be a list, not %s" % str(type(dep_sets)))
         
@@ -123,7 +121,7 @@ class IvpmYamlReader(object):
         
 
     def read_deps(self, ret : PackagesInfo, deps):
-        from .package_factory_rgy import PackageFactoryRgy
+        from .pkg_types.pkg_type_rgy import PkgTypeRgy
         
         for d in deps:
             si = d.srcinfo
@@ -150,6 +148,8 @@ class IvpmYamlReader(object):
             if "src" in d.keys():
                 src = d["src"]
             else:
+                # Auto-probing the package based on the URL. The user can always
+                # specify the source explicitly
                 if url is None:
                     fatal("no src specified for package %s and no URL specified" % pkg.name)
 
@@ -160,45 +160,26 @@ class IvpmYamlReader(object):
                 elif url.startswith("file://"):
                     src = "file"
                 else:
-                    raise Exception("Cannot determine source type from url %s" % url)
+                    pt_rgy = PkgTypeRgy.inst()
+                    raise Exception("Cannot determine source type from url %s. Please specify src as one of %s" % (
+                        url, ", ".join(pt_rgy.getSrcTypes())))
 
-            pf_rgy = PackageFactoryRgy.inst()
+            pt_rgy = PkgTypeRgy.inst()
             
-            if not pf_rgy.hasFactory(src):
+            if not pt_rgy.hasPkgType(src):
                 raise Exception("Package %s has unknown type %s" % (d["name"], src))
-            pf = PackageFactoryRgy.inst().getFactory(src)
-
-            pkg : Package = pf().create(d["name"], d, si)
-
-            #     ext = os.path.splitext(pkg.url)[1]
-                
-            #     if pkg.url.endswith(".tar.gz"):
-            #         ext = ".tar.gz"
-            #     elif pkg.url.endswith(".tar.xz"):
-            #         ext = ".tar.xz"
-
-            #     if not ext in Ext2SourceType.keys():
-            #         fatal("unknown URL extension %s" % ext)
-                    
-            #     pkg.src_type = Ext2SourceType[ext]
-                
-            # pkg = Package(d["name"], url)
-            # pkg.srcinfo = si
+            pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
 
             ret.add_package(pkg)
 
             if self.debug:                    
                 print("pkg_type (%s): %s" % (pkg.url, str(pkg.pkg_type)))
 
-            # TODO:
-            if pkg.src_type == SourceType.PyPi and (pkg.pkg_type is None or pkg.pkg_type == PackageType.Unknown):
-                pkg.pkg_type = PackageType.Python
-
         if self.debug:
             print("ret: %s %d packages" % (str(ret), len(ret.packages)))
         return ret
 
-    def read_path_set(self, info : ProjInfo, path, ps_kind : str, ps):
+    def read_path_set(self, info : 'ProjInfo', path, ps_kind : str, ps):
         if ps_kind not in info.paths.keys():
             info.paths[ps_kind] = {}
         path_kind_s = info.paths[ps_kind]
@@ -210,7 +191,7 @@ class IvpmYamlReader(object):
                 path_kind_s[p_kind].append(os.path.join(path, p))
 
     def process_env_directive(self,
-                              info : ProjInfo,
+                              info : 'ProjInfo',
                               evar : Dict):
         if "name" not in evar.keys():
             raise Exception("No variable-name specified: %s" % str(evar))
@@ -237,4 +218,4 @@ class IvpmYamlReader(object):
 
 
 
-        
+

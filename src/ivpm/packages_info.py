@@ -7,7 +7,10 @@ from typing import Dict, List, Set
 from ivpm.package import Package
 
 class PackagesInfo():
-    """Holds information about a set of packages"""
+    """
+    Holds information about a set of packages. Holds data
+    from one dep-set in an IVPM file.
+    """
     
     def __init__(self, name):
         self.name = name

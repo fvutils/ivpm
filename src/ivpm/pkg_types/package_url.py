@@ -1,5 +1,5 @@
 #****************************************************************************
-#* package_factory_dir.py
+#* package_url.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -19,24 +19,22 @@
 #*     Author: 
 #*
 #****************************************************************************
-from typing import Dict
-from .package import Package
-from .package_dir import PackageDir
-from .package_url import PackageURL
-from .package_factory_url import PackageFactoryURL
-from .package_file import PackageFile
+import dataclasses as dc
+from ..package import Package
 
-class PackageFactoryDir(PackageFactoryURL):
-    src = "dir"
-    description = "Copies a directory"
+@dc.dataclass
+class PackageURL(Package):
+    url : str = None
 
-    def process_options(self, p: PackageURL, d: Dict, si):
-        super().process_options(p, d, si)
-        if "link" in d.keys():
-            p.link = bool(d["link"])
+    def process_options(self, opts, si):
+        super().process_options(opts, si)
+        
+        if "url" in opts.keys():
+            self.url = opts["url"]
 
-    def create(self, name, opts, si) -> Package:
-        p = PackageDir(name)
-        self.process_options(p, opts, si)
-        return p
+    @staticmethod
+    def create(name, opts, si) -> 'Package':
+        pkg = PackageURL(name)
+        pkg.process_options(opts, si)
+        return pkg
 

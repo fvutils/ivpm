@@ -4,7 +4,7 @@
             dep-sets:
                 - name: default-dev
                   deps:
-                    - name: nonleaf_refleaf_proj1
-                      url: file://${DATA_DIR}/nonleaf_refleaf_proj1
+                    - name: leaf_proj1
+                      url: file://${DATA_DIR}/leaf_proj1
                       src: dir
         

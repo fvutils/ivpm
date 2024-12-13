@@ -3,7 +3,7 @@ import os
 import sys
 import subprocess
 from ivpm.packages_info import PackagesInfo
-from ivpm.project_info_reader import ProjectInfoReader
+from ivpm.proj_info import ProjInfo
 from ivpm.utils import get_venv_python
 from ivpm.msg import note, fatal, warning
 from ivpm.package_updater import PackageUpdater
@@ -23,7 +23,7 @@ class CmdBuild(object):
             print("Note: project_dir not specified ; using working directory")
             args.project_dir = os.getcwd()
             
-        proj_info = ProjectInfoReader(args.project_dir).read()
+        proj_info = ProjInfo.mkFromProj(args.project_dir)
 
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
@@ -88,7 +88,7 @@ class CmdBuild(object):
                 if pyp not in python_deps_m.keys():
                     python_deps_m[pyp] = set()
 
-                proj_info = ProjectInfoReader(p.path).read()
+                proj_info = ProjInfo.mkFromProj(p.path)
 
                 if proj_info is None:
                     continue

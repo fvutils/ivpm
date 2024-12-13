@@ -24,10 +24,10 @@ import subprocess
 import toposort
 import os
 from typing import Dict, List, Set
-from .update_info import UpdateInfo
-from .utils import note, fatal, get_venv_python
+from ..update_info import UpdateInfo
+from ..utils import note, fatal, get_venv_python
 
-from .package import Package, SourceType
+from ..package import Package
 from .package_handler import PackageHandler
 
 @dc.dataclass

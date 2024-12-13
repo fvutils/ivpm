@@ -1,5 +1,5 @@
 #****************************************************************************
-#* cmd_c_flags.py
+#* cmd_pkg_flags.py
 #*
 #* Copyright 2022 Matthew Ballance and Contributors
 #*

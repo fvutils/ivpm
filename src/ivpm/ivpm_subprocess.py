@@ -1,7 +1,7 @@
 
 import os
 import subprocess
-from .project_info_reader import ProjectInfoReader
+from .proj_info import ProjInfo
 
 
 def ivpm_popen(cmd, **kwargs):
@@ -22,7 +22,7 @@ def ivpm_popen(cmd, **kwargs):
     
     if ivpm_project is not None:
         # Update environment variables
-        proj_info = ProjectInfoReader(ivpm_project).read()
+        proj_info = ProjInfo.mkFromProj(ivpm_project)
 
         if proj_info is None:
             raise Exception("Failed to read ivpm.yaml @ %s" % ivpm_project)
