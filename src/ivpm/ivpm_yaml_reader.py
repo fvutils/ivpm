@@ -12,7 +12,7 @@ from .env_spec import EnvSpec
 
 import yaml
 
-from .utils import fatal, getlocstr
+from .utils import fatal, getlocstr, warn
 from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
 
@@ -49,10 +49,13 @@ class IvpmYamlReader(object):
             ret.version = pkg["version"]
         else:
             ret.version = None
-        
+
+        # Specify where sub-packages are stored. Defaults to 'packages'        
         if "deps-dir" in pkg.keys():
             ret.deps_dir = pkg["deps-dir"]
 
+        if "default-dep-set" in pkg.keys():
+            ret.default_dep_set = pkg["default-dep-set"]
         
         if "deps" in pkg.keys() or "dev-deps" in pkg.keys():
             # old-style format
@@ -73,7 +76,7 @@ class IvpmYamlReader(object):
             self.read_dep_sets(ret, pkg["dep-sets"])
         else:
             # no dependencies at all
-            print("Warning: no dependencies")
+            warn("no dependencies")
         
         if "setup-deps" in pkg.keys():
             for sd in pkg["setup-deps"]:

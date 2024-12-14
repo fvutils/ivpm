@@ -1,3 +1,5 @@
+# yaml-language-server: $schema=http://127.0.0.1:5500/build/html/ivpm.json
+
 package:
   name: ivpm
 
@@ -45,3 +47,9 @@ package:
       src: pypi
     - name: sphinx-jsonschema
       src: pypi
+
+  env-sets:
+    - name: project
+      env: 
+        - name: PYTHONPATH
+          value: $IVPM_HOME/src

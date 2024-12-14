@@ -28,6 +28,7 @@ class ProjInfo():
 
         self.name = None
         self.version = None
+        self.default_dep_set = "default-dev"
         self.deps_dir = "packages"
 
         self.process_deps = True
