@@ -7,7 +7,7 @@ import os
 import sys
 from subprocess import check_output
 from typing import List
-from ivpm.msg import note, fatal
+from ivpm.msg import note, fatal, warning
 
 def find_project_root(path):
     pt = path
