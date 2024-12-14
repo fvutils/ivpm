@@ -22,6 +22,7 @@ html : $(PACKAGES_DIR)/python
 	$(PACKAGES_DIR)/python/bin/sphinx-build -M html \
 		$(IVPM_DIR)/doc/source \
 			build
+	cp $(IVPM_DIR)/src/ivpm/schema/ivpm.json $(IVPM_DIR)/build/html/ivpm.json
 
 clean :
 	rm -rf build 

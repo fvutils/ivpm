@@ -1,6 +1,6 @@
 {
 	"$schema" : "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://github.com/fvutils/ivpm/ivpm.schema.json",
+	"$id": "https://fvutils.github.com/ivpm/ivpm.json",
 	"title": "IVPM",
 	"description": "Schema for IP and Verification Package Manager (IVPM)",
 	"type": "object",
