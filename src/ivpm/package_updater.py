@@ -52,6 +52,9 @@ class PackageUpdater(object):
         for key in pkgs.keys():
             print("Package: %s" % key)
             pkg_q.append(pkgs[key])
+
+        if not os.path.isdir(self.deps_dir):
+            os.makedirs(self.deps_dir)
             
         while True:        
             pkg_deps = {}

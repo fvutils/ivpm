@@ -23,13 +23,13 @@ import os
 import sys
 import subprocess
 import dataclasses as dc
-from ..package import Package
+from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..update_info import UpdateInfo
 from ..utils import note, fatal
 
 @dc.dataclass
-class PackageGit(Package):
+class PackageGit(PackageURL):
     branch : str = None
     commit : str = None
     tag : str = None

@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import os
+import platform
 import shutil
 import dataclasses as dc
 from .package_url import PackageURL
@@ -28,7 +29,7 @@ from ..utils import note, fatal
 
 @dc.dataclass
 class PackageDir(PackageURL):
-    link : bool = False
+    link : bool = True
 
     def update(self, update_info : UpdateInfo):
         if not self.url.startswith("file://"):
@@ -45,11 +46,14 @@ class PackageDir(PackageURL):
             ))
         dst_path = os.path.join(update_info.deps_dir, self.name)
 
-        if os.path.isdir(dst_path):
+        if os.path.isdir(dst_path) or os.path.islink(dst_path):
             note("Destination directory for %s exists ... skipping copy" % self.name)
         else:
             note("Populating package %s from %s" % (self.name, src_path))
-            shutil.copytree(src_path, dst_path)
+            if platform.system() == "Windows" or not self.link:
+                shutil.copytree(src_path, dst_path)
+            else:
+                os.symlink(src_path, dst_path, target_is_directory=True)
 
         return super().update(update_info)
     

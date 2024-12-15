@@ -47,5 +47,8 @@ class TestBase(unittest.TestCase):
             dep_set=dep_set, 
             anonymous=anonymous,
             skip_venv=skip_venv).update()
+        
+    def exec(self, cmd, cwd=None):
+        return subprocess.check_output(cmd, cwd=cwd).decode("utf-8")
 
 

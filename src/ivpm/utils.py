@@ -66,7 +66,7 @@ def get_venv_python(python_dir):
     elif os.path.isfile(os.path.join(python_dir, "bin", "python")):
         ivpm_python = os.path.join(python_dir, "bin", "python")
     else:
-        fatal("Unknown python virtual-environment structure")
+        fatal("Unknown python virtual-environment structure in python_dir (%s)" % python_dir)
         
     return ivpm_python
 

@@ -20,7 +20,7 @@
 #*
 #****************************************************************************
 import os
-#import httpx
+import httpx
 import sys
 import urllib
 import dataclasses as dc
@@ -48,17 +48,15 @@ class PackageHttp(PackageFile):
                 pkg_path = os.path.join(download_dir, 
                                         os.path.basename(self.url))
             else:
-                pkg_path = os.path.join(update_info.deps_dir, 
-                                        os.path.basename(self.url))
+                pkg_path = os.path.join(update_info.deps_dir, self.name)
                     
             # TODO: should this be an option?   
             remove_pkg_src = True
 
             print("http: unpack=%s url=%s" % (str(self.unpack), str(self.url)))
-#        if self.debug:
-#            print("fetch_file")
-#            sys.stdout.flush()
-            urllib.request.urlretrieve(self.url, pkg_path)
+            r = httpx.get(self.url, follow_redirects=True)
+            with open(pkg_path, "wb") as f:
+                f.write(r.content)
 
             if self.unpack:
                 self._install(pkg_path, pkg_dir)

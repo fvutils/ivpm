@@ -1,0 +1,11 @@
+
+package:
+  name: git_fetch_leaf1
+
+  dep-sets:
+    - name: default-dev
+      deps: 
+      - name: debug-mgr
+        url: https://github.com/fvutils/vlsim.git
+    - name: default
+      deps: []
