@@ -21,7 +21,7 @@
 #****************************************************************************
 import dataclasses as dc
 from ..package import Package
-from ..update_info import UpdateInfo
+from ..project_ops_info import ProjectUpdateInfo
 
 @dc.dataclass
 class PackageHandler(object):
@@ -33,7 +33,7 @@ class PackageHandler(object):
         """Called each time a package description is added to the active set"""
         pass
 
-    def update(self, update_info : UpdateInfo):
+    def update(self, update_info : ProjectUpdateInfo):
         """Called after an 'update' action completes"""
         pass
 

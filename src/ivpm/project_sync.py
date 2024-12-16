@@ -1,5 +1,5 @@
 #****************************************************************************
-#* project_update.py
+#* project_sync.py
 #*
 #* Copyright 2023 Matthew Ballance and Contributors
 #*
@@ -24,18 +24,18 @@ import dataclasses as dc
 from .package import Package, SourceType
 from .package_updater import PackageUpdater
 from .handlers.package_handler_rgy import PackageHandlerRgy
-from .update_info import UpdateInfo
+from .project_ops_info import UpdateInfo
 from .utils import fatal, note, get_venv_python, setup_venv
 
 @dc.dataclass
-class ProjectUpdate(object):
+class ProjectSync(object):
     root_dir : str
     dep_set : str = "default-dev"
     anonymous : bool = False
     skip_venv : bool = False
     debug : bool = False
 
-    def update(self):
+    def sync(self):
         from .proj_info import ProjInfo
 
         proj_info = ProjInfo.mkFromProj(self.root_dir)

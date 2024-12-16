@@ -24,7 +24,7 @@ import subprocess
 import toposort
 import os
 from typing import Dict, List, Set
-from ..update_info import UpdateInfo
+from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note, fatal, get_venv_python
 
 from ..package import Package
@@ -60,7 +60,7 @@ class PackageHandlerPython(PackageHandler):
             pkg.pkg_type = PackageHandlerPython.name
             self.pkgs_info[pkg.name] = pkg
     
-    def update(self, update_info : UpdateInfo):
+    def update(self, update_info : ProjectUpdateInfo):
 
         # Build up a dependency map for Python package installation        
         python_deps_m = {}
@@ -247,6 +247,7 @@ class PackageHandlerPython(PackageHandler):
                                 packages_dir,
                                 python_pkgs : List[Package],
                                 file):
+        """Writes a requirements file for pip to use in installing packages"""
         with open(file, "w") as fp:
             for pkg in python_pkgs:
                 

@@ -25,13 +25,13 @@ import sys
 import urllib
 import dataclasses as dc
 from .package_file import PackageFile
-from ..update_info import UpdateInfo
+from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note
 from ..package import SourceType2Ext
 
 class PackageHttp(PackageFile):
 
-    def update(self, update_info : UpdateInfo):
+    def update(self, update_info : ProjectUpdateInfo):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 

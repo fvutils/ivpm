@@ -24,14 +24,14 @@ import platform
 import shutil
 import dataclasses as dc
 from .package_url import PackageURL
-from ..update_info import UpdateInfo
+from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note, fatal
 
 @dc.dataclass
 class PackageDir(PackageURL):
     link : bool = True
 
-    def update(self, update_info : UpdateInfo):
+    def update(self, update_info : ProjectUpdateInfo):
         if not self.url.startswith("file://"):
             fatal("URL for %s must start with file:// (%s)" % (
                 self.name,

@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__)))), "src"));
 
-from ivpm.project_update import ProjectUpdate
+from ivpm.project_ops import ProjectOps
 
 class TestBase(unittest.TestCase):
 
@@ -42,11 +42,14 @@ class TestBase(unittest.TestCase):
 
     def ivpm_update(self, dep_set="default-dev", anonymous=False, skip_venv=False):
         
-        ProjectUpdate(
-            self.testdir, 
-            dep_set=dep_set, 
-            anonymous=anonymous,
-            skip_venv=skip_venv).update()
+        ProjectOps(self.testdir).update(
+                dep_set=dep_set, 
+                anonymous=anonymous,
+                skip_venv=skip_venv
+            )
+    
+    def ivpm_sync(self, dep_set=None):
+        ProjectOps(self.testdir).sync(dep_set=dep_set)
         
     def exec(self, cmd, cwd=None):
         return subprocess.check_output(cmd, cwd=cwd).decode("utf-8")

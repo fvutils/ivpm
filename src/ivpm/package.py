@@ -1,13 +1,30 @@
-'''
-Created on Jun 8, 2021
+#****************************************************************************
+#* package.py
+#*
+#* Copyright 2018-2024 Matthew Ballance and Contributors
+#*
+#* Licensed under the Apache License, Version 2.0 (the "License"); you may 
+#* not use this file except in compliance with the License.  
+#* You may obtain a copy of the License at:
+#*
+#*   http://www.apache.org/licenses/LICENSE-2.0
+#*
+#* Unless required by applicable law or agreed to in writing, software 
+#* distributed under the License is distributed on an "AS IS" BASIS, 
+#* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
+#* See the License for the specific language governing permissions and 
+#* limitations under the License.
+#*
+#* Created on: Jun 8, 2021
+#*     Author: mballance
+#*
+#****************************************************************************
 
-@author: mballance
-'''
 import os
 import dataclasses as dc
 from enum import Enum, auto
 from typing import Dict, List, Set
-from .update_info import UpdateInfo
+from .project_ops_info import ProjectUpdateInfo
 from .utils import fatal, getlocstr
 
 class PackageType(Enum):
@@ -92,7 +109,7 @@ class Package(object):
     def sync(self, pkgs_info):
         pass
 
-    def update(self, update_info : UpdateInfo) -> 'ProjInfo':
+    def update(self, update_info : ProjectUpdateInfo) -> 'ProjInfo':
         from .proj_info import ProjInfo
 
         info = ProjInfo.mkFromProj(

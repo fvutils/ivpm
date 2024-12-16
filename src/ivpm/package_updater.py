@@ -1,8 +1,24 @@
-'''
-Created on Jun 22, 2021
-
-@author: mballance
-'''
+#****************************************************************************
+#* project_updater.py
+#*
+#* Copyright 2018-2024 Matthew Ballance and Contributors
+#*
+#* Licensed under the Apache License, Version 2.0 (the "License"); you may 
+#* not use this file except in compliance with the License.  
+#* You may obtain a copy of the License at:
+#*
+#*   http://www.apache.org/licenses/LICENSE-2.0
+#*
+#* Unless required by applicable law or agreed to in writing, software 
+#* distributed under the License is distributed on an "AS IS" BASIS, 
+#* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
+#* See the License for the specific language governing permissions and 
+#* limitations under the License.
+#*
+#* Created on: Jun 22, 2021
+#*     Author: mballance
+#*
+#****************************************************************************
 import os
 import shutil
 import subprocess
@@ -17,7 +33,7 @@ from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
 from typing import Dict
 from ivpm.utils import get_venv_python
-from .update_info import UpdateInfo
+from .project_ops_info import ProjectUpdateInfo
 
 
 class PackageUpdater(object):
@@ -116,7 +132,7 @@ class PackageUpdater(object):
         """Loads a single package. Returns any dependencies"""
         must_update=False
 
-        update_info = UpdateInfo(self.deps_dir)
+        update_info = ProjectUpdateInfo(self.deps_dir)
   
         print("********************************************************************")
         print("* Processing package %s" % pkg.name)

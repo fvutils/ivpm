@@ -4,17 +4,12 @@ Created on Jun 8, 2021
 @author: mballance
 '''
 import os
-from subprocess import check_output
 
 from ivpm.packages_info import PackagesInfo
-from ivpm.project_update import ProjectUpdate
-from ivpm.utils import get_venv_python, setup_venv
-from ivpm.msg import note, fatal, warning
+from ivpm.project_ops import ProjectOps
 from ivpm.out_wrapper import OutWrapper
 from ivpm.package_updater import PackageUpdater
 from ivpm.package import Package, PackageType, SourceType
-import subprocess
-from toposort import toposort
 from typing import List
 
 
@@ -35,11 +30,9 @@ class CmdUpdate(object):
         if hasattr(args, "dep_set") and args.dep_set is not None:
             ds_name = args.dep_set
 
-        ProjectUpdate(
-            args.project_dir,
+        ProjectOps(args.project_dir).update(
             dep_set=ds_name,
-            anonymous=args.anonymous
-        ).update()
+            anonymous=args.anonymous)
 
 
 

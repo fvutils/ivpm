@@ -28,7 +28,7 @@ from .utils import load_project_package_info
 import ivpm.setup
 
 from .package import Package
-from .update_info import UpdateInfo
+from .project_ops_info import ProjectUpdateInfo
 
 def get_pkg_version(setup_py_path):
     """Returns the package version based on the etc/ivpm.info file"""

@@ -27,13 +27,13 @@ from zipfile import ZipFile
 import dataclasses as dc
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
-from ..update_info import UpdateInfo
+from ..project_ops_info import ProjectUpdateInfo
 
 @dc.dataclass
 class PackageFile(PackageURL):
     unpack : bool = None
 
-    def update(self, update_info : UpdateInfo) -> ProjInfo:
+    def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
 
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")

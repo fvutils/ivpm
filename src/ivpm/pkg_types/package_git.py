@@ -25,7 +25,7 @@ import subprocess
 import dataclasses as dc
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
-from ..update_info import UpdateInfo
+from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
 from ..utils import note, fatal
 
 @dc.dataclass
@@ -36,7 +36,7 @@ class PackageGit(PackageURL):
     depth : str = None
     anonymous : bool = None
 
-    def update(self, update_info : UpdateInfo) -> ProjInfo:
+    def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
@@ -105,6 +105,44 @@ class PackageGit(PackageURL):
                 os.chdir(cwd)
 
         return ProjInfo.mkFromProj(pkg_dir)
+    
+    def status(self, status_info : ProjectStatusInfo):
+        pass
+    
+    def sync(self, sync_info : ProjectSyncInfo):
+        if not os.path.isdir(os.path.join(sync_info.deps_dir, dir, ".git")):
+            fatal("Package \"" + dir + "\" is not a Git repository")
+        print("Package: " + dir)
+        try:
+            branch = subprocess.check_output(
+                ["git", "branch"],
+                cwd=os.path.join(sync_info.deps_dir, dir))
+        except Exception as e:
+            fatal("failed to get branch of package \"" + dir + "\"")
+
+        branch = branch.strip()
+        if len(branch) == 0:
+            fatal("branch is empty")
+
+        branch_lines = branch.decode().splitlines()
+        branch = None
+        for bl in branch_lines:
+            if bl[0] == "*":
+                branch = bl[1:].strip()
+                break
+        if branch is None:
+            fatal("Failed to identify branch")
+
+        status = subprocess.run(
+            ["git", "fetch"],
+            cwd=os.path.join(sync_info.deps_dir, dir))
+        if status.returncode != 0:
+            fatal("Failed to run git fetch on package %s" % dir)
+        status = subprocess.run(
+            ["git", "merge", "origin/" + branch],
+            cwd=os.path.join(sync_info.deps_dir, dir))
+        if status.returncode != 0:
+            fatal("Failed to run git merge origin/%s on package %s" % (branch, dir))
     
     def process_options(self, opts, si):
         super().process_options(opts, si)
