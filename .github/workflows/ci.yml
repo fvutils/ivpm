@@ -27,6 +27,7 @@ jobs:
     - name: Build Docs
       run: |
         ./packages/python/bin/sphinx-build -M html ./doc/source build
+        cp src/ivpm/share/ivpm.json build/html/
         touch build/html/.nojekyll
 
     - name: Publish to PyPi

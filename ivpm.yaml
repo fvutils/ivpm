@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=http://127.0.0.1:5500/build/html/ivpm.json
+# yaml-language-server: $schema=https://fvutils.github.io/ivpm/ivpm.json
 
 package:
   name: ivpm
