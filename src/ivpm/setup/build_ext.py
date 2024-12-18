@@ -106,7 +106,7 @@ class BuildExt(_build_ext):
                 dest_filename = os.path.join(package_dir, mapped_filename)
                 src_filename = os.path.join(self.build_lib, "/".join(modpath[:-1]), mapped_filename)
             else:
-                dest_filename = os.path.join(package_dir, filename)
+                dest_filename = os.path.join(package_dir, os.path.basename(filename))
                 src_filename = os.path.join(self.build_lib, filename)
 
             os.makedirs(os.path.dirname(dest_filename), exist_ok=True)
