@@ -15,7 +15,7 @@ jobs:
     - name: Configure Python
       run: |
         # Install dependencies required to load ivpm.yaml file
-        python3 -m pip install pyyaml pyyaml-srcinfo-loader toposort requirements-parser
+        python3 -m pip install pyyaml pyyaml-srcinfo-loader toposort requirements-parser twine
         export PYTHONPATH=./src
         python3 -m ivpm update
         ./packages/python/bin/python3 -m pip install setuptools --upgrade
@@ -30,10 +30,12 @@ jobs:
 
     - name: Publish to PyPi
       if: startsWith(github.ref, 'refs/heads/master')
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      shell: bash
+      run: |
+          python3 -m twine upload dist/*.whl
 
     - name: Publish Docs
       if: startsWith(github.ref, 'refs/heads/master')
