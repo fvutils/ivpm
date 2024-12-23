@@ -26,7 +26,7 @@ try:
 except ImportError as e:
    print("Failed to load build_num: %s" % str(e))
 
-version += "a1"
+#version += "a1"
 
 install_requires=[
     'setuptools',
