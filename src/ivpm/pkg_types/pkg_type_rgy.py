@@ -25,6 +25,7 @@ from ..package import Package
 from .package_dir import PackageDir
 from .package_file import PackageFile
 from .package_http import PackageHttp
+from .package_gh_rls import PackageGhRls
 from .package_git import PackageGit
 from .package_pypi import PackagePyPi
 from .package_url import PackageURL
@@ -60,6 +61,7 @@ class PkgTypeRgy(object):
         self.register("git", PackageGit.create, "Git")
         self.register("pypi", PackagePyPi.create, "PyPi")
         self.register("url", PackageURL.create, "URL")
+        self.register("gh-rls", PackageGhRls.create, "Github Release")
 
     @classmethod
     def inst(cls):

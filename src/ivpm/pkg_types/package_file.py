@@ -39,6 +39,8 @@ class PackageFile(PackageURL):
         self.path = pkg_dir.replace("\\", "/")
 
         if not os.path.isdir(pkg_dir):
+            # TODO: need to fetch the source...
+
             # Install (unpack) the file 
             if self.unpack:
                 self._install(self.url, pkg_dir)

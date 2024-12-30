@@ -53,10 +53,7 @@ class PackageHttp(PackageFile):
             # TODO: should this be an option?   
             remove_pkg_src = True
 
-            print("http: unpack=%s url=%s" % (str(self.unpack), str(self.url)))
-            r = httpx.get(self.url, follow_redirects=True)
-            with open(pkg_path, "wb") as f:
-                f.write(r.content)
+            self._download_file(self.url, pkg_path)
 
             if self.unpack:
                 self._install(pkg_path, pkg_dir)
@@ -65,6 +62,12 @@ class PackageHttp(PackageFile):
             else:
                 # 
                 pass
+
+    def _download_file(self, url, dest):
+        r = httpx.get(url, follow_redirects=True)
+        with open(dest, "wb") as f:
+            f.write(r.content)
+        pass
             
     @staticmethod
     def create(name, opts, si) -> 'PackageHttp':
