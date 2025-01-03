@@ -25,8 +25,7 @@ class CmdUpdate(object):
             print("Note: project_dir not specified ; using working directory")
             args.project_dir = os.getcwd()
 
-        ds_name = "default-dev"
-
+        ds_name = None
         if hasattr(args, "dep_set") and args.dep_set is not None:
             ds_name = args.dep_set
 

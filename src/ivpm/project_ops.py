@@ -20,12 +20,13 @@
 #*
 #****************************************************************************
 import os
+import json
 import dataclasses as dc
 from .package import Package, SourceType
 from .package_updater import PackageUpdater
 from .handlers.package_handler_rgy import PackageHandlerRgy
 from .project_ops_info import ProjectUpdateInfo
-from .utils import fatal, note, get_venv_python, setup_venv
+from .utils import fatal, note, get_venv_python, setup_venv, warning
 
 @dc.dataclass
 class ProjectOps(object):
@@ -33,7 +34,7 @@ class ProjectOps(object):
     debug : bool = False
 
     def update(self,
-               dep_set : str = "default-dev",
+               dep_set : str = None,
                force_py_install : bool = False,
                anonymous : bool = False,
                skip_venv : bool = False):
@@ -45,6 +46,21 @@ class ProjectOps(object):
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
             
         deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
+
+        ivpm_json = {}
+
+        if os.path.isfile(os.path.join(deps_dir, "ivpm.json")):
+            with open(os.path.join(deps_dir, "ivpm.json"), "r") as fp:
+                try:
+                    ivpm_json = json.load(fp)
+                except Exception as e:
+                    warning("failed to read ivpm.json: %s" % str(e))
+
+        if "dep-set" in ivpm_json.keys():
+            if dep_set is None:
+                dep_set = ivpm_json["dep-set"]
+            elif dep_set != ivpm_json["dep-set"]:
+                fatal("Attempting to update with a different dep-set than previously used")
  
         # Ensure that we have a python virtual environment setup
         if not skip_venv:
@@ -63,7 +79,15 @@ class ProjectOps(object):
                 print("DepSet: %s" % self.dep_set)
                 for d in proj_info.dep_set_m[self.dep_set].packages.keys():
                     print("  Package: %s" % d)
-                    
+
+        if dep_set is None:
+            if "default-dev" in proj_info.dep_set_m.keys():
+                dep_set = "default-dev"
+            elif len(proj_info.dep_set_m.keys()) == 1:
+                dep_set = list(proj_info.dep_set_m.keys())[0]
+            else:
+                fatal("No default-dev dep-set and multiple dep-sets present")
+
         if dep_set not in proj_info.dep_set_m.keys():
             raise Exception("Dep-set %s is not present" % dep_set)
         else:
@@ -89,9 +113,14 @@ class ProjectOps(object):
 
         print("Setup-deps: %s" % str(pkgs_info.setup_deps))
 
-        # Finally, call the handlers to take care of project-level setup work
+        # Call the handlers to take care of project-level setup work
         update_info = ProjectUpdateInfo(deps_dir, force_py_install=force_py_install)
         pkg_handler.update(update_info)
+
+        # Finally, write out some meta-data
+        ivpm_json["dep-set"] = dep_set
+        with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
+            json.dump(ivpm_json, fp)
 
     def status(self, dep_set : str = None):
         pass
