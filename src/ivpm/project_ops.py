@@ -34,6 +34,7 @@ class ProjectOps(object):
 
     def update(self,
                dep_set : str = "default-dev",
+               force_py_install : bool = False,
                anonymous : bool = False,
                skip_venv : bool = False):
         from .proj_info import ProjInfo
@@ -89,7 +90,7 @@ class ProjectOps(object):
         print("Setup-deps: %s" % str(pkgs_info.setup_deps))
 
         # Finally, call the handlers to take care of project-level setup work
-        update_info = ProjectUpdateInfo(deps_dir)
+        update_info = ProjectUpdateInfo(deps_dir, force_py_install=force_py_install)
         pkg_handler.update(update_info)
 
     def status(self, dep_set : str = None):

@@ -72,6 +72,9 @@ def get_parser(parser_ext = None):
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
         action="store_true",
         help="Clones git repositories in 'anonymous' mode")
+    update_cmd.add_argument("--force-py-install",
+        help="Forces a re-install of Python packages",
+        action="store_true")
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
     init_cmd = subparser.add_parser("init",
@@ -82,11 +85,12 @@ def get_parser(parser_ext = None):
     init_cmd.add_argument("name")
     
     git_status_cmd = subparser.add_parser("git-status",
-        help="Runs git status on any git packages")
+        help="Runs git status on any git packages (Note: deprecated. use 'status' instead)")
     git_status_cmd.set_defaults(func=CmdGitStatus())
     git_status_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     
-    git_update_cmd = subparser.add_parser("git-update")
+    git_update_cmd = subparser.add_parser("git-update",
+        help="Updates any git packages (Note: deprecated. use 'sync' instead)")
     git_update_cmd.set_defaults(func=CmdGitUpdate())
     git_update_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     

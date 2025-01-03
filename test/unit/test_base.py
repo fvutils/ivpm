@@ -40,9 +40,12 @@ class TestBase(unittest.TestCase):
         with open(fullpath, "w") as fp:
             fp.write(content)
 
-    def ivpm_update(self, dep_set="default-dev", anonymous=False, skip_venv=False):
+    def ivpm_update(self, dep_set="default-dev", anonymous=False, skip_venv=False, args=None):
+
+        if args is None:
+            args = {}
         
-        ProjectOps(self.testdir).update(
+        ProjectOps(self.testdir, args).update(
                 dep_set=dep_set, 
                 anonymous=anonymous,
                 skip_venv=skip_venv

@@ -49,5 +49,6 @@ class ProjectStatusResult(object):
 @dc.dataclass
 class ProjectUpdateInfo(ProjectOpsInfo):
     anonymous_git : bool = False
+    force_py_install : bool = False
 
 

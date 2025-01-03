@@ -39,7 +39,6 @@ class PackageHandlerPython(PackageHandler):
     debug : bool = True
 
     def process_pkg(self, pkg: Package):
-        print("process_pkg: %s (%s %s)" % (pkg.name, pkg.src_type, pkg.pkg_type))
         add = False
         if pkg.src_type == "pypi":
             self.pypi_pkg_s.add(pkg.name)
@@ -49,10 +48,8 @@ class PackageHandlerPython(PackageHandler):
             add = True
         elif pkg.pkg_type is None and hasattr(pkg, "path"):
             # Check if there are known Python files
-            print("Check files (%s)" % pkg.path)
             for py in ("setup.py", "setup.cfg", "pyproject.toml"):
                 if os.path.isfile(os.path.join(pkg.path, py)):
-                    print("Add to src_pkg_s")
                     add = True
                     self.src_pkg_s.add(pkg.name)
                     break            
@@ -61,6 +58,18 @@ class PackageHandlerPython(PackageHandler):
             self.pkgs_info[pkg.name] = pkg
     
     def update(self, update_info : ProjectUpdateInfo):
+
+        # First, check to see if we've already installed 
+        # Python packages, and whether we should repeat
+        if os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
+            if update_info.force_py_install:
+                note("Forcing re-install of Python packages")
+            else:
+                note("Python packages already installed. Use --force-py-install to force re-install")
+                return
+        else:
+            note("Installing Python packages")
+
 
         # Build up a dependency map for Python package installation        
         python_deps_m = {}

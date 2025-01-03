@@ -1,4 +1,5 @@
 import os
+import subprocess
 from .test_base import TestBase
 
 class TestSmoke(TestBase):
@@ -129,3 +130,41 @@ class TestSmoke(TestBase):
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             cwd=os.path.join(self.testdir, "packages/vlsim")).strip(), "gh-pages")
 
+    def test_pypi_install(self):
+        """Test that packages are properly installed from pypi"""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: pypi1
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: svdep
+                      src: pypi
+        """)
+
+        self.ivpm_update(skip_venv=False)
+
+#        self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/vlsim")))
+        self.assertEqual(self.exec(
+            ["packages/python/bin/python", "-c", "import svdep"],
+            cwd=self.testdir).strip(), "")
+
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: pypi1
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: svdep
+                      src: pypi
+                    - name: vlsim
+                      src: pypi
+        """)
+
+        self.ivpm_update(skip_venv=False)
+
+        # vlsim should not be installed, since we skipped re-installation
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.exec(
+                ["packages/python/bin/python", "-c", "import vlsim"],
+                cwd=self.testdir)

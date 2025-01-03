@@ -32,7 +32,8 @@ class CmdUpdate(object):
 
         ProjectOps(args.project_dir).update(
             dep_set=ds_name,
-            anonymous=args.anonymous)
+            anonymous=args.anonymous,
+            force_py_install=args.force_py_install)
 
 
 

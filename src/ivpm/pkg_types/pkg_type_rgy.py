@@ -40,7 +40,6 @@ class PkgTypeRgy(object):
         return src in self.src2fact_m.keys()
     
     def mkPackage(self, src, name, opts, si) -> Package:
-        print("name: %s" % name)
         return self.src2fact_m[src][0](name, opts, si)
     
     def getSrcTypes(self):

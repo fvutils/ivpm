@@ -37,6 +37,11 @@ class CmdActivate(object):
 
             if args.c is not None:
                 cmd.extend(["-c", args.c])
+        elif shell.find("csh") != -1 or shell.find("ksh") != -1:
+            cmd = [shell, "-s",  activate + ".csh"]
+
+            if args.c is None:
+                cmd.extend(["-i", args.c])
 
         cmd.extend(args.args)
 
