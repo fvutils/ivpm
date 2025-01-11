@@ -1,11 +1,9 @@
 
         package:
-            name: pypi1
+            name: git_fetch_leaf1
             dep-sets:
                 - name: default-dev
                   deps:
-                    - name: svdep
-                      src: pypi
-                    - name: vlsim
-                      src: pypi
+                    - name: gtest
+                      url: https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
         

@@ -1,0 +1,11 @@
+
+package:
+  name: pypi1
+
+  dep-sets:
+    - name: default-dev
+      deps: 
+      - name: svdep
+        src: pypi
+    - name: default
+      deps: []

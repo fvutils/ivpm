@@ -59,7 +59,10 @@ class PackageGit(PackageURL):
 
             # Modify the URL to use SSH/key-based clones
             # unless anonymous cloning was requested
-            use_anonymous = update_info.anonymous_git
+            if update_info.args is not None and hasattr(update_info.args, "anonyomous_git"):
+                use_anonymous = True
+            else:
+                use_anonymous = False
 
             if self.anonymous is not None:
                 use_anonymous = self.anonymous

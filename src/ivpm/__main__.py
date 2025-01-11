@@ -8,6 +8,8 @@ import argparse
 import os
 import sys
 
+from typing import Dict, List, Tuple
+
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
 from .cmds.cmd_activate import CmdActivate
@@ -21,8 +23,9 @@ from .cmds.cmd_snapshot import CmdSnapshot
 from .cmds.cmd_pkg_info import CmdPkgInfo
 
 
-def get_parser(parser_ext = None):
+def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
+    subcommands : Dict[str, object] = {}
     parser = argparse.ArgumentParser(prog="ivpm")
     
     subparser = parser.add_subparsers()
@@ -37,6 +40,7 @@ def get_parser(parser_ext = None):
         help="Specifies the project directory to use (default: cwd)")
     activate_cmd.add_argument("args", nargs='*')
     activate_cmd.set_defaults(func=CmdActivate())
+    subcommands["activate"] = activate_cmd
 
     build_cmd = subparser.add_parser("build",
         help="Build all sub-projects with an IVPM-supported build infrastructure (Python)")
@@ -46,6 +50,7 @@ def get_parser(parser_ext = None):
         action="store_true",
         help="Enables debug for native extensions")
     build_cmd.set_defaults(func=CmdBuild())
+    subcommands["build"] = build_cmd
 
     pkginfo_cmd = subparser.add_parser("pkg-info",
         help="Collect paths/files for a listed set of packages")
@@ -56,11 +61,13 @@ def get_parser(parser_ext = None):
             help="Specifies qualifiers on the type of info to query")
     pkginfo_cmd.add_argument("pkgs", nargs="+")
     pkginfo_cmd.set_defaults(func=CmdPkgInfo())
+    subcommands["pkginfo"] = pkginfo_cmd
 
     share_cmd = subparser.add_parser("share",
         help="Returns the 'share' directory, which includes cmake files, etc")
     share_cmd.add_argument("path", nargs=argparse.REMAINDER)
     share_cmd.set_defaults(func=CmdShare())
+    subcommands["share"] = share_cmd
 
     update_cmd = subparser.add_parser("update",
         help="Fetches packages specified in ivpm.yaml that have not already been loaded")
@@ -75,6 +82,7 @@ def get_parser(parser_ext = None):
     update_cmd.add_argument("--force-py-install",
         help="Forces a re-install of Python packages",
         action="store_true")
+    subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
     init_cmd = subparser.add_parser("init",
@@ -83,6 +91,7 @@ def get_parser(parser_ext = None):
     init_cmd.add_argument("-v", "--version", default="0.0.1")
     init_cmd.add_argument("-f", "--force", default=False, action='store_const', const=True)
     init_cmd.add_argument("name")
+    subcommands["init"] = init_cmd
     
     git_status_cmd = subparser.add_parser("git-status",
         help="Runs git status on any git packages (Note: deprecated. use 'status' instead)")
@@ -102,10 +111,15 @@ def get_parser(parser_ext = None):
         help="Uses release deps from project root instead of dev deps")
     snapshot_cmd.add_argument("snapshot_dir", 
             help="Specifies the directory where the snapshot will be created")
+    subcommands["snapshot"] = snapshot_cmd
 
     if parser_ext is not None:
         for ext in parser_ext:
             ext(subparser)
+
+    if options_ext is not None:
+        for ext in options_ext:
+            ext(subcommands)
 
     return parser
 
@@ -121,11 +135,14 @@ def main(project_dir=None):
 
     discovered_plugins = entry_points(group='ivpm.ext')
     parser_ext = []
+    options_ext = []
     for p in discovered_plugins:
         try:
             mod = p.load()
             if hasattr(mod, "ivpm_subcommand"):
                 parser_ext.append(getattr(mod, "ivpm_subcommand"))
+            elif hasattr(mod, "ivpm_options"):
+                options_ext.append(mod)
             elif hasattr(mod, "ivpm_pkgtype"):
                 pkg_types = []
                 getattr(mod, "ivpm_pkgtype")(pkg_types)
@@ -137,7 +154,7 @@ def main(project_dir=None):
                 str(e)))
             raise e
 
-    parser = get_parser(parser_ext)
+    parser = get_parser(parser_ext, options_ext)
     
     args = parser.parse_args()
 

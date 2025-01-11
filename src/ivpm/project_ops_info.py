@@ -30,6 +30,7 @@ class FileStatus(enum.Enum):
 
 @dc.dataclass
 class ProjectOpsInfo(object):
+    args : object
     deps_dir : str
 
 @dc.dataclass
@@ -48,7 +49,6 @@ class ProjectStatusResult(object):
 
 @dc.dataclass
 class ProjectUpdateInfo(ProjectOpsInfo):
-    anonymous_git : bool = False
     force_py_install : bool = False
 
 

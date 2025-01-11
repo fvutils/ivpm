@@ -64,14 +64,14 @@ class PackageUpdater(object):
         
         if len(pkgs.keys()) == 0:
             print("No packages")
-        
+
         for key in pkgs.keys():
             print("Package: %s" % key)
             pkg_q.append(pkgs[key])
 
         if not os.path.isdir(self.deps_dir):
             os.makedirs(self.deps_dir)
-            
+
         while True:        
             pkg_deps = {}
             
@@ -132,7 +132,11 @@ class PackageUpdater(object):
         """Loads a single package. Returns any dependencies"""
         must_update=False
 
-        update_info = ProjectUpdateInfo(self.deps_dir)
+        class Args(object):
+            def __init__(self, anonymous_git):
+                self.anonymous_git = anonymous_git
+
+        update_info = ProjectUpdateInfo(Args(self.anonymous_git), self.deps_dir)
   
         print("********************************************************************")
         print("* Processing package %s" % pkg.name)

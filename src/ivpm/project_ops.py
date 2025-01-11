@@ -37,7 +37,8 @@ class ProjectOps(object):
                dep_set : str = None,
                force_py_install : bool = False,
                anonymous : bool = False,
-               skip_venv : bool = False):
+               skip_venv : bool = False,
+               args = None):
         from .proj_info import ProjInfo
 
         proj_info = ProjInfo.mkFromProj(self.root_dir)
@@ -113,8 +114,11 @@ class ProjectOps(object):
 
         print("Setup-deps: %s" % str(pkgs_info.setup_deps))
 
+        if args is None:
+            args = object()
+
         # Call the handlers to take care of project-level setup work
-        update_info = ProjectUpdateInfo(deps_dir, force_py_install=force_py_install)
+        update_info = ProjectUpdateInfo(args, deps_dir, force_py_install=force_py_install)
         pkg_handler.update(update_info)
 
         # Finally, write out some meta-data
