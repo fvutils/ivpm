@@ -36,7 +36,6 @@ class ProjectOps(object):
     def update(self,
                dep_set : str = None,
                force_py_install : bool = False,
-               anonymous : bool = False,
                skip_venv : bool = False,
                args = None):
         from .proj_info import ProjInfo
@@ -103,10 +102,7 @@ class ProjectOps(object):
             ds.packages["ivpm"] = ivpm
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
-        updater = PackageUpdater(
-            deps_dir, 
-            pkg_handler,
-            anonymous_git=anonymous)
+        updater = PackageUpdater(deps_dir, pkg_handler)
 
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None

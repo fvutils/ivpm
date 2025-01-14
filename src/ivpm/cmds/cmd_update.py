@@ -5,12 +5,7 @@ Created on Jun 8, 2021
 '''
 import os
 
-from ivpm.packages_info import PackagesInfo
 from ivpm.project_ops import ProjectOps
-from ivpm.out_wrapper import OutWrapper
-from ivpm.package_updater import PackageUpdater
-from ivpm.package import Package, PackageType, SourceType
-from typing import List
 
 
 class CmdUpdate(object):
@@ -31,7 +26,6 @@ class CmdUpdate(object):
 
         ProjectOps(args.project_dir).update(
             dep_set=ds_name,
-            anonymous=args.anonymous,
             force_py_install=args.force_py_install,
             args=args)
 

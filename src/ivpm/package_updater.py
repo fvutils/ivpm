@@ -41,14 +41,14 @@ class PackageUpdater(object):
     def __init__(self, 
                  deps_dir, 
                  pkg_handler,
-                 anonymous_git=False,
-                 load=True):
+                 load=True,
+                 args=None):
         self.debug = False
         self.deps_dir = deps_dir
         self.pkg_handler = pkg_handler
         self.all_pkgs = PackagesInfo("root")
         self.new_deps = []
-        self.anonymous_git = anonymous_git
+        self.args = object() if args is None else args
         self.load = load
         pass
     
@@ -132,11 +132,7 @@ class PackageUpdater(object):
         """Loads a single package. Returns any dependencies"""
         must_update=False
 
-        class Args(object):
-            def __init__(self, anonymous_git):
-                self.anonymous_git = anonymous_git
-
-        update_info = ProjectUpdateInfo(Args(self.anonymous_git), self.deps_dir)
+        update_info = ProjectUpdateInfo(self.args, self.deps_dir)
   
         print("********************************************************************")
         print("* Processing package %s" % pkg.name)

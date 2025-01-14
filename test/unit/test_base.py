@@ -43,13 +43,15 @@ class TestBase(unittest.TestCase):
     def ivpm_update(self, dep_set="default-dev", anonymous=False, skip_venv=False, args=None):
 
         if args is None:
-            args = {}
+            class Args(object):
+                def __init__(self, anonymous):
+                    self.anonymous_git = anonymous
+            args = Args(anonymous)
         
         ProjectOps(self.testdir, args).update(
                 dep_set=dep_set, 
-                anonymous=anonymous,
-                skip_venv=skip_venv
-            )
+                skip_venv=skip_venv,
+                args=args)
     
     def ivpm_sync(self, dep_set=None):
         ProjectOps(self.testdir).sync(dep_set=dep_set)
