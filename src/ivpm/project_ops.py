@@ -102,16 +102,13 @@ class ProjectOps(object):
             ds.packages["ivpm"] = ivpm
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
-        updater = PackageUpdater(deps_dir, pkg_handler)
+        updater = PackageUpdater(deps_dir, pkg_handler, args=args)
 
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None
         pkgs_info = updater.update(ds)
 
         print("Setup-deps: %s" % str(pkgs_info.setup_deps))
-
-        if args is None:
-            args = object()
 
         # Call the handlers to take care of project-level setup work
         update_info = ProjectUpdateInfo(args, deps_dir, force_py_install=force_py_install)
