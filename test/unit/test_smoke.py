@@ -126,9 +126,16 @@ class TestSmoke(TestBase):
         self.ivpm_update(skip_venv=False)
 
         self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/vlsim")))
+
+        # The 'default' set of the sub-project imports 'debug_mgr'.
+        # The 'default-dev' set should be used instead, so 'debug_mgr' must not exist
+        self.assertFalse(os.path.isdir(os.path.join(self.testdir, "packages/debug-mgr")))
+
+        self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/vlsim/src/vlsim")))
         self.assertEqual(self.exec(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             cwd=os.path.join(self.testdir, "packages/vlsim")).strip(), "gh-pages")
+
 
     def test_pypi_install(self):
         """Test that packages are properly installed from pypi"""

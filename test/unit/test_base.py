@@ -40,7 +40,11 @@ class TestBase(unittest.TestCase):
         with open(fullpath, "w") as fp:
             fp.write(content)
 
-    def ivpm_update(self, dep_set="default-dev", anonymous=False, skip_venv=False, args=None):
+    def ivpm_update(self, 
+                    dep_set="default-dev", 
+                    anonymous=None, 
+                    skip_venv=False, 
+                    args=None):
 
         if args is None:
             class Args(object):

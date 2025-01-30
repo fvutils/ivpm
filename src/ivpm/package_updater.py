@@ -135,7 +135,7 @@ class PackageUpdater(object):
         update_info = ProjectUpdateInfo(self.args, self.deps_dir)
   
         print("********************************************************************")
-        print("* Processing package %s" % pkg.name)
+        print("* Processing package %s (dep-set %s)" % (pkg.name, pkg.dep_set))
         print("********************************************************************")
 
 
