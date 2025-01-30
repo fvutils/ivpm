@@ -97,7 +97,7 @@ class Package(object):
 
     process_deps : bool = True
     setup_deps : Set[str] = dc.field(default_factory=set)
-    dep_set : str = "default"
+    dep_set : str = None
     proj_info : 'ProjInfo'= None
 
     def build(self, pkgs_info):

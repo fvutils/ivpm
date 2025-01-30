@@ -162,6 +162,10 @@ class IvpmYamlReader(object):
                 raise Exception("Package %s has unknown type %s" % (d["name"], src))
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
 
+            # Unless specified, load the same dep-set from sub-packages
+            if pkg.dep_set is None:
+                pkg.dep_set = ret.name
+
             ret.add_package(pkg)
 
             if self.debug:                    
