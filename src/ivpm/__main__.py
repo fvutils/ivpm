@@ -79,6 +79,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
         action="store_true",
         help="Clones git repositories in 'anonymous' mode")
+    update_cmd.add_argument("--skip-py-install",
+        help="Skip installation of Python packages",
+        action="store_true")
     update_cmd.add_argument("--force-py-install",
         help="Forces a re-install of Python packages",
         action="store_true")

@@ -61,7 +61,10 @@ class PackageHandlerPython(PackageHandler):
 
         # First, check to see if we've already installed 
         # Python packages, and whether we should repeat
-        if os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
+        if getattr(update_info.args, "skip_py_install", False):
+            note("Skipping Python package installation")
+            return
+        elif os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
             if update_info.force_py_install:
                 note("Forcing re-install of Python packages")
             else:

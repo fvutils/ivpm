@@ -20,6 +20,7 @@ class TestBase(unittest.TestCase):
 
         rundir = os.path.join(test_dir, "rundir")
         self.testdir = os.path.join(rundir, "test")
+        os.environ["TEST_DIR"] = self.testdir
 
         if os.path.isdir(self.testdir):
             shutil.rmtree(self.testdir)

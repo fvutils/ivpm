@@ -1,9 +1,11 @@
 
         package:
-            name: git_fetch_leaf1
+            name: p1
             dep-sets:
                 - name: default-dev
                   deps:
-                    - name: gtest
-                      url: https://github.com/google/googletest/archive/refs/tags/v1.15.2.tar.gz
+                    - name: p2
+                      url: file://${TEST_DIR}/p2
+                      src: dir
+                      dep-set: default
         

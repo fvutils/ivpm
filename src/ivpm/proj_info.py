@@ -44,7 +44,9 @@ class ProjInfo():
 
         self.name = None
         self.version = None
-        self.default_dep_set = "default-dev"
+        # This should be set to the dep-set specified by the 'dep' 
+        # statement or on the command-line
+        self.default_dep_set = None
         self.deps_dir = "packages"
 
         self.process_deps = True
