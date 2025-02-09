@@ -193,7 +193,7 @@ def get_parser():
     pkginfo_cmd = subparser.add_parser("pkg-info",
         help="Collect cflags for a listed set of packages")
     pkginfo_cmd.add_argument("type", 
-            choices=("paths", "libdirs", "libs", "flags"),
+            choices=("incdirs", "paths", "libdirs", "libs", "flags"),
             help="Specifies what info to query")
     pkginfo_cmd.add_argument("-k", "--kind",
             help="Specifies qualifiers on the type of info to query")

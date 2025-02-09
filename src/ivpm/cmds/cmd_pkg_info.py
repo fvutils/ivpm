@@ -42,14 +42,17 @@ class CmdPkgInfo(object):
         if args.type == "flags":
             flags = PkgCompileFlags().flags(pkgs)
             print("%s" % " ".join(flags))
+        elif args.type == "incdirs":
+            paths = rgy.getIncDirs(kind=args.kind, filter=lambda name : name in pkg_names)
+            print("%s" % " ".join(paths))
         elif args.type == "paths":
-            paths = PkgCompileFlags().paths(pkgs, args.kind)
+            paths = rgy.getPaths(kind=args.kind, filter=lambda name : name in pkg_names)
             print("%s" % " ".join(paths))
         elif args.type == "libdirs":
-            paths = PkgCompileFlags().ldirs(pkgs, args.kind)
+            paths = rgy.getLibDirs(kind=args.kind, filter=lambda name : name in pkg_names)
             print("%s" % " ".join(paths))
         elif args.type == "libs":
-            paths = PkgCompileFlags().libs(pkgs, args.kind)
+            paths = rgy.getLibs(kind=args.kind, filter=lambda name : name in pkg_names)
             print("%s" % " ".join(paths))
         else:
             raise Exception("Unimplemented pkg-info kind %s" % args.type)
