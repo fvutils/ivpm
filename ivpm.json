@@ -1,13 +1,30 @@
 {
 	"$schema" : "https://json-schema.org/draft/2020-12/schema",
-	"$id": "https://fvutils.github.io/ivpm/ivpm.json",
+	"$id": "https://fvutils.github.com/ivpm/ivpm.json",
 	"title": "IVPM",
 	"description": "Schema for IP and Verification Package Manager (IVPM)",
 	"type": "object",
 	"properties": {
 		"package": {
 			"$ref": "#/defs/package-def"
-		}
+		},
+		"version": {
+			"type": "string",
+			"description": "Specifies the package version"
+		},
+		"deps": {
+			"type": "array",
+			"items": {
+				"$ref": "#/defs/package-dep"
+			}
+		},
+		"dev-deps": {
+			"type": "array",
+			"items": {
+				"$ref": "#/defs/package-dep"
+			}
+		},
+		"required": [ "package", "version" ]
 	},
 	"defs": {
 		"package-def": {
@@ -17,35 +34,16 @@
 			"properties": {
 				"name": {
 					"type": "string",
-                    "title": "Package name",
 					"description": "Name of the package"
 				},
-                "deps-dir": {
-                    "type": "string",
-                    "title": "Dependency directory name",
-                    "description": "Specifies directory where dependencies are stored. Defaults to 'packages'"
-                },
-                "default-dep-set": {
-                    "type": "string",
-                    "title": "Default dependency set",
-                    "description": "Specifies the default dep-set to use. Defaults to 'default-dev'"
-                },
 				"dep-sets": {
 					"type": "array",
-					"title": "Dependency sets",
-                    "description": "Specifies available dependency sets",
+					"title": "List of named depdendency sets",
 					"items": {
 						"$ref": "#/defs/dep-set"
 					}
-				},
-                "env-sets": {
-                    "$ref": "#/defs/env-sets"
-                },
-                "path-sets": {
-                    "$ref": "#/defs/path-sets"
-                }
-			},
-            "required": [ "name" ]
+				}
+			}
 		},
 		"dep-set": {
 			"title": "Named package-dependency set",
@@ -77,14 +75,12 @@
 				},
 				"url": {
 					"type": "string",
-                    "title": "Source URL",
-					"description": "URL from which to obtain the dependency. Used for all execpt 'pypi'"
+					"title": "URL from which to obtain the dependency. Used for all execpt 'pypi'"
 				},
 				"src": {
 					"type": "string",
-                    "title": "Source type",
-					"description": "Specifies the source type. Much of the time auto-detect works",
-					"anyOf": [
+					"title": "Specifies the source type. Most of the time auto-detect works",
+					"oneOf": [
 						{
 							"const": "git",
 							"title": "URL points to a Git repository"
@@ -108,18 +104,13 @@
 						{
 							"const": "pypi",
 							"title": "Dependency name is a PyPi package to be installed with pip"
-						},
-                        {
-                            "type": "string",
-                            "title": "Source types are extensible. Consult documentation for other source types"
-                        }
+						}
 					]
 				},
 				"type": {
 					"type": "string",
-                    "title": "Package type",
-					"description": "Specifies package type. Most of the time auto-detect works",
-					"anyOf": [
+					"title": "Specifies package type. Most of the time auto-detect works",
+					"oneOf": [
 						{
 							"const": "raw",
 							"title": "Data package. IVPM will not attempt to interpret"
@@ -127,11 +118,7 @@
 						{
 							"const": "python",
 							"title": "Python package that IVPM will install into the venv"
-						},
-                        {
-                            "type": "string",
-                            "title": "Package types are extensible. Consult documentation for other package types"
-                        }
+						}
 					]
 				},
 				"version": {
@@ -167,118 +154,7 @@
 					"title": "Assuming the target is an IVPM package, Specifies the named dep-set to use"
 				} 			
 			}
-		},
-        "env-sets": {
-            "title": "Environment Sets",
-            "$$target": "#/defs/env-sets",
-            "type": "array",
-            "items": {
-                "$ref": "#/defs/env-set"
-            }
-        },
-        "env-set": {
-            "title": "Environment Set",
-            "$$target": "#/defs/env-set",
-            "type": "object",
-            "properties": {
-                "name": {
-                    "title": "Environment-set name",
-                    "description": "Name of the environment-set. 'export' and 'project' are builtin names",
-                    "anyOf": [
-                        {
-                            "const": "export",
-                            "title": "Environment-set used by containing projects"
-                        },
-                        {
-                            "const": "project",
-                            "title": "Environment-set used when this is the root project"
-                        },
-                        {
-                            "type": "string",
-                            "title": "Environment-set names are extensible. Consult documentation for other environment-set names"
-                        }
-                    ]
-                },
-                "env": {
-                    "type": "array",
-                    "title": "Environment-variable settings",
-                    "items": {
-                        "$ref": "#/defs/env-var"
-                    }
-                }
-            }
-        },
-        "env-var": {
-            "title": "Environment-variable Setting",
-            "$$target": "#/defs/env-var",
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "title": "Environment-variable name"
-                }
-            }
-        },
-        "path-sets": {
-            "title": "Path Sets",
-            "$$target": "#/defs/path-sets",
-            "type": "array",
-            "items": {
-                "$ref": "#/defs/path-set"
-            }
-        },
-        "path-set": {
-            "title": "Path Set",
-            "$$target": "#/defs/path-set",
-            "type": "object",
-            "properties": {
-                "name": {
-                    "title": "Path-set name",
-                    "description": "Name of the path-set. 'export' and 'project' are builtin names",
-                    "anyOf": [
-                        {
-                            "const": "export",
-                            "title": "Path-set used by containing projects"
-                        },
-                        {
-                            "const": "project",
-                            "title": "Path-set used when this is the root project"
-                        },
-                        {
-                            "type": "string",
-                            "title": "Path-set names are extensible. Consult documentation for other path-set names"
-                        }
-                    ]
-                },
-                "paths": {
-                    "type": "array",
-                    "title": "Paths",
-                    "items": {
-                        "$ref": "#/defs/paths"
-                    }
-                }
-            }
-        },
-        "paths": {
-            "title": "Paths",
-            "$$target": "#/defs/paths",
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string",
-                    "title": "Path name",
-                    "description": "Name of the path"
-                },
-                "elems": {
-                    "type": "array",
-                    "title": "Path elements",
-                    "items": {
-                        "type": "string"
-                    },
-                    "description": "List of path elements"
-                }
-            }
-        }
+		}
 	}
 }
 
