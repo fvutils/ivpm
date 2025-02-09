@@ -162,14 +162,15 @@
 <section id="pkg-info">
 <h4>pkg-info<a class="headerlink" href="#pkg-info" title="Link to this heading"></a></h4>
 <p>Collect cflags for a listed set of packages</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">pkg</span><span class="o">-</span><span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">k</span> <span class="n">KIND</span><span class="p">]</span> <span class="p">{</span><span class="n">paths</span><span class="p">,</span><span class="n">libdirs</span><span class="p">,</span><span class="n">libs</span><span class="p">,</span><span class="n">flags</span><span class="p">}</span> <span class="n">pkgs</span> <span class="p">[</span><span class="n">pkgs</span> <span class="o">...</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">pkg</span><span class="o">-</span><span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">k</span> <span class="n">KIND</span><span class="p">]</span>
+              <span class="p">{</span><span class="n">incdirs</span><span class="p">,</span><span class="n">paths</span><span class="p">,</span><span class="n">libdirs</span><span class="p">,</span><span class="n">libs</span><span class="p">,</span><span class="n">flags</span><span class="p">}</span> <span class="n">pkgs</span> <span class="p">[</span><span class="n">pkgs</span> <span class="o">...</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat2">
 <h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat2" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>type</kbd></dt>
-<dd><p>Possible choices: paths, libdirs, libs, flags</p>
+<dd><p>Possible choices: incdirs, paths, libdirs, libs, flags</p>
 <p>Specifies what info to query</p>
 </dd>
 <dt><kbd>pkgs</kbd></dt>
