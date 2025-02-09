@@ -279,6 +279,9 @@ class CmdUpdate(object):
                     "install",
                     "-r",
                     reqfile]
+                
+                if args.py_prerls_packages:
+                    cmd.append("--pre")
             
                 status = subprocess.run(cmd, env=env)
             
