@@ -215,7 +215,7 @@ def get_parser():
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
         action="store_true",
         help="Clones git repositories in 'anonymous' mode")
-    update_cmd.add_argument("--py-prerls-packages", dest="anonymous", 
+    update_cmd.add_argument("--py-prerls-packages",
         action="store_true",
         help="Installs pre-release Python packages")
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
