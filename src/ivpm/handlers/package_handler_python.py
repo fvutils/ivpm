@@ -61,7 +61,7 @@ class PackageHandlerPython(PackageHandler):
 
         # First, check to see if we've already installed 
         # Python packages, and whether we should repeat
-        if getattr(update_info.args, "skip_py_install", False):
+        if getattr(update_info.args, "py_skip_install", False):
             note("Skipping Python package installation")
             return
         elif os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
@@ -247,6 +247,9 @@ class PackageHandlerPython(PackageHandler):
                     "install",
                     "-r",
                     reqfile]
+
+                if getattr(update_info.args, "py_prerls_packages", False):
+                    cmd.append("--pre")
             
                 status = subprocess.run(cmd, env=env)
             

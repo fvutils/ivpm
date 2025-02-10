@@ -79,6 +79,22 @@ class PkgInfoRgy(object):
             return self.info_m[pkg]
         else:
             raise Exception("Package %s is not present" % pkg)
+
+    def getIncDirs(self, kind=None, filter : Callable=None):
+        incdirs = []
+
+        for pkg_id in self.info_m.keys():
+            pkg = self.info_m[pkg_id]
+            if filter is not None and not filter(pkg.name):
+                continue
+            pkg_incdirs = pkg.getIncDirs(kind)
+
+            if pkg_incdirs is not None:
+                for ld in pkg_incdirs:
+                    if ld not in incdirs:
+                        incdirs.append(ld)
+
+        return incdirs
         
     def getLibDirs(self, kind=None, filter : Callable=None):
         libdirs = []

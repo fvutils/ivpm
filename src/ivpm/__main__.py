@@ -55,7 +55,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     pkginfo_cmd = subparser.add_parser("pkg-info",
         help="Collect paths/files for a listed set of packages")
     pkginfo_cmd.add_argument("type", 
-            choices=("paths", "libdirs", "libs", "flags"),
+            choices=("incdirs", "paths", "libdirs", "libs"),
             help="Specifies what info to query")
     pkginfo_cmd.add_argument("-k", "--kind",
             help="Specifies qualifiers on the type of info to query")
@@ -79,11 +79,14 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
         action="store_true",
         help="Clones git repositories in 'anonymous' mode")
-    update_cmd.add_argument("--skip-py-install",
+    update_cmd.add_argument("--skip-py-install", "--py-skip-install",
         help="Skip installation of Python packages",
         action="store_true")
-    update_cmd.add_argument("--force-py-install",
+    update_cmd.add_argument("--force-py-install", "--py-force-install",
         help="Forces a re-install of Python packages",
+        action="store_true")
+    update_cmd.add_argument("--py-prerls-packages",
+        help="Enable installation of pre-release packages",
         action="store_true")
     subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")

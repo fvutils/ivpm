@@ -39,17 +39,17 @@ class CmdPkgInfo(object):
                 raise Exception("Failed to find package %s" % pn)
             pkgs.append(rgy.getPkg(pn))
 
-        if args.type == "flags":
-            flags = PkgCompileFlags().flags(pkgs)
-            print("%s" % " ".join(flags))
+        if args.type == "incdirs":
+            paths = rgy.getIncDirs(kind=args.kind, filter=lambda x: x in pkgs)
+            print("%s" % " ".join(paths))
         elif args.type == "paths":
-            paths = PkgCompileFlags().paths(pkgs, args.kind)
+            paths = rgy.getPaths(kind=args.kind, filter=lambda x: x in pkgs)
             print("%s" % " ".join(paths))
         elif args.type == "libdirs":
-            paths = PkgCompileFlags().ldirs(pkgs, args.kind)
+            paths = rgy.getLibDirs(kind=args.kind, filter=lambda x: x in pkgs)
             print("%s" % " ".join(paths))
         elif args.type == "libs":
-            paths = PkgCompileFlags().libs(pkgs, args.kind)
+            paths = rgy.getLibs(kind=args.kind, filter=lambda x: x in pkgs)
             print("%s" % " ".join(paths))
         else:
             raise Exception("Unimplemented pkg-info kind %s" % args.type)

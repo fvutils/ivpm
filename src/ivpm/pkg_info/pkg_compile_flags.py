@@ -77,47 +77,51 @@ class PkgCompileFlags(object):
         self._collect_ldirs(ret, pkg, kind)
         return ret
 
-    def _collect_cflags(self, ret, pkg : PkgInfo):
-        for i in pkg._incdirs:
-            inc = "-I" + i
-            if inc not in ret:
-                ret.append(inc)
+    def _collect_cflags(self, ret, pkg_l : PkgInfo):
+        for pkg in pkg_l:
+            for i in pkg._incdirs:
+                inc = "-I" + i
+                if inc not in ret:
+                    ret.append(inc)
 
         for d in pkg._deps:
             if d._name not in self._processed_pkgs:
                 self._processed_pkgs.add(d._name)
                 self._collect_cflags(ret, d)
 
-    def _collect_paths(self, ret, pkg : PkgInfo, kind):
-        for path in pkg.getPaths(kind):
-            if path not in ret:
-                ret.append(path)
+    def _collect_paths(self, ret, pkg_l : PkgInfo, kind):
+        for pkg in pkg_l:
+            for path in pkg.getPaths(kind):
+                if path not in ret:
+                    ret.append(path)
 
-        for d in pkg._deps:
-            if d._name not in self._processed_pkgs:
-                self._processed_pkgs.add(d._name)
-                self._collect_paths(ret, d, kind)
+            for d in pkg._deps:
+                if d._name not in self._processed_pkgs:
+                    self._processed_pkgs.add(d._name)
+                    self._collect_paths(ret, d, kind)
 
-    def _collect_libs(self, ret, pkg : PkgInfo, kind):
-        libs = pkg.getLibs(kind)
-        for path in [] if libs is None else libs:
-            if path not in ret:
-                ret.append(path)
+    def _collect_libs(self, ret, pkg_l : PkgInfo, kind):
+        for pkg in pkg_l:
+            libs = pkg.getLibs(kind)
+            for path in [] if libs is None else libs:
+                if path not in ret:
+                    ret.append(path)
 
-        for d in pkg._deps:
-            if d._name not in self._processed_pkgs:
-                self._processed_pkgs.add(d._name)
-                self._collect_libs(ret, d, kind)
+            for d in pkg._deps:
+                if d._name not in self._processed_pkgs:
+                    self._processed_pkgs.add(d._name)
+                    self._collect_libs(ret, d, kind)
 
-    def _collect_ldirs(self, ret, pkg : PkgInfo, kind):
-        for d in pkg.getLibDirs(kind):
-            if d not in ret:
-                ret.append(d)
+    def _collect_ldirs(self, ret, pkg_l : PkgInfo, kind):
+        for pkg in pkg_l:
+            for d in pkg.getLibDirs(kind):
+                if d not in ret:
+                    ret.append(d)
 
-        for d in pkg._deps:
-            if d._name not in self._processed_pkgs:
-                self._processed_pkgs.add(d._name)
-                self._collect_ldirs(ret, d, kind)
+            for d in pkg._deps:
+                if d._name not in self._processed_pkgs:
+                    self._processed_pkgs.add(d._name)
+                    self._collect_ldirs(ret, d, kind)
 
     def _collect_lflags(self, ret, pkg : PkgInfo):
         for d in pkg._libdirs:
