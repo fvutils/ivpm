@@ -281,6 +281,7 @@ class CmdUpdate(object):
                     reqfile]
                 
                 if args.py_prerls_packages:
+                    note("Using pre-release packages")
                     cmd.append("--pre")
             
                 status = subprocess.run(cmd, env=env)
