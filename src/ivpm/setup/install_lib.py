@@ -27,7 +27,8 @@ from setuptools.command.install_lib import install_lib as _install_lib
 class InstallLib(_install_lib):
     
     def install(self):
-        from ivpm.setup.setup import get_ivpm_extra_data
+        from ivpm import setup as ivpms
+        from ivpm.setup.ivpm_data import get_ivpm_extra_data, get_ivpm_ext_name_m, expand_libvars
         # Assume 
         # May need to install some additional libraries and data
         # - data and/or include files to package 'share'
@@ -46,35 +47,22 @@ class InstallLib(_install_lib):
         if install_root is None:
             return
 
-        libpref = "lib"
-        dllext = ".so"
-        if platform.system() == "Windows":
-            libpref = ""
-            dllext = ".dll"
-        elif platform.system() == "Darwin":
-            libpref = "lib"
-            dllext = ".dylib"
 
-        subst_m = {
-            "{libdir}" : "lib64" if os.path.isdir(os.path.join("build", "lib64")) else "lib",
-            "{libpref}" : libpref,
-            "{dllext}" : dllext
-        }
 
         build_py = self.get_finalized_command('build_py')
+        ext_name_m = get_ivpm_ext_name_m()
         for p in build_py.packages:
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
-                    src = self.expand(subst_m, spec[0])
+                    src = expand_libvars(spec[0])
                     dst = spec[1]
 
                     if os.path.isfile(src):
-                        if not os.path.isdir(os.path.dirname(os.path.join(install_root, p, dst))):
-                            os.makedirs(os.path.dirname(os.path.join(install_root, p, dst)), exist_ok=True)
-                        shutil.copyfile(
-                            src,
-                            os.path.join(install_root, p, dst, os.path.basename(src))
-                        )
+                        dst_file = os.path.join(install_root, p, dst, os.path.basename(src))
+                        dst_dir = os.path.dirname(dst_file)
+                        if not os.path.isdir(dst_dir):
+                            os.makedirs(dst_dir)
+                        shutil.copyfile(src, dst_file)
 
                         if "{dllext}" in spec[0] and platform.system() == "Windows":
                             # See if there is a link library to copy as well
@@ -94,9 +82,14 @@ class InstallLib(_install_lib):
 #                        if os.path.isdir(os.path.join(install_root, p, dst)):
 #                            print("rmtree: %s" % os.path.join(install_root, p, dst))
 #                            shutil.rmtree(os.path.join(install_root, p, dst))
+                        dst_dir = os.path.join(install_root, p, dst, os.path.basename(src)),
+                        if not os.path.isdir(dst_dir):
+                            os.makedirs(dst_dir, exist_ok=True)
+
                         shutil.copytree(
                             src, 
-                            os.path.join(install_root, p, dst, os.path.basename(src)))
+                            dst_dir,
+                            dirs_exist_ok=True)
                     else:
                         raise Exception("Source path \"%s\" doesn't exist" % src)
                     print("Copy: %s" % str(spec))
@@ -131,22 +124,12 @@ class InstallLib(_install_lib):
 #                     dst
 #                 )
 #                 pass
-                
-        return super().install()
-    
-    def expand(self, subst_m, path):
-        elems = path.split("/")
 
-        # Perform path meta-variable substitution
-        for i,e in enumerate(elems):
-            found = True
-            while found:
-                found = False
-                for k in subst_m.keys():
-                    if e.find(k) != -1:
-                        found = True
-                        e = e.replace(k, subst_m[k])
-                        elems[i] = e
-        return "/".join(elems)
+        print("--> super.install")
+        ret = super().install()
+        print("<-- super.install")
+        return ret
+    
+
 
 
