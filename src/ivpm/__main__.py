@@ -18,9 +18,11 @@ from .cmds.cmd_init import CmdInit
 from .cmds.cmd_update import CmdUpdate
 from .cmds.cmd_git_status import CmdGitStatus
 from .cmds.cmd_git_update import CmdGitUpdate
+from .cmds.cmd_pkg_info import CmdPkgInfo
 from .cmds.cmd_share import CmdShare
 from .cmds.cmd_snapshot import CmdSnapshot
-from .cmds.cmd_pkg_info import CmdPkgInfo
+from .cmds.cmd_status import CmdStatus
+from .cmds.cmd_sync import CmdSync
 
 
 def get_parser(parser_ext : List = None, options_ext : List = None):
@@ -118,6 +120,14 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     snapshot_cmd.add_argument("snapshot_dir", 
             help="Specifies the directory where the snapshot will be created")
     subcommands["snapshot"] = snapshot_cmd
+
+    sync_cmd = subparser.add_parser("sync",
+        help="Synchronizes dependent packages with an upstream source (if available)")
+    sync_cmd.set_defaults(func=CmdSync())
+
+    status_cmd = subparser.add_parser("status",
+        help="Checks the status of sub-dependencies such as git repositories")
+    status_cmd.set_defaults(func=CmdStatus())
 
     if parser_ext is not None:
         for ext in parser_ext:
