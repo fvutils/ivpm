@@ -24,6 +24,7 @@ import platform
 import shutil
 import subprocess
 import sys
+from distutils.file_util import copy_file
 from setuptools.command.build_ext import build_ext as _build_ext
 
 class BuildExt(_build_ext):
@@ -44,6 +45,7 @@ class BuildExt(_build_ext):
         super().build_extensions()
 
     def build_extension(self, ext):
+        from ivpm.setup.ivpm_data import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
         proj_dir = os.getcwd()
         print("build_extension: %s" % str(ext))
         include_dirs = getattr(ext, 'include_dirs', [])
@@ -51,16 +53,70 @@ class BuildExt(_build_ext):
 #        include_dirs.append(os.path.join(proj_dir, 'src', 'include'))
         setattr(ext, 'include_dirs', include_dirs)
         
-        return super().build_extension(ext)
+        ret = super().build_extension(ext)
+
+        build_py = self.get_finalized_command("build_py")
+        ext_name_m = get_ivpm_ext_name_m()
+
+        for ext in self.extensions:
+            print("Ext: %s" % str(ext))
+            fullname = self.get_ext_fullname(ext.name)
+            filename = self.get_ext_filename(fullname)
+
+            print("fullname=%s filename=%s" % (fullname, filename), flush=True)
+
+            modpath = fullname.split(".")
+
+            if fullname in ext_name_m.keys():
+                # replace last path element
+                mapped_filename = expand_libvars(ext_name_m[fullname])
+                dest_filename = os.path.join(self.build_lib, "/".join(modpath[:-1]), mapped_filename)
+            else:
+                dest_filename = os.path.join(self.build_lib, filename)
+            src_filename = os.path.join(self.build_lib, filename)
+
+            print("dest_filename: %s src_filename: %s" % (dest_filename, src_filename))
+            if src_filename != dest_filename:
+                os.rename(src_filename, dest_filename)
+
+        return ret
     
     def copy_extensions_to_source(self):
-        import ivpm.setup.setup as ivpms
-        from ivpm.setup.setup import get_hooks, Phase_BuildPre, Phase_BuildPost
+        from ivpm.setup.ivpm_data import get_hooks, Phase_BuildPre, Phase_BuildPost, expand_libvars, get_ivpm_ext_name_m
         """ Like the base class method, but copy libs into proper directory in develop. """
         print("copy_extensions_to_source")
         for hook in get_hooks(Phase_BuildPre):
             hook(self)
-        super().copy_extensions_to_source()
+        
+        build_py = self.get_finalized_command("build_py")
+        ext_name_m = get_ivpm_ext_name_m()
+        for ext in self.extensions:
+            fullname = self.get_ext_fullname(ext.name)
+            filename = self.get_ext_filename(fullname)
+
+            print("fullname=%s filename=%s" % (fullname, filename), flush=True)
+
+            modpath = fullname.split(".")
+            package = ".".join(modpath[:-1])
+            package_dir = build_py.get_package_dir(package)
+
+            if fullname in ext_name_m.keys():
+                # replace last path element
+                mapped_filename = expand_libvars(ext_name_m[fullname])
+                dest_filename = os.path.join(package_dir, mapped_filename)
+                src_filename = os.path.join(self.build_lib, "/".join(modpath[:-1]), mapped_filename)
+            else:
+                dest_filename = os.path.join(package_dir, os.path.basename(filename))
+                src_filename = os.path.join(self.build_lib, filename)
+
+            os.makedirs(os.path.dirname(dest_filename), exist_ok=True)
+
+            copy_file(
+                src_filename,
+                dest_filename,
+                verbose=self.verbose,
+                dry_run=self.dry_run
+            )
 
         # Appy any post-copy hooks
         for hook in get_hooks(Phase_BuildPost):
@@ -183,7 +239,7 @@ class BuildExt(_build_ext):
         build_cmd[cmake_build_tool](self, build_dir, env)
         install_cmd[cmake_build_tool](self, build_dir, env)
 
-        from ivpm.setup.setup import get_ivpm_extdep_data
+        from ivpm.setup.ivpm_data import get_ivpm_extdep_data
         for src,dst in get_ivpm_extdep_data():
             shutil.copyfile(src, dst)
 
