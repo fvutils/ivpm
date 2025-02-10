@@ -58,12 +58,11 @@ class InstallLib(_install_lib):
                     dst = spec[1]
 
                     if os.path.isfile(src):
-                        if not os.path.isdir(os.path.dirname(os.path.join(install_root, p, dst))):
-                            os.makedirs(os.path.dirname(os.path.join(install_root, p, dst)), exist_ok=True)
-                        shutil.copyfile(
-                            src,
-                            os.path.join(install_root, p, dst, os.path.basename(src))
-                        )
+                        dst_file = os.path.join(install_root, p, dst, os.path.basename(src))
+                        dst_dir = os.path.dirname(dst_file)
+                        if not os.path.isdir(dst_dir):
+                            os.makedirs(dst_dir)
+                        shutil.copyfile(src, dst_file)
 
                         if "{dllext}" in spec[0] and platform.system() == "Windows":
                             # See if there is a link library to copy as well
@@ -83,9 +82,13 @@ class InstallLib(_install_lib):
 #                        if os.path.isdir(os.path.join(install_root, p, dst)):
 #                            print("rmtree: %s" % os.path.join(install_root, p, dst))
 #                            shutil.rmtree(os.path.join(install_root, p, dst))
+                        dst_dir = os.path.join(install_root, p, dst, os.path.basename(src)),
+                        if not os.path.isdir(dst_dir):
+                            os.makedirs(dst_dir, exist_ok=True)
+
                         shutil.copytree(
                             src, 
-                            os.path.join(install_root, p, dst, os.path.basename(src)),
+                            dst_dir,
                             dirs_exist_ok=True)
                     else:
                         raise Exception("Source path \"%s\" doesn't exist" % src)
