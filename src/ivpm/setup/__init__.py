@@ -1,2 +1,3 @@
 
-from .setup import setup
+from .wrapper import setup
+
