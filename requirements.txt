@@ -1,5 +1,6 @@
 httpx
 pyyaml 
 pyyaml-srcinfo-loader 
+setuptools
 toposort 
 
