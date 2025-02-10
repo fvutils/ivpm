@@ -91,9 +91,9 @@ class InstallLib(_install_lib):
                     elif os.path.isdir(src):
 #                        if not os.path.isdir(os.path.join(install_root, p, spec[1])):
 #                            os.makedirs(os.path.join(install_root, p, spec[1]), exist_ok=True)
-                        if os.path.isdir(os.path.join(install_root, p, dst)):
-                            print("rmtree: %s" % os.path.join(install_root, p, dst))
-                            shutil.rmtree(os.path.join(install_root, p, dst))
+#                        if os.path.isdir(os.path.join(install_root, p, dst)):
+#                            print("rmtree: %s" % os.path.join(install_root, p, dst))
+#                            shutil.rmtree(os.path.join(install_root, p, dst))
                         shutil.copytree(
                             src, 
                             os.path.join(install_root, p, dst, os.path.basename(src)))
