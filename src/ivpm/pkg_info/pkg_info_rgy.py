@@ -87,7 +87,7 @@ class PkgInfoRgy(object):
             pkg = self.info_m[pkg_id]
             if filter is not None and not filter(pkg.name):
                 continue
-            pkg_incdirs = pkg.getIncDirs(kind)
+            pkg_incdirs = pkg.getIncDirs()
 
             if pkg_incdirs is not None:
                 for ld in pkg_incdirs:
