@@ -84,17 +84,15 @@
 <h2>Installing IVPM<a class="headerlink" href="#installing-ivpm" title="Link to this heading"></a></h2>
 <p>IVPM must be installed before it can be used to work with a project. Typically,
 the easiest approach is to install IVPM as a user-installed package:</p>
-<p>..code-block:: bash</p>
-<blockquote>
-<div><p>% python3 -m pip install –user ivpm</p>
-</div></blockquote>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>ivpm
+</pre></div>
+</div>
 <p>Once this is done, you can invoke IVPM either via the entry-point script (ivpm)
 or as a Python module:</p>
-<p>..code-block:: bash</p>
-<blockquote>
-<div><p>% ivpm –help
-% python3 -m ivpm –help</p>
-</div></blockquote>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>ivpm<span class="w"> </span>--help
+%<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>ivpm<span class="w"> </span>--help
+</pre></div>
+</div>
 </section>
 <section id="initializing-an-exiting-ivpm-project">
 <h2>Initializing an Exiting IVPM Project<a class="headerlink" href="#initializing-an-exiting-ivpm-project" title="Link to this heading"></a></h2>
@@ -103,23 +101,20 @@ is used to fetch source dependencies and initialize a Python virtual environment
 for the project.</p>
 <p>The IVPM project, itself, is IVPM-enabled. The steps to fetch and initialize
 the project are shown below (assuming ivpm has already been installed):</p>
-<p>..code-block:: bash</p>
-<blockquote>
-<div><p>% git clone <a class="reference external" href="https://github.com/fvutils/ivpm">https://github.com/fvutils/ivpm</a>
-% cd ivpm
-% ivpm update</p>
-</div></blockquote>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fvutils/ivpm
+%<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>ivpm
+%<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
 <p>Note that, by default, IVPM clones sub-projects using your ssh public key. If
 this key has not been registered with a Git server, then cloning any projects
 from that server will fail. Git projects can be cloned using https
 (ie anonymously) by running <cite>ivpm update -a</cite>.</p>
-<p>IVPM performs the following tasks as a part of the <cite>update</cite> operation:
-- Fetches the source for each dependent project (eg .git, .tar.gz, .jar, etc)
-- Identifies dependent projects that are, themselves, IVPM-enabled and</p>
-<blockquote>
-<div><p>determines sub-dependencies</p>
-</div></blockquote>
+<p>IVPM performs the following tasks as a part of the <cite>update</cite> operation:</p>
 <ul class="simple">
+<li><p>Fetches the source for each dependent project (eg .git, .tar.gz, .jar, etc)</p></li>
+<li><p>Identifies dependent projects that are, themselves, IVPM-enabled and
+determines sub-dependencies</p></li>
 <li><p>Identifies dependent projects that are Python projects and dependencies
 from PyPi. Installs these into the project-local Python virtual
 environment, with source projects installed in <cite>editable</cite> mode.</p></li>
