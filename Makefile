@@ -15,12 +15,12 @@ $(PACKAGES_DIR)/python :
 
 pdf : $(PACKAGES_DIR)/python
 	$(PACKAGES_DIR)/python/bin/sphinx-build -M latexpdf \
-		$(IVPM_DIR)/doc/source \
+		$(IVPM_DIR)/docs/source \
 		build
 
 html : $(PACKAGES_DIR)/python
 	$(PACKAGES_DIR)/python/bin/sphinx-build -M html \
-		$(IVPM_DIR)/doc/source build
+		$(IVPM_DIR)/docs/source build
 	if test ! -f build/html/ivpm.json; then cd $(IVPM_DIR)/build/html; ln -s $(IVPM_DIR)/src/ivpm/share/ivpm.json; fi
 
 clean :
