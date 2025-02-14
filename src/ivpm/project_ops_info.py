@@ -34,6 +34,11 @@ class ProjectOpsInfo(object):
     deps_dir : str
 
 @dc.dataclass
+class ProjectBuildInfo(ProjectOpsInfo):
+    debug : bool = False
+    pass
+
+@dc.dataclass
 class ProjectSyncInfo(ProjectOpsInfo):
     pass
 

@@ -23,8 +23,9 @@ import dataclasses as dc
 import subprocess
 import toposort
 import os
+import sys
 from typing import Dict, List, Set
-from ..project_ops_info import ProjectUpdateInfo
+from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import note, fatal, get_venv_python
 
 from ..package import Package
@@ -121,31 +122,6 @@ class PackageHandlerPython(PackageHandler):
 
         python_deps_m = {}
         
-#        # Collect all packages that have a setup dependency
-#        for sdp in pkgs_info.setup_deps.keys():
-#            print("Package %s has a setup dependency" % sdp)
-#            if sdp not in python_deps_m.keys():
-#                python_deps_m[sdp] = set()
-#            for sdp_d in pkgs_info.setup_deps[sdp]:
-#                python_deps_m[sdp].add(sdp_d)
-#                setup_deps_s.add(sdp_d)
-#
-#        if self.debug:
-#            print("python_deps_m: %s" % str(python_deps_m))
-#        
-#        pypkg_order = list(toposort(python_deps_m))
-#        print("pypkg_order: %s" % str(pypkg_order))
-#        
-#        # Remove the original packages that asserted
-#        # setup dependencies
-#        for sdp in pkgs_info.setup_deps.keys():
-#            if sdp not in setup_deps_s:
-#                for pypkg_s in pypkg_order:
-#                    pypkg_s.discard(sdp)
-#        
-#        if self.debug:           
-#            print("ordered: %s" % str(pypkg_order))
-#
         python_requirements_paths = []
 
         # Setup deps are a special category. We need to 
@@ -256,6 +232,64 @@ class PackageHandlerPython(PackageHandler):
                 if status.returncode != 0:
                     fatal("failed to install Python packages")
                 os.chdir(cwd)        
+
+    def build(self, build_info : ProjectBuildInfo):
+        python_deps_m = {}
+        py_pkg_m = {}
+        print("src_pkg_s: %s" % str(self.src_pkg_s))
+        for pyp in self.src_pkg_s:
+            print("pyp: %s" % pyp) 
+            p = self.pkgs_info[pyp]
+            if pyp not in python_deps_m.keys():
+                python_deps_m[pyp] = set()
+
+            if p.proj_info is not None:
+                print("non-none proj_info")
+                # TODO: see if the package specifies the package set
+                if p.proj_info.has_dep_set(p.proj_info.target_dep_set):
+                    for dp in p.proj_info.get_dep_set(p.proj_info.target_dep_set).keys():
+                        if dp in self.pkgs_info.keys():
+                            dp_p = self.pkgs_info[dp]
+                            if dp_p.src_type != "pypi":
+                                python_deps_m[pyp].add(dp)
+                        # if dp in python_pkgs_s:
+                        #     dp_p = pkgs_info[dp]
+                        #     if dp_p.src_type != SourceType.PyPi:
+                        #         python_deps_m[pyp].add(dp)
+                else:
+                    print("Warning: project %s does not contain its target dependency set (%s)" % (
+                        p.proj_info.name,
+                        p.proj_info.target_dep_set))
+                    for d in p.proj_info.dep_set_m.keys():
+                        print("Dep-Set: %s" % d)
+
+        # Order the source packages based on their dependencies 
+        it = toposort.toposort(python_deps_m)
+        pysrc_pkg_order = list(it)
+        if self.debug:
+            print("python_deps_m: %s" % str(python_deps_m))
+            print("pysrc_pkg_order: %s" % str(pysrc_pkg_order))
+
+        env = os.environ.copy()
+        env["DEBUG"] = "1" if build_info.debug else "0"
+        for pkg_s in pysrc_pkg_order:
+            for pkg in pkg_s:
+                p = self.pkgs_info[pkg]
+                if p.pkg_type == PackageHandlerPython.name:
+                    if os.path.isfile(os.path.join(build_info.deps_dir, pkg, "setup.py")):
+                        cmd = [
+                            sys.executable,
+                            'setup.py',
+                            'build_ext',
+                            '--inplace'
+                        ]
+                        result = subprocess.run(
+                            cmd,
+                            env=env,
+                            cwd=os.path.join(build_info.deps_dir, pkg))
+
+                        if result.returncode != 0:
+                            raise Exception("Failed to build package %s" % pkg)
 
 
     def _write_requirements_txt(self, 

@@ -21,7 +21,7 @@
 #****************************************************************************
 import dataclasses as dc
 from ..package import Package
-from ..project_ops_info import ProjectUpdateInfo
+from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 
 @dc.dataclass
 class PackageHandler(object):
@@ -35,5 +35,8 @@ class PackageHandler(object):
 
     def update(self, update_info : ProjectUpdateInfo):
         """Called after an 'update' action completes"""
+        pass
+
+    def build(self, build_info : ProjectBuildInfo):
         pass
 

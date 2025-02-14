@@ -94,7 +94,10 @@ class PackageUpdater(object):
 
                     if proj_info.process_deps:
                         if not proj_info.has_dep_set(pkg.dep_set):
-                            warning("package %s does not contain specified dep-set %s ; skipping" % (proj_info.name, pkg.dep_set))
+                            fatal("package %s in %s does not contain specified dep-set %s" % (
+                                proj_info.name, 
+                                pkg.name,
+                                pkg.dep_set))
                             continue
                         else:
                             note("Loading package %s dependencies from dep-set %s" % (proj_info.name, pkg.dep_set))

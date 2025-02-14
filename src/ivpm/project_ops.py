@@ -22,10 +22,11 @@
 import os
 import json
 import dataclasses as dc
+from typing import Tuple
 from .package import Package, SourceType
 from .package_updater import PackageUpdater
 from .handlers.package_handler_rgy import PackageHandlerRgy
-from .project_ops_info import ProjectUpdateInfo
+from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from .utils import fatal, note, get_venv_python, setup_venv, warning
 
 @dc.dataclass
@@ -38,29 +39,7 @@ class ProjectOps(object):
                force_py_install : bool = False,
                skip_venv : bool = False,
                args = None):
-        from .proj_info import ProjInfo
-
-        proj_info = ProjInfo.mkFromProj(self.root_dir)
-
-        if proj_info is None:
-            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
-            
-        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
-
-        ivpm_json = {}
-
-        if os.path.isfile(os.path.join(deps_dir, "ivpm.json")):
-            with open(os.path.join(deps_dir, "ivpm.json"), "r") as fp:
-                try:
-                    ivpm_json = json.load(fp)
-                except Exception as e:
-                    warning("failed to read ivpm.json: %s" % str(e))
-
-        if "dep-set" in ivpm_json.keys():
-            if dep_set is None:
-                dep_set = ivpm_json["dep-set"]
-            elif dep_set != ivpm_json["dep-set"]:
-                fatal("Attempting to update with a different dep-set than previously used")
+        proj_info, deps_dir, dep_set = self._init(dep_set)
  
         # Ensure that we have a python virtual environment setup
         if not skip_venv:
@@ -80,18 +59,7 @@ class ProjectOps(object):
                 for d in proj_info.dep_set_m[self.dep_set].packages.keys():
                     print("  Package: %s" % d)
 
-        if dep_set is None:
-            if "default-dev" in proj_info.dep_set_m.keys():
-                dep_set = "default-dev"
-            elif len(proj_info.dep_set_m.keys()) == 1:
-                dep_set = list(proj_info.dep_set_m.keys())[0]
-            else:
-                fatal("No default-dev dep-set and multiple dep-sets present")
-
-        if dep_set not in proj_info.dep_set_m.keys():
-            raise Exception("Dep-set %s is not present" % dep_set)
-        else:
-            ds = proj_info.dep_set_m[dep_set]
+        ds = self._getDepSet(proj_info, dep_set)
 
         # If the root dependency set doesn't specify a source
         # for IVPM, auto-load it from PyPi
@@ -115,14 +83,77 @@ class ProjectOps(object):
         pkg_handler.update(update_info)
 
         # Finally, write out some meta-data
+        ivpm_json = {}
         ivpm_json["dep-set"] = dep_set
         with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
             json.dump(ivpm_json, fp)
+
+    def build(self, dep_set : str = None, args = None, debug : bool = False):
+        proj_info, deps_dir, dep_set = self._init(dep_set)
+
+        ds = self._getDepSet(proj_info, dep_set)
+
+        pkg_handler = PackageHandlerRgy.inst().mkHandler()
+        updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False)
+
+        # Prevent an attempt to load the top-level project as a depedency
+        updater.all_pkgs[proj_info.name] = None
+        pkgs_info = updater.update(ds)
+
+        # Now, run the actual build operation
+        build_info = ProjectBuildInfo(args, deps_dir, debug=debug)
+
+        pkg_handler.build(build_info)
+
+        pass
 
     def status(self, dep_set : str = None):
         pass
 
     def sync(self, dep_set : str = None):
         pass
+
+    def _init(self, dep_set : str = None) -> Tuple['ProjInfo', str, str]:
+        from .proj_info import ProjInfo
+
+        proj_info = ProjInfo.mkFromProj(self.root_dir)
+
+        if proj_info is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
+            
+        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
+
+        ivpm_json = {}
+
+        if os.path.isfile(os.path.join(deps_dir, "ivpm.json")):
+            with open(os.path.join(deps_dir, "ivpm.json"), "r") as fp:
+                try:
+                    ivpm_json = json.load(fp)
+                except Exception as e:
+                    warning("failed to read ivpm.json: %s" % str(e))
+
+        if "dep-set" in ivpm_json.keys():
+            if dep_set is None:
+                dep_set = ivpm_json["dep-set"]
+            elif dep_set != ivpm_json["dep-set"]:
+                fatal("Attempting to update with a different dep-set than previously used")
+
+        return (proj_info, deps_dir, dep_set)
+    
+    def _getDepSet(self, proj_info, dep_set):
+        if dep_set is None:
+            if "default-dev" in proj_info.dep_set_m.keys():
+                dep_set = "default-dev"
+            elif len(proj_info.dep_set_m.keys()) == 1:
+                dep_set = list(proj_info.dep_set_m.keys())[0]
+            else:
+                fatal("No default-dev dep-set and multiple dep-sets present")
+
+        if dep_set not in proj_info.dep_set_m.keys():
+            raise Exception("Dep-set %s is not present" % dep_set)
+        else:
+            ds = proj_info.dep_set_m[dep_set]
+        
+        return ds
 
 

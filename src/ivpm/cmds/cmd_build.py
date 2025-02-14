@@ -1,4 +1,5 @@
 
+import json
 import os
 import sys
 import subprocess
@@ -8,6 +9,8 @@ from ivpm.utils import get_venv_python
 from ivpm.msg import note, fatal, warning
 from ivpm.package_updater import PackageUpdater
 from ivpm.package import Package, PackageType, SourceType
+from ..handlers.package_handler_rgy import PackageHandlerRgy
+from ..project_ops import ProjectOps
 from toposort import toposort
 from typing import List
 
@@ -22,17 +25,30 @@ class CmdBuild(object):
             # If a default is not provided, use the current directory
             print("Note: project_dir not specified ; using working directory")
             args.project_dir = os.getcwd()
+
+        ds_name = None
+        if hasattr(args, "dep_set") and args.dep_set is not None:
+            ds_name = args.dep_set
+
+        print("--> build")
+        ProjectOps(args.project_dir).build(
+            dep_set=ds_name,
+            args=args,
+            debug=args.debug)
+        print("<-- build")
+        
+        return
             
         proj_info = ProjInfo.mkFromProj(args.project_dir)
 
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
             
-        packages_dir = os.path.join(args.project_dir, "packages")
+        deps_dir = os.path.join(args.project_dir, proj_info.deps_dir)
  
         # Ensure that we have a python virtual environment setup
-        if os.path.isdir(os.path.join(packages_dir, "python")):
-            ivpm_python = get_venv_python(os.path.join(packages_dir, "python"))
+        if os.path.isdir(os.path.join(deps_dir, "python")):
+            ivpm_python = get_venv_python(os.path.join(deps_dir, "python"))
         else:
             raise Exception("packages/python does not exist ; ivpm update must be run before ivpm build")
             
@@ -46,18 +62,33 @@ class CmdBuild(object):
                 for d in proj_info.dep_set_m[ds_name].packages.keys():
                     print("  Package: %s" % d)
                     
-        ds_name = "default-dev"
-        
-        if getattr(args, "dep_set") is not None:
+        ds_name = None
+        if hasattr(args, "dep_set") and args.dep_set is not None:
             ds_name = args.dep_set
-            
+
+        ivpm_json = {}
+
+        if os.path.isfile(os.path.join(deps_dir, "ivpm.json")):
+            with open(os.path.join(deps_dir, "ivpm.json"), "r") as fp:
+                try:
+                    ivpm_json = json.load(fp)
+                except Exception as e:
+                    warning("failed to read ivpm.json: %s" % str(e))
+
+        if "dep-set" in ivpm_json.keys():
+            if ds_name is None:
+                ds_name = ivpm_json["dep-set"]
+            elif ds_name != ivpm_json["dep-set"]:
+                fatal("Attempting to update with a different dep-set than previously used")
+        
         if ds_name not in proj_info.dep_set_m.keys():
             raise Exception("Dep-set %s is not present" % ds_name)
         else:
             ds = proj_info.dep_set_m[ds_name]
 
         # TODO: need a way to step through packages without updating
-        updater = PackageUpdater(packages_dir, load=False)
+        pkg_handler = PackageHandlerRgy.inst().mkHandler()
+        updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False)
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None
         pkgs_info : PackagesInfo = updater.update(ds)
@@ -117,7 +148,7 @@ class CmdBuild(object):
         env["DEBUG"] = "1" if args.debug else "0"
         for pkgs in pysrc_pkg_order:
             for pkg in pkgs:
-                if os.path.isfile(os.path.join(packages_dir, pkg, "setup.py")):
+                if os.path.isfile(os.path.join(deps_dir, pkg, "setup.py")):
                     cmd = [
                         sys.executable,
                         'setup.py',
@@ -127,7 +158,7 @@ class CmdBuild(object):
                     result = subprocess.run(
                         cmd,
                         env=env,
-                        cwd=os.path.join(packages_dir, pkg))
+                        cwd=os.path.join(deps_dir, pkg))
 
                     if result.returncode != 0:
                         raise Exception("Failed to build package %s" % pkg)

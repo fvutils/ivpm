@@ -36,6 +36,10 @@ class PackageHandlerList(PackageHandler):
         for h in self.handlers:
             h.process_pkg(pkg) 
 
+    def build(self, build_info):
+        for h in self.handlers:
+            h.build(build_info) 
+
     def update(self, update_info):
         for h in self.handlers:
             h.update(update_info) 
