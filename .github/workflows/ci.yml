@@ -29,7 +29,8 @@ jobs:
         touch build/html/.nojekyll
 
     - name: Publish to PyPi
-      if: startsWith(github.ref, 'refs/heads/master')
+      # Only publish docs from 'new' branch
+      if: startsWith(github.ref, 'refs/heads/ext-source-type')
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
