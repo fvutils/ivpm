@@ -10,6 +10,8 @@ import sys
 from ivpm.arg_utils import ensure_have_project_dir
 from ivpm.msg import fatal
 from ..project_ops import ProjectOps
+from ..proj_info import ProjInfo
+
 
 
 class CmdSync(object):
@@ -21,7 +23,12 @@ class CmdSync(object):
         if args.project_dir is None:
             args.project_dir = os.getcwd()
     
-        packages_dir = os.path.join(args.project_dir, "packages")
+        proj_info = ProjInfo.mkFromProj(args.project_dir)
+
+        if proj_info is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
+            
+        packages_dir = os.path.join(args.project_dir, proj_info.deps_dir)
     
         # After that check, go ahead and just check directories
         for dir in os.listdir(packages_dir):
