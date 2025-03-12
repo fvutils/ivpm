@@ -70,11 +70,16 @@ class PackageGit(PackageURL):
             if not use_anonymous:
                 print("NOTE: using dev URL")
                 delim_idx = self.url.find("://")
-                url = self.url[delim_idx+3:]
-                first_sl_idx = url.find('/')
-                url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
-                print("Final URL: %s" % url)
-                git_cmd.append(url)
+                protocol = self.url[:delim_idx]
+                if protocol != "file":
+                    url = self.url[delim_idx+3:]
+                    first_sl_idx = url.find('/')
+                    url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
+                    print("Final URL: %s" % url)
+                    git_cmd.append(url)
+                else:
+                    print("NOTE: using original file-based URL")
+                    git_cmd.append(self.url)
             else:
                 print("NOTE: using anonymous URL")
                 git_cmd.append(self.url)
