@@ -205,7 +205,7 @@
 <h4>update<a class="headerlink" href="#update" title="Link to this heading"></a></h4>
 <p>Fetches packages specified in ivpm.yaml that have not already been loaded</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">skip</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span>
-            <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">prerls</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
+            <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">prerls</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat3">
@@ -231,6 +231,14 @@
 </dd>
 <dt><kbd>--py-prerls-packages</kbd></dt>
 <dd><p>Enable installation of pre-release packages</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--py-uv</kbd></dt>
+<dd><p>Use ‘uv’ to manage virtual environment</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--py-pip</kbd></dt>
+<dd><p>Use ‘uv’ to manage virtual environment</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
 </dd>
 </dl>
