@@ -103,16 +103,21 @@ class IvpmYamlReader(object):
             
             ds_name = ds_ent["name"]
             ds = PackagesInfo(ds_name)
+            default_dep_set = None
+
+            if "default-dep-set" in ds_ent.keys():
+                default_dep_set = ds_ent["default-dep-set"]
+
             
             deps = ds_ent["deps"]
             
             if not isinstance(deps, list):
                 raise Exception("deps is not a list")
-            self.read_deps(ds, ds_ent["deps"])
+            self.read_deps(ds, ds_ent["deps"], default_dep_set)
             info.set_dep_set(ds.name, ds)
         
 
-    def read_deps(self, ret : PackagesInfo, deps):
+    def read_deps(self, ret : PackagesInfo, deps, default_dep_set):
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         
         for d in deps:
@@ -164,7 +169,12 @@ class IvpmYamlReader(object):
 
             # Unless specified, load the same dep-set from sub-packages
             if pkg.dep_set is None:
-                pkg.dep_set = ret.name
+                if default_dep_set is not None:
+                    pkg.dep_set = default_dep_set
+                else:
+                    pkg.dep_set = ret.name
+
+            print("Using dep-set %s for package %s" % (pkg.dep_set, pkg.name))
 
             ret.add_package(pkg)
 

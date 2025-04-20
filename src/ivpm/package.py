@@ -121,6 +121,8 @@ class Package(object):
         self.srcinfo = si
 
         if "dep-set" in opts.keys():
+            print("Using dep-set %s for package %s" % (
+                opts["dep-set"], self.name))
             self.dep_set = opts["dep-set"]
 
         if "deps" in opts.keys():

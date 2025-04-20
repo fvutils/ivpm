@@ -20,7 +20,7 @@
 #*
 #****************************************************************************
 import os
-from .ivpm_subprocess import ivpm_popen
+#from .ivpm_subprocess import ivpm_popen
 from .pkg_info.pkg_compile_flags import PkgCompileFlags
 from .pkg_info.pkg_info import PkgInfo
 from .pkg_info.pkg_info_rgy import PkgInfoRgy

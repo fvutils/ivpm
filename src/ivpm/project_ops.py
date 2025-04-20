@@ -44,7 +44,12 @@ class ProjectOps(object):
         # Ensure that we have a python virtual environment setup
         if not skip_venv:
             if not os.path.isdir(os.path.join(deps_dir, "python")):
-                ivpm_python = setup_venv(os.path.join(deps_dir, "python"))
+                uv_pip = "auto"
+                if args.py_uv:
+                    uv_pip = "uv"
+                elif args.py_pip:
+                    uv_pip = "pip"
+                ivpm_python = setup_venv(os.path.join(deps_dir, "python"), uv_pip=uv_pip)
             else:
                 note("python virtual environment already exists")
                 ivpm_python = get_venv_python(os.path.join(deps_dir, "python"))

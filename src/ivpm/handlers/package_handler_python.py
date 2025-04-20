@@ -23,6 +23,7 @@ import dataclasses as dc
 import subprocess
 import toposort
 import os
+import shutil
 import sys
 from typing import Dict, List, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
@@ -37,6 +38,7 @@ class PackageHandlerPython(PackageHandler):
     pkgs_info  : Dict[str,Package] = dc.field(default_factory=dict)
     src_pkg_s  : Set[str] = dc.field(default_factory=set)
     pypi_pkg_s : Set[str] = dc.field(default_factory=set)
+    use_uv : bool = False
     debug : bool = True
 
     def process_pkg(self, pkg: Package):
@@ -59,6 +61,15 @@ class PackageHandlerPython(PackageHandler):
             self.pkgs_info[pkg.name] = pkg
     
     def update(self, update_info : ProjectUpdateInfo):
+
+        if getattr(update_info.args, "py_uv", False):
+            self.use_uv = True
+        elif getattr(update_info.args, "py_pip", False):
+            self.use_uv = False
+        else:
+            # Auto-probe
+            if shutil.which("uv") is not None:
+                self.use_uv = True
 
         # First, check to see if we've already installed 
         # Python packages, and whether we should repeat
@@ -205,33 +216,18 @@ class PackageHandlerPython(PackageHandler):
         if len(python_requirements_paths):
             import sys
             import platform
+
             ps = ";" if platform.system() == "Windows" else ":"
             env = os.environ.copy()
             env["PYTHONPATH"] = ps.join(sys.path)
 
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
             for reqfile in python_requirements_paths:
-                cwd = os.getcwd()
-                os.chdir(os.path.join(update_info.deps_dir))
-                cmd = [
-                    get_venv_python(os.path.join(update_info.deps_dir, "python")),
-                    "-m",
-                    "ivpm.pywrap",
-                    get_venv_python(os.path.join(update_info.deps_dir, "python")),
-                    "-m",
-                    "pip",
-                    "install",
-                    "-r",
-                    reqfile]
-
-                if getattr(update_info.args, "py_prerls_packages", False):
-                    cmd.append("--pre")
-            
-                status = subprocess.run(cmd, env=env)
-            
-                if status.returncode != 0:
-                    fatal("failed to install Python packages")
-                os.chdir(cwd)        
+                self._install_requirements(
+                    os.path.join(update_info.deps_dir, "python"),
+                    reqfile,
+                    getattr(update_info.args, "py_prerls_packages", False),
+                    self.use_uv)
 
     def build(self, build_info : ProjectBuildInfo):
         python_deps_m = {}
@@ -290,6 +286,62 @@ class PackageHandlerPython(PackageHandler):
 
                         if result.returncode != 0:
                             raise Exception("Failed to build package %s" % pkg)
+                        
+    def _install_requirements(self,
+                              python_dir,
+                              requirements_file,
+                              use_pre,
+                              use_uv):
+        """Installs the requirements specified in a file"""
+
+        if use_uv:
+            env = os.environ.copy()
+            env["VIRTUAL_ENV"] = python_dir
+
+            cmd = [
+                shutil.which("uv"),
+                "pip",
+                "install",
+                "-r",
+                requirements_file
+            ]
+
+            if use_pre:
+                cmd.append("--pre")
+
+            result = subprocess.run(cmd, env=env)
+
+            if result.returncode != 0:
+                raise Exception("Failed to install Python packages")
+        else: # Use pip
+            import sys
+            import platform
+
+            ps = ";" if platform.system() == "Windows" else ":"
+            env = os.environ.copy()
+            env["PYTHONPATH"] = ps.join(sys.path)
+
+            cwd = os.getcwd()
+            os.chdir(os.path.join(python_dir))
+            cmd = [
+                get_venv_python(python_dir),
+                "-m",
+                "ivpm.pywrap",
+                get_venv_python(python_dir),
+                "-m",
+                "pip",
+                "install",
+                "-r",
+                requirements_file]
+
+            if use_pre:
+                cmd.append("--pre")
+
+            status = subprocess.run(cmd, env=env)
+    
+            if status.returncode != 0:
+                fatal("failed to install Python packages")
+            os.chdir(cwd)
 
 
     def _write_requirements_txt(self, 

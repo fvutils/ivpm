@@ -90,6 +90,12 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--py-prerls-packages",
         help="Enable installation of pre-release packages",
         action="store_true")
+    update_cmd.add_argument("--py-uv",
+        help="Use 'uv' to manage virtual environment",
+        action="store_true")
+    update_cmd.add_argument("--py-pip",
+        help="Use 'uv' to manage virtual environment",
+        action="store_true")
     subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
