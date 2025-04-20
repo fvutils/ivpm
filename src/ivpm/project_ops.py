@@ -45,9 +45,9 @@ class ProjectOps(object):
         if not skip_venv:
             if not os.path.isdir(os.path.join(deps_dir, "python")):
                 uv_pip = "auto"
-                if args.py_uv:
+                if hasattr(args, "py_uv") and args.py_uv:
                     uv_pip = "uv"
-                elif args.py_pip:
+                elif hasattr(args."py_pip") and args.py_pip:
                     uv_pip = "pip"
                 ivpm_python = setup_venv(os.path.join(deps_dir, "python"), uv_pip=uv_pip)
             else:
