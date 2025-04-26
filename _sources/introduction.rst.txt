@@ -9,7 +9,7 @@ lightweight project-local package manager. It excels at
 managing projects where dependencies are co-developed with
 the project. 
 
-.. image:: imgs/IVPM_System_Diagram.png
+.. image:: imgs/ivpm_system.excalidraw.svg
 
 Let's look at a simple example. A System-on-Chip 
 (SoC) design targeting an FPGA or an ASIC is composed of
