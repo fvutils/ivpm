@@ -57,6 +57,13 @@ class InstallLib(_install_lib):
                     src = expand_libvars(spec[0])
                     dst = spec[1]
 
+                    if not os.path.isfile(src) and not os.path.isdir(src):
+                        for libdir in ["lib", "lib64"]:
+                            src_t = expand_libvars(src, libdir=libdir)
+                            if os.path.isfile(src_t) or os.path.isdir(src_t):
+                                src = src_t
+                                break
+
                     if os.path.isfile(src):
                         dst_file = os.path.join(install_root, p, dst, os.path.basename(src))
                         dst_dir = os.path.dirname(dst_file)

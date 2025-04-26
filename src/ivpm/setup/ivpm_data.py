@@ -51,7 +51,7 @@ def expand(subst_m, path):
                     elems[i] = e
     return "/".join(elems)
 
-def expand_libvars(src):
+def expand_libvars(src, libdir=None):
     libpref = "lib"
     dllext = ".so"
     if platform.system() == "Windows":
@@ -61,8 +61,11 @@ def expand_libvars(src):
         libpref = "lib"
         dllext = ".dylib"
 
+    if libdir is None:
+        libdir = "lib64" if os.path.isdir(os.path.join("build", "lib64")) else "lib"
+
     subst_m = {
-        "{libdir}" : "lib64" if os.path.isdir(os.path.join("build", "lib64")) else "lib",
+        "{libdir}" : libdir,
         "{libpref}" : libpref,
         "{dllpref}" : libpref,
         "{dllext}" : dllext
