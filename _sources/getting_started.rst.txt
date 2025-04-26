@@ -8,14 +8,14 @@ Installing IVPM
 IVPM must be installed before it can be used to work with a project. Typically,
 the easiest approach is to install IVPM as a user-installed package:
 
-.. code-block:: bash
+..code-block:: bash
 
     % python3 -m pip install --user ivpm
 
 Once this is done, you can invoke IVPM either via the entry-point script (ivpm)
 or as a Python module:
 
-.. code-block:: bash
+..code-block:: bash
 
     % ivpm --help
     % python3 -m ivpm --help
@@ -29,7 +29,7 @@ for the project.
 The IVPM project, itself, is IVPM-enabled. The steps to fetch and initialize
 the project are shown below (assuming ivpm has already been installed):
 
-.. code-block:: bash
+..code-block:: bash
 
     % git clone https://github.com/fvutils/ivpm
     % cd ivpm
@@ -41,7 +41,6 @@ from that server will fail. Git projects can be cloned using https
 (ie anonymously) by running `ivpm update -a`.
 
 IVPM performs the following tasks as a part of the `update` operation:
-
 - Fetches the source for each dependent project (eg .git, .tar.gz, .jar, etc)
 - Identifies dependent projects that are, themselves, IVPM-enabled and 
   determines sub-dependencies
