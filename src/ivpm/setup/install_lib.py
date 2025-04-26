@@ -57,10 +57,13 @@ class InstallLib(_install_lib):
                     src = expand_libvars(spec[0])
                     if not os.path.isfile(src) and not os.path.isdir(src):
                         for libdir in ["lib", "lib64"]:
-                            src_t = expand_libvars(src, libdir=libdir)
+                            src_t = expand_libvars(spec[0]), libdir=libdir)
+                            print("Try src_t: %s" % src_t)
                             if os.path.isfile(src_t) or os.path.isdir(src_t):
+                                print("... Found")
                                 src = src_t
                                 break
+                    print("src: %s" % src)
                     dst = spec[1]
 
                     if os.path.isfile(src):
