@@ -55,6 +55,12 @@ class InstallLib(_install_lib):
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
                     src = expand_libvars(spec[0])
+                    if not os.path.isfile(src) and not os.path.isdir(src):
+                        for libdir in ["lib", "lib64"]:
+                            src_t = expand_libvars(src, libdir=libdir)
+                            if os.path.isfile(src) or os.path.isdir(src):
+                                src = src_t
+                                break
                     dst = spec[1]
 
                     if os.path.isfile(src):
