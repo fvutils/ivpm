@@ -59,7 +59,7 @@ class InstallLib(_install_lib):
 
                     if not os.path.isfile(src) and not os.path.isdir(src):
                         for libdir in ["lib", "lib64"]:
-                            src_t = expand_libvars(src, libdir=libdir)
+                            src_t = expand_libvars(spec[0], libdir=libdir)
                             if os.path.isfile(src_t) or os.path.isdir(src_t):
                                 src = src_t
                                 break
