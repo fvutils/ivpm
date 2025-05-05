@@ -174,7 +174,7 @@ class IvpmYamlReader(object):
                 else:
                     pkg.dep_set = ret.name
 
-            print("Using dep-set %s for package %s" % (pkg.dep_set, pkg.name))
+#            print("Using dep-set %s for package %s" % (pkg.dep_set, pkg.name))
 
             ret.add_package(pkg)
 
