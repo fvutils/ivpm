@@ -15,8 +15,6 @@ from ivpm.package import Package, SourceType, PackageType
 from ivpm.package_updater import PackageUpdater
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from ivpm.project_info_reader import ProjectInfoReader
-from ivpm.sve_filelist_writer import SveFilelistWriter
 from ivpm.utils import setup_venv, get_venv_python
 
 
@@ -33,7 +31,7 @@ class CmdSnapshot(object):
             
         args.snapshot_dir = os.path.abspath(args.snapshot_dir)
             
-        proj_info = ProjectInfoReader(args.project_dir).read()
+        proj_info = ProjInfo.mkFromProj(args.project_dir).read()
         
         if not os.path.isdir(args.snapshot_dir):
             os.makedirs(args.snapshot_dir)
@@ -52,10 +50,6 @@ class CmdSnapshot(object):
             proj_info.dev_deps if not args.rls else proj_info.deps
             )
 
-        note("Creating sve.F")            
-        with open(os.path.join(args.snapshot_dir, "sve.F"), "w") as fp:
-            SveFilelistWriter(OutWrapper(fp)).write(pkgs_info)
-            
         python_pkgs = []
         for key in pkgs_info.keys():
             pkg : Package = pkgs_info[key]

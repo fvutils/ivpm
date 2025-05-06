@@ -7,16 +7,14 @@ import os
 import yaml_srcinfo_loader
 from typing import Dict, List
 from yaml_srcinfo_loader.srcinfo import SrcInfo
+from .package import Package
 from .env_spec import EnvSpec
 
 import yaml
 
-from ivpm.msg import fatal
-from ivpm.package import Package, PackageType, SourceType, Ext2SourceType,\
-    Spec2SourceType, Spec2PackageType
+from .utils import fatal, getlocstr, warning
+from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
-from ivpm.proj_info import ProjInfo
-from ivpm.utils import getlocstr
 
 
 class IvpmYamlReader(object):
@@ -25,7 +23,9 @@ class IvpmYamlReader(object):
         self.debug = False
         pass
     
-    def read(self, fp, name) -> ProjInfo:
+    def read(self, fp, name) -> 'ProjInfo':
+        from ivpm.proj_info import ProjInfo
+
         ret = ProjInfo(is_src=True)
         
         # File I/O streams have a name field that is read-only.
@@ -49,27 +49,23 @@ class IvpmYamlReader(object):
             ret.version = pkg["version"]
         else:
             ret.version = None
+
+        # Specify where sub-packages are stored. Defaults to 'packages'        
+        if "deps-dir" in pkg.keys():
+            ret.deps_dir = pkg["deps-dir"]
+
+        if "default-dep-set" in pkg.keys():
+            ret.default_dep_set = pkg["default-dep-set"]
         
         if "deps" in pkg.keys() or "dev-deps" in pkg.keys():
             # old-style format
-            print("Note: Package %s uses old-style ivpm.yaml format" % ret.name)
-            if "deps" in pkg.keys() and pkg["deps"] is not None:
-                ds = PackagesInfo("default")
-                self.read_deps(ds, pkg["deps"])
-                
-                ret.set_dep_set("deps", ds)
-                ret.set_dep_set("default", ds)
-            if "dev-deps" in pkg.keys() and pkg["dev-deps"] is not None:
-                ds = PackagesInfo("default-dev")
-                self.read_deps(ds, pkg["dev-deps"])
-                ret.set_dep_set("dev-deps", ds)
-                ret.set_dep_set("default-dev", ds)
+            fatal("Package %s uses old-style ivpm.yaml format" % ret.name)
         elif "dep-sets" in pkg.keys():
             # new-style format
             self.read_dep_sets(ret, pkg["dep-sets"])
         else:
             # no dependencies at all
-            print("Warning: no dependencies")
+            warning("no dependencies")
         
         if "setup-deps" in pkg.keys():
             for sd in pkg["setup-deps"]:
@@ -93,7 +89,7 @@ class IvpmYamlReader(object):
             
         return ret
 
-    def read_dep_sets(self, info : ProjInfo, dep_sets):
+    def read_dep_sets(self, info : 'ProjInfo', dep_sets):
         if not isinstance(dep_sets, list):
             raise Exception("Expect body of dep-sets to be a list, not %s" % str(type(dep_sets)))
         
@@ -107,16 +103,22 @@ class IvpmYamlReader(object):
             
             ds_name = ds_ent["name"]
             ds = PackagesInfo(ds_name)
+            default_dep_set = None
+
+            if "default-dep-set" in ds_ent.keys():
+                default_dep_set = ds_ent["default-dep-set"]
+
             
             deps = ds_ent["deps"]
             
             if not isinstance(deps, list):
                 raise Exception("deps is not a list")
-            self.read_deps(ds, ds_ent["deps"])
+            self.read_deps(ds, ds_ent["deps"], default_dep_set)
             info.set_dep_set(ds.name, ds)
         
 
-    def read_deps(self, ret : PackagesInfo, deps):
+    def read_deps(self, ret : PackagesInfo, deps, default_dep_set):
+        from .pkg_types.pkg_type_rgy import PkgTypeRgy
         
         for d in deps:
             si = d.srcinfo
@@ -126,104 +128,64 @@ class IvpmYamlReader(object):
                     si.filename,
                     si.lineno,
                     si.linepos))
-                
-            url = d["url"] if "url" in d.keys() else None
-#            if not "url" in d.keys():
-#                raise Exception("Missing 'url' key at %s:%d:%d" % (
-#                    si.filename,
-#                    si.lineno,
-#                    si.linepos))
-                
-            pkg = Package(d["name"], url)
-            pkg.srcinfo = si
-            
-            if pkg.name in ret.keys():
-                pkg1 = ret[pkg.name]
+
+            if d["name"] in ret.keys():
+                pkg1 = ret[d["name"]]
                 fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (
-                    pkg.name, getlocstr(pkg), getlocstr(pkg1)))
-            else:
-                ret.add_package(pkg)
+                    d["name"], getlocstr(pkg), getlocstr(pkg1)))
 
+            url = d["url"] if "url" in d.keys() else None
 
-            # Determine the source type (eg .git, .jar, etc)            
+            # Determine the source of this package:
+            # - Git
+            # - http
+            # ...
+
+            src = "<unknown>"
             if "src" in d.keys():
-                if d["src"] not in Spec2SourceType.keys():
-                    fatal("unsupported source type %s @ %s" % (d["src"], getlocstr(d["src"])))
-                pkg.src_type = Spec2SourceType[d["src"]]
+                src = d["src"]
             else:
+                # Auto-probing the package based on the URL. The user can always
+                # specify the source explicitly
                 if url is None:
                     fatal("no src specified for package %s and no URL specified" % pkg.name)
 
-                ext = os.path.splitext(pkg.url)[1]
-                
-                if pkg.url.endswith(".tar.gz"):
-                    ext = ".tar.gz"
-                elif pkg.url.endswith(".tar.xz"):
-                    ext = ".tar.xz"
-
-                if not ext in Ext2SourceType.keys():
-                    fatal("unknown URL extension %s" % ext)
-                    
-                pkg.src_type = Ext2SourceType[ext]
-            if "dep-set" in d.keys():
-                pkg.dep_set = d["dep-set"]
-                
-            # Determine the package type (eg Python, Raw)
-            if "type" in d.keys():
-                type_s = d["type"]
-                if not type_s in Spec2PackageType.keys():
-                    fatal("unknown package type %s @ %s ; Supported types 'raw', 'python'" % (
-                        type_s, getlocstr(d["type"])))
-                    
-                pkg.pkg_type = Spec2PackageType[type_s]
-            else:
-                if url is None and pkg.src_type != SourceType.PyPi:
-                    fatal("no type specified for package %s and no URL specified" % pkg.name)
+                if url.endswith(".git"):
+                    src = "git"                
+                elif url.startswith("http://") or url.startswith("https://"):
+                    src = "http"
+                elif url.startswith("file://"):
+                    src = "file"
                 else:
-                    # We'll need to auto-probe later once we have source
-                    pkg.pkg_type = PackageType.Unknown
+                    pt_rgy = PkgTypeRgy.inst()
+                    raise Exception("Cannot determine source type from url %s. Please specify src as one of %s" % (
+                        url, ", ".join(pt_rgy.getSrcTypes())))
+
+            pt_rgy = PkgTypeRgy.inst()
+            
+            if not pt_rgy.hasPkgType(src):
+                raise Exception("Package %s has unknown type %s" % (d["name"], src))
+            pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
+
+            # Unless specified, load the same dep-set from sub-packages
+            if pkg.dep_set is None:
+                if default_dep_set is not None:
+                    pkg.dep_set = default_dep_set
+                else:
+                    pkg.dep_set = ret.name
+
+#            print("Using dep-set %s for package %s" % (pkg.dep_set, pkg.name))
+
+            ret.add_package(pkg)
 
             if self.debug:                    
                 print("pkg_type (%s): %s" % (pkg.url, str(pkg.pkg_type)))
-            if pkg.src_type == SourceType.PyPi and (pkg.pkg_type is None or pkg.pkg_type == PackageType.Unknown):
-                pkg.pkg_type = PackageType.Python
-            
-            if "version" in d.keys():
-                pkg.version = d["version"]
-
-            if "anonymous" in d.keys():
-                pkg.anonymous = d["anonymous"]
-                
-            if "depth" in d.keys():
-                pkg.depth = d["depth"]
-                
-            if "dep-set" in d.keys():
-                pkg.dep_set = d["dep-set"]
-                
-            if "branch" in d.keys():
-                pkg.branch = d["branch"]
-                
-            if "commit" in d.keys():
-                pkg.commit = d["commit"]
-                
-            if "tag" in d.keys():
-                pkg.tag = d["tag"]
-                
-            if "deps" in d.keys():
-                if d["deps"] == "skip":
-                    pkg.process_deps = False
-                else:
-                    fatal("Unknown value for 'deps': %s" % d["deps"])
-                    
-                
-            if pkg.src_type is None:
-                print("TODO: auto-detect source type")
 
         if self.debug:
             print("ret: %s %d packages" % (str(ret), len(ret.packages)))
         return ret
 
-    def read_path_set(self, info : ProjInfo, path, ps_kind : str, ps):
+    def read_path_set(self, info : 'ProjInfo', path, ps_kind : str, ps):
         if ps_kind not in info.paths.keys():
             info.paths[ps_kind] = {}
         path_kind_s = info.paths[ps_kind]
@@ -235,7 +197,7 @@ class IvpmYamlReader(object):
                 path_kind_s[p_kind].append(os.path.join(path, p))
 
     def process_env_directive(self,
-                              info : ProjInfo,
+                              info : 'ProjInfo',
                               evar : Dict):
         if "name" not in evar.keys():
             raise Exception("No variable-name specified: %s" % str(evar))
@@ -262,4 +224,4 @@ class IvpmYamlReader(object):
 
 
 
-        
+

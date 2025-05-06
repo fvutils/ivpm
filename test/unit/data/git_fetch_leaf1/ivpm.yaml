@@ -1,0 +1,12 @@
+
+package:
+  name: git_fetch_leaf1
+
+  dep-sets:
+    - name: default
+      deps: 
+      - name: debug-mgr
+        url: https://github.com/mballance-utils/debug-mgr.git
+        anonymous: True
+    - name: default-dev
+      deps: []

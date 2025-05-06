@@ -1,0 +1,21 @@
+
+package:
+  name: nonleaf_refleaf_proj1
+
+  dep-sets:
+    - name: default-dev
+      deps: 
+      - name: leaf_proj1
+        url: file://${DATA_DIR}/leaf_proj1
+        src: dir
+      - name: leaf_proj2
+        url: file://${DATA_DIR}/leaf_proj2
+        src: dir
+    - name: default
+      deps: 
+      - name: leaf_proj1
+        url: file://${DATA_DIR}/leaf_proj1
+        src: dir
+      - name: leaf_proj2
+        url: file://${DATA_DIR}/leaf_proj2
+        src: dir

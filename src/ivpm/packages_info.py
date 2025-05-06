@@ -1,13 +1,32 @@
-'''
-Created on Jan 19, 2020
-
-@author: ballance
-'''
+#****************************************************************************
+#* packages_info.py
+#*
+#* Copyright 2018-2024 Matthew Ballance and Contributors
+#*
+#* Licensed under the Apache License, Version 2.0 (the "License"); you may 
+#* not use this file except in compliance with the License.  
+#* You may obtain a copy of the License at:
+#*
+#*   http://www.apache.org/licenses/LICENSE-2.0
+#*
+#* Unless required by applicable law or agreed to in writing, software 
+#* distributed under the License is distributed on an "AS IS" BASIS, 
+#* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
+#* See the License for the specific language governing permissions and 
+#* limitations under the License.
+#*
+#* Created on: Jan 19, 2020
+#*     Author: mballance
+#*
+#****************************************************************************
 from typing import Dict, List, Set
 from ivpm.package import Package
 
 class PackagesInfo():
-    """Holds information about a set of packages"""
+    """
+    Holds information about a set of packages. Holds data
+    from one dep-set in an IVPM file.
+    """
     
     def __init__(self, name):
         self.name = name

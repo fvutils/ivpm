@@ -28,7 +28,7 @@ from .build_ext import BuildExt
 from .install_lib import InstallLib
 import inspect
 import platform
-from ivpm.pkg_info_rgy import PkgInfoRgy
+from ivpm.pkg_info.pkg_info_rgy import PkgInfoRgy
 import ivpm.setup.ivpm_data as idata
 
 
@@ -162,7 +162,7 @@ def _collect_extdeps(
     library_dirs,
     libraries,
     paths):
-    from ivpm.pkg_info_rgy import PkgInfoRgy
+    from ivpm.pkg_info.pkg_info_rgy import PkgInfoRgy
     if dep in processed:
         return
     else:

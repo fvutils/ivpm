@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=http://fvutils.github.io/ivpm/ivpm.json
+# yaml-language-server: $schema=https://fvutils.github.io/ivpm/ivpm.json
 
 package:
   name: ivpm
@@ -47,3 +47,9 @@ package:
       src: pypi
     - name: sphinx-jsonschema
       src: pypi
+
+  env-sets:
+    - name: project
+      env: 
+        - name: PYTHONPATH
+          value: $IVPM_HOME/src

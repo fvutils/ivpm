@@ -1,9 +1,31 @@
-'''
-Created on Jun 8, 2021
+#****************************************************************************
+#* package.py
+#*
+#* Copyright 2018-2024 Matthew Ballance and Contributors
+#*
+#* Licensed under the Apache License, Version 2.0 (the "License"); you may 
+#* not use this file except in compliance with the License.  
+#* You may obtain a copy of the License at:
+#*
+#*   http://www.apache.org/licenses/LICENSE-2.0
+#*
+#* Unless required by applicable law or agreed to in writing, software 
+#* distributed under the License is distributed on an "AS IS" BASIS, 
+#* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  
+#* See the License for the specific language governing permissions and 
+#* limitations under the License.
+#*
+#* Created on: Jun 8, 2021
+#*     Author: mballance
+#*
+#****************************************************************************
 
-@author: mballance
-'''
+import os
+import dataclasses as dc
 from enum import Enum, auto
+from typing import Dict, List, Set
+from .project_ops_info import ProjectUpdateInfo
+from .utils import fatal, getlocstr
 
 class PackageType(Enum):
     Raw = auto()
@@ -64,23 +86,63 @@ Spec2SourceType = {
         "pypi" : SourceType.PyPi
     }
 
+@dc.dataclass
 class Package(object):
     """Contains leaf-level information about a single package"""
-    
-    def __init__(self, name, url=None):
-        self.srcinfo = None
-        self.name = name
-        self.path = None
-        self.pkg_type = PackageType.Raw
-        self.src_type = None
-        self.url = url
-        self.branch = None
-        self.commit = None
-        self.tag = None
-        self.version = None
-        self.depth = None
-        self.anonymous = None
-        self.process_deps = True
-        self.setup_deps = set()
-        self.dep_set = "default"
+    name : str
+    srcinfo : object = None
+    path : str = None
+    pkg_type : PackageType = None
+    src_type : str = None
+
+    process_deps : bool = True
+    setup_deps : Set[str] = dc.field(default_factory=set)
+    dep_set : str = None
+    proj_info : 'ProjInfo'= None
+
+    def build(self, pkgs_info):
+        pass
+
+    def status(self, pkgs_info):
+        pass
+
+    def sync(self, pkgs_info):
+        pass
+
+    def update(self, update_info : ProjectUpdateInfo) -> 'ProjInfo':
+        from .proj_info import ProjInfo
+
+        info = ProjInfo.mkFromProj(
+            os.path.join(update_info.deps_dir, self.name))
         
+        return info
+    
+    def process_options(self, opts, si):
+        self.srcinfo = si
+
+        if "dep-set" in opts.keys():
+            print("Using dep-set %s for package %s" % (
+                opts["dep-set"], self.name))
+            self.dep_set = opts["dep-set"]
+
+        if "deps" in opts.keys():
+            if opts["deps"] == "skip":
+                self.process_deps = False
+            else:
+                fatal("Unknown value for 'deps': %s" % opts["deps"])
+
+        # Determine the package type (eg Python, Raw)
+        if "type" in opts.keys():
+            type_s = opts["type"]
+            if not type_s in Spec2PackageType.keys():
+                fatal("unknown package type %s @ %s ; Supported types 'raw', 'python'" % (
+                    type_s, getlocstr(opts["type"])))
+                    
+            self.pkg_type = Spec2PackageType[type_s]
+    
+    @staticmethod
+    def mk(name, opts, si) -> 'Package':
+        raise NotImplementedError()
+    
+
+
