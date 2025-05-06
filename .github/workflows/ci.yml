@@ -21,7 +21,8 @@ jobs:
         ../packages/python/bin/python3 -m unittest 
     - name: Build Package
       run: |
-        sed -i -e "s/version = \"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)\"/version = \"\1.${GITHUB_RUN_ID}a1\"/g" pyproject.toml
+        #sed -i -e "s/version = \"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)\"/version = \"\1.${GITHUB_RUN_ID}a1\"/g" pyproject.toml
+        sed -i -e "s/version = \"\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\)\"/version = \"\1.${GITHUB_RUN_ID}\"/g" pyproject.toml
         ./packages/python/bin/python3 -m build .
 
     - name: Build Docs
@@ -31,7 +32,7 @@ jobs:
         touch build/html/.nojekyll
 
     - name: Publish to PyPi
-      if: ${{ startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/ext-source-type') }}
+      if: ${{ startsWith(github.ref, 'refs/heads/master')
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         user: __token__
