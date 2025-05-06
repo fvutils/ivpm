@@ -18,7 +18,6 @@ authors = [
 ]
 description = "IVPM (IP and Verification Package Manager) is a project-internal package manager."
 license = {file = "LICENSE" }
-long_description = "IVPM (IP and Verification Package Manager) is a project-internal package manager."
 
 [project.scripts]
 ivpm = "ivpm.__main__:main"
