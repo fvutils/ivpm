@@ -1,4 +1,9 @@
 
+
+# 2.1.0
+- Have `uv` use non-isolated builds for Python packages. This enables source 
+  binary package builds to find headers in other editable packages.
+
 - Pull-through dep-set of super, vs defaulting to 'default' for sub-deps
 - Store meta-data about packages in the packages directory (check/default dep-set)
   - Should have a 'default dep-set' setting

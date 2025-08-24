@@ -302,6 +302,9 @@ class PackageHandlerPython(PackageHandler):
                 shutil.which("uv"),
                 "pip",
                 "install",
+                # Ensure user-specified packages are used during build
+                # An isolated build installs its own release packages
+                "--no-build-isolation", 
                 "-r",
                 requirements_file
             ]
