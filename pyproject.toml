@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 name = "ivpm"
 version = "2.1.0"
 dependencies = [
-    "httpx",
+    "httpx>=0.28.1",
     "pyyaml",
     "pyyaml-srcinfo-loader",
     "setuptools",
