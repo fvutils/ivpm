@@ -2,7 +2,7 @@ import os
 import platform
 import unittest
 
-from test_base import TestBase
+from .test_base import TestBase
 
 
 class TestGhRls(TestBase):
