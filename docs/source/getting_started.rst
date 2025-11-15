@@ -20,7 +20,43 @@ or as a Python module:
     % ivpm --help
     % python3 -m ivpm --help
 
-Initializing an Exiting IVPM Project
+Creating a Workspace with ivpm clone
+************************************
+The clone sub-command creates a new workspace from an existing local or remote
+Git repository and immediately initializes it by running ivpm update.
+
+Usage:
+
+.. code-block:: bash
+
+    % ivpm clone [options] <src-url-or-path> [workspace_dir]
+
+If workspace_dir is not specified, the basename of the source is used. The
+workspace directory must not already exist.
+
+Common options:
+- -a / --anonymous: clone anonymously over HTTPS instead of using SSH. By default,
+  HTTPS URLs are converted to SSH form (git@host:path) when applicable.
+- -b / --branch <name>: checkout the specified branch. If origin/<name> exists, it
+  will be checked out tracking the remote; otherwise, a new local branch is created.
+- -d / --dep-set <name>: specify the dependency set for ivpm update.
+- --py-uv or --py-pip: choose whether ivpm update should use "uv" or "pip"
+  to manage the project-local Python virtual environment.
+
+Examples:
+
+.. code-block:: bash
+
+    # Clone a repository and use the default workspace directory name
+    % ivpm clone https://github.com/fvutils/ivpm
+
+    # Clone into a specific directory and create a new branch
+    % ivpm clone https://github.com/fvutils/ivpm my-ws -b feature/x
+
+    # Clone anonymously (HTTPS) and select a dependency set
+    % ivpm clone -a https://github.com/fvutils/ivpm my-ws -d default-dev
+
+
 ************************************
 After fetching the source for an IVPM-enabled project, the `ivpm update` command
 is used to fetch source dependencies and initialize a Python virtual environment

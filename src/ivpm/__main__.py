@@ -16,6 +16,7 @@ from .cmds.cmd_activate import CmdActivate
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_init import CmdInit
 from .cmds.cmd_update import CmdUpdate
+from .cmds.cmd_clone import CmdClone
 from .cmds.cmd_git_status import CmdGitStatus
 from .cmds.cmd_git_update import CmdGitUpdate
 from .cmds.cmd_pkg_info import CmdPkgInfo
@@ -70,6 +71,24 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     share_cmd.add_argument("path", nargs=argparse.REMAINDER)
     share_cmd.set_defaults(func=CmdShare())
     subcommands["share"] = share_cmd
+
+    clone_cmd = subparser.add_parser("clone",
+        help="Create a new workspace from a Git URL or path")
+    clone_cmd.add_argument("src", help="Source URL or path to clone")
+    clone_cmd.add_argument("-a", "--anonymous", dest="anonymous", action="store_true",
+        help="Clone anonymously (HTTPS); default converts to SSH when applicable")
+    clone_cmd.add_argument("-b", "--branch", dest="branch",
+        help="Target branch; checks out existing or creates new")
+    clone_cmd.add_argument("workspace_dir", nargs="?",
+        help="Target workspace directory; defaults to basename of src")
+    clone_cmd.add_argument("-d", "--dep-set", dest="dep_set",
+        help="Dependency set to use for ivpm update")
+    clone_cmd.add_argument("--py-uv", dest="py_uv", action="store_true",
+        help="Use 'uv' to manage virtual environment")
+    clone_cmd.add_argument("--py-pip", dest="py_pip", action="store_true",
+        help="Use 'pip' to manage virtual environment")
+    clone_cmd.set_defaults(func=CmdClone())
+    subcommands["clone"] = clone_cmd
 
     update_cmd = subparser.add_parser("update",
         help="Fetches packages specified in ivpm.yaml that have not already been loaded")
@@ -178,7 +197,15 @@ def main(project_dir=None):
 
     parser = get_parser(parser_ext, options_ext)
     
-    args = parser.parse_args()
+    # Custom parsing to allow trailing workspace dir after options for 'clone'
+    args, extras = parser.parse_known_args()
+    if getattr(args, 'command', None) == 'clone' and getattr(args, 'workspace_dir', None) is None:
+        if len(extras) == 1:
+            args.workspace_dir = extras[0]
+            extras = []
+    if len(extras) != 0:
+        print('ivpm: error: unrecognized arguments: ' + ' '.join(extras))
+        sys.exit(2)
 
     # If the user hasn't specified the project directory,
     # set the default

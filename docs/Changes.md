@@ -1,4 +1,6 @@
 
+# 2.2.0
+- Add 'clone' command that automates setting up a workspace
 
 # 2.1.0
 - Have `uv` use non-isolated builds for Python packages. This enables source 
