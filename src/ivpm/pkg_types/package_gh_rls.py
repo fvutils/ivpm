@@ -65,7 +65,14 @@ class PackageGhRls(PackageHttp):
             rls_info = json.loads(rls_info.content)
 
             if self.version == "latest":
-                rls = rls_info[0]
+                found = False
+                for r in rls_info:
+                    if not r["prerelease"]:
+                        rls = r
+                        found = True
+                        break
+                if not found:
+                    raise Exception("Failed to find latest release")
             else:
                 raise NotImplementedError("Only 'latest' is supported for version")
 
