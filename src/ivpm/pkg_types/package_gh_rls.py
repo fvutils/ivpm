@@ -34,6 +34,7 @@ from .package_http import PackageHttp
 class PackageGhRls(PackageHttp):
     version : str = "latest"
     file : Optional[str] = None
+    prerelease : bool = False  # Whether to include prerelease releases when selecting
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
@@ -46,6 +47,9 @@ class PackageGhRls(PackageHttp):
 
         if "file" in opts.keys():
             self.file = opts["file"]
+
+        if "prerelease" in opts.keys():
+            self.prerelease = bool(opts["prerelease"])
 
 
     def update(self, update_info):
@@ -64,17 +68,20 @@ class PackageGhRls(PackageHttp):
 
             rls_info = json.loads(rls_info.content)
 
+            # Select release per version specification
+            rls = None
             if self.version == "latest":
-                found = False
                 for r in rls_info:
-                    if not r["prerelease"]:
-                        rls = r
-                        found = True
-                        break
-                if not found:
-                    raise Exception("Failed to find latest release")
+                    if r["prerelease"] and not self.prerelease:
+                        continue
+                    rls = r
+                    break
+                if rls is None:
+                    raise Exception("Failed to find latest release (prerelease=%s)" % self.prerelease)
             else:
-                raise NotImplementedError("Only 'latest' is supported for version")
+                rls = self._select_release_by_version(rls_info)
+                if rls is None:
+                    raise Exception(f"No release matches version spec '{self.version}' (prerelease={self.prerelease})")
 
             # Determine file to download:
             # - If no assets: treat as source-only (use tarball_url or zipball_url)
@@ -168,6 +175,70 @@ class PackageGhRls(PackageHttp):
             os.unlink(download_dst)
 
         # Conform to PackageHttp.update() which returns None
+
+    def _parse_version_tuple(self, v):
+        m = re.match(r'v?(\d+(?:\.\d+)*)', v or '')
+        if not m:
+            return None
+        return tuple(int(p) for p in m.group(1).split('.'))
+
+    def _cmp_versions(self, a, b):
+        la = len(a); lb = len(b)
+        for i in range(max(la, lb)):
+            ai = a[i] if i < la else 0
+            bi = b[i] if i < lb else 0
+            if ai != bi:
+                return 1 if ai > bi else -1
+        return 0
+
+    def _select_release_by_version(self, releases):
+        spec = self.version.strip()
+        m = re.match(r'(>=|<=|>|<)\s*v?(\d+(?:\.\d+)*)$', spec)
+        if m:
+            op = m.group(1)
+            tgt = self._parse_version_tuple(m.group(2))
+            best = None
+            for r in releases:
+                if r["prerelease"] and not self.prerelease:
+                    continue
+                rv = self._parse_version_tuple(r.get("tag_name",""))
+                if rv is None:
+                    continue
+                c = self._cmp_versions(rv, tgt)
+                ok = False
+                if op == ">": ok = c > 0
+                elif op == ">=": ok = c >= 0
+                elif op == "<": ok = c < 0
+                elif op == "<=": ok = c <= 0
+                if not ok:
+                    continue
+                if op in (">", ">="):
+                    best = r
+                    break
+                else: # < or <= : keep highest satisfying
+                    if best is None:
+                        best = r
+                    else:
+                        b_v = self._parse_version_tuple(best.get("tag_name",""))
+                        if self._cmp_versions(rv, b_v) > 0:
+                            best = r
+            return best
+        # Exact match (allow optional leading v)
+        for r in releases:
+            if r["prerelease"] and not self.prerelease:
+                continue
+            tag = r.get("tag_name","")
+            if tag == spec or tag == f"v{spec}" or spec == tag.lstrip('v'):
+                return r
+        tgt = self._parse_version_tuple(spec)
+        if tgt:
+            for r in releases:
+                if r["prerelease"] and not self.prerelease:
+                    continue
+                rv = self._parse_version_tuple(r.get("tag_name",""))
+                if rv == tgt:
+                    return r
+        return None
 
     # Helper methods for asset selection and platform detection
 
