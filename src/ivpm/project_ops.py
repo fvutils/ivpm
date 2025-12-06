@@ -23,7 +23,7 @@ import logging
 import os
 import json
 import dataclasses as dc
-from typing import Tuple
+from typing import Tuple, List, Optional
 from .package import Package, SourceType
 from .package_updater import PackageUpdater
 from .handlers.package_handler_rgy import PackageHandlerRgy

@@ -29,6 +29,7 @@ import ivpm.setup
 
 from .package import Package
 from .project_ops_info import ProjectUpdateInfo
+from .update_listener import UpdateListener, DefaultUpdateListener, PackageUpdateEvent
 
 def get_pkg_version(setup_py_path):
     """Returns the package version based on the etc/ivpm.info file"""

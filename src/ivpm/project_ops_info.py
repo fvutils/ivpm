@@ -70,6 +70,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     total_packages: int = 0
     cacheable_packages: int = 0
     editable_packages: int = 0
+    max_parallel: int = 0  # 0 means use available cores
     event_dispatcher: Optional[UpdateEventDispatcher] = None
     suppress_output: bool = False  # When True, suppress subprocess output (Rich TUI mode)
     _current_package_start: Optional[float] = None

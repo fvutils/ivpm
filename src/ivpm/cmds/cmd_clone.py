@@ -76,10 +76,17 @@ class CmdClone(object):
         # After cloning, run ivpm update in the new workspace
         # so dependencies are fetched according to options provided
         dep_set = getattr(args, 'dep_set', None)
-        ProjectOps(target_dir).update(
-            dep_set=dep_set,
-            args=args
-        )
+        ivpm_yaml_path = os.path.join(target_dir, "ivpm.yaml")
+        
+        if os.path.isfile(ivpm_yaml_path):
+            ProjectOps(target_dir).update(
+                dep_set=dep_set,
+                args=args
+            )
+        else:
+            if dep_set is not None:
+                fatal("Dependency set '%s' specified but no ivpm.yaml exists in cloned project" % dep_set)
+            # No ivpm.yaml and no dep_set specified - just skip update
 
     def _clone_git(self, src, target_dir, args, event_dispatcher, suppress_output):
         # Construct clone URL. Convert to SSH form unless anonymous requested
