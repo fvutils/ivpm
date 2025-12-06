@@ -25,9 +25,12 @@ import json
 import re
 import platform
 import subprocess
+import shutil
 import dataclasses as dc
 from typing import Optional
 from ..proj_info import ProjInfo
+from ..cache import Cache
+from ..utils import note
 from .package_http import PackageHttp
 
 @dc.dataclass
@@ -61,126 +64,190 @@ class PackageGhRls(PackageHttp):
 
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
 
-        if not os.path.isdir(pkg_dir):
-            # Query release metadata
-            github_com_idx = self.url.find("github.com")
-            repo_idx = self.url.find("/", github_com_idx + len("github.com"))
-            url = "https://api.github.com/repos/" + self.url[github_com_idx + len("github.com") + 1:] + "/releases"
-#            print("url: %s" % url, flush=True)
-            rls_info = httpx.get(url, follow_redirects=True)
+        if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
+            note("Skipping %s, since it is already loaded" % self.name)
+            return
 
-            if rls_info.status_code != 200:
-                raise Exception("Failed to fetch release info: %d" % rls_info.status_code)
+        # Query release metadata
+        rls_info, rls, file_url, forced_ext = self._resolve_release()
 
-            rls_info = json.loads(rls_info.content)
+        # Get version from release tag for caching
+        release_tag = rls.get("tag_name", "")
 
-            # Select release per version specification
-            rls = None
-            if self.version == "latest":
-                for r in rls_info:
-                    if r["prerelease"] and not self.prerelease:
-                        continue
-                    rls = r
-                    break
-                if rls is None:
-                    raise Exception("Failed to find latest release (prerelease=%s)" % self.prerelease)
-            else:
-                rls = self._select_release_by_version(rls_info)
-                if rls is None:
-                    raise Exception(f"No release matches version spec '{self.version}' (prerelease={self.prerelease})")
+        # Check if caching is enabled
+        if self.cache is True:
+            return self._update_with_cache(update_info, pkg_dir, file_url, forced_ext, release_tag)
+        elif self.cache is False:
+            return self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
+        else:
+            return self._update_normal(update_info, pkg_dir, file_url, forced_ext)
 
-            # Determine file to download:
-            # - If no assets: treat as source-only (use tarball_url or zipball_url)
-            # - If assets exist: treat as binary release; select appropriate platform binary
-            file_url = None
-            forced_ext = None  # When using tarball/zipball URLs (no extension in URL)
+    def _resolve_release(self):
+        """Query GitHub API and resolve the release and asset to download.
+        
+        Returns:
+            Tuple of (rls_info, rls, file_url, forced_ext)
+        """
+        github_com_idx = self.url.find("github.com")
+        url = "https://api.github.com/repos/" + self.url[github_com_idx + len("github.com") + 1:] + "/releases"
+        rls_info = httpx.get(url, follow_redirects=True)
 
-            assets = rls.get("assets", [])
-            if self.file is not None:
-                # Future: explicit asset name selection could be implemented here
-                raise NotImplementedError("File specification not yet supported")
+        if rls_info.status_code != 200:
+            raise Exception("Failed to fetch release info: %d" % rls_info.status_code)
 
-            has_binaries = self._has_binary_assets(assets)
-            if not has_binaries:
-                # Source-only release
-                file_url, forced_ext = self._choose_source_url(rls)
-                if file_url is None:
-                    # Fallback: single asset might be a source archive
-                    if len(assets) == 1 and "browser_download_url" in assets[0]:
-                        file_url = assets[0]["browser_download_url"]
-                    else:
-                        raise Exception("No suitable source artifact found (no assets with binaries; tarball/zipball not available)")
-            else:
-                # Binary release: select platform-appropriate asset
-                sysname, machine, glibc = self._get_system_info()
-                norm_arch = self._normalize_arch(sysname, machine)
+        rls_info = json.loads(rls_info.content)
 
-                selected = None
-                if sysname == "linux":
-                    # Require manylinux-conformant artifact matching arch and <= glibc version
-                    if glibc is None:
-                        raise Exception("Cannot determine glibc version on Linux. Unable to select a suitable manylinux binary.")
-                    selected = self._select_linux_asset(assets, norm_arch, glibc)
+        # Select release per version specification
+        rls = None
+        if self.version == "latest":
+            for r in rls_info:
+                if r["prerelease"] and not self.prerelease:
+                    continue
+                rls = r
+                break
+            if rls is None:
+                raise Exception("Failed to find latest release (prerelease=%s)" % self.prerelease)
+        else:
+            rls = self._select_release_by_version(rls_info)
+            if rls is None:
+                raise Exception(f"No release matches version spec '{self.version}' (prerelease={self.prerelease})")
 
-                    if selected is None:
-                        # Build a helpful error message
-                        found = []
-                        for a in assets:
-                            nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
-                            tag = self._parse_manylinux(nm)
-                            if tag is not None:
-                                found.append(f"manylinux_{tag[0]}_{tag[1]}_{tag[2]}")
-                        if not found:
-                            names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
-                            raise Exception(f"No suitable Linux binary found for arch={norm_arch} glibc={glibc[0]}.{glibc[1]}. Available assets: {', '.join(names)}")
-                        else:
-                            raise Exception(f"No suitable Linux manylinux binary found for arch={norm_arch} glibc={glibc[0]}.{glibc[1]}. Available manylinux tags: {', '.join(sorted(set(found)))}")
-                elif sysname == "darwin":
-                    selected = self._select_macos_asset(assets, norm_arch)
-                    if selected is None:
-                        names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
-                        raise Exception(f"No suitable macOS binary found for arch={norm_arch}. Available assets: {', '.join(names)}")
-                elif sysname == "windows":
-                    selected = self._select_windows_asset(assets, norm_arch)
-                    if selected is None:
-                        names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
-                        raise Exception(f"No suitable Windows binary found for arch={norm_arch}. Available assets: {', '.join(names)}")
+        # Determine file to download
+        file_url = None
+        forced_ext = None
+
+        assets = rls.get("assets", [])
+        if self.file is not None:
+            raise NotImplementedError("File specification not yet supported")
+
+        has_binaries = self._has_binary_assets(assets)
+        if not has_binaries:
+            file_url, forced_ext = self._choose_source_url(rls)
+            if file_url is None:
+                if len(assets) == 1 and "browser_download_url" in assets[0]:
+                    file_url = assets[0]["browser_download_url"]
                 else:
-                    raise Exception(f"Unsupported platform: {sysname}")
+                    raise Exception("No suitable source artifact found")
+        else:
+            sysname, machine, glibc = self._get_system_info()
+            norm_arch = self._normalize_arch(sysname, machine)
 
-                file_url = selected["browser_download_url"]
-
-            # Determine archive type for unpack
-            if forced_ext is not None:
-                ext = forced_ext
+            selected = None
+            if sysname == "linux":
+                if glibc is None:
+                    raise Exception("Cannot determine glibc version on Linux.")
+                selected = self._select_linux_asset(assets, norm_arch, glibc)
+                if selected is None:
+                    found = []
+                    for a in assets:
+                        nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
+                        tag = self._parse_manylinux(nm)
+                        if tag is not None:
+                            found.append(f"manylinux_{tag[0]}_{tag[1]}_{tag[2]}")
+                    if not found:
+                        names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
+                        raise Exception(f"No suitable Linux binary found for arch={norm_arch} glibc={glibc[0]}.{glibc[1]}. Available assets: {', '.join(names)}")
+                    else:
+                        raise Exception(f"No suitable Linux manylinux binary found for arch={norm_arch} glibc={glibc[0]}.{glibc[1]}. Available manylinux tags: {', '.join(sorted(set(found)))}")
+            elif sysname == "darwin":
+                selected = self._select_macos_asset(assets, norm_arch)
+                if selected is None:
+                    names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
+                    raise Exception(f"No suitable macOS binary found for arch={norm_arch}. Available assets: {', '.join(names)}")
+            elif sysname == "windows":
+                selected = self._select_windows_asset(assets, norm_arch)
+                if selected is None:
+                    names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
+                    raise Exception(f"No suitable Windows binary found for arch={norm_arch}. Available assets: {', '.join(names)}")
             else:
-                ext = os.path.splitext(file_url)[1]
-                if ext == "":
-                    # Fallback: assume GitHub tarball if URL lacks extension
-                    ext = ".tar.gz"
+                raise Exception(f"Unsupported platform: {sysname}")
 
-#            print("ext: %s" % str(ext))
-            if ext == ".tgz":
-                self.src_type = ".tar.gz"
-            else:
-                self.src_type = ext
-                if self.src_type in [".gz", ".xz", ".bz2"]:
-                    pdot = file_url.rfind('.')
-                    pdot = file_url.rfind('.', 0, pdot - 1)
-                    self.src_type = file_url[pdot:]
+            file_url = selected["browser_download_url"]
 
-            filename = os.path.basename(file_url)
-            if forced_ext is not None and not filename.endswith(forced_ext):
-                filename = filename + forced_ext
-            download_dst = os.path.join(update_info.deps_dir, filename)
-            self._download_file(file_url, download_dst)
+        return rls_info, rls, file_url, forced_ext
 
-            # Install (unpack) the file
-            self._install(download_dst, pkg_dir)
+    def _determine_src_type(self, file_url, forced_ext):
+        """Determine the source type for unpacking."""
+        if forced_ext is not None:
+            ext = forced_ext
+        else:
+            ext = os.path.splitext(file_url)[1]
+            if ext == "":
+                ext = ".tar.gz"
 
-            os.unlink(download_dst)
+        if ext == ".tgz":
+            self.src_type = ".tar.gz"
+        else:
+            self.src_type = ext
+            if self.src_type in [".gz", ".xz", ".bz2"]:
+                pdot = file_url.rfind('.')
+                pdot = file_url.rfind('.', 0, pdot - 1)
+                self.src_type = file_url[pdot:]
 
-        # Conform to PackageHttp.update() which returns None
+    def _update_with_cache(self, update_info, pkg_dir, file_url, forced_ext, release_tag):
+        """Update using the cache."""
+        note("loading package %s with cache" % self.name)
+
+        # Use release tag as version identifier for caching
+        # Include platform info for binary releases to cache per-platform
+        sysname, machine, _ = self._get_system_info()
+        norm_arch = self._normalize_arch(sysname, machine)
+        version = f"{release_tag}_{sysname}_{norm_arch}"
+
+        cache = update_info.cache
+        if cache is None:
+            cache = Cache()
+
+        if not cache.is_enabled():
+            note("IVPM_CACHE not set - falling back to no-cache mode for %s" % self.name)
+            return self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
+
+        if cache.has_version(self.name, version):
+            note("Cache hit for %s at version %s" % (self.name, version))
+            cache.link_to_deps(self.name, version, update_info.deps_dir)
+            update_info.report_cache_hit()
+            return
+
+        note("Cache miss for %s - downloading" % self.name)
+        update_info.report_cache_miss()
+
+        # Download to temp location
+        temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
+        if os.path.exists(temp_dir):
+            shutil.rmtree(temp_dir)
+
+        self._determine_src_type(file_url, forced_ext)
+        filename = os.path.basename(file_url)
+        if forced_ext is not None and not filename.endswith(forced_ext):
+            filename = filename + forced_ext
+        download_dst = os.path.join(update_info.deps_dir, filename)
+        self._download_file(file_url, download_dst)
+
+        self._install(download_dst, temp_dir)
+        os.unlink(download_dst)
+
+        cache.store_version(self.name, version, temp_dir)
+        cache.link_to_deps(self.name, version, update_info.deps_dir)
+
+    def _update_no_cache_readonly(self, update_info, pkg_dir, file_url, forced_ext):
+        """Download and make read-only (cache=False)."""
+        note("loading package %s (no cache, read-only)" % self.name)
+
+        self._update_normal(update_info, pkg_dir, file_url, forced_ext)
+        self._make_readonly(pkg_dir)
+
+    def _update_normal(self, update_info, pkg_dir, file_url, forced_ext):
+        """Normal download without caching."""
+        self._determine_src_type(file_url, forced_ext)
+
+        filename = os.path.basename(file_url)
+        if forced_ext is not None and not filename.endswith(forced_ext):
+            filename = filename + forced_ext
+        download_dst = os.path.join(update_info.deps_dir, filename)
+        self._download_file(file_url, download_dst)
+
+        self._install(download_dst, pkg_dir)
+        os.unlink(download_dst)
 
     def _parse_version_tuple(self, v):
         m = re.match(r'v?(\d+(?:\.\d+)*)', v or '')

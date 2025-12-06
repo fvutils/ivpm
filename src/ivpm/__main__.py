@@ -130,6 +130,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Specifies the project directory to use (default: cwd)")
     update_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
         help="Uses dependencies from specified dep-set instead of 'default-dev'")
+    update_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=None,
+        help="Maximum number of parallel package fetches (default: number of CPU cores)")
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
         action="store_true",
         help="Clones git repositories in 'anonymous' mode")

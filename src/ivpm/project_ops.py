@@ -22,11 +22,12 @@
 import os
 import json
 import dataclasses as dc
-from typing import Tuple
+from typing import Tuple, List, Optional
 from .package import Package, SourceType
 from .package_updater import PackageUpdater
 from .handlers.package_handler_rgy import PackageHandlerRgy
 from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
+from .update_listener import UpdateListener, DefaultUpdateListener
 from .utils import fatal, note, get_venv_python, setup_venv, warning
 
 @dc.dataclass
@@ -38,7 +39,8 @@ class ProjectOps(object):
                dep_set : str = None,
                force_py_install : bool = False,
                skip_venv : bool = False,
-               args = None):
+               args = None,
+               listeners: Optional[List[UpdateListener]] = None):
         proj_info, deps_dir, dep_set = self._init(dep_set)
  
         # Ensure that we have a python virtual environment setup
@@ -76,6 +78,14 @@ class ProjectOps(object):
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
         updater = PackageUpdater(deps_dir, pkg_handler, args=args)
+        
+        # Add listeners to the updater
+        if listeners:
+            for listener in listeners:
+                updater.update_info.add_listener(listener)
+        else:
+            # Add default listener for progress output
+            updater.update_info.add_listener(DefaultUpdateListener())
 
         # Prevent an attempt to load the top-level project as a depedency
         updater.all_pkgs[proj_info.name] = None

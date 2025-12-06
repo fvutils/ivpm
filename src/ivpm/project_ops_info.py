@@ -21,7 +21,10 @@
 #****************************************************************************
 import dataclasses as dc
 import enum
-from typing import Optional
+from typing import Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .update_listener import UpdateListener, PackageUpdateEvent
 
 class FileStatus(enum.Enum):
     Unknown = "U"
@@ -63,12 +66,39 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     total_packages: int = 0
     cacheable_packages: int = 0
     editable_packages: int = 0
+    max_parallel: int = 0  # 0 means use available cores
+    listeners: List['UpdateListener'] = dc.field(default_factory=list)
+    _current_event: Optional['PackageUpdateEvent'] = dc.field(default=None, repr=False)
+    
+    def add_listener(self, listener: 'UpdateListener'):
+        """Add a listener to receive update events."""
+        self.listeners.append(listener)
+    
+    def remove_listener(self, listener: 'UpdateListener'):
+        """Remove a listener."""
+        self.listeners.remove(listener)
+    
+    def notify_start(self, event: 'PackageUpdateEvent'):
+        """Notify listeners that a package update has started."""
+        self._current_event = event
+        for listener in self.listeners:
+            listener.on_package_start(event)
+    
+    def notify_finish(self, event: 'PackageUpdateEvent'):
+        """Notify listeners that a package update has finished."""
+        for listener in self.listeners:
+            listener.on_package_finish(event)
+        self._current_event = None
     
     def report_cache_hit(self):
         self.cache_hits += 1
+        if self._current_event is not None:
+            self._current_event.cache_hit = True
     
     def report_cache_miss(self):
         self.cache_misses += 1
+        if self._current_event is not None:
+            self._current_event.cache_hit = False
     
     def report_package(self, cacheable: bool = False, editable: bool = False):
         """Report a package for statistics.
@@ -82,6 +112,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
             self.cacheable_packages += 1
         if editable:
             self.editable_packages += 1
+        if self._current_event is not None:
+            self._current_event.is_cacheable = cacheable
+            self._current_event.is_editable = editable
     
     def print_cache_summary(self):
         """Print a summary of cache statistics."""
