@@ -3,9 +3,12 @@ Created on Jun 8, 2021
 
 @author: mballance
 '''
+import logging
 import os
 
 from ivpm.project_ops import ProjectOps
+
+_logger = logging.getLogger("ivpm.cmd_update")
 
 
 class CmdUpdate(object):
@@ -17,7 +20,7 @@ class CmdUpdate(object):
     def __call__(self, args):
         if args.project_dir is None:
             # If a default is not provided, use the current directory
-            print("Note: project_dir not specified ; using working directory")
+            _logger.info("project_dir not specified; using working directory")
             args.project_dir = os.getcwd()
 
         ds_name = None

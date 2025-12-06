@@ -19,6 +19,7 @@
 #*     Author: 
 #*
 #****************************************************************************
+import logging
 import os
 import sys
 import subprocess
@@ -28,6 +29,9 @@ from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
 from ..utils import note, fatal
 from ..cache import Cache, is_github_url, parse_github_url
+
+_logger = logging.getLogger("ivpm.pkg_types.package_git")
+
 
 @dc.dataclass
 class PackageGit(PackageURL):
@@ -233,27 +237,32 @@ class PackageGit(PackageURL):
             use_anonymous = self.anonymous
 
         if not use_anonymous:
-            print("NOTE: using dev URL")
+            _logger.debug("Using dev URL")
             delim_idx = self.url.find("://")
             protocol = self.url[:delim_idx]
             if protocol != "file":
                 url = self.url[delim_idx+3:]
                 first_sl_idx = url.find('/')
                 url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
-                print("Final URL: %s" % url)
+                _logger.debug("Final URL: %s", url)
                 git_cmd.append(url)
             else:
-                print("NOTE: using original file-based URL")
+                _logger.debug("Using original file-based URL")
                 git_cmd.append(self.url)
         else:
-            print("NOTE: using anonymous URL")
+            _logger.debug("Using anonymous URL")
             git_cmd.append(self.url)
 
         # Clone to the target directory name
         git_cmd.append(target_name)
         
-        print("git_cmd: \"" + str(git_cmd) + "\"")
-        status = subprocess.run(git_cmd)
+        _logger.debug("git_cmd: %s", str(git_cmd))
+        
+        # Suppress output when in Rich TUI mode
+        if update_info.suppress_output:
+            status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        else:
+            status = subprocess.run(git_cmd)
         os.chdir(cwd)
     
         if status.returncode != 0:
@@ -262,10 +271,14 @@ class PackageGit(PackageURL):
         # Checkout a specific commit            
         if self.commit is not None:
             os.chdir(target_dir)
-            git_cmd = "git reset --hard %s" % self.commit
-            status = os.system(git_cmd)
+            git_cmd = ["git", "reset", "--hard", self.commit]
+            _logger.debug("git_cmd: %s", str(git_cmd))
+            if update_info.suppress_output:
+                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                status = subprocess.run(git_cmd)
         
-            if status != 0:
+            if status.returncode != 0:
                 fatal("Git command \"%s\" failed" % str(git_cmd))
             os.chdir(cwd)
         
@@ -274,7 +287,12 @@ class PackageGit(PackageURL):
         if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
             os.chdir(target_dir)
             sys.stdout.flush()
-            status = os.system("git submodule update --init --recursive")
+            git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
+            _logger.debug("git_cmd: %s", str(git_cmd))
+            if update_info.suppress_output:
+                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                status = subprocess.run(git_cmd)
             os.chdir(cwd)
 
     def _make_readonly(self, path: str):
@@ -298,7 +316,7 @@ class PackageGit(PackageURL):
     def sync(self, sync_info : ProjectSyncInfo):
         if not os.path.isdir(os.path.join(sync_info.deps_dir, dir, ".git")):
             fatal("Package \"" + dir + "\" is not a Git repository")
-        print("Package: " + dir)
+        _logger.info("Package: %s", dir)
         try:
             branch = subprocess.check_output(
                 ["git", "branch"],

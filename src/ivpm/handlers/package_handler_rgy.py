@@ -20,8 +20,11 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+import logging
 from .package_handler_list import PackageHandlerList
 from .package_handler_python import PackageHandlerPython
+
+_logger = logging.getLogger("ivpm.handlers.package_handler_rgy")
 
 class PackageHandlerRgy(object):
 
@@ -31,7 +34,7 @@ class PackageHandlerRgy(object):
         self.handlers = []
 
     def addHandler(self, h):
-        print("Handler: %s" % h.name)
+        _logger.debug("Handler: %s", h.name)
         self.handlers.append(h)
 
     def _load(self):
