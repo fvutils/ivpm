@@ -50,6 +50,7 @@ class PackageUpdater(object):
         self.new_deps = []
         self.args = object() if args is None else args
         self.load = load
+        self.update_info = ProjectUpdateInfo(self.args, deps_dir)
         pass
     
     def update(self, pkgs : PackagesInfo) -> PackagesInfo:
@@ -135,8 +136,6 @@ class PackageUpdater(object):
         """Loads a single package. Returns any dependencies"""
         must_update=False
 
-        update_info = ProjectUpdateInfo(self.args, self.deps_dir)
-  
         print("********************************************************************")
         print("* Processing package %s (dep-set %s)" % (pkg.name, pkg.dep_set))
         print("********************************************************************")
@@ -145,7 +144,7 @@ class PackageUpdater(object):
         pkg_dir = os.path.join(self.deps_dir, pkg.name)
         pkg.path = pkg_dir.replace("\\", "/")
 
-        pkg.proj_info = pkg.update(update_info)
+        pkg.proj_info = pkg.update(self.update_info)
 
         # Notify the package handlers after the source is 
         # loaded so they can take further action if required 

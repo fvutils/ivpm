@@ -87,6 +87,9 @@ class ProjectOps(object):
         update_info = ProjectUpdateInfo(args, deps_dir, force_py_install=force_py_install)
         pkg_handler.update(update_info)
 
+        # Print cache summary after handlers complete
+        updater.update_info.print_cache_summary()
+
         # Finally, write out some meta-data
         ivpm_json = {}
         ivpm_json["dep-set"] = dep_set

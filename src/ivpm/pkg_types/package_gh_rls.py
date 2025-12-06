@@ -53,6 +53,12 @@ class PackageGhRls(PackageHttp):
 
 
     def update(self, update_info):
+        # Report this package for cache statistics
+        # GitHub release packages are cacheable if cache=True, editable if cache is not True
+        is_cacheable = self.cache is True
+        is_editable = self.cache is not True  # Could be cached but isn't
+        update_info.report_package(cacheable=is_cacheable, editable=is_editable)
+
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
 
         if not os.path.isdir(pkg_dir):

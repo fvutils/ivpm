@@ -112,6 +112,9 @@ class Package(object):
     def update(self, update_info : ProjectUpdateInfo) -> 'ProjInfo':
         from .proj_info import ProjInfo
 
+        # Report this package for cache statistics (base packages are not cacheable)
+        update_info.report_package(cacheable=False)
+
         info = ProjInfo.mkFromProj(
             os.path.join(update_info.deps_dir, self.name))
         
