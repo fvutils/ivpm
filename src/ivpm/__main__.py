@@ -12,6 +12,7 @@ from typing import Dict, List, Tuple
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
+from ivpm.msg import setup_logging
 from .cmds.cmd_activate import CmdActivate
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
@@ -31,6 +32,12 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
     subcommands : Dict[str, object] = {}
     parser = argparse.ArgumentParser(prog="ivpm")
+
+    # Global options that apply to all sub-commands
+    parser.add_argument("--log-level", dest="log_level",
+        choices=["INFO", "DEBUG", "WARN", "NONE"],
+        default="NONE",
+        help="Set the logging level (default: NONE)")
     
     subparser = parser.add_subparsers()
     subparser.required = True
@@ -199,6 +206,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
 def main(project_dir=None):
     from .pkg_types.pkg_type_rgy import PkgTypeRgy
+    import logging
 
     # First things first: load any extensions
     import sys
@@ -239,6 +247,10 @@ def main(project_dir=None):
     if len(extras) != 0:
         print('ivpm: error: unrecognized arguments: ' + ' '.join(extras))
         sys.exit(2)
+
+    # Setup logging based on --log-level option
+    log_level = getattr(args, 'log_level', 'NONE')
+    setup_logging(log_level)
 
     # If the user hasn't specified the project directory,
     # set the default

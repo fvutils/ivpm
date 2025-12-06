@@ -19,6 +19,7 @@
 #*     Author: mballance
 #*
 #****************************************************************************
+import logging
 import os
 import shutil
 import subprocess
@@ -34,6 +35,8 @@ from ivpm.proj_info import ProjInfo
 from typing import Dict
 from ivpm.utils import get_venv_python
 from .project_ops_info import ProjectUpdateInfo
+
+_logger = logging.getLogger("ivpm.package_updater")
 
 
 class PackageUpdater(object):
@@ -64,10 +67,10 @@ class PackageUpdater(object):
         pkg_q = []
         
         if len(pkgs.keys()) == 0:
-            print("No packages")
+            _logger.info("No packages")
 
         for key in pkgs.keys():
-            print("Package: %s" % key)
+            _logger.debug("Package: %s", key)
             pkg_q.append(pkgs[key])
 
         if not os.path.isdir(self.deps_dir):
@@ -88,7 +91,7 @@ class PackageUpdater(object):
                 # might be required
                 if proj_info is not None:
                     for sd in proj_info.setup_deps:
-                        print("Add setup-dep %s to package %s" % (sd, pkg.name))
+                        _logger.debug("Add setup-dep %s to package %s", sd, pkg.name)
                         if pkg.name not in self.all_pkgs.setup_deps.keys():
                             self.all_pkgs.setup_deps[pkg.name] = set()
                         self.all_pkgs.setup_deps[pkg.name].add(sd)
@@ -136,26 +139,46 @@ class PackageUpdater(object):
         """Loads a single package. Returns any dependencies"""
         must_update=False
 
-        print("********************************************************************")
-        print("* Processing package %s (dep-set %s)" % (pkg.name, pkg.dep_set))
-        print("********************************************************************")
+        _logger.info("Processing package %s (dep-set %s)", pkg.name, pkg.dep_set)
+        
+        # Get package source info for event - normalize the type name
+        pkg_type = getattr(pkg, 'src_type', None)
+        if pkg_type is not None:
+            # Convert SourceType enum to string spec if needed
+            if hasattr(pkg_type, 'name'):
+                # It's an enum - use lowercase name
+                pkg_type = pkg_type.name.lower()
+            else:
+                # It's already a string
+                pkg_type = str(pkg_type).lower()
+        pkg_src = getattr(pkg, 'url', None) or getattr(pkg, 'path', None) or ""
 
+        # Signal package start
+        self.update_info.package_start(pkg.name, pkg_type, pkg_src)
 
         pkg_dir = os.path.join(self.deps_dir, pkg.name)
         pkg.path = pkg_dir.replace("\\", "/")
 
-        pkg.proj_info = pkg.update(self.update_info)
+        try:
+            pkg.proj_info = pkg.update(self.update_info)
 
-        # Notify the package handlers after the source is 
-        # loaded so they can take further action if required 
-        self.pkg_handler.process_pkg(pkg)
-        
-        # Ensure that we use the requested dep-set
-        if pkg.proj_info is not None:
-            pkg.proj_info.target_dep_set = pkg.dep_set
-            pkg.proj_info.process_deps = pkg.process_deps
-        
-        return pkg.proj_info
+            # Notify the package handlers after the source is 
+            # loaded so they can take further action if required 
+            self.pkg_handler.process_pkg(pkg)
+            
+            # Ensure that we use the requested dep-set
+            if pkg.proj_info is not None:
+                pkg.proj_info.target_dep_set = pkg.dep_set
+                pkg.proj_info.process_deps = pkg.process_deps
+            
+            # Signal package complete
+            self.update_info.package_complete(pkg.name)
+            
+            return pkg.proj_info
+        except Exception as e:
+            # Signal package error
+            self.update_info.package_error(pkg.name, str(e))
+            raise
 
     
 
