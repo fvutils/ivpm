@@ -27,6 +27,7 @@ from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
 from ..utils import note, fatal
+from ..cache import Cache, is_github_url, parse_github_url
 
 @dc.dataclass
 class PackageGit(PackageURL):
@@ -40,79 +41,256 @@ class PackageGit(PackageURL):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
-        if os.path.exists(pkg_dir):
+        # Report this package for cache statistics
+        # Git packages are cacheable if cache=True, editable if cache is not True
+        is_cacheable = self.cache is True
+        is_editable = self.cache is not True  # Could be cached but isn't
+        update_info.report_package(cacheable=is_cacheable, editable=is_editable)
+
+        if os.path.exists(pkg_dir) or os.path.islink(pkg_dir):
             note("package %s is already loaded" % self.name)
         else:
-            note("loading package %s" % self.name)
-
-            cwd = os.getcwd()
-            os.chdir(update_info.deps_dir)
-            sys.stdout.flush()
-
-            git_cmd = ["git", "clone"]
-        
-            if self.depth is not None:
-                git_cmd.extend(["--depth", str(self.depth)])
-
-            if self.branch is not None:
-                git_cmd.extend(["-b", str(self.branch)])
-
-            # Modify the URL to use SSH/key-based clones
-            # unless anonymous cloning was requested
-            if update_info.args is not None and hasattr(update_info.args, "anonymous"):
-                use_anonymous = getattr(update_info.args, "anonymous")
+            # Check if caching is enabled and supported
+            if self.cache is True:
+                # For GitHub URLs, use GitHub API; for others, use git ls-remote
+                return self._update_with_cache(update_info, pkg_dir)
+            elif self.cache is False:
+                # Explicitly no cache - clone without history and make read-only
+                return self._update_no_cache_readonly(update_info, pkg_dir)
             else:
-                use_anonymous = False
-
-            if self.anonymous is not None:
-                use_anonymous = self.anonymous
-
-            if not use_anonymous:
-                print("NOTE: using dev URL")
-                delim_idx = self.url.find("://")
-                protocol = self.url[:delim_idx]
-                if protocol != "file":
-                    url = self.url[delim_idx+3:]
-                    first_sl_idx = url.find('/')
-                    url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
-                    print("Final URL: %s" % url)
-                    git_cmd.append(url)
-                else:
-                    print("NOTE: using original file-based URL")
-                    git_cmd.append(self.url)
-            else:
-                print("NOTE: using anonymous URL")
-                git_cmd.append(self.url)
-
-            # Clone to a directory with same name as package        
-            git_cmd.append(self.name)
-            
-            print("git_cmd: \"" + str(git_cmd) + "\"")
-            status = subprocess.run(git_cmd)
-            os.chdir(cwd)
-        
-            if status.returncode != 0:
-                fatal("Git command \"%s\" failed" % str(git_cmd))
-
-            # Checkout a specific commit            
-            if self.commit is not None:
-                os.chdir(os.path.join(self.deps_dir, self.name))
-                git_cmd = "git reset --hard %s" % self.commit
-                status = os.system(git_cmd)
-            
-                if status != 0:
-                    fatal("Git command \"%s\" failed" % str(git_cmd))
-                os.chdir(cwd)
-            
-        
-            # TODO: Existence of .gitmodules should trigger this
-            if os.path.isfile(os.path.join(update_info.deps_dir, self.name, ".gitmodules")):
-                os.chdir(os.path.join(update_info.deps_dir, self.name))
-                sys.stdout.flush()
-                status = os.system("git submodule update --init --recursive")
-                os.chdir(cwd)
+                # cache not specified - clone with full history
+                return self._update_full_clone(update_info, pkg_dir)
 
         return ProjInfo.mkFromProj(pkg_dir)
+
+    def _get_github_commit_hash(self, owner: str, repo: str, ref: str = None) -> str:
+        """Get the commit hash for a GitHub repo using the API or git ls-remote.
+        
+        For general git URLs, uses git ls-remote to get the hash.
+        """
+        import httpx
+        
+        if ref is None:
+            ref = self.branch or self.tag or "HEAD"
+        
+        # Try GitHub API first if it's a GitHub URL
+        if is_github_url(self.url):
+            try:
+                # Use GitHub API to get the commit hash
+                api_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{ref}"
+                response = httpx.get(api_url, follow_redirects=True, timeout=30)
+                if response.status_code == 200:
+                    data = response.json()
+                    return data["sha"]
+            except Exception:
+                pass
+        
+        # Fallback to git ls-remote for any git URL
+        return self._get_commit_hash_ls_remote(ref)
+    
+    def _get_commit_hash_ls_remote(self, ref: str = None) -> str:
+        """Get commit hash using git ls-remote."""
+        if ref is None:
+            ref = self.branch or self.tag or "HEAD"
+        
+        try:
+            # Use git ls-remote to get the hash
+            result = subprocess.run(
+                ["git", "ls-remote", self.url, ref],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                # Output format: "hash\tref"
+                return result.stdout.strip().split()[0]
+            
+            # Try refs/heads/ prefix for branches
+            if not ref.startswith("refs/"):
+                result = subprocess.run(
+                    ["git", "ls-remote", self.url, f"refs/heads/{ref}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip().split()[0]
+                
+                # Try refs/tags/ prefix for tags
+                result = subprocess.run(
+                    ["git", "ls-remote", self.url, f"refs/tags/{ref}"],
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    return result.stdout.strip().split()[0]
+        except Exception:
+            pass
+        
+        return None
+
+    def _update_with_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
+        """Update using the cache."""
+        note("loading package %s with cache" % self.name)
+        
+        ref = self.branch or self.tag or "HEAD"
+        
+        # Get the commit hash - use GitHub API for GitHub URLs, git ls-remote otherwise
+        commit_hash = None
+        if is_github_url(self.url):
+            owner, repo = parse_github_url(self.url)
+            commit_hash = self._get_github_commit_hash(owner, repo, ref)
+        else:
+            # Use git ls-remote for general git URLs
+            commit_hash = self._get_commit_hash_ls_remote(ref)
+        
+        if commit_hash is None:
+            fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
+        
+        cache = update_info.cache
+        if cache is None:
+            cache = Cache()
+        
+        # If cache is not properly configured, fall back to full clone
+        if not cache.is_enabled():
+            note("IVPM_CACHE not set - falling back to full clone for %s" % self.name)
+            return self._update_full_clone(update_info, pkg_dir)
+        
+        # Check if this version is cached
+        if cache.has_version(self.name, commit_hash):
+            # Cache hit - symlink to deps
+            note("Cache hit for %s at %s" % (self.name, commit_hash[:12]))
+            cache.link_to_deps(self.name, commit_hash, update_info.deps_dir)
+            update_info.report_cache_hit()
+            return ProjInfo.mkFromProj(pkg_dir)
+        
+        # Cache miss - clone without history
+        note("Cache miss for %s - cloning" % self.name)
+        update_info.report_cache_miss()
+        
+        # Clone to a temporary location first
+        temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
+        if os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
+        
+        self._clone_to_dir(update_info, temp_dir, depth=1)
+        
+        # Store in cache and link
+        cache.store_version(self.name, commit_hash, temp_dir)
+        cache.link_to_deps(self.name, commit_hash, update_info.deps_dir)
+        
+        return ProjInfo.mkFromProj(pkg_dir)
+
+    def _update_no_cache_readonly(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
+        """Clone without history and make read-only (cache=False)."""
+        note("loading package %s (no cache, read-only)" % self.name)
+        
+        self._clone_to_dir(update_info, pkg_dir, depth=1)
+        
+        # Make read-only
+        self._make_readonly(pkg_dir)
+        
+        return ProjInfo.mkFromProj(pkg_dir)
+
+    def _update_full_clone(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
+        """Full clone with history (cache unspecified)."""
+        note("loading package %s" % self.name)
+        
+        self._clone_to_dir(update_info, pkg_dir, depth=self.depth)
+        
+        return ProjInfo.mkFromProj(pkg_dir)
+
+    def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
+        """Clone the repo to the specified directory."""
+        cwd = os.getcwd()
+        parent_dir = os.path.dirname(target_dir)
+        target_name = os.path.basename(target_dir)
+        
+        if not os.path.isdir(parent_dir):
+            os.makedirs(parent_dir)
+        
+        os.chdir(parent_dir)
+        sys.stdout.flush()
+
+        git_cmd = ["git", "clone"]
+    
+        if depth is not None:
+            git_cmd.extend(["--depth", str(depth)])
+
+        if self.branch is not None:
+            git_cmd.extend(["-b", str(self.branch)])
+
+        # Modify the URL to use SSH/key-based clones
+        # unless anonymous cloning was requested
+        if update_info.args is not None and hasattr(update_info.args, "anonymous"):
+            use_anonymous = getattr(update_info.args, "anonymous")
+        else:
+            use_anonymous = False
+
+        if self.anonymous is not None:
+            use_anonymous = self.anonymous
+
+        if not use_anonymous:
+            print("NOTE: using dev URL")
+            delim_idx = self.url.find("://")
+            protocol = self.url[:delim_idx]
+            if protocol != "file":
+                url = self.url[delim_idx+3:]
+                first_sl_idx = url.find('/')
+                url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
+                print("Final URL: %s" % url)
+                git_cmd.append(url)
+            else:
+                print("NOTE: using original file-based URL")
+                git_cmd.append(self.url)
+        else:
+            print("NOTE: using anonymous URL")
+            git_cmd.append(self.url)
+
+        # Clone to the target directory name
+        git_cmd.append(target_name)
+        
+        print("git_cmd: \"" + str(git_cmd) + "\"")
+        status = subprocess.run(git_cmd)
+        os.chdir(cwd)
+    
+        if status.returncode != 0:
+            fatal("Git command \"%s\" failed" % str(git_cmd))
+
+        # Checkout a specific commit            
+        if self.commit is not None:
+            os.chdir(target_dir)
+            git_cmd = "git reset --hard %s" % self.commit
+            status = os.system(git_cmd)
+        
+            if status != 0:
+                fatal("Git command \"%s\" failed" % str(git_cmd))
+            os.chdir(cwd)
+        
+    
+        # TODO: Existence of .gitmodules should trigger this
+        if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
+            os.chdir(target_dir)
+            sys.stdout.flush()
+            status = os.system("git submodule update --init --recursive")
+            os.chdir(cwd)
+
+    def _make_readonly(self, path: str):
+        """Make all files in a directory tree read-only."""
+        import stat
+        for root, dirs, files in os.walk(path):
+            for d in dirs:
+                dir_path = os.path.join(root, d)
+                mode = os.stat(dir_path).st_mode
+                os.chmod(dir_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+            for f in files:
+                file_path = os.path.join(root, f)
+                mode = os.stat(file_path).st_mode
+                os.chmod(file_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+        mode = os.stat(path).st_mode
+        os.chmod(path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
     
     def status(self, status_info : ProjectStatusInfo):
         pass

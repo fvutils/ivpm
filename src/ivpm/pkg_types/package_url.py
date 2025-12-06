@@ -20,17 +20,22 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+from typing import Optional
 from ..package import Package
 
 @dc.dataclass
 class PackageURL(Package):
     url : str = None
+    cache : Optional[bool] = None  # True/False/None (unspecified)
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
         
         if "url" in opts.keys():
             self.url = opts["url"]
+        
+        if "cache" in opts.keys():
+            self.cache = bool(opts["cache"])
 
     @staticmethod
     def create(name, opts, si) -> 'Package':

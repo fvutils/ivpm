@@ -84,8 +84,11 @@ class ProjectOps(object):
         print("Setup-deps: %s" % str(pkgs_info.setup_deps))
 
         # Call the handlers to take care of project-level setup work
-        update_info = ProjectUpdateInfo(args, deps_dir, force_py_install=force_py_install)
+        update_info = ProjectUpdateInfo(args, deps_dir, force_py_install=force_py_install, skip_venv=skip_venv)
         pkg_handler.update(update_info)
+
+        # Print cache summary after handlers complete
+        updater.update_info.print_cache_summary()
 
         # Finally, write out some meta-data
         ivpm_json = {}

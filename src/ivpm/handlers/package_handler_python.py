@@ -76,6 +76,9 @@ class PackageHandlerPython(PackageHandler):
         if getattr(update_info.args, "py_skip_install", False):
             note("Skipping Python package installation")
             return
+        elif update_info.skip_venv:
+            note("Skipping Python package installation (no venv)")
+            return
         elif os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
             if update_info.force_py_install:
                 note("Forcing re-install of Python packages")
