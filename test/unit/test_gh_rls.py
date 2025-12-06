@@ -5,9 +5,22 @@ import unittest
 from .test_base import TestBase
 
 
+def _check_github_api_available():
+    """Check if GitHub API is accessible (not rate-limited)."""
+    try:
+        import httpx
+        resp = httpx.get("https://api.github.com/rate_limit", timeout=5)
+        if resp.status_code == 403:
+            return False
+        return True
+    except Exception:
+        return False
+
+
 class TestGhRls(TestBase):
 
     @unittest.skipUnless(platform.system().lower() == "linux", "Linux-only test")
+    @unittest.skipUnless(_check_github_api_available(), "GitHub API rate-limited or unavailable")
     def test_verilator_bin_linux(self):
         # Create a project that depends on a GitHub Release package
         self.mkFile("ivpm.yaml", """
