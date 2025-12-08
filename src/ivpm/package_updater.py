@@ -33,7 +33,6 @@ from ivpm.msg import note, fatal, warning
 from ivpm.package import Package, SourceType, SourceType2Ext, PackageType
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from ivpm.update_listener import PackageUpdateEvent
 from typing import Dict, List, Tuple
 from ivpm.utils import get_venv_python
 from .project_ops_info import ProjectUpdateInfo
@@ -170,8 +169,7 @@ class PackageUpdater(object):
             pkg = pkg_q[i]
             if isinstance(result, Exception):
                 # Notify listeners of failure
-                event = PackageUpdateEvent(name=pkg.name, error=str(result))
-                self.update_info.notify_finish(event)
+                self.update_info.package_error(pkg.name, str(result))
                 fatal("Failed to update package %s: %s" % (pkg.name, str(result)))
             else:
                 processed.append(result)
