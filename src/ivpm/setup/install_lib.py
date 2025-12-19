@@ -55,6 +55,8 @@ class InstallLib(_install_lib):
             if p in ivpm_extra_data.keys():
                 for spec in ivpm_extra_data[p]:
                     src = expand_libvars(spec[0])
+                    if not os.path.isabs(src):
+                      src = os.path.join(os.getcwd(), src)
                     if not os.path.isfile(src) and not os.path.isdir(src):
                         for libdir in ["lib", "lib64"]:
                             src_t = expand_libvars(spec[0], libdir=libdir)
@@ -98,6 +100,7 @@ class InstallLib(_install_lib):
 #                        if os.path.isdir(os.path.join(install_root, p, dst)):
 #                            print("rmtree: %s" % os.path.join(install_root, p, dst))
 #                            shutil.rmtree(os.path.join(install_root, p, dst))
+
                         dst_dir = os.path.join(install_root, p, dst, os.path.basename(src))
                         if not os.path.isdir(dst_dir):
                             os.makedirs(dst_dir, exist_ok=True)
