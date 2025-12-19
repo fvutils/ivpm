@@ -6,6 +6,32 @@ import sys
 from .test_base import TestBase
 
 class TestSync(TestBase):
+    
+    def tearDown(self):
+        """Clean up test directory, handling read-only files created by cache:false packages"""
+        if hasattr(self, 'testdir') and os.path.isdir(self.testdir):
+            # Make all files/dirs writable before cleanup
+            from .test_base import _force_rmtree
+            try:
+                _force_rmtree(self.testdir)
+            except Exception as e:
+                # If cleanup fails, at least try to make things writable for next test
+                import shutil
+                try:
+                    for root, dirs, files in os.walk(self.testdir, topdown=False):
+                        for d in dirs:
+                            try:
+                                os.chmod(os.path.join(root, d), stat.S_IRWXU)
+                            except:
+                                pass
+                        for f in files:
+                            try:
+                                os.chmod(os.path.join(root, f), stat.S_IRWXU)
+                            except:
+                                pass
+                except:
+                    pass
+        return super().tearDown()
 
     def test_sync_editable_only(self):
         """Test that sync only updates editable (non-cached) packages"""
