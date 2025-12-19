@@ -1,4 +1,10 @@
 
+# 2.4.0
+- Add parallel fetch for packages
+
+# 2.3.0
+- Add support for package cache
+
 # 2.2.0
 - Add 'clone' command that automates setting up a workspace
 

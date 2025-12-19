@@ -34,6 +34,8 @@ class PackageFile(PackageURL):
     unpack : bool = None
 
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
+        # Report this package for cache statistics (file packages are not cacheable by default)
+        update_info.report_package(cacheable=False)
 
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")

@@ -12,8 +12,10 @@ from typing import Dict, List, Tuple
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
+from ivpm.msg import setup_logging
 from .cmds.cmd_activate import CmdActivate
 from .cmds.cmd_build import CmdBuild
+from .cmds.cmd_cache import CmdCache
 from .cmds.cmd_init import CmdInit
 from .cmds.cmd_update import CmdUpdate
 from .cmds.cmd_clone import CmdClone
@@ -30,6 +32,12 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
     subcommands : Dict[str, object] = {}
     parser = argparse.ArgumentParser(prog="ivpm")
+
+    # Global options that apply to all sub-commands
+    parser.add_argument("--log-level", dest="log_level",
+        choices=["INFO", "DEBUG", "WARN", "NONE"],
+        default="NONE",
+        help="Set the logging level (default: NONE)")
     
     subparser = parser.add_subparsers()
     subparser.required = True
@@ -54,6 +62,38 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Enables debug for native extensions")
     build_cmd.set_defaults(func=CmdBuild())
     subcommands["build"] = build_cmd
+
+    # Cache management commands
+    cache_cmd = subparser.add_parser("cache",
+        help="Manage the IVPM package cache")
+    cache_subparser = cache_cmd.add_subparsers(dest="cache_cmd")
+    cache_subparser.required = True
+
+    cache_init_cmd = cache_subparser.add_parser("init",
+        help="Initialize a new cache directory")
+    cache_init_cmd.add_argument("cache_dir",
+        help="Path to the cache directory to initialize")
+    cache_init_cmd.add_argument("-s", "--shared", dest="shared", action="store_true",
+        help="Set group inheritance (chmod g+s) for shared cache usage")
+    cache_init_cmd.add_argument("-f", "--force", dest="force", action="store_true",
+        help="Force reinitialization of existing directory")
+
+    cache_info_cmd = cache_subparser.add_parser("info",
+        help="Show cache information (packages, versions, sizes)")
+    cache_info_cmd.add_argument("-c", "--cache-dir", dest="cache_dir",
+        help="Cache directory (default: $IVPM_CACHE)")
+    cache_info_cmd.add_argument("-v", "--verbose", dest="verbose", action="store_true",
+        help="Show detailed version information")
+
+    cache_clean_cmd = cache_subparser.add_parser("clean",
+        help="Remove old cache entries")
+    cache_clean_cmd.add_argument("-c", "--cache-dir", dest="cache_dir",
+        help="Cache directory (default: $IVPM_CACHE)")
+    cache_clean_cmd.add_argument("-d", "--days", dest="days", type=int, default=7,
+        help="Remove entries older than this many days (default: 7)")
+
+    cache_cmd.set_defaults(func=CmdCache())
+    subcommands["cache"] = cache_cmd
 
     pkginfo_cmd = subparser.add_parser("pkg-info",
         help="Collect paths/files for a listed set of packages")
@@ -97,6 +137,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Specifies the project directory to use (default: cwd)")
     update_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
         help="Uses dependencies from specified dep-set instead of 'default-dev'")
+    update_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=None,
+        help="Maximum number of parallel package fetches (default: number of CPU cores)")
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
         action="store_true",
         help="Clones git repositories in 'anonymous' mode")
@@ -166,6 +208,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
 def main(project_dir=None):
     from .pkg_types.pkg_type_rgy import PkgTypeRgy
+    import logging
 
     # First things first: load any extensions
     import sys
@@ -206,6 +249,10 @@ def main(project_dir=None):
     if len(extras) != 0:
         print('ivpm: error: unrecognized arguments: ' + ' '.join(extras))
         sys.exit(2)
+
+    # Setup logging based on --log-level option
+    log_level = getattr(args, 'log_level', 'NONE')
+    setup_logging(log_level)
 
     # If the user hasn't specified the project directory,
     # set the default

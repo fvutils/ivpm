@@ -12,6 +12,7 @@ Welcome to IVPM's documentation!
    
    introduction
    getting_started
+   caching
    reference
 
 

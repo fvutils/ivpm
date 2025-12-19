@@ -32,6 +32,9 @@ class PackageDir(PackageURL):
     link : bool = True
 
     def update(self, update_info : ProjectUpdateInfo):
+        # Report this package for cache statistics (directory packages are not cacheable)
+        update_info.report_package(cacheable=False)
+
         if not self.url.startswith("file://"):
             fatal("URL for %s must start with file:// (%s)" % (
                 self.name,

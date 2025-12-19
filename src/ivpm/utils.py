@@ -3,6 +3,7 @@ Created on Jun 22, 2021
 
 @author: mballance
 '''
+import logging
 import os
 import sys
 import shutil
@@ -10,6 +11,9 @@ import subprocess
 from typing import List
 from ivpm.msg import note, fatal, warning
 from pathlib import Path
+
+_logger = logging.getLogger("ivpm.utils")
+
 
 def find_project_root(path):
     pt = path
@@ -57,7 +61,7 @@ def get_sys_python():
         out = subprocess.check_output([python, "--version"])
         out_s = out.decode().split()
 
-        print("Note: using Python version: %s" % out_s)
+        _logger.info("Using Python version: %s", out_s)
             
     return python
     
@@ -72,7 +76,7 @@ def get_venv_python(python_dir):
         
     return ivpm_python
 
-def setup_venv(python_dir, uv_pip="auto"):
+def setup_venv(python_dir, uv_pip="auto", suppress_output=False):
     note("creating Python virtual environment")
 
     if uv_pip == "auto":
@@ -83,6 +87,14 @@ def setup_venv(python_dir, uv_pip="auto"):
             uv_pip = "pip"
     
     python = get_sys_python()
+
+    # Setup output redirection for subprocess calls
+    if suppress_output:
+        stdout_arg = subprocess.DEVNULL
+        stderr_arg = subprocess.DEVNULL
+    else:
+        stdout_arg = None
+        stderr_arg = None
 
     if uv_pip == "uv":
         note("Using 'uv' to manage virtual environment")
@@ -99,7 +111,9 @@ def setup_venv(python_dir, uv_pip="auto"):
         ]
 
         result = subprocess.run(
-            cmd
+            cmd,
+            stdout=stdout_arg,
+            stderr=stderr_arg
         )
 
         if result.returncode != 0:
@@ -120,7 +134,9 @@ def setup_venv(python_dir, uv_pip="auto"):
 
         result = subprocess.run(
             cmd,
-            env=env
+            env=env,
+            stdout=stdout_arg,
+            stderr=stderr_arg
         )
 
         if result.returncode != 0:
@@ -129,12 +145,31 @@ def setup_venv(python_dir, uv_pip="auto"):
         ivpm_python = get_venv_python(python_dir)
     else:
         note("Using 'pip' to manage virtual environment")
-        os.system(python + " -m venv --system-site-packages " + python_dir)
+        if suppress_output:
+            result = subprocess.run(
+                [python, "-m", "venv", "--system-site-packages", python_dir],
+                stdout=stdout_arg,
+                stderr=stderr_arg
+            )
+        else:
+            os.system(python + " -m venv --system-site-packages " + python_dir)
         note("upgrading pip")
         ivpm_python = get_venv_python(python_dir)
 
-        os.system(ivpm_python + " -m pip install --upgrade pip")
-        os.system(ivpm_python + " -m pip install --upgrade ivpm setuptools wheel")
+        if suppress_output:
+            subprocess.run(
+                [ivpm_python, "-m", "pip", "install", "--upgrade", "pip"],
+                stdout=stdout_arg,
+                stderr=stderr_arg
+            )
+            subprocess.run(
+                [ivpm_python, "-m", "pip", "install", "--upgrade", "ivpm", "setuptools", "wheel"],
+                stdout=stdout_arg,
+                stderr=stderr_arg
+            )
+        else:
+            os.system(ivpm_python + " -m pip install --upgrade pip")
+            os.system(ivpm_python + " -m pip install --upgrade ivpm setuptools wheel")
 
     
     return ivpm_python

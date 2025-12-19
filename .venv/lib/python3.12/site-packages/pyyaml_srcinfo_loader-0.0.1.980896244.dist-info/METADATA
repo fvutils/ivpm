@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: pyyaml-srcinfo-loader
+Version: 0.0.1.980896244
+Summary: Provides a loader for PyYAML that annotates source info on returned elements
+Home-page: https://github.com/mballance/pyyaml-srcinfo-loader
+Author: Matthew Ballance
+Author-email: matt.ballance@gmail.com
+License: Apache 2.0
+Keywords: PyYAML
+Platform: UNKNOWN
+
+UNKNOWN
+
+

@@ -20,12 +20,15 @@
 #*
 #****************************************************************************
 
+import logging
 import os
 import dataclasses as dc
 from enum import Enum, auto
 from typing import Dict, List, Set
 from .project_ops_info import ProjectUpdateInfo
 from .utils import fatal, getlocstr
+
+_logger = logging.getLogger("ivpm.package")
 
 class PackageType(Enum):
     Raw = auto()
@@ -112,6 +115,9 @@ class Package(object):
     def update(self, update_info : ProjectUpdateInfo) -> 'ProjInfo':
         from .proj_info import ProjInfo
 
+        # Report this package for cache statistics (base packages are not cacheable)
+        update_info.report_package(cacheable=False)
+
         info = ProjInfo.mkFromProj(
             os.path.join(update_info.deps_dir, self.name))
         
@@ -121,8 +127,8 @@ class Package(object):
         self.srcinfo = si
 
         if "dep-set" in opts.keys():
-            print("Using dep-set %s for package %s" % (
-                opts["dep-set"], self.name))
+            _logger.debug("Using dep-set %s for package %s",
+                opts["dep-set"], self.name)
             self.dep_set = opts["dep-set"]
 
         if "deps" in opts.keys():

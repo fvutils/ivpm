@@ -47,6 +47,10 @@ package:
       src: pypi
     - name: sphinx-jsonschema
       src: pypi
+    - name: rich
+      src: pypi
+    - name: pytest
+      src: pypi
 
   env-sets:
     - name: project

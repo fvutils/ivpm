@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+import logging
 import subprocess
 import toposort
 import os
@@ -31,6 +32,8 @@ from ..utils import note, fatal, get_venv_python
 
 from ..package import Package
 from .package_handler import PackageHandler
+
+_logger = logging.getLogger("ivpm.handlers.package_handler_python")
 
 @dc.dataclass
 class PackageHandlerPython(PackageHandler):
@@ -76,6 +79,9 @@ class PackageHandlerPython(PackageHandler):
         if getattr(update_info.args, "py_skip_install", False):
             note("Skipping Python package installation")
             return
+        elif update_info.skip_venv:
+            note("Skipping Python package installation (no venv)")
+            return
         elif os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
             if update_info.force_py_install:
                 note("Forcing re-install of Python packages")
@@ -97,15 +103,15 @@ class PackageHandlerPython(PackageHandler):
         # Map between package name and a set of python
         # packages it depends on
         py_pkg_m = {}
-        print("src_pkg_s: %s" % str(self.src_pkg_s))
+        _logger.debug("src_pkg_s: %s", str(self.src_pkg_s))
         for pyp in self.src_pkg_s:
-            print("pyp: %s" % pyp) 
+            _logger.debug("pyp: %s", pyp) 
             p = self.pkgs_info[pyp]
             if pyp not in python_deps_m.keys():
                 python_deps_m[pyp] = set()
 
             if p.proj_info is not None:
-                print("non-none proj_info")
+                _logger.debug("non-none proj_info")
                 # TODO: see if the package specifies the package set
                 if p.proj_info.has_dep_set(p.proj_info.target_dep_set):
                     for dp in p.proj_info.get_dep_set(p.proj_info.target_dep_set).keys():
@@ -118,18 +124,18 @@ class PackageHandlerPython(PackageHandler):
                         #     if dp_p.src_type != SourceType.PyPi:
                         #         python_deps_m[pyp].add(dp)
                 else:
-                    print("Warning: project %s does not contain its target dependency set (%s)" % (
+                    _logger.warning("Project %s does not contain its target dependency set (%s)",
                         p.proj_info.name,
-                        p.proj_info.target_dep_set))
+                        p.proj_info.target_dep_set)
                     for d in p.proj_info.dep_set_m.keys():
-                        print("Dep-Set: %s" % d)
+                        _logger.debug("Dep-Set: %s", d)
 
         # Order the source packages based on their dependencies 
         it = toposort.toposort(python_deps_m)
         pysrc_pkg_order = list(it)
         if self.debug:
-            print("python_deps_m: %s" % str(python_deps_m))
-            print("pysrc_pkg_order: %s" % str(pysrc_pkg_order))
+            _logger.debug("python_deps_m: %s", str(python_deps_m))
+            _logger.debug("pysrc_pkg_order: %s", str(pysrc_pkg_order))
 
         python_deps_m = {}
         
@@ -152,7 +158,7 @@ class PackageHandlerPython(PackageHandler):
         #             setup_deps_s.add(dep)
         #             if dep in self.pypi_pkg_s:
         #                 self.pypi_pkg_s.remove(dep)
-        print("setup_deps_s: %s" % str(setup_deps_s))
+        _logger.debug("setup_deps_s: %s", str(setup_deps_s))
 
         if len(setup_deps_s) > 0:
             setup_deps_pkgs = []
@@ -171,7 +177,7 @@ class PackageHandlerPython(PackageHandler):
         # Next, create a requirements file for all
         # non-setup-dep PyPi packages
         python_pkgs = []
-        print("pypi_pkg_s: %s" % str(self.pypi_pkg_s))
+        _logger.debug("pypi_pkg_s: %s", str(self.pypi_pkg_s))
         for pypi_p in self.pypi_pkg_s:
             python_pkgs.append(self.pkgs_info[pypi_p])
 
@@ -222,25 +228,27 @@ class PackageHandlerPython(PackageHandler):
             env["PYTHONPATH"] = ps.join(sys.path)
 
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
+            suppress_output = getattr(update_info, 'suppress_output', False)
             for reqfile in python_requirements_paths:
                 self._install_requirements(
                     os.path.join(update_info.deps_dir, "python"),
                     reqfile,
                     getattr(update_info.args, "py_prerls_packages", False),
-                    self.use_uv)
+                    self.use_uv,
+                    suppress_output=suppress_output)
 
     def build(self, build_info : ProjectBuildInfo):
         python_deps_m = {}
         py_pkg_m = {}
-        print("src_pkg_s: %s" % str(self.src_pkg_s))
+        _logger.debug("src_pkg_s: %s", str(self.src_pkg_s))
         for pyp in self.src_pkg_s:
-            print("pyp: %s" % pyp) 
+            _logger.debug("pyp: %s", pyp) 
             p = self.pkgs_info[pyp]
             if pyp not in python_deps_m.keys():
                 python_deps_m[pyp] = set()
 
             if p.proj_info is not None:
-                print("non-none proj_info")
+                _logger.debug("non-none proj_info")
                 # TODO: see if the package specifies the package set
                 if p.proj_info.has_dep_set(p.proj_info.target_dep_set):
                     for dp in p.proj_info.get_dep_set(p.proj_info.target_dep_set).keys():
@@ -253,18 +261,18 @@ class PackageHandlerPython(PackageHandler):
                         #     if dp_p.src_type != SourceType.PyPi:
                         #         python_deps_m[pyp].add(dp)
                 else:
-                    print("Warning: project %s does not contain its target dependency set (%s)" % (
+                    _logger.warning("Project %s does not contain its target dependency set (%s)",
                         p.proj_info.name,
-                        p.proj_info.target_dep_set))
+                        p.proj_info.target_dep_set)
                     for d in p.proj_info.dep_set_m.keys():
-                        print("Dep-Set: %s" % d)
+                        _logger.debug("Dep-Set: %s", d)
 
         # Order the source packages based on their dependencies 
         it = toposort.toposort(python_deps_m)
         pysrc_pkg_order = list(it)
         if self.debug:
-            print("python_deps_m: %s" % str(python_deps_m))
-            print("pysrc_pkg_order: %s" % str(pysrc_pkg_order))
+            _logger.debug("python_deps_m: %s", str(python_deps_m))
+            _logger.debug("pysrc_pkg_order: %s", str(pysrc_pkg_order))
 
         env = os.environ.copy()
         env["DEBUG"] = "1" if build_info.debug else "0"
@@ -291,8 +299,17 @@ class PackageHandlerPython(PackageHandler):
                               python_dir,
                               requirements_file,
                               use_pre,
-                              use_uv):
+                              use_uv,
+                              suppress_output=False):
         """Installs the requirements specified in a file"""
+
+        # Setup output redirection
+        if suppress_output:
+            stdout_arg = subprocess.DEVNULL
+            stderr_arg = subprocess.DEVNULL
+        else:
+            stdout_arg = None
+            stderr_arg = None
 
         if use_uv:
             env = os.environ.copy()
@@ -312,7 +329,7 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            result = subprocess.run(cmd, env=env)
+            result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
 
             if result.returncode != 0:
                 raise Exception("Failed to install Python packages")
@@ -340,7 +357,7 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            status = subprocess.run(cmd, env=env)
+            status = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
     
             if status.returncode != 0:
                 fatal("failed to install Python packages")
