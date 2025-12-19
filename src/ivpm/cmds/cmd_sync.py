@@ -6,9 +6,10 @@ Created on Jun 8, 2021
 import os
 import subprocess
 import sys
+import stat
 
 from ivpm.arg_utils import ensure_have_project_dir
-from ivpm.msg import fatal
+from ivpm.msg import fatal, note
 from ..project_ops import ProjectOps
 from ..proj_info import ProjInfo
 
@@ -32,10 +33,25 @@ class CmdSync(object):
     
         # After that check, go ahead and just check directories
         for dir in os.listdir(packages_dir):
-            if os.path.isdir(os.path.join(packages_dir, dir, ".git")):
+            pkg_path = os.path.join(packages_dir, dir)
+            git_dir = os.path.join(pkg_path, ".git")
+            
+            if os.path.isdir(git_dir):
+                # Check if the package is editable by testing if it's writable
+                # Cached (non-editable) packages are made read-only
+                try:
+                    mode = os.stat(pkg_path).st_mode
+                    is_writable = bool(mode & stat.S_IWUSR)
+                except Exception:
+                    is_writable = False
+                
+                if not is_writable:
+                    print("Note: skipping cached (read-only) package \"%s\"" % dir)
+                    continue
+                
                 print("Package: " + dir)
                 cwd = os.getcwd()
-                os.chdir(packages_dir + "/" + dir)
+                os.chdir(pkg_path)
                 try:
                     branch = subprocess.check_output(["git", "branch"])
                 except Exception as e:
@@ -62,7 +78,7 @@ class CmdSync(object):
                 if status.returncode != 0:
                     fatal("Failed to run git merge origin/%s on package %s" % (branch, dir))
                 os.chdir(cwd)
-            elif os.path.isdir(packages_dir + "/" + dir):
+            elif os.path.isdir(pkg_path):
                 print("Note: skipping non-Git package \"" + dir + "\"")
                 sys.stdout.flush()        
         pass
