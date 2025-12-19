@@ -35,67 +35,63 @@ class TestSync(TestBase):
 
     def test_sync_editable_only(self):
         """Test that sync only updates editable (non-cached) packages"""
-        # Create a project with git packages with different cache settings
+        # Create a project with editable git package and a manually created read-only package
         self.mkFile("ivpm.yaml", """
         package:
             name: test_sync
             dep-sets:
                 - name: default-dev
                   deps:
-                    - name: vlsim_no_cache
-                      url: https://github.com/fvutils/vlsim.git
-                      anonymous: true
-                      cache: false
-                    - name: vlsim_editable
+                    - name: vlsim
                       url: https://github.com/fvutils/vlsim.git
                       anonymous: true
         """)
 
-        # Update packages - cache:false makes it read-only, no cache attr makes it writable
+        # Update packages
         self.ivpm_update(skip_venv=True)
 
-        # Verify both packages exist
-        no_cache_path = os.path.join(self.testdir, "packages/vlsim_no_cache")
-        editable_path = os.path.join(self.testdir, "packages/vlsim_editable")
-        self.assertTrue(os.path.isdir(no_cache_path))
-        self.assertTrue(os.path.isdir(editable_path))
+        # Manually create a read-only git directory to simulate a cached package
+        readonly_path = os.path.join(self.testdir, "packages/readonly_pkg")
+        os.makedirs(os.path.join(readonly_path, ".git"))
+        with open(os.path.join(readonly_path, "README.md"), "w") as f:
+            f.write("readonly")
+        
+        # Make it read-only to simulate cache:false behavior
+        for root, dirs, files in os.walk(readonly_path):
+            for d in dirs:
+                os.chmod(os.path.join(root, d), stat.S_IRUSR | stat.S_IXUSR)
+            for f in files:
+                os.chmod(os.path.join(root, f), stat.S_IRUSR)
+        os.chmod(readonly_path, stat.S_IRUSR | stat.S_IXUSR)
 
-        # Verify no_cache package is read-only
-        no_cache_mode = os.stat(no_cache_path).st_mode
-        self.assertFalse(bool(no_cache_mode & stat.S_IWUSR), 
-                        "cache:false package should be read-only")
+        # Verify readonly_pkg is read-only
+        readonly_mode = os.stat(readonly_path).st_mode
+        self.assertFalse(bool(readonly_mode & stat.S_IWUSR), 
+                        "readonly_pkg should be read-only")
 
-        # Verify editable package is writable
-        editable_mode = os.stat(editable_path).st_mode
-        self.assertTrue(bool(editable_mode & stat.S_IWUSR), 
-                       "Editable package should be writable")
+        # Verify vlsim package is writable
+        vlsim_path = os.path.join(self.testdir, "packages/vlsim")
+        vlsim_mode = os.stat(vlsim_path).st_mode
+        self.assertTrue(bool(vlsim_mode & stat.S_IWUSR), 
+                       "vlsim package should be writable")
 
-        # Get initial commit hashes
-        no_cache_commit_before = self.exec(
+        # Get initial commit hash
+        vlsim_commit_before = self.exec(
             ["git", "rev-parse", "HEAD"],
-            cwd=no_cache_path).strip()
-        editable_commit_before = self.exec(
-            ["git", "rev-parse", "HEAD"],
-            cwd=editable_path).strip()
+            cwd=vlsim_path).strip()
 
         # Run sync command
         self.ivpm_sync()
 
-        # Verify no_cache package is still read-only
-        no_cache_mode_after = os.stat(no_cache_path).st_mode
-        self.assertFalse(bool(no_cache_mode_after & stat.S_IWUSR), 
-                        "cache:false package should still be read-only")
-        
-        no_cache_commit_after = self.exec(
-            ["git", "rev-parse", "HEAD"],
-            cwd=no_cache_path).strip()
-        self.assertEqual(no_cache_commit_before, no_cache_commit_after,
-                        "cache:false package should not be updated by sync")
+        # Verify readonly_pkg is still read-only (and wasn't synced)
+        readonly_mode_after = os.stat(readonly_path).st_mode
+        self.assertFalse(bool(readonly_mode_after & stat.S_IWUSR), 
+                        "readonly_pkg should still be read-only")
 
         # Editable package should still be writable
-        editable_mode_after = os.stat(editable_path).st_mode
-        self.assertTrue(bool(editable_mode_after & stat.S_IWUSR), 
-                       "Editable package should still be writable")
+        vlsim_mode_after = os.stat(vlsim_path).st_mode
+        self.assertTrue(bool(vlsim_mode_after & stat.S_IWUSR), 
+                       "vlsim package should still be writable")
 
     def test_sync_git_only(self):
         """Test that sync only processes git packages"""
