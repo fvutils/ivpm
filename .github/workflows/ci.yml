@@ -39,8 +39,7 @@ jobs:
         password: ${{ secrets.PYPI_API_TOKEN }}
 
     - name: Publish Docs
-#      if: ${{ startsWith(github.ref, 'refs/heads/master') || startsWith(github.ref, 'refs/heads/ext-source-type') }}
-      if: ${{ startsWith(github.ref, 'refs/heads/ext-source-type') }}
+      if: ${{ startsWith(github.ref, 'refs/heads/master') }}
       uses: JamesIves/github-pages-deploy-action@4.1.7
       with:
         branch: gh-pages
