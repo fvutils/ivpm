@@ -12,7 +12,17 @@ Welcome to IVPM's documentation!
    
    introduction
    getting_started
+   core_concepts
+   dependency_sets
+   package_types
    caching
+   python_packages
+   github_releases
+   environment_paths
+   workflows
+   git_integration
+   integrations
+   troubleshooting
    reference
 
 
