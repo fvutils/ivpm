@@ -36,11 +36,51 @@
 					"type": "string",
 					"description": "Name of the package"
 				},
+				"version": {
+					"type": "string",
+					"description": "Version of the package"
+				},
+				"deps-dir": {
+					"type": "string",
+					"description": "Directory where dependencies are stored (default: 'packages')"
+				},
+				"default-dep-set": {
+					"type": "string",
+					"description": "Default dependency set to use if not specified on command line"
+				},
 				"dep-sets": {
 					"type": "array",
-					"title": "List of named depdendency sets",
+					"title": "List of named dependency sets",
 					"items": {
 						"$ref": "#/defs/dep-set"
+					}
+				},
+				"setup-deps": {
+					"type": "array",
+					"title": "Setup-time dependencies that must be installed before other packages",
+					"items": {
+						"type": "string"
+					}
+				},
+				"paths": {
+					"type": "object",
+					"title": "Path specifications organized by kind and type",
+					"description": "Organize project paths for tools to discover (e.g., rtl/vlog, dv/sv)",
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"env-sets": {
+					"type": "array",
+					"title": "Environment variable sets",
+					"items": {
+						"$ref": "#/defs/env-set"
 					}
 				}
 			}
@@ -53,6 +93,10 @@
 				"name": {
 					"type": "string",
 					"title": "Dependency-set identifier. 'default' and 'default-dev' are builtin names"
+				},
+				"default-dep-set": {
+					"type": "string",
+					"title": "Default dep-set name for sub-packages to inherit if not explicitly specified"
 				},
 				"deps": {
 					"type": "array",
@@ -85,6 +129,18 @@
 							"const": "git",
 							"title": "URL points to a Git repository"
 						},
+						{
+							"const": "http",
+							"title": "URL points to an HTTP/HTTPS resource"
+						},
+						{
+							"const": "file",
+							"title": "URL points to a local file (file://path)"
+						},
+						{
+							"const": "dir",
+							"title": "URL points to a local directory (file://path)"
+						},
 						{	
 							"const": "jar",
 							"title": "URL points to a .jar file. IVPM will not expand"
@@ -99,11 +155,15 @@
 						},
 						{
 							"const": "zip",
-							"title": "URL points to a zip file. IPVM will expand"
+							"title": "URL points to a zip file. IVPM will expand"
 						},
 						{
 							"const": "pypi",
 							"title": "Dependency name is a PyPi package to be installed with pip"
+						},
+						{
+							"const": "gh-rls",
+							"title": "GitHub Release - downloads platform-specific binaries or source from releases"
 						}
 					]
 				},
@@ -123,11 +183,11 @@
 				},
 				"version": {
 					"type": "string",
-					"title": "Version-specification string for Python packages from PyPi"
+					"title": "Version-specification string for Python packages from PyPi or GitHub Releases"
 				},
 				"anonymous": {
 					"type": "boolean",
-					"title": "Clone using anonymous (non-PAT) Git"
+					"title": "Clone using anonymous (HTTPS) Git instead of SSH"
 				},
 				"branch": {
 					"type": "string",
@@ -143,17 +203,96 @@
 				},
 				"deps": {
 					"type": "string",
-					"title": "When set to 'skip', sub-dependencies will not be loaded"
+					"title": "When set to 'skip', sub-dependencies will not be loaded",
+					"enum": ["skip"]
 				},
 				"depth": {
 					"type": "integer",
-					"title": "Git clone depth"
+					"title": "Git clone depth (number of commits to fetch)"
 				},
 				"dep-set": {
 					"type": "string",
-					"title": "Assuming the target is an IVPM package, Specifies the named dep-set to use"
-				} 			
+					"title": "Assuming the target is an IVPM package, specifies the named dep-set to use"
+				},
+				"cache": {
+					"type": "boolean",
+					"title": "Enable caching for this package. true=cached+readonly, false=readonly no cache, unspecified=full history+editable"
+				},
+				"link": {
+					"type": "boolean",
+					"title": "For 'dir' source type: use symlink (true) or copy (false). Default: true"
+				},
+				"unpack": {
+					"type": "boolean",
+					"title": "For archive files: whether to unpack the archive. Default: true (false for .jar)"
+				},
+				"file": {
+					"type": "string",
+					"title": "For GitHub Releases: specific asset filename to download"
+				},
+				"prerelease": {
+					"type": "boolean",
+					"title": "For GitHub Releases: include pre-release versions when selecting. Default: false"
+				}
 			}
+		},
+		"env-set": {
+			"title": "Environment variable set",
+			"$$target": "#/defs/env-set",
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"title": "Environment set identifier"
+				},
+				"env": {
+					"type": "array",
+					"title": "List of environment variable specifications",
+					"items": {
+						"$ref": "#/defs/env-spec"
+					}
+				}
+			}
+		},
+		"env-spec": {
+			"title": "Environment variable specification",
+			"$$target": "#/defs/env-spec",
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"title": "Environment variable name"
+				},
+				"value": {
+					"oneOf": [
+						{"type": "string"},
+						{"type": "array", "items": {"type": "string"}}
+					],
+					"title": "Set the variable to this value (space-separated if array)"
+				},
+				"path": {
+					"oneOf": [
+						{"type": "string"},
+						{"type": "array", "items": {"type": "string"}}
+					],
+					"title": "Set the variable as a path (colon-separated if array)"
+				},
+				"path-append": {
+					"oneOf": [
+						{"type": "string"},
+						{"type": "array", "items": {"type": "string"}}
+					],
+					"title": "Append to the variable as a path"
+				},
+				"path-prepend": {
+					"oneOf": [
+						{"type": "string"},
+						{"type": "array", "items": {"type": "string"}}
+					],
+					"title": "Prepend to the variable as a path"
+				}
+			},
+			"required": ["name"]
 		}
 	}
 }
