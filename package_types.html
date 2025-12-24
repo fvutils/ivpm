@@ -1,0 +1,749 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Package Types &amp; Sources &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Caching" href="caching.html" />
+    <link rel="prev" title="Dependency Sets" href="dependency_sets.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Package Types &amp; Sources</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#understanding-package-attributes">Understanding Package Attributes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#source-types">Source Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#git-git">Git (<code class="docutils literal notranslate"><span class="pre">git</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pypi-pypi">PyPI (<code class="docutils literal notranslate"><span class="pre">pypi</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#http-url-http">HTTP/URL (<code class="docutils literal notranslate"><span class="pre">http</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#file-file">File (<code class="docutils literal notranslate"><span class="pre">file</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#directory-dir">Directory (<code class="docutils literal notranslate"><span class="pre">dir</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#github-releases-gh-rls">GitHub Releases (<code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#package-types">Package Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#python-python">Python (<code class="docutils literal notranslate"><span class="pre">python</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#raw-raw">Raw (<code class="docutils literal notranslate"><span class="pre">raw</span></code>)</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#auto-detection">Auto-Detection</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#source-type-auto-detection">Source Type Auto-Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#package-type-auto-detection">Package Type Auto-Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#when-to-specify-explicitly">When to Specify Explicitly</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#common-dependency-patterns">Common Dependency Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-1-mix-of-sources">Pattern 1: Mix of Sources</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-2-versioned-dependencies">Pattern 2: Versioned Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-3-cached-dependencies">Pattern 3: Cached Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-reference">Complete Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#all-package-attributes">All Package Attributes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Package Types &amp; Sources</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/package_types.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="package-types-sources">
+<h1>Package Types &amp; Sources<a class="headerlink" href="#package-types-sources" title="Link to this heading"></a></h1>
+<section id="understanding-package-attributes">
+<h2>Understanding Package Attributes<a class="headerlink" href="#understanding-package-attributes" title="Link to this heading"></a></h2>
+<p>Every IVPM package has two fundamental attributes:</p>
+<ol class="arabic simple">
+<li><p><strong>Source Type</strong> (<code class="docutils literal notranslate"><span class="pre">src</span></code>): How to fetch the package</p></li>
+<li><p><strong>Package Type</strong> (<code class="docutils literal notranslate"><span class="pre">type</span></code>): What the package contains</p></li>
+</ol>
+<p>These are independent - any source type can provide any package type.</p>
+</section>
+<section id="source-types">
+<h2>Source Types<a class="headerlink" href="#source-types" title="Link to this heading"></a></h2>
+<p>Source types determine how IVPM obtains a package.</p>
+<section id="git-git">
+<h3>Git (<code class="docutils literal notranslate"><span class="pre">git</span></code>)<a class="headerlink" href="#git-git" title="Link to this heading"></a></h3>
+<p>Clone from a Git repository. Supports branches, tags, commits, and submodules.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git</span><span class="w">  </span><span class="c1"># Usually auto-detected</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">branch</span></code></dt><dd><p>Checkout a specific branch (default: repository default branch)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">tag</span></code></dt><dd><p>Checkout a specific tag</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">commit</span></code></dt><dd><p>Checkout a specific commit hash</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">depth</span></code></dt><dd><p>Clone depth for shallow clones (e.g., <code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code>)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">anonymous</span></code></dt><dd><p>Use HTTPS instead of SSH (default: false, converts to SSH)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (see <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a>)</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Specific branch</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">develop</span>
+
+<span class="c1"># Specific tag (release)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.2.3</span>
+
+<span class="c1"># Specific commit</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">abc123def456</span>
+
+<span class="c1"># Shallow clone (faster, less history)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">depth</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+
+<span class="c1"># Anonymous clone (HTTPS, no SSH key needed)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Cached (read-only, symlinked from cache)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+<span class="w">  </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Submodules:</strong> Automatically initialized if <code class="docutils literal notranslate"><span class="pre">.gitmodules</span></code> is present.</p>
+<p><strong>URL conversion:</strong> By default, HTTPS URLs are converted to SSH format
+(<code class="docutils literal notranslate"><span class="pre">git&#64;github.com:org/repo.git</span></code>) unless <code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">true</span></code> is set.</p>
+</section>
+<section id="pypi-pypi">
+<h3>PyPI (<code class="docutils literal notranslate"><span class="pre">pypi</span></code>)<a class="headerlink" href="#pypi-pypi" title="Link to this heading"></a></h3>
+<p>Install from the Python Package Index using pip or uv.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="c1"># No URL needed for PyPI packages</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">version</span></code></dt><dd><p>Version specification (e.g., <code class="docutils literal notranslate"><span class="pre">&gt;=1.0,&lt;2.0</span></code>)</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Latest version</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="c1"># Specific version</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.20,&lt;2.0&quot;</span>
+
+<span class="c1"># Exact version</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;==7.4.0&quot;</span>
+</pre></div>
+</div>
+<p><strong>Install behavior:</strong> Installed into <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code> virtual environment.</p>
+</section>
+<section id="http-url-http">
+<h3>HTTP/URL (<code class="docutils literal notranslate"><span class="pre">http</span></code>)<a class="headerlink" href="#http-url-http" title="Link to this heading"></a></h3>
+<p>Download an archive file via HTTP or HTTPS.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/releases/pkg-1.0.tar.gz</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http</span><span class="w">  </span><span class="c1"># Usually auto-detected</span>
+</pre></div>
+</div>
+<p><strong>Supported formats:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.tar.gz</span></code> / <code class="docutils literal notranslate"><span class="pre">.tgz</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.tar.xz</span></code> / <code class="docutils literal notranslate"><span class="pre">.txz</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.tar.bz2</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.zip</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.jar</span></code> (not unpacked by default)</p></li>
+</ul>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">unpack</span></code></dt><dd><p>Whether to unpack the archive (default: true, except for <code class="docutils literal notranslate"><span class="pre">.jar</span></code>)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (version detected from Last-Modified or ETag)</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download and unpack tarball</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">boost</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/boost-1.82.0.tar.gz</span>
+
+<span class="c1"># Download JAR (not unpacked)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/tool.jar</span>
+<span class="w">  </span><span class="nt">unpack</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="c1"># Cached download</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-pack</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/data.tar.gz</span>
+<span class="w">  </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+<section id="file-file">
+<h3>File (<code class="docutils literal notranslate"><span class="pre">file</span></code>)<a class="headerlink" href="#file-file" title="Link to this heading"></a></h3>
+<p>Use a local file.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local-archive</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///path/to/package.tar.gz</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file</span><span class="w">  </span><span class="c1"># Usually auto-detected</span>
+</pre></div>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Absolute path</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/packages/pkg.tar.gz</span>
+
+<span class="c1"># With environment variable</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${MY_PACKAGE_DIR}/pkg.tar.gz</span>
+</pre></div>
+</div>
+</section>
+<section id="directory-dir">
+<h3>Directory (<code class="docutils literal notranslate"><span class="pre">dir</span></code>)<a class="headerlink" href="#directory-dir" title="Link to this heading"></a></h3>
+<p>Use a local directory. Symlinked or copied into <code class="docutils literal notranslate"><span class="pre">packages/</span></code>.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local-dev</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///path/to/source</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">link</span></code></dt><dd><p>Use symlink (true, default) or copy (false)</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Symlink to local development directory</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">co-developed-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/projects/lib</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+<span class="w">  </span><span class="nt">link</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Copy directory contents</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">template-files</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///opt/templates</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+<span class="w">  </span><span class="nt">link</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p><strong>Use case:</strong> Develop multiple related projects simultaneously.</p>
+</section>
+<section id="github-releases-gh-rls">
+<h3>GitHub Releases (<code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>)<a class="headerlink" href="#github-releases-gh-rls" title="Link to this heading"></a></h3>
+<p>Download assets from GitHub Releases. Automatically selects platform-specific
+binaries or falls back to source.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-tool</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">version</span></code></dt><dd><p>Version selector (default: <code class="docutils literal notranslate"><span class="pre">latest</span></code>)</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">latest</span></code> - Most recent non-prerelease</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1.2.3</span></code> - Exact version (matches tag v1.2.3 or 1.2.3)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&gt;=1.0</span></code> - Minimum version</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;2.0</span></code> - Maximum version (exclusive)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;=1.5</span></code> - Maximum version (inclusive)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&gt;1.0</span></code> - Greater than version</p></li>
+</ul>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">file</span></code></dt><dd><p>Specific asset filename (not yet implemented)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">prerelease</span></code></dt><dd><p>Include pre-release versions (default: false)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (version includes platform info)</p>
+</dd>
+</dl>
+<p><strong>Platform selection:</strong></p>
+<p>IVPM automatically selects the appropriate asset for your platform:</p>
+<ul class="simple">
+<li><p><strong>Linux</strong>: manylinux wheels matching your glibc version and architecture</p></li>
+<li><p><strong>macOS</strong>: Assets tagged with “macos”, “darwin”, or “osx”</p></li>
+<li><p><strong>Windows</strong>: Assets tagged with “windows”, “win64”, or “win32”</p></li>
+</ul>
+<p>If no platform-specific binary is found, falls back to source (tarball/zipball).</p>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Latest release</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/astral-sh/uv</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+
+<span class="c1"># Specific version</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ruff</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/astral-sh/ruff</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+
+<span class="c1"># Version range</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.0,&lt;2.0&quot;</span>
+
+<span class="c1"># Include prereleases</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">beta-tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+<span class="w">  </span><span class="nt">prerelease</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Cached</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">large-binary</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/binary</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="package-types">
+<h2>Package Types<a class="headerlink" href="#package-types" title="Link to this heading"></a></h2>
+<p>Package types determine how IVPM processes a package after fetching.</p>
+<section id="python-python">
+<h3>Python (<code class="docutils literal notranslate"><span class="pre">python</span></code>)<a class="headerlink" href="#python-python" title="Link to this heading"></a></h3>
+<p>Python packages are installed into the project’s virtual environment.</p>
+<p><strong>Installation modes:</strong></p>
+<ol class="arabic simple">
+<li><p><strong>Editable mode</strong>: Source packages with <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> are installed with <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code></p></li>
+<li><p><strong>Binary mode</strong>: PyPI packages are installed normally</p></li>
+</ol>
+<p><strong>Auto-detection:</strong> A package is considered Python if:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> is specified, OR</p></li>
+<li><p>Directory contains <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, or <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Source package (editable install)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-python-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span><span class="w">  </span><span class="c1"># Auto-detected if setup.py exists</span>
+
+<span class="c1"># PyPI package</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span><span class="w">  </span><span class="c1"># Automatically type: python</span>
+</pre></div>
+</div>
+</section>
+<section id="raw-raw">
+<h3>Raw (<code class="docutils literal notranslate"><span class="pre">raw</span></code>)<a class="headerlink" href="#raw-raw" title="Link to this heading"></a></h3>
+<p>Raw packages are placed in <code class="docutils literal notranslate"><span class="pre">packages/&lt;name&gt;/</span></code> but not processed further.</p>
+<p><strong>Use cases:</strong></p>
+<ul class="simple">
+<li><p>Data files</p></li>
+<li><p>Configuration</p></li>
+<li><p>IP cores (Verilog, VHDL)</p></li>
+<li><p>Documentation</p></li>
+<li><p>Pre-built binaries</p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Verilog IP</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uart-rtl</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/uart.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
+
+<span class="c1"># Test data</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-vectors</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/vectors.tar.gz</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="auto-detection">
+<h2>Auto-Detection<a class="headerlink" href="#auto-detection" title="Link to this heading"></a></h2>
+<p>IVPM automatically detects both source and package types.</p>
+<section id="source-type-auto-detection">
+<h3>Source Type Auto-Detection<a class="headerlink" href="#source-type-auto-detection" title="Link to this heading"></a></h3>
+<p>Based on the URL:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>URL Pattern</p></th>
+<th class="head"><p>Detected Source Type</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Ends with <code class="docutils literal notranslate"><span class="pre">.git</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">git</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Starts with <code class="docutils literal notranslate"><span class="pre">http://</span></code> or <code class="docutils literal notranslate"><span class="pre">https://</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">http</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Starts with <code class="docutils literal notranslate"><span class="pre">file://</span></code> (is a file)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Starts with <code class="docutils literal notranslate"><span class="pre">file://</span></code> (is a directory)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dir</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>No URL specified</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="package-type-auto-detection">
+<h3>Package Type Auto-Detection<a class="headerlink" href="#package-type-auto-detection" title="Link to this heading"></a></h3>
+<p>Based on content and source:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 50.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Condition</p></th>
+<th class="head"><p>Detected Package Type</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Contains <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, or <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Otherwise</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="when-to-specify-explicitly">
+<h3>When to Specify Explicitly<a class="headerlink" href="#when-to-specify-explicitly" title="Link to this heading"></a></h3>
+<p>Specify source or package type explicitly when:</p>
+<ol class="arabic">
+<li><p><strong>Auto-detection is wrong</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># URL doesn&#39;t end in .git but is a Git repo</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">repo</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://git.example.com/repo</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>You want different behavior</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Has setup.py but want to treat as raw</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-package</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/data.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Using gh-rls (always specify)</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="common-dependency-patterns">
+<h2>Common Dependency Patterns<a class="headerlink" href="#common-dependency-patterns" title="Link to this heading"></a></h2>
+<section id="pattern-1-mix-of-sources">
+<h3>Pattern 1: Mix of Sources<a class="headerlink" href="#pattern-1-mix-of-sources" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Git source (editable Python package)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/library.git</span>
+
+<span class="w">  </span><span class="c1"># PyPI binary</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.20&quot;</span>
+
+<span class="w">  </span><span class="c1"># HTTP archive (raw data)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-data</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/data.tar.gz</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
+
+<span class="w">  </span><span class="c1"># Local development</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">co-dev-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/projects/lib</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+</pre></div>
+</div>
+</section>
+<section id="pattern-2-versioned-dependencies">
+<h3>Pattern 2: Versioned Dependencies<a class="headerlink" href="#pattern-2-versioned-dependencies" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Git tag</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stable-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib.git</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v2.0.0</span>
+
+<span class="w">  </span><span class="c1"># Git commit (for reproducibility)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exact-version</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/exact.git</span>
+<span class="w">    </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">abc123def456</span>
+
+<span class="w">  </span><span class="c1"># PyPI version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;==2.28.0&quot;</span>
+
+<span class="w">  </span><span class="c1"># GitHub Release version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.0,&lt;2.0&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="pattern-3-cached-dependencies">
+<h3>Pattern 3: Cached Dependencies<a class="headerlink" href="#pattern-3-cached-dependencies" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Cached Git (read-only, symlinked)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">large-repo</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/large.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stable</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># Cached HTTP (read-only, symlinked)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">big-archive</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/big.tar.gz</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># Cached GitHub Release (platform-specific)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">binary-tool</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="complete-reference">
+<h2>Complete Reference<a class="headerlink" href="#complete-reference" title="Link to this heading"></a></h2>
+<section id="all-package-attributes">
+<h3>All Package Attributes<a class="headerlink" href="#all-package-attributes" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Attribute</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Package identifier (required)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">url</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Source URL (not needed for pypi)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Source type: git, pypi, http, file, dir, gh-rls</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">type</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Package type: python, raw</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">version</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Version spec (PyPI, gh-rls)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">branch</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Git branch</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tag</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Git tag</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">commit</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Git commit hash</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">depth</span></code></p></td>
+<td><p>integer</p></td>
+<td><p>Git clone depth</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anonymous</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Use HTTPS for Git</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Enable caching</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">deps</span></code></p></td>
+<td><p>string</p></td>
+<td><p>“skip” to skip sub-dependencies</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dep-set</span></code></p></td>
+<td><p>string</p></td>
+<td><p>Sub-package dependency set</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">link</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Symlink (true) or copy (false) for dir</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unpack</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Unpack archives</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
+<td><p>string</p></td>
+<td><p>GitHub Release asset filename</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prerelease</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Include GitHub prereleases</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> - Understanding the package model</p></li>
+<li><p><a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> - Organizing dependencies</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Caching strategies</p></li>
+<li><p><a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> - Python-specific features</p></li>
+<li><p><a class="reference internal" href="github_releases.html"><span class="doc">GitHub Releases</span></a> - GitHub Releases details</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dependency_sets.html" class="btn btn-neutral float-left" title="Dependency Sets" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="caching.html" class="btn btn-neutral float-right" title="Caching" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

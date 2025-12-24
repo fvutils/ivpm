@@ -1,0 +1,739 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Integrations &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Troubleshooting" href="troubleshooting.html" />
+    <link rel="prev" title="Git Integration" href="git_integration.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Integrations</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cmake-integration">CMake Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#using-ivpm-share-directory">Using IVPM Share Directory</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#finding-package-information">Finding Package Information</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-cmake-example">Complete CMake Example</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#vscode-integration">VSCode Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#json-schema-support">JSON Schema Support</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tasks-integration">Tasks Integration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#launch-configuration">Launch Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ci-cd-integration">CI/CD Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#github-actions">GitHub Actions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#with-caching">With Caching</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#matrix-testing">Matrix Testing</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#gitlab-ci">GitLab CI</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#jenkins">Jenkins</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#docker-integration">Docker Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dockerfile-with-ivpm">Dockerfile with IVPM</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multi-stage-build">Multi-stage Build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#development-container">Development Container</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#make-integration">Make Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#makefile-with-ivpm">Makefile with IVPM</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#fusesoc-integration">FuseSoC Integration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#using-pkg-info-with-fusesoc">Using pkg-info with FuseSoC</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#pre-commit-hooks">Pre-commit Hooks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#continuous-deployment">Continuous Deployment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#deploy-with-snapshot">Deploy with Snapshot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#docker-registry">Docker Registry</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Integrations</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/integrations.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="integrations">
+<h1>Integrations<a class="headerlink" href="#integrations" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM integrates with various build systems, editors, and CI/CD platforms
+to streamline development workflows.</p>
+</section>
+<section id="cmake-integration">
+<h2>CMake Integration<a class="headerlink" href="#cmake-integration" title="Link to this heading"></a></h2>
+<p>IVPM provides CMake scripts for discovering package paths and libraries.</p>
+<section id="using-ivpm-share-directory">
+<h3>Using IVPM Share Directory<a class="headerlink" href="#using-ivpm-share-directory" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">share</span></code> command returns the path to IVPM’s CMake scripts:</p>
+<div class="highlight-cmake notranslate"><div class="highlight"><pre><span></span><span class="c"># CMakeLists.txt</span>
+<span class="nb">execute_process</span><span class="p">(</span>
+<span class="w">    </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">ivpm</span><span class="w"> </span><span class="s">share</span><span class="w"> </span><span class="s">cmake</span>
+<span class="w">    </span><span class="s">OUTPUT_VARIABLE</span><span class="w"> </span><span class="s">IVPM_CMAKE_PATH</span>
+<span class="w">    </span><span class="s">OUTPUT_STRIP_TRAILING_WHITESPACE</span>
+<span class="p">)</span>
+
+<span class="nb">list</span><span class="p">(</span><span class="s">APPEND</span><span class="w"> </span><span class="s">CMAKE_MODULE_PATH</span><span class="w"> </span><span class="o">${</span><span class="nv">IVPM_CMAKE_PATH</span><span class="o">}</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="finding-package-information">
+<h3>Finding Package Information<a class="headerlink" href="#finding-package-information" title="Link to this heading"></a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">pkg-info</span></code> to query package details:</p>
+<div class="highlight-cmake notranslate"><div class="highlight"><pre><span></span><span class="c"># Get include directories</span>
+<span class="nb">execute_process</span><span class="p">(</span>
+<span class="w">    </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">ivpm</span><span class="w"> </span><span class="s">pkg-info</span><span class="w"> </span><span class="s">incdirs</span><span class="w"> </span><span class="s">my-package</span>
+<span class="w">    </span><span class="s">OUTPUT_VARIABLE</span><span class="w"> </span><span class="s">MY_PACKAGE_INCLUDES</span>
+<span class="w">    </span><span class="s">OUTPUT_STRIP_TRAILING_WHITESPACE</span>
+<span class="p">)</span>
+
+<span class="c"># Get library directories</span>
+<span class="nb">execute_process</span><span class="p">(</span>
+<span class="w">    </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">ivpm</span><span class="w"> </span><span class="s">pkg-info</span><span class="w"> </span><span class="s">libdirs</span><span class="w"> </span><span class="s">my-package</span>
+<span class="w">    </span><span class="s">OUTPUT_VARIABLE</span><span class="w"> </span><span class="s">MY_PACKAGE_LIBDIRS</span>
+<span class="w">    </span><span class="s">OUTPUT_STRIP_TRAILING_WHITESPACE</span>
+<span class="p">)</span>
+
+<span class="nb">include_directories</span><span class="p">(</span><span class="o">${</span><span class="nv">MY_PACKAGE_INCLUDES</span><span class="o">}</span><span class="p">)</span>
+<span class="nb">link_directories</span><span class="p">(</span><span class="o">${</span><span class="nv">MY_PACKAGE_LIBDIRS</span><span class="o">}</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="complete-cmake-example">
+<h3>Complete CMake Example<a class="headerlink" href="#complete-cmake-example" title="Link to this heading"></a></h3>
+<div class="highlight-cmake notranslate"><div class="highlight"><pre><span></span><span class="nb">cmake_minimum_required</span><span class="p">(</span><span class="s">VERSION</span><span class="w"> </span><span class="s">3.10</span><span class="p">)</span>
+<span class="nb">project</span><span class="p">(</span><span class="s">MyProject</span><span class="p">)</span>
+
+<span class="c"># Find IVPM CMake scripts</span>
+<span class="nb">execute_process</span><span class="p">(</span>
+<span class="w">    </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">ivpm</span><span class="w"> </span><span class="s">share</span><span class="w"> </span><span class="s">cmake</span>
+<span class="w">    </span><span class="s">OUTPUT_VARIABLE</span><span class="w"> </span><span class="s">IVPM_CMAKE_PATH</span>
+<span class="w">    </span><span class="s">OUTPUT_STRIP_TRAILING_WHITESPACE</span>
+<span class="p">)</span>
+<span class="nb">list</span><span class="p">(</span><span class="s">APPEND</span><span class="w"> </span><span class="s">CMAKE_MODULE_PATH</span><span class="w"> </span><span class="o">${</span><span class="nv">IVPM_CMAKE_PATH</span><span class="o">}</span><span class="p">)</span>
+
+<span class="c"># Get package information</span>
+<span class="nb">execute_process</span><span class="p">(</span>
+<span class="w">    </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">ivpm</span><span class="w"> </span><span class="s">pkg-info</span><span class="w"> </span><span class="s">incdirs</span><span class="w"> </span><span class="s">boost</span><span class="w"> </span><span class="s">gtest</span>
+<span class="w">    </span><span class="s">OUTPUT_VARIABLE</span><span class="w"> </span><span class="s">DEPS_INCLUDES</span>
+<span class="w">    </span><span class="s">OUTPUT_STRIP_TRAILING_WHITESPACE</span>
+<span class="p">)</span>
+
+<span class="nb">execute_process</span><span class="p">(</span>
+<span class="w">    </span><span class="s">COMMAND</span><span class="w"> </span><span class="s">ivpm</span><span class="w"> </span><span class="s">pkg-info</span><span class="w"> </span><span class="s">libdirs</span><span class="w"> </span><span class="s">boost</span><span class="w"> </span><span class="s">gtest</span>
+<span class="w">    </span><span class="s">OUTPUT_VARIABLE</span><span class="w"> </span><span class="s">DEPS_LIBDIRS</span>
+<span class="w">    </span><span class="s">OUTPUT_STRIP_TRAILING_WHITESPACE</span>
+<span class="p">)</span>
+
+<span class="c"># Use package information</span>
+<span class="nb">include_directories</span><span class="p">(</span><span class="o">${</span><span class="nv">DEPS_INCLUDES</span><span class="o">}</span><span class="p">)</span>
+<span class="nb">link_directories</span><span class="p">(</span><span class="o">${</span><span class="nv">DEPS_LIBDIRS</span><span class="o">}</span><span class="p">)</span>
+
+<span class="c"># Build your project</span>
+<span class="nb">add_executable</span><span class="p">(</span><span class="s">myapp</span><span class="w"> </span><span class="s">src/main.cpp</span><span class="p">)</span>
+<span class="nb">target_link_libraries</span><span class="p">(</span><span class="s">myapp</span><span class="w"> </span><span class="s">boost_system</span><span class="w"> </span><span class="s">gtest</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="vscode-integration">
+<h2>VSCode Integration<a class="headerlink" href="#vscode-integration" title="Link to this heading"></a></h2>
+<section id="json-schema-support">
+<h3>JSON Schema Support<a class="headerlink" href="#json-schema-support" title="Link to this heading"></a></h3>
+<p>VSCode can provide autocomplete and validation for <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files.</p>
+<p><strong>Install YAML extension:</strong></p>
+<ol class="arabic simple">
+<li><p>Install “YAML” extension by Red Hat</p></li>
+<li><p>Create <code class="docutils literal notranslate"><span class="pre">.vscode/settings.json</span></code>:</p></li>
+</ol>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;yaml.schemas&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;https://fvutils.github.io/ivpm/ivpm.json&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ivpm.yaml&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Autocomplete for package attributes</p></li>
+<li><p>Validation of YAML structure</p></li>
+<li><p>Inline documentation</p></li>
+<li><p>Error highlighting</p></li>
+</ul>
+</section>
+<section id="tasks-integration">
+<h3>Tasks Integration<a class="headerlink" href="#tasks-integration" title="Link to this heading"></a></h3>
+<p>Create <code class="docutils literal notranslate"><span class="pre">.vscode/tasks.json</span></code> for IVPM commands:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.0.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;tasks&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;IVPM Update&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shell&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ivpm update&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;problemMatcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">&quot;group&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;build&quot;</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;IVPM Status&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shell&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ivpm status&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;problemMatcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[]</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;label&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;IVPM Activate &amp; Test&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;shell&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;command&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ivpm activate -c pytest&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;problemMatcher&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[],</span>
+<span class="w">      </span><span class="nt">&quot;group&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;kind&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;test&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="nt">&quot;isDefault&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong> Ctrl+Shift+P → “Tasks: Run Task” → Select task</p>
+</section>
+<section id="launch-configuration">
+<h3>Launch Configuration<a class="headerlink" href="#launch-configuration" title="Link to this heading"></a></h3>
+<p>Debug Python code with IVPM environment:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.2.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;configurations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Python: Current File&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;request&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;launch&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;program&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${file}&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;console&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integratedTerminal&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;python&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/packages/python/bin/python&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;env&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nt">&quot;PYTHONPATH&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/src&quot;</span>
+<span class="w">      </span><span class="p">}</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Python: Pytest&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;request&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;launch&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;module&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;args&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;${workspaceFolder}/test&quot;</span><span class="p">],</span>
+<span class="w">      </span><span class="nt">&quot;console&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;integratedTerminal&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;python&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;${workspaceFolder}/packages/python/bin/python&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">]</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="ci-cd-integration">
+<h2>CI/CD Integration<a class="headerlink" href="#ci-cd-integration" title="Link to this heading"></a></h2>
+<section id="github-actions">
+<h3>GitHub Actions<a class="headerlink" href="#github-actions" title="Link to this heading"></a></h3>
+<p><strong>.github/workflows/ci.yml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CI</span>
+
+<span class="nt">on</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">push</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="w"> </span><span class="nv">main</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">develop</span><span class="w"> </span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">pull_request</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="w"> </span><span class="nv">main</span><span class="w"> </span><span class="p p-Indicator">]</span>
+
+<span class="nt">jobs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">test</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v3</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Set up Python</span>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/setup-python@v4</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;3.10&#39;</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install IVPM</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install ivpm</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Setup cache</span>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/cache@v3</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">~/.cache/ivpm</span>
+<span class="w">          </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm-${{ runner.os }}-${{ hashFiles(&#39;ivpm.yaml&#39;) }}</span>
+<span class="w">          </span><span class="nt">restore-keys</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">            </span><span class="no">ivpm-${{ runner.os }}-</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Update dependencies</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">          </span><span class="no">export IVPM_CACHE=~/.cache/ivpm</span>
+<span class="w">          </span><span class="no">ivpm cache init $IVPM_CACHE</span>
+<span class="w">          </span><span class="no">ivpm update -a -d default-dev</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run tests</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest --cov=src&quot;</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Upload coverage</span>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">codecov/codecov-action@v3</span>
+</pre></div>
+</div>
+<section id="with-caching">
+<h4>With Caching<a class="headerlink" href="#with-caching" title="Link to this heading"></a></h4>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Cache IVPM packages</span>
+<span class="w">  </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/cache@v3</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+<span class="w">      </span><span class="no">~/.cache/ivpm</span>
+<span class="w">      </span><span class="no">packages/</span>
+<span class="w">    </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm-${{ runner.os }}-${{ hashFiles(&#39;ivpm.yaml&#39;) }}</span>
+</pre></div>
+</div>
+</section>
+<section id="matrix-testing">
+<h4>Matrix Testing<a class="headerlink" href="#matrix-testing" title="Link to this heading"></a></h4>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">strategy</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">matrix</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;3.8&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;3.9&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;3.10&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;3.11&#39;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">os</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ubuntu-latest</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">macos-latest</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">windows-latest</span><span class="p p-Indicator">]</span>
+
+<span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ matrix.os }}</span>
+
+<span class="nt">steps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v3</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Set up Python ${{ matrix.python-version }}</span>
+<span class="w">    </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/setup-python@v4</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ matrix.python-version }}</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install IVPM</span>
+<span class="w">    </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install ivpm</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Update dependencies</span>
+<span class="w">    </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm update -a</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Test</span>
+<span class="w">    </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c pytest</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="gitlab-ci">
+<h3>GitLab CI<a class="headerlink" href="#gitlab-ci" title="Link to this heading"></a></h3>
+<p><strong>.gitlab-ci.yml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">image</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python:3.10</span>
+
+<span class="nt">stages</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span>
+
+<span class="nt">variables</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">IVPM_CACHE</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${CI_PROJECT_DIR}/.ivpm-cache</span>
+
+<span class="nt">cache</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.ivpm-cache/</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packages/</span>
+
+<span class="nt">before_script</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install ivpm</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm cache init $IVPM_CACHE</span>
+
+<span class="nt">build</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build</span>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm update -a -d default-dev</span>
+<span class="w">  </span><span class="nt">artifacts</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packages/</span>
+
+<span class="nt">test</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test</span>
+<span class="w">  </span><span class="nt">script</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest --cov=src&quot;</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;black --check src/&quot;</span>
+<span class="w">  </span><span class="nt">coverage</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;/TOTAL.*\s+(\d+%)$/&#39;</span>
+</pre></div>
+</div>
+</section>
+<section id="jenkins">
+<h3>Jenkins<a class="headerlink" href="#jenkins" title="Link to this heading"></a></h3>
+<p><strong>Jenkinsfile:</strong></p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">pipeline</span><span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="n">agent</span><span class="w"> </span><span class="n">any</span>
+
+<span class="w">    </span><span class="n">environment</span><span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="n">IVPM_CACHE</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;${env.WORKSPACE}/.ivpm-cache&quot;</span>
+<span class="w">    </span><span class="o">}</span>
+
+<span class="w">    </span><span class="n">stages</span><span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="n">stage</span><span class="o">(</span><span class="s1">&#39;Setup&#39;</span><span class="o">)</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">steps</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">sh</span><span class="w"> </span><span class="s1">&#39;pip install ivpm&#39;</span>
+<span class="w">                </span><span class="n">sh</span><span class="w"> </span><span class="s1">&#39;ivpm cache init $IVPM_CACHE&#39;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">        </span><span class="o">}</span>
+
+<span class="w">        </span><span class="n">stage</span><span class="o">(</span><span class="s1">&#39;Dependencies&#39;</span><span class="o">)</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">steps</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">sh</span><span class="w"> </span><span class="s1">&#39;ivpm update -a -d default-dev&#39;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">        </span><span class="o">}</span>
+
+<span class="w">        </span><span class="n">stage</span><span class="o">(</span><span class="s1">&#39;Test&#39;</span><span class="o">)</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">steps</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">sh</span><span class="w"> </span><span class="s1">&#39;ivpm activate -c &quot;pytest --junitxml=results.xml&quot;&#39;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">        </span><span class="o">}</span>
+
+<span class="w">        </span><span class="n">stage</span><span class="o">(</span><span class="s1">&#39;Lint&#39;</span><span class="o">)</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">steps</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">sh</span><span class="w"> </span><span class="s1">&#39;ivpm activate -c &quot;black --check src/&quot;&#39;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">        </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+
+<span class="w">    </span><span class="n">post</span><span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="n">always</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">junit</span><span class="w"> </span><span class="s1">&#39;results.xml&#39;</span>
+<span class="w">        </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="docker-integration">
+<h2>Docker Integration<a class="headerlink" href="#docker-integration" title="Link to this heading"></a></h2>
+<section id="dockerfile-with-ivpm">
+<h3>Dockerfile with IVPM<a class="headerlink" href="#dockerfile-with-ivpm" title="Link to this heading"></a></h3>
+<div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-slim</span>
+
+<span class="c"># Install system dependencies</span>
+<span class="k">RUN</span><span class="w"> </span>apt-get<span class="w"> </span>update<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>-y<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>git<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>build-essential<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>/var/lib/apt/lists/*
+
+<span class="c"># Install IVPM</span>
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ivpm
+
+<span class="c"># Set up project</span>
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/app</span>
+<span class="k">COPY</span><span class="w"> </span>ivpm.yaml<span class="w"> </span>.
+
+<span class="c"># Fetch dependencies</span>
+<span class="k">RUN</span><span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a<span class="w"> </span>-d<span class="w"> </span>default
+
+<span class="c"># Copy application code</span>
+<span class="k">COPY</span><span class="w"> </span>src/<span class="w"> </span>./src/
+
+<span class="c"># Set environment</span>
+<span class="k">ENV</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;/app/packages/python/bin:</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="c"># Run application</span>
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ivpm&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;activate&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-c&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;python src/main.py&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="multi-stage-build">
+<h3>Multi-stage Build<a class="headerlink" href="#multi-stage-build" title="Link to this heading"></a></h3>
+<div class="highlight-dockerfile notranslate"><div class="highlight"><pre><span></span><span class="c"># Build stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="s">builder</span>
+
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ivpm
+
+<span class="k">WORKDIR</span><span class="w"> </span><span class="s">/build</span>
+<span class="k">COPY</span><span class="w"> </span>ivpm.yaml<span class="w"> </span>.
+<span class="k">RUN</span><span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a<span class="w"> </span>-d<span class="w"> </span>default
+
+<span class="k">COPY</span><span class="w"> </span>src/<span class="w"> </span>./src/
+<span class="k">RUN</span><span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python setup.py bdist_wheel&quot;</span>
+
+<span class="c"># Runtime stage</span>
+<span class="k">FROM</span><span class="w"> </span><span class="s">python:3.10-slim</span>
+
+<span class="k">COPY</span><span class="w"> </span>--from<span class="o">=</span>builder<span class="w"> </span>/build/dist/*.whl<span class="w"> </span>/tmp/
+<span class="k">RUN</span><span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>/tmp/*.whl<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>rm<span class="w"> </span>/tmp/*.whl
+
+<span class="k">CMD</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;python&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;-m&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;myapp&quot;</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+<section id="development-container">
+<h3>Development Container<a class="headerlink" href="#development-container" title="Link to this heading"></a></h3>
+<p><strong>.devcontainer/devcontainer.json:</strong></p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;IVPM Development&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;image&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;python:3.10&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;features&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;ghcr.io/devcontainers/features/git:1&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;postCreateCommand&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pip install ivpm &amp;&amp; ivpm update&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;customizations&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;vscode&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;extensions&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+<span class="w">        </span><span class="s2">&quot;ms-python.python&quot;</span><span class="p">,</span>
+<span class="w">        </span><span class="s2">&quot;redhat.vscode-yaml&quot;</span>
+<span class="w">      </span><span class="p">]</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="make-integration">
+<h2>Make Integration<a class="headerlink" href="#make-integration" title="Link to this heading"></a></h2>
+<section id="makefile-with-ivpm">
+<h3>Makefile with IVPM<a class="headerlink" href="#makefile-with-ivpm" title="Link to this heading"></a></h3>
+<div class="highlight-makefile notranslate"><div class="highlight"><pre><span></span><span class="nf">.PHONY</span><span class="o">:</span><span class="w"> </span><span class="n">update</span> <span class="n">test</span> <span class="n">lint</span> <span class="n">format</span> <span class="n">clean</span>
+
+<span class="c"># Update dependencies</span>
+<span class="nf">update</span><span class="o">:</span>
+<span class="w">    </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev
+
+<span class="c"># Run tests</span>
+<span class="nf">test</span><span class="o">:</span>
+<span class="w">    </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+
+<span class="c"># Run linters</span>
+<span class="nf">lint</span><span class="o">:</span>
+<span class="w">    </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span>
+<span class="w">    </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;mypy src/&quot;</span>
+
+<span class="c"># Format code</span>
+<span class="nf">format</span><span class="o">:</span>
+<span class="w">    </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black src/&quot;</span>
+
+<span class="c"># Clean build artifacts</span>
+<span class="nf">clean</span><span class="o">:</span>
+<span class="w">    </span>rm<span class="w"> </span>-rf<span class="w"> </span>build/<span class="w"> </span>dist/<span class="w"> </span>*.egg-info
+<span class="w">    </span>find<span class="w"> </span>.<span class="w"> </span>-type<span class="w"> </span>d<span class="w"> </span>-name<span class="w"> </span>__pycache__<span class="w"> </span>-exec<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span><span class="o">{}</span><span class="w"> </span>+
+
+<span class="c"># Full CI workflow</span>
+<span class="nf">ci</span><span class="o">:</span><span class="w"> </span><span class="n">update</span> <span class="n">test</span> <span class="n">lint</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="fusesoc-integration">
+<h2>FuseSoC Integration<a class="headerlink" href="#fusesoc-integration" title="Link to this heading"></a></h2>
+<section id="using-pkg-info-with-fusesoc">
+<h3>Using pkg-info with FuseSoC<a class="headerlink" href="#using-pkg-info-with-fusesoc" title="Link to this heading"></a></h3>
+<p>Query paths for FuseSoC core files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>pkg-info<span class="w"> </span>paths<span class="w"> </span>-k<span class="w"> </span>rtl<span class="w"> </span>my-ip-core
+</pre></div>
+</div>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ip</span>
+
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">rtl</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">vlog</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/verilog</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/systemverilog</span>
+
+<span class="w">    </span><span class="nt">dv</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/sv</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="pre-commit-hooks">
+<h2>Pre-commit Hooks<a class="headerlink" href="#pre-commit-hooks" title="Link to this heading"></a></h2>
+<p><strong>.pre-commit-config.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">repos</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local</span>
+<span class="w">    </span><span class="nt">hooks</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm-status</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Check IVPM package status</span>
+<span class="w">        </span><span class="nt">entry</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm status</span>
+<span class="w">        </span><span class="nt">language</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">system</span>
+<span class="w">        </span><span class="nt">pass_filenames</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Format with Black</span>
+<span class="w">        </span><span class="nt">entry</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;black&quot;</span>
+<span class="w">        </span><span class="nt">language</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">system</span>
+<span class="w">        </span><span class="nt">types</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">python</span><span class="p p-Indicator">]</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run tests</span>
+<span class="w">        </span><span class="nt">entry</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest&quot;</span>
+<span class="w">        </span><span class="nt">language</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">system</span>
+<span class="w">        </span><span class="nt">pass_filenames</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">        </span><span class="nt">stages</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+<section id="continuous-deployment">
+<h2>Continuous Deployment<a class="headerlink" href="#continuous-deployment" title="Link to this heading"></a></h2>
+<section id="deploy-with-snapshot">
+<h3>Deploy with Snapshot<a class="headerlink" href="#deploy-with-snapshot" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create release snapshot</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>--rls-deps<span class="w"> </span>/tmp/release-v1.0
+
+<span class="c1"># Package</span>
+$<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>release-v1.0.tar.gz<span class="w"> </span>-C<span class="w"> </span>/tmp<span class="w"> </span>release-v1.0
+
+<span class="c1"># Upload to server</span>
+$<span class="w"> </span>scp<span class="w"> </span>release-v1.0.tar.gz<span class="w"> </span>server:/releases/
+
+<span class="c1"># On server: extract and use</span>
+$<span class="w"> </span>tar<span class="w"> </span>xzf<span class="w"> </span>release-v1.0.tar.gz
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>release-v1.0
+$<span class="w"> </span>packages/python/bin/python<span class="w"> </span>src/main.py
+</pre></div>
+</div>
+</section>
+<section id="docker-registry">
+<h3>Docker Registry<a class="headerlink" href="#docker-registry" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build image</span>
+$<span class="w"> </span>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>myapp:1.0<span class="w"> </span>.
+
+<span class="c1"># Push to registry</span>
+$<span class="w"> </span>docker<span class="w"> </span>push<span class="w"> </span>myapp:1.0
+
+<span class="c1"># Deploy</span>
+$<span class="w"> </span>docker<span class="w"> </span>run<span class="w"> </span>-d<span class="w"> </span>myapp:1.0
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Cache in CI/CD</strong> - Speed up builds</p></li>
+<li><p><strong>Use anonymous mode in CI</strong> - No SSH key setup needed</p></li>
+<li><p><strong>Pin versions for production</strong> - Reproducible deployments</p></li>
+<li><p><strong>Separate dev/release deps</strong> - Minimal production images</p></li>
+<li><p><strong>Document integration</strong> - README for team members</p></li>
+<li><p><strong>Test integration locally</strong> - Before committing CI config</p></li>
+<li><p><strong>Use schema validation</strong> - Catch errors early</p></li>
+<li><p><strong>Monitor cache size</strong> - Clean periodically in CI</p></li>
+</ol>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> - Development workflows</p></li>
+<li><p><a class="reference internal" href="reference.html"><span class="doc">Reference</span></a> - Command reference</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Cache management</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="git_integration.html" class="btn btn-neutral float-left" title="Git Integration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="troubleshooting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

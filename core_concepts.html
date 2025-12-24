@@ -1,0 +1,463 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Core Concepts &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Dependency Sets" href="dependency_sets.html" />
+    <link rel="prev" title="Getting Started with IVPM" href="getting_started.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Core Concepts</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#understanding-ivpm-s-core-model">Understanding IVPM’s Core Model</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#project-structure">Project Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-concepts">Key Concepts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#packages">Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dependencies">Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dependency-sets">Dependency Sets</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#recursive-dependency-resolution">Recursive Dependency Resolution</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#package-types-vs-source-types">Package Types vs Source Types</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#source-type-how-to-fetch">Source Type: How to Fetch</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#package-type-what-it-contains">Package Type: What It Contains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#auto-detection">Auto-Detection</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#project-local-management">Project-Local Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#working-with-ivpm">Working with IVPM</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#typical-workflow">Typical Workflow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dependency-set-selection">Dependency Set Selection</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Core Concepts</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/core_concepts.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="core-concepts">
+<h1>Core Concepts<a class="headerlink" href="#core-concepts" title="Link to this heading"></a></h1>
+<section id="understanding-ivpm-s-core-model">
+<h2>Understanding IVPM’s Core Model<a class="headerlink" href="#understanding-ivpm-s-core-model" title="Link to this heading"></a></h2>
+<p>IVPM uses a project-local approach to package management. Unlike system-wide
+package managers, IVPM stores all dependencies within each project, making
+projects self-contained and portable.</p>
+<img alt="IVPM System Architecture" src="_images/ivpm_system.excalidraw.svg" />
+</section>
+<section id="project-structure">
+<h2>Project Structure<a class="headerlink" href="#project-structure" title="Link to this heading"></a></h2>
+<p>A typical IVPM-enabled project has this structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>my-project/
+├── ivpm.yaml                 # Package configuration
+├── packages/                 # Dependencies directory
+│   ├── python/              # Python virtual environment
+│   ├── dependency-1/        # Source package (editable)
+│   ├── dependency-2/        # Cached package (symlink, read-only)
+│   └── ...
+├── src/                     # Your project source
+└── ...
+</pre></div>
+</div>
+</section>
+<section id="key-concepts">
+<h2>Key Concepts<a class="headerlink" href="#key-concepts" title="Link to this heading"></a></h2>
+<section id="packages">
+<h3>Packages<a class="headerlink" href="#packages" title="Link to this heading"></a></h3>
+<p>A <strong>package</strong> is a unit of software that your project depends on. Packages can be:</p>
+<ul class="simple">
+<li><p><strong>Source packages</strong>: Git repositories, local directories</p></li>
+<li><p><strong>Binary packages</strong>: Pre-built archives, PyPI packages</p></li>
+<li><p><strong>Data packages</strong>: Configuration, test data, IP cores</p></li>
+</ul>
+<p>Every package has two key attributes:</p>
+<ol class="arabic simple">
+<li><p><strong>Source Type</strong>: How to fetch the package (git, pypi, http, etc.)</p></li>
+<li><p><strong>Package Type</strong>: What the package contains (python, raw)</p></li>
+</ol>
+</section>
+<section id="dependencies">
+<h3>Dependencies<a class="headerlink" href="#dependencies" title="Link to this heading"></a></h3>
+<p><strong>Dependencies</strong> are the packages your project needs. IVPM automatically:</p>
+<ul class="simple">
+<li><p>Fetches missing dependencies</p></li>
+<li><p>Resolves sub-dependencies recursively</p></li>
+<li><p>Orders installation based on setup requirements</p></li>
+<li><p>Handles both development and release dependency profiles</p></li>
+</ul>
+</section>
+<section id="dependency-sets">
+<h3>Dependency Sets<a class="headerlink" href="#dependency-sets" title="Link to this heading"></a></h3>
+<p><strong>Dependency sets</strong> are named collections of dependencies. They allow you to:</p>
+<ul class="simple">
+<li><p>Separate development dependencies from release dependencies</p></li>
+<li><p>Create different profiles for different build targets</p></li>
+<li><p>Control which sub-dependencies get loaded</p></li>
+</ul>
+<p>Common dependency set names:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">default</span></code> - Runtime/release dependencies</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">default-dev</span></code> - Development dependencies (includes tools, test frameworks)</p></li>
+<li><p>Custom names - Any profile you define</p></li>
+</ul>
+<p>Example:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">package</span><span class="p">:</span>
+  <span class="n">name</span><span class="p">:</span> <span class="n">my</span><span class="o">-</span><span class="n">project</span>
+  <span class="n">default</span><span class="o">-</span><span class="n">dep</span><span class="o">-</span><span class="nb">set</span><span class="p">:</span> <span class="n">default</span><span class="o">-</span><span class="n">dev</span>
+
+  <span class="n">dep</span><span class="o">-</span><span class="n">sets</span><span class="p">:</span>
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">default</span>
+      <span class="n">deps</span><span class="p">:</span>
+        <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">core</span><span class="o">-</span><span class="n">lib</span>
+          <span class="n">url</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">org</span><span class="o">/</span><span class="n">core</span><span class="o">-</span><span class="n">lib</span><span class="o">.</span><span class="n">git</span>
+
+    <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">default</span><span class="o">-</span><span class="n">dev</span>
+      <span class="n">deps</span><span class="p">:</span>
+        <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">core</span><span class="o">-</span><span class="n">lib</span>
+          <span class="n">url</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">org</span><span class="o">/</span><span class="n">core</span><span class="o">-</span><span class="n">lib</span><span class="o">.</span><span class="n">git</span>
+        <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">pytest</span>
+          <span class="n">src</span><span class="p">:</span> <span class="n">pypi</span>
+        <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">test</span><span class="o">-</span><span class="n">data</span>
+          <span class="n">url</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">org</span><span class="o">/</span><span class="n">test</span><span class="o">-</span><span class="n">data</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="recursive-dependency-resolution">
+<h2>Recursive Dependency Resolution<a class="headerlink" href="#recursive-dependency-resolution" title="Link to this heading"></a></h2>
+<p>IVPM automatically resolves dependencies recursively:</p>
+<ol class="arabic simple">
+<li><p>Load root project’s <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p>Select the active dependency set</p></li>
+<li><p>For each dependency:</p>
+<ol class="loweralpha simple">
+<li><p>Fetch the package source</p></li>
+<li><p>If the package has <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, resolve its dependencies</p></li>
+<li><p>Continue recursively for all sub-dependencies</p></li>
+</ol>
+</li>
+<li><p>Build a complete dependency graph</p></li>
+<li><p>Install packages in the correct order</p></li>
+</ol>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Root Project (default-dev)
+    ↓
+├─ Package A (inherits default-dev)
+│   ├─ Sub-package A1
+│   └─ Sub-package A2
+├─ Package B (uses custom dep-set)
+│   └─ Sub-package B1
+└─ Package C (no sub-dependencies)
+</pre></div>
+</div>
+</section>
+<section id="package-types-vs-source-types">
+<h2>Package Types vs Source Types<a class="headerlink" href="#package-types-vs-source-types" title="Link to this heading"></a></h2>
+<p>Understanding the distinction between <strong>package type</strong> and <strong>source type</strong> is crucial:</p>
+<section id="source-type-how-to-fetch">
+<h3>Source Type: How to Fetch<a class="headerlink" href="#source-type-how-to-fetch" title="Link to this heading"></a></h3>
+<p>The <strong>source type</strong> determines how IVPM obtains the package:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Source Type</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Example</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">git</span></code></p></td>
+<td><p>Clone from Git repository</p></td>
+<td><p>GitHub, GitLab</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></td>
+<td><p>Install from Python Package Index</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">requests</span></code>, <code class="docutils literal notranslate"><span class="pre">numpy</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">http</span></code></p></td>
+<td><p>Download archive via HTTP/HTTPS</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.tar.gz</span></code>, <code class="docutils literal notranslate"><span class="pre">.zip</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
+<td><p>Local file</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">file:///path/to/archive.tar.gz</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dir</span></code></p></td>
+<td><p>Local directory</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">file:///path/to/source</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gh-rls</span></code></p></td>
+<td><p>GitHub Release asset</p></td>
+<td><p>Platform-specific binaries</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="package-type-what-it-contains">
+<h3>Package Type: What It Contains<a class="headerlink" href="#package-type-what-it-contains" title="Link to this heading"></a></h3>
+<p>The <strong>package type</strong> determines how IVPM processes the package:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 60.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Package Type</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Install Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
+<td><p>Python package</p></td>
+<td><p>Install into venv (editable or binary)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+<td><p>Data/non-Python files</p></td>
+<td><p>Place in packages/ directory only</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="auto-detection">
+<h3>Auto-Detection<a class="headerlink" href="#auto-detection" title="Link to this heading"></a></h3>
+<p>IVPM automatically detects both types in most cases:</p>
+<p><strong>Source Type Detection:</strong></p>
+<ul class="simple">
+<li><p>URLs ending in <code class="docutils literal notranslate"><span class="pre">.git</span></code> → <code class="docutils literal notranslate"><span class="pre">git</span></code></p></li>
+<li><p>URLs starting with <code class="docutils literal notranslate"><span class="pre">http://</span></code> or <code class="docutils literal notranslate"><span class="pre">https://</span></code> → <code class="docutils literal notranslate"><span class="pre">http</span></code></p></li>
+<li><p>URLs starting with <code class="docutils literal notranslate"><span class="pre">file://</span></code> → <code class="docutils literal notranslate"><span class="pre">file</span></code> or <code class="docutils literal notranslate"><span class="pre">dir</span></code></p></li>
+<li><p>No URL specified → <code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></li>
+</ul>
+<p><strong>Package Type Detection:</strong></p>
+<ul class="simple">
+<li><p>Has <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, or <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> → <code class="docutils literal notranslate"><span class="pre">python</span></code></p></li>
+<li><p>Explicitly <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> → <code class="docutils literal notranslate"><span class="pre">python</span></code></p></li>
+<li><p>Otherwise → <code class="docutils literal notranslate"><span class="pre">raw</span></code></p></li>
+</ul>
+<p>You can explicitly specify types when auto-detection isn’t sufficient:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">deps</span><span class="p">:</span>
+  <span class="o">-</span> <span class="n">name</span><span class="p">:</span> <span class="n">my</span><span class="o">-</span><span class="n">package</span>
+    <span class="n">url</span><span class="p">:</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">example</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">pkg</span><span class="o">.</span><span class="n">tar</span><span class="o">.</span><span class="n">gz</span>
+    <span class="n">src</span><span class="p">:</span> <span class="n">http</span>          <span class="c1"># Explicitly specify source type</span>
+    <span class="nb">type</span><span class="p">:</span> <span class="n">python</span>       <span class="c1"># Explicitly specify package type</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="project-local-management">
+<h2>Project-Local Management<a class="headerlink" href="#project-local-management" title="Link to this heading"></a></h2>
+<p>All IVPM operations are project-local:</p>
+<p><strong>Dependencies Directory</strong></p>
+<p>Dependencies are stored in <code class="docutils literal notranslate"><span class="pre">packages/</span></code> (configurable via <code class="docutils literal notranslate"><span class="pre">deps-dir</span></code>):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>packages/
+├── python/           # Virtual environment
+│   ├── bin/
+│   ├── lib/
+│   └── ...
+├── package-a/        # Source dependency
+├── package-b/        # Source dependency
+└── package-c/        # Link to cache
+</pre></div>
+</div>
+<p><strong>Python Virtual Environment</strong></p>
+<p>IVPM creates a project-local Python virtual environment:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>packages/python/
+├── bin/
+│   ├── python       # Project-specific Python
+│   └── pip
+└── lib/
+    └── python3.x/
+        └── site-packages/
+</pre></div>
+</div>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>No system-wide state</p></li>
+<li><p>Each project is isolated</p></li>
+<li><p>Easy to delete and recreate</p></li>
+<li><p>Portable across machines</p></li>
+<li><p>Multiple projects can coexist</p></li>
+</ul>
+</section>
+<section id="working-with-ivpm">
+<h2>Working with IVPM<a class="headerlink" href="#working-with-ivpm" title="Link to this heading"></a></h2>
+<section id="typical-workflow">
+<h3>Typical Workflow<a class="headerlink" href="#typical-workflow" title="Link to this heading"></a></h3>
+<ol class="arabic">
+<li><p><strong>Clone a project</strong>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">clone</span> <span class="n">https</span><span class="p">:</span><span class="o">//</span><span class="n">github</span><span class="o">.</span><span class="n">com</span><span class="o">/</span><span class="n">org</span><span class="o">/</span><span class="n">project</span><span class="o">.</span><span class="n">git</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Update dependencies</strong> (done automatically by clone):</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Activate environment</strong>:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">activate</span>
+<span class="c1"># Or for one command:</span>
+<span class="n">ivpm</span> <span class="n">activate</span> <span class="o">-</span><span class="n">c</span> <span class="s2">&quot;pytest&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Work on code</strong>, make changes</p></li>
+<li><p><strong>Check status</strong> of Git dependencies:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">status</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Sync</strong> Git dependencies with upstream:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">sync</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="dependency-set-selection">
+<h3>Dependency Set Selection<a class="headerlink" href="#dependency-set-selection" title="Link to this heading"></a></h3>
+<p>Choose which dependency set to use:</p>
+<p><strong>Via command line:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use development dependencies</span>
+ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev
+
+<span class="c1"># Use release dependencies</span>
+ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default
+</pre></div>
+</div>
+<p><strong>Via ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span><span class="w">  </span><span class="c1"># Used if no -d specified</span>
+</pre></div>
+</div>
+<p><strong>Via sub-package override:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sub-package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/sub.git</span>
+<span class="w">    </span><span class="nt">dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">production</span><span class="w">  </span><span class="c1"># This package uses &#39;production&#39; dep-set</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<p>Now that you understand the core concepts:</p>
+<ul class="simple">
+<li><p>Learn about <a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> in detail</p></li>
+<li><p>Understand <a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> and all available options</p></li>
+<li><p>Explore <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> for faster updates</p></li>
+<li><p>See <a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> for Python-specific features</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="getting_started.html" class="btn btn-neutral float-left" title="Getting Started with IVPM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="dependency_sets.html" class="btn btn-neutral float-right" title="Dependency Sets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

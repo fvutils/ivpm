@@ -1,0 +1,910 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Troubleshooting &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Reference" href="reference.html" />
+    <link rel="prev" title="Integrations" href="integrations.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Troubleshooting</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#common-issues-and-solutions">Common Issues and Solutions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#installation-issues">Installation Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-command-not-found">IVPM Command Not Found</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#python-version-mismatch">Python Version Mismatch</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#update-issues">Update Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#ssh-authentication-failed">SSH Authentication Failed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#package-already-exists">Package Already Exists</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#git-clone-failed">Git Clone Failed</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#dependency-not-found">Dependency Not Found</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#python-package-issues">Python Package Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#module-not-found">Module Not Found</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#editable-install-not-working">Editable Install Not Working</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#version-conflict">Version Conflict</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#native-extension-build-failed">Native Extension Build Failed</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-issues">Cache Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#cache-not-working">Cache Not Working</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#broken-symlinks">Broken Symlinks</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cache-permission-denied">Cache Permission Denied</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#git-issues">Git Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#detached-head-state">Detached HEAD State</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#merge-conflicts">Merge Conflicts</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#submodule-not-initialized">Submodule Not Initialized</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cannot-push-changes">Cannot Push Changes</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#environment-issues">Environment Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#variables-not-set">Variables Not Set</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#variable-expansion-not-working">Variable Expansion Not Working</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#virtual-environment-issues">Virtual Environment Issues</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#venv-corrupted">Venv Corrupted</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#wrong-python-version">Wrong Python Version</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#activate-not-working">Activate Not Working</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#diagnostic-tools">Diagnostic Tools</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#enable-debug-logging">Enable Debug Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#check-ivpm-version">Check IVPM Version</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#list-installed-packages">List Installed Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#check-dependency-tree">Check Dependency Tree</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#verify-ivpm-yaml-syntax">Verify ivpm.yaml Syntax</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#check-git-package-status">Check Git Package Status</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#test-cache">Test Cache</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#common-error-messages">Common Error Messages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#missing-package-section-yaml-file">“Missing ‘package’ section YAML file”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dep-set-x-is-not-present-in-project-y">“Dep-set X is not present in project Y”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#no-such-file-or-directory-ivpm-yaml">“No such file or directory: ivpm.yaml”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#git-command-failed">“Git command failed”</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cannot-determine-source-type-from-url">“Cannot determine source type from url”</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#getting-help">Getting Help</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#check-documentation">Check Documentation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#report-a-bug">Report a Bug</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ask-for-help">Ask for Help</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#prevention-tips">Prevention Tips</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Troubleshooting</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/troubleshooting.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="troubleshooting">
+<h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h1>
+<section id="common-issues-and-solutions">
+<h2>Common Issues and Solutions<a class="headerlink" href="#common-issues-and-solutions" title="Link to this heading"></a></h2>
+<section id="installation-issues">
+<h3>Installation Issues<a class="headerlink" href="#installation-issues" title="Link to this heading"></a></h3>
+<section id="ivpm-command-not-found">
+<h4>IVPM Command Not Found<a class="headerlink" href="#ivpm-command-not-found" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm:</span> <span class="pre">command</span> <span class="pre">not</span> <span class="pre">found</span></code></p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check installation:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>list<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>ivpm
+</pre></div>
+</div>
+</li>
+<li><p><strong>Install if missing:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>ivpm
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check PATH:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$PATH</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-o<span class="w"> </span>~/.local/bin
+</pre></div>
+</div>
+<p>If not present, add to <code class="docutils literal notranslate"><span class="pre">~/.bashrc</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$HOME</span><span class="s2">/.local/bin:</span><span class="nv">$PATH</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Use Python module form:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>ivpm<span class="w"> </span>--help
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="python-version-mismatch">
+<h4>Python Version Mismatch<a class="headerlink" href="#python-version-mismatch" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> IVPM requires Python 3.x but system has 2.x</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use python3 explicitly</span>
+$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>ivpm
+$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+</section>
+<section id="update-issues">
+<h3>Update Issues<a class="headerlink" href="#update-issues" title="Link to this heading"></a></h3>
+<section id="ssh-authentication-failed">
+<h4>SSH Authentication Failed<a class="headerlink" href="#ssh-authentication-failed" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">Permission</span> <span class="pre">denied</span> <span class="pre">(publickey)</span></code> when cloning</p>
+<p><strong>Cause:</strong> SSH key not configured or not registered with Git server</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Use anonymous cloning:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
+</pre></div>
+</div>
+<p>Or in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/package.git</span>
+<span class="w">    </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Configure SSH key:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate key if needed</span>
+$<span class="w"> </span>ssh-keygen<span class="w"> </span>-t<span class="w"> </span>ed25519<span class="w"> </span>-C<span class="w"> </span><span class="s2">&quot;your_email@example.com&quot;</span>
+
+<span class="c1"># Add to GitHub/GitLab</span>
+$<span class="w"> </span>cat<span class="w"> </span>~/.ssh/id_ed25519.pub
+<span class="c1"># Copy and add to GitHub Settings → SSH Keys</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Test SSH connection:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ssh<span class="w"> </span>-T<span class="w"> </span>git@github.com
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="package-already-exists">
+<h4>Package Already Exists<a class="headerlink" href="#package-already-exists" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">Directory</span> <span class="pre">packages/xyz</span> <span class="pre">already</span> <span class="pre">exists</span></code></p>
+<p><strong>Cause:</strong> Dependency already fetched, possibly stale</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove and re-fetch</span>
+$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/xyz
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># Or remove all and start fresh</span>
+$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="git-clone-failed">
+<h4>Git Clone Failed<a class="headerlink" href="#git-clone-failed" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Git clone errors (timeout, network, etc.)</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check connectivity:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ping<span class="w"> </span>github.com
+$<span class="w"> </span>curl<span class="w"> </span>-I<span class="w"> </span>https://github.com
+</pre></div>
+</div>
+</li>
+<li><p><strong>Try anonymous:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check firewall/proxy:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Set HTTP proxy if needed</span>
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">HTTP_PROXY</span><span class="o">=</span>http://proxy:port
+$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">HTTPS_PROXY</span><span class="o">=</span>http://proxy:port
+</pre></div>
+</div>
+</li>
+<li><p><strong>Use local mirror:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://internal-mirror.com/package.git</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="dependency-not-found">
+<h4>Dependency Not Found<a class="headerlink" href="#dependency-not-found" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">Package</span> <span class="pre">xyz</span> <span class="pre">not</span> <span class="pre">found</span></code> or similar</p>
+<p><strong>Cause:</strong> Typo, wrong dependency set, or package doesn’t exist</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check spelling:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Wrong</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">reqeusts</span><span class="w">  </span><span class="c1"># Typo</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="c1"># Correct</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check dependency set:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Verify dep-set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev<span class="w">  </span><span class="c1"># Explicit set</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Verify package exists:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For PyPI</span>
+$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>search<span class="w"> </span>package-name
+
+<span class="c1"># For Git</span>
+$<span class="w"> </span>git<span class="w"> </span>ls-remote<span class="w"> </span>https://github.com/org/package.git
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="python-package-issues">
+<h3>Python Package Issues<a class="headerlink" href="#python-package-issues" title="Link to this heading"></a></h3>
+<section id="module-not-found">
+<h4>Module Not Found<a class="headerlink" href="#module-not-found" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError:</span> <span class="pre">No</span> <span class="pre">module</span> <span class="pre">named</span> <span class="pre">'xyz'</span></code></p>
+<p><strong>Cause:</strong> Package not installed, or not in active environment</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Verify installation:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list | grep xyz&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Force reinstall:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check dependency set:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev<span class="w">  </span><span class="c1"># Ensure correct set</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check if package is Python type:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Add type if auto-detection fails</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xyz</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/xyz.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="editable-install-not-working">
+<h4>Editable Install Not Working<a class="headerlink" href="#editable-install-not-working" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Changes to package source not reflected</p>
+<p><strong>Cause:</strong> Package not installed in editable mode</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check installation mode:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list | grep xyz&quot;</span>
+<span class="c1"># Should show: xyz  &lt;version&gt;  &lt;path-to-packages&gt;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Verify egg-link:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>packages/python/lib/python*/site-packages/*.egg-link
+</pre></div>
+</div>
+</li>
+<li><p><strong>Reinstall:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check package has setup.py:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>packages/xyz/setup.py<span class="w">  </span><span class="c1"># Must exist</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="version-conflict">
+<h4>Version Conflict<a class="headerlink" href="#version-conflict" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ERROR:</span> <span class="pre">Cannot</span> <span class="pre">install</span> <span class="pre">xyz</span> <span class="pre">because</span> <span class="pre">these</span> <span class="pre">package</span> <span class="pre">versions</span> <span class="pre">have</span> <span class="pre">incompatible</span> <span class="pre">dependencies</span></code></p>
+<p><strong>Cause:</strong> Version requirements conflict between packages</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Identify conflict:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip check&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Adjust version specs:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Too restrictive</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package-a</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;==1.0.0&quot;</span>
+
+<span class="c1"># More flexible</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package-a</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.0.0,&lt;2.0&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check dependency tree:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip show package-name&quot;</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="native-extension-build-failed">
+<h4>Native Extension Build Failed<a class="headerlink" href="#native-extension-build-failed" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Errors when building C/C++ extensions</p>
+<p><strong>Cause:</strong> Missing compiler, headers, or build dependencies</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Install build tools:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Ubuntu/Debian</span>
+$<span class="w"> </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>build-essential<span class="w"> </span>python3-dev
+
+<span class="c1"># macOS</span>
+$<span class="w"> </span>xcode-select<span class="w"> </span>--install
+
+<span class="c1"># Windows</span>
+<span class="c1"># Install Visual Studio Build Tools</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check setup-deps:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">setup-deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setuptools</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wheel</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Debug build:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python setup.py build_ext --verbose&quot;</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="cache-issues">
+<h3>Cache Issues<a class="headerlink" href="#cache-issues" title="Link to this heading"></a></h3>
+<section id="cache-not-working">
+<h4>Cache Not Working<a class="headerlink" href="#cache-not-working" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Packages not being cached</p>
+<p><strong>Cause:</strong> <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> not set or cache not enabled</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Set environment variable:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>~/.cache/ivpm
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Enable in ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/package.git</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Verify:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+$<span class="w"> </span>ls<span class="w"> </span>-la<span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="broken-symlinks">
+<h4>Broken Symlinks<a class="headerlink" href="#broken-symlinks" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Symlinks in <code class="docutils literal notranslate"><span class="pre">packages/</span></code> point to non-existent cache entries</p>
+<p><strong>Cause:</strong> Cache was cleaned or manually deleted</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove broken symlinks</span>
+$<span class="w"> </span>find<span class="w"> </span>packages/<span class="w"> </span>-type<span class="w"> </span>l<span class="w"> </span>!<span class="w"> </span>-exec<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-e<span class="w"> </span><span class="o">{}</span><span class="w"> </span><span class="se">\;</span><span class="w"> </span>-delete
+
+<span class="c1"># Re-fetch packages</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="cache-permission-denied">
+<h4>Cache Permission Denied<a class="headerlink" href="#cache-permission-denied" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Cannot write to shared cache</p>
+<p><strong>Cause:</strong> Incorrect permissions on shared cache</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check permissions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>-ld<span class="w"> </span>/shared/ivpm-cache
+</pre></div>
+</div>
+</li>
+<li><p><strong>Add to group:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>sudo<span class="w"> </span>usermod<span class="w"> </span>-a<span class="w"> </span>-G<span class="w"> </span>devteam<span class="w"> </span><span class="nv">$USER</span>
+$<span class="w"> </span>newgrp<span class="w"> </span>devteam<span class="w">  </span><span class="c1"># Or logout/login</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Fix permissions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>sudo<span class="w"> </span>chmod<span class="w"> </span>g+s<span class="w"> </span>/shared/ivpm-cache
+$<span class="w"> </span>sudo<span class="w"> </span>chmod<span class="w"> </span>-R<span class="w"> </span>g+rw<span class="w"> </span>/shared/ivpm-cache
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="git-issues">
+<h3>Git Issues<a class="headerlink" href="#git-issues" title="Link to this heading"></a></h3>
+<section id="detached-head-state">
+<h4>Detached HEAD State<a class="headerlink" href="#detached-head-state" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Git shows “detached HEAD” warning</p>
+<p><strong>Cause:</strong> Checked out a tag or specific commit</p>
+<p><strong>This is normal for tags/commits. Not an error.</strong></p>
+<p><strong>To fix if unintended:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/package-name
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>main<span class="w">  </span><span class="c1"># Or any branch</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="merge-conflicts">
+<h4>Merge Conflicts<a class="headerlink" href="#merge-conflicts" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> fails with merge conflicts</p>
+<p><strong>Cause:</strong> Local and remote changes conflict</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/conflicted-package
+
+<span class="c1"># Option 1: Keep local changes</span>
+$<span class="w"> </span>git<span class="w"> </span>status<span class="w">  </span><span class="c1"># See conflicts</span>
+$<span class="w"> </span><span class="c1"># Edit conflicted files</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
+$<span class="w"> </span>git<span class="w"> </span>commit
+
+<span class="c1"># Option 2: Discard local changes</span>
+$<span class="w"> </span>git<span class="w"> </span>reset<span class="w"> </span>--hard<span class="w"> </span>origin/main
+
+<span class="c1"># Option 3: Stash and reapply</span>
+$<span class="w"> </span>git<span class="w"> </span>stash
+$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span>git<span class="w"> </span>stash<span class="w"> </span>pop
+
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="submodule-not-initialized">
+<h4>Submodule Not Initialized<a class="headerlink" href="#submodule-not-initialized" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Submodule directories empty</p>
+<p><strong>Cause:</strong> Submodules not initialized</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Manual initialization</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/repo-with-submodules
+$<span class="w"> </span>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+
+<span class="c1"># Or re-fetch with IVPM</span>
+$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/repo-with-submodules
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="cannot-push-changes">
+<h4>Cannot Push Changes<a class="headerlink" href="#cannot-push-changes" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Cannot push to Git repository</p>
+<p><strong>Cause:</strong> No write access or wrong remote URL</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check remote:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/package-name
+$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>-v
+</pre></div>
+</div>
+</li>
+<li><p><strong>Change to SSH:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>set-url<span class="w"> </span>origin<span class="w"> </span>git@github.com:user/package.git
+</pre></div>
+</div>
+</li>
+<li><p><strong>Use fork:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>myfork<span class="w"> </span>git@github.com:me/package.git
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>myfork<span class="w"> </span>branch-name
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="environment-issues">
+<h3>Environment Issues<a class="headerlink" href="#environment-issues" title="Link to this heading"></a></h3>
+<section id="variables-not-set">
+<h4>Variables Not Set<a class="headerlink" href="#variables-not-set" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Environment variables not available</p>
+<p><strong>Cause:</strong> Not using <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code> or <code class="docutils literal notranslate"><span class="pre">env-sets</span></code> not defined</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Use activate:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo \$MY_VAR&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check env-sets:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Verify env-sets section</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Re-run update:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="variable-expansion-not-working">
+<h4>Variable Expansion Not Working<a class="headerlink" href="#variable-expansion-not-working" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">${VAR}</span></code> appears literally</p>
+<p><strong>Cause:</strong> Variable not defined or wrong order</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Define variables in dependency order</span>
+<span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BASE_DIR</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/opt/base&quot;</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SUB_DIR</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${BASE_DIR}/sub&quot;</span><span class="w">  </span><span class="c1"># Now BASE_DIR exists</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="virtual-environment-issues">
+<h3>Virtual Environment Issues<a class="headerlink" href="#virtual-environment-issues" title="Link to this heading"></a></h3>
+<section id="venv-corrupted">
+<h4>Venv Corrupted<a class="headerlink" href="#venv-corrupted" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Virtual environment not working</p>
+<p><strong>Cause:</strong> Corruption, version mismatch, or incomplete installation</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove and recreate</span>
+$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/python
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="wrong-python-version">
+<h4>Wrong Python Version<a class="headerlink" href="#wrong-python-version" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> Virtual environment uses wrong Python version</p>
+<p><strong>Cause:</strong> Created with different Python</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/python
+$<span class="w"> </span>python3.10<span class="w"> </span>-m<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">  </span><span class="c1"># Use specific version</span>
+</pre></div>
+</div>
+</section>
+<section id="activate-not-working">
+<h4>Activate Not Working<a class="headerlink" href="#activate-not-working" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code> fails or doesn’t change environment</p>
+<p><strong>Cause:</strong> Shell issues or venv not created</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Check venv exists:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>packages/python/bin/activate
+</pre></div>
+</div>
+</li>
+<li><p><strong>Try direct activation:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">source</span><span class="w"> </span>packages/python/bin/activate
+</pre></div>
+</div>
+</li>
+<li><p><strong>Recreate venv:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/python
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+</section>
+<section id="diagnostic-tools">
+<h2>Diagnostic Tools<a class="headerlink" href="#diagnostic-tools" title="Link to this heading"></a></h2>
+<section id="enable-debug-logging">
+<h3>Enable Debug Logging<a class="headerlink" href="#enable-debug-logging" title="Link to this heading"></a></h3>
+<p>Get detailed information about what IVPM is doing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>--log-level<span class="w"> </span>DEBUG<span class="w"> </span>update
+</pre></div>
+</div>
+<p>Levels:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">NONE</span></code> - No logging (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">WARN</span></code> - Warnings only</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">INFO</span></code> - Informational messages</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">DEBUG</span></code> - Detailed debug information</p></li>
+</ul>
+</section>
+<section id="check-ivpm-version">
+<h3>Check IVPM Version<a class="headerlink" href="#check-ivpm-version" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>--version
+$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>show<span class="w"> </span>ivpm
+</pre></div>
+</div>
+</section>
+<section id="list-installed-packages">
+<h3>List Installed Packages<a class="headerlink" href="#list-installed-packages" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list --format=json&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="check-dependency-tree">
+<h3>Check Dependency Tree<a class="headerlink" href="#check-dependency-tree" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip show package-name&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pipdeptree&quot;</span><span class="w">  </span><span class="c1"># If installed</span>
+</pre></div>
+</div>
+</section>
+<section id="verify-ivpm-yaml-syntax">
+<h3>Verify ivpm.yaml Syntax<a class="headerlink" href="#verify-ivpm-yaml-syntax" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import yaml; yaml.safe_load(open(&#39;ivpm.yaml&#39;))&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="check-git-package-status">
+<h3>Check Git Package Status<a class="headerlink" href="#check-git-package-status" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">  </span><span class="c1"># All Git packages</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/package-name<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>git<span class="w"> </span>status<span class="w">  </span><span class="c1"># Specific package</span>
+</pre></div>
+</div>
+</section>
+<section id="test-cache">
+<h3>Test Cache<a class="headerlink" href="#test-cache" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>info
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--verbose
+$<span class="w"> </span>ls<span class="w"> </span>-la<span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="common-error-messages">
+<h2>Common Error Messages<a class="headerlink" href="#common-error-messages" title="Link to this heading"></a></h2>
+<section id="missing-package-section-yaml-file">
+<h3>“Missing ‘package’ section YAML file”<a class="headerlink" href="#missing-package-section-yaml-file" title="Link to this heading"></a></h3>
+<p><strong>Cause:</strong> Invalid or empty <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p>
+<p><strong>Solution:</strong> Ensure <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> has a <code class="docutils literal notranslate"><span class="pre">package</span></code> section:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+</pre></div>
+</div>
+</section>
+<section id="dep-set-x-is-not-present-in-project-y">
+<h3>“Dep-set X is not present in project Y”<a class="headerlink" href="#dep-set-x-is-not-present-in-project-y" title="Link to this heading"></a></h3>
+<p><strong>Cause:</strong> Requested dependency set doesn’t exist</p>
+<p><strong>Solution:</strong> Check spelling and definition:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Verify dep-sets</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev<span class="w">  </span><span class="c1"># Use existing set</span>
+</pre></div>
+</div>
+</section>
+<section id="no-such-file-or-directory-ivpm-yaml">
+<h3>“No such file or directory: ivpm.yaml”<a class="headerlink" href="#no-such-file-or-directory-ivpm-yaml" title="Link to this heading"></a></h3>
+<p><strong>Cause:</strong> Not in project root or file doesn’t exist</p>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Check existence</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>/path/to/project<span class="w">  </span><span class="c1"># Navigate to project root</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span>my-project<span class="w">  </span><span class="c1"># Create if missing</span>
+</pre></div>
+</div>
+</section>
+<section id="git-command-failed">
+<h3>“Git command failed”<a class="headerlink" href="#git-command-failed" title="Link to this heading"></a></h3>
+<p><strong>Cause:</strong> Git clone/fetch/merge failed</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic simple">
+<li><p>Check network connectivity</p></li>
+<li><p>Verify repository URL</p></li>
+<li><p>Try anonymous mode (<code class="docutils literal notranslate"><span class="pre">-a</span></code>)</p></li>
+<li><p>Check firewall/proxy settings</p></li>
+</ol>
+</section>
+<section id="cannot-determine-source-type-from-url">
+<h3>“Cannot determine source type from url”<a class="headerlink" href="#cannot-determine-source-type-from-url" title="Link to this heading"></a></h3>
+<p><strong>Cause:</strong> URL doesn’t match known patterns</p>
+<p><strong>Solution:</strong> Explicitly specify <code class="docutils literal notranslate"><span class="pre">src</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://unusual-url.com/package</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">http</span><span class="w">  </span><span class="c1"># or git, file, etc.</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="getting-help">
+<h2>Getting Help<a class="headerlink" href="#getting-help" title="Link to this heading"></a></h2>
+<section id="check-documentation">
+<h3>Check Documentation<a class="headerlink" href="#check-documentation" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>--help
+$<span class="w"> </span>ivpm<span class="w"> </span>&lt;command&gt;<span class="w"> </span>--help
+</pre></div>
+</div>
+<p>Online Resources:</p>
+<ul class="simple">
+<li><p>Documentation: <a class="reference external" href="https://fvutils.github.io/ivpm">https://fvutils.github.io/ivpm</a></p></li>
+<li><p>GitHub: <a class="reference external" href="https://github.com/fvutils/ivpm">https://github.com/fvutils/ivpm</a></p></li>
+<li><p>Issues: <a class="reference external" href="https://github.com/fvutils/ivpm/issues">https://github.com/fvutils/ivpm/issues</a></p></li>
+</ul>
+</section>
+<section id="report-a-bug">
+<h3>Report a Bug<a class="headerlink" href="#report-a-bug" title="Link to this heading"></a></h3>
+<p>When reporting bugs, include:</p>
+<ol class="arabic simple">
+<li><p>IVPM version: <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">--version</span></code></p></li>
+<li><p>Python version: <code class="docutils literal notranslate"><span class="pre">python3</span> <span class="pre">--version</span></code></p></li>
+<li><p>Operating system: <code class="docutils literal notranslate"><span class="pre">uname</span> <span class="pre">-a</span></code></p></li>
+<li><p>Command that failed</p></li>
+<li><p>Full error message</p></li>
+<li><p>Debug output: <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">--log-level</span> <span class="pre">DEBUG</span> <span class="pre">&lt;command&gt;</span></code></p></li>
+</ol>
+<p>Example bug report:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>**IVPM Version:** 0.15.0
+**Python:** 3.10.12
+**OS:** Ubuntu 22.04
+**Command:** ivpm update -d default-dev
+**Error:** Git clone failed for package xyz
+**Debug output:**
+[Attach debug log]
+</pre></div>
+</div>
+</section>
+<section id="ask-for-help">
+<h3>Ask for Help<a class="headerlink" href="#ask-for-help" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>GitHub Issues: <a class="reference external" href="https://github.com/fvutils/ivpm/issues">https://github.com/fvutils/ivpm/issues</a></p></li>
+<li><p>Include minimal reproducible example</p></li>
+<li><p>Share your <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> (redact sensitive info)</p></li>
+<li><p>Provide debug output</p></li>
+</ul>
+</section>
+</section>
+<section id="prevention-tips">
+<h2>Prevention Tips<a class="headerlink" href="#prevention-tips" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Version control ivpm.yaml</strong> - Track changes</p></li>
+<li><p><strong>Use .gitignore</strong> - Don’t commit <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p><strong>Document custom setup</strong> - README for team members</p></li>
+<li><p><strong>Test before committing</strong> - <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">&amp;&amp;</span> <span class="pre">pytest</span></code></p></li>
+<li><p><strong>Keep IVPM updated</strong> - <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">--upgrade</span> <span class="pre">ivpm</span></code></p></li>
+<li><p><strong>Use virtual environments</strong> - Isolate projects</p></li>
+<li><p><strong>Regular cache cleanup</strong> - <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">cache</span> <span class="pre">clean</span></code></p></li>
+<li><p><strong>Check status regularly</strong> - <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code></p></li>
+<li><p><strong>Backup configurations</strong> - Copy <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p><strong>Read error messages carefully</strong> - They usually explain the issue</p></li>
+</ol>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic usage</p></li>
+<li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> - Common workflows</p></li>
+<li><p><a class="reference internal" href="reference.html"><span class="doc">Reference</span></a> - Command reference</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="integrations.html" class="btn btn-neutral float-left" title="Integrations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="reference.html" class="btn btn-neutral float-right" title="Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

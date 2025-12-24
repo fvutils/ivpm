@@ -1,0 +1,791 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Python Package Management &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="GitHub Releases" href="github_releases.html" />
+    <link rel="prev" title="Caching" href="caching.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Python Package Management</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#virtual-environment-creation">Virtual Environment Creation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#automatic-creation">Automatic Creation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#package-manager-selection">Package Manager Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#managing-installation">Managing Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#editable-vs-binary-packages">Editable vs Binary Packages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#editable-packages">Editable Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#binary-packages">Binary Packages</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#pypi-package-configuration">PyPI Package Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basic-pypi-packages">Basic PyPI Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#version-specifiers">Version Specifiers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pre-release-packages">Pre-release Packages</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#source-packages">Source Packages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#git-based-python-packages">Git-based Python Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#local-development-packages">Local Development Packages</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#setup-dependencies">Setup Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#building-native-extensions">Building Native Extensions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#the-build-command">The <code class="docutils literal notranslate"><span class="pre">build</span></code> Command</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#debug-builds">Debug Builds</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-building-a-package-with-native-extensions">Example: Building a Package with Native Extensions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#using-the-virtual-environment">Using the Virtual Environment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#activate-command">Activate Command</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#direct-access">Direct Access</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#environment-variables">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-examples">Complete Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-1-pure-python-project">Example 1: Pure Python Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-mixed-source-and-binary">Example 2: Mixed Source and Binary</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-3-native-extensions-with-build">Example 3: Native Extensions with Build</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#package-not-importable">Package Not Importable</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#editable-install-not-working">Editable Install Not Working</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build-failures">Build Failures</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#version-conflicts">Version Conflicts</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Python Package Management</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/python_packages.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="python-package-management">
+<h1>Python Package Management<a class="headerlink" href="#python-package-management" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM provides first-class support for Python packages, managing both source
+packages (editable installs) and binary packages (from PyPI) within a
+project-local virtual environment.</p>
+</section>
+<section id="virtual-environment-creation">
+<h2>Virtual Environment Creation<a class="headerlink" href="#virtual-environment-creation" title="Link to this heading"></a></h2>
+<p>IVPM automatically creates a project-local Python virtual environment in
+<code class="docutils literal notranslate"><span class="pre">packages/python/</span></code> when you run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>.</p>
+<section id="automatic-creation">
+<h3>Automatic Creation<a class="headerlink" href="#automatic-creation" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+<p>Creates:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>packages/
+└── python/
+    ├── bin/
+    │   ├── python
+    │   ├── pip
+    │   └── activate
+    ├── lib/
+    │   └── python3.x/
+    │       └── site-packages/
+    └── ...
+</pre></div>
+</div>
+<p>The virtual environment is created using Python’s built-in <code class="docutils literal notranslate"><span class="pre">venv</span></code> module.</p>
+</section>
+<section id="package-manager-selection">
+<h3>Package Manager Selection<a class="headerlink" href="#package-manager-selection" title="Link to this heading"></a></h3>
+<p>IVPM supports two Python package managers:</p>
+<ol class="arabic simple">
+<li><p><strong>uv</strong> - Fast, modern Python package installer (recommended)</p></li>
+<li><p><strong>pip</strong> - Traditional Python package installer</p></li>
+</ol>
+<p><strong>Auto-detection</strong> (default):</p>
+<p>IVPM checks if <code class="docutils literal notranslate"><span class="pre">uv</span></code> is available. If found, uses <code class="docutils literal notranslate"><span class="pre">uv</span></code>; otherwise, uses <code class="docutils literal notranslate"><span class="pre">pip</span></code>.</p>
+<p><strong>Explicit selection:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use uv</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--py-uv
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>--py-uv
+
+<span class="c1"># Use pip</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--py-pip
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>--py-pip
+</pre></div>
+</div>
+</section>
+<section id="managing-installation">
+<h3>Managing Installation<a class="headerlink" href="#managing-installation" title="Link to this heading"></a></h3>
+<p><strong>Skip Python package installation:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--skip-py-install
+</pre></div>
+</div>
+<p>Use this when packages are already installed and you only want to fetch
+non-Python dependencies.</p>
+<p><strong>Force reinstallation:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+<p>Use this to re-install all Python packages, useful after:</p>
+<ul class="simple">
+<li><p>Updating dependencies in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p>Corrupted virtual environment</p></li>
+<li><p>Switching between dev/release dependency sets</p></li>
+</ul>
+</section>
+</section>
+<section id="editable-vs-binary-packages">
+<h2>Editable vs Binary Packages<a class="headerlink" href="#editable-vs-binary-packages" title="Link to this heading"></a></h2>
+<p>IVPM installs Python packages in two modes:</p>
+<section id="editable-packages">
+<h3>Editable Packages<a class="headerlink" href="#editable-packages" title="Link to this heading"></a></h3>
+<p><strong>Source:</strong> Git repositories, local directories</p>
+<p><strong>Installation:</strong> <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code> (editable mode)</p>
+<p><strong>Characteristics:</strong></p>
+<ul class="simple">
+<li><p>Source code directly accessible</p></li>
+<li><p>Changes to source immediately available</p></li>
+<li><p>Can modify and commit</p></li>
+<li><p>Full development setup</p></li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-library.git</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>packages/
+├── my-library/          # Source code
+│   ├── setup.py
+│   ├── src/
+│   └── ...
+└── python/
+    └── lib/python3.x/site-packages/
+        └── my-library.egg-link  # Points to ../../../my-library
+</pre></div>
+</div>
+<p><strong>Import behavior:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">my_library</span>  <span class="c1"># Uses code from packages/my-library/</span>
+</pre></div>
+</div>
+</section>
+<section id="binary-packages">
+<h3>Binary Packages<a class="headerlink" href="#binary-packages" title="Link to this heading"></a></h3>
+<p><strong>Source:</strong> PyPI</p>
+<p><strong>Installation:</strong> <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span></code> (normal mode)</p>
+<p><strong>Characteristics:</strong></p>
+<ul class="simple">
+<li><p>Pre-built wheels or source distribution</p></li>
+<li><p>Installed into site-packages</p></li>
+<li><p>Cannot modify (read-only)</p></li>
+<li><p>Faster installation</p></li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=2.28.0&quot;</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>packages/
+└── python/
+    └── lib/python3.x/site-packages/
+        ├── requests/
+        ├── requests-2.31.0.dist-info/
+        └── ...
+</pre></div>
+</div>
+<p><strong>Import behavior:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>  <span class="c1"># Uses installed package</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="pypi-package-configuration">
+<h2>PyPI Package Configuration<a class="headerlink" href="#pypi-package-configuration" title="Link to this heading"></a></h2>
+<section id="basic-pypi-packages">
+<h3>Basic PyPI Packages<a class="headerlink" href="#basic-pypi-packages" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Latest version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">  </span><span class="c1"># Specific version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;==1.24.0&quot;</span>
+
+<span class="w">  </span><span class="c1"># Version range</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pandas</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.5.0,&lt;2.0&quot;</span>
+
+<span class="w">  </span><span class="c1"># Minimum version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=7.0&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="version-specifiers">
+<h3>Version Specifiers<a class="headerlink" href="#version-specifiers" title="Link to this heading"></a></h3>
+<p>IVPM supports PEP 440 version specifiers:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Specifier</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">==1.2.3</span></code></p></td>
+<td><p>Exactly version 1.2.3</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&gt;=1.2.3</span></code></p></td>
+<td><p>Version 1.2.3 or higher</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&lt;2.0</span></code></p></td>
+<td><p>Any version below 2.0</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&gt;=1.2,&lt;2.0</span></code></p></td>
+<td><p>1.2 or higher, but below 2.0</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">~=1.2.3</span></code></p></td>
+<td><p>Compatible release (&gt;=1.2.3, &lt;1.3.0)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">*</span></code> or unspecified</p></td>
+<td><p>Latest version</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="pre-release-packages">
+<h3>Pre-release Packages<a class="headerlink" href="#pre-release-packages" title="Link to this heading"></a></h3>
+<p>To include pre-release versions (alpha, beta, rc):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--py-prerls-packages
+</pre></div>
+</div>
+<p>Or in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, specify the pre-release version explicitly:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.0.0a1&quot;</span><span class="w">  </span><span class="c1"># Includes alpha releases</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="source-packages">
+<h2>Source Packages<a class="headerlink" href="#source-packages" title="Link to this heading"></a></h2>
+<section id="git-based-python-packages">
+<h3>Git-based Python Packages<a class="headerlink" href="#git-based-python-packages" title="Link to this heading"></a></h3>
+<p>Any Git repository with <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, or <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>
+is automatically detected as a Python package.</p>
+<p><strong>Example:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-package.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">develop</span>
+</pre></div>
+</div>
+<p><strong>Auto-detection:</strong> IVPM scans for Python build files after fetching.</p>
+<p><strong>Manual specification:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-package.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span><span class="w">  </span><span class="c1"># Explicitly mark as Python</span>
+</pre></div>
+</div>
+<p><strong>Installation:</strong> Installed as editable: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">packages/my-package</span></code></p>
+</section>
+<section id="local-development-packages">
+<h3>Local Development Packages<a class="headerlink" href="#local-development-packages" title="Link to this heading"></a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">dir</span></code> for co-developed packages:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">co-dev-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/projects/library</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+<span class="w">    </span><span class="nt">link</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Symlink instead of copy</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">packages/co-dev-lib</span></code> → symlink to <code class="docutils literal notranslate"><span class="pre">/home/user/projects/library</span></code></p></li>
+<li><p>Installed as editable</p></li>
+<li><p>Changes in original location immediately available</p></li>
+</ul>
+</section>
+</section>
+<section id="setup-dependencies">
+<h2>Setup Dependencies<a class="headerlink" href="#setup-dependencies" title="Link to this heading"></a></h2>
+<p>Some packages must be installed before others. Use <code class="docutils literal notranslate"><span class="pre">setup-deps</span></code> to specify
+installation order:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+
+<span class="w">  </span><span class="nt">setup-deps</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wheel</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setuptools</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wheel</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setuptools</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-cython-package</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cython-pkg.git</span>
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ol class="arabic simple">
+<li><p>Install <code class="docutils literal notranslate"><span class="pre">wheel</span></code>, <code class="docutils literal notranslate"><span class="pre">setuptools</span></code>, <code class="docutils literal notranslate"><span class="pre">cython</span></code> first (in order)</p></li>
+<li><p>Then install all other packages (topologically sorted)</p></li>
+</ol>
+<p>This ensures build dependencies are available before packages that need them.</p>
+</section>
+<section id="building-native-extensions">
+<h2>Building Native Extensions<a class="headerlink" href="#building-native-extensions" title="Link to this heading"></a></h2>
+<section id="the-build-command">
+<h3>The <code class="docutils literal notranslate"><span class="pre">build</span></code> Command<a class="headerlink" href="#the-build-command" title="Link to this heading"></a></h3>
+<p>For Python packages with native extensions (C, C++, Cython):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build
+</pre></div>
+</div>
+<p>This runs the build process for all Python packages in <code class="docutils literal notranslate"><span class="pre">packages/</span></code>.</p>
+<p><strong>Options:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build with debug symbols</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
+
+<span class="c1"># Build specific dependency set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>-d<span class="w"> </span>default-dev
+</pre></div>
+</div>
+</section>
+<section id="debug-builds">
+<h3>Debug Builds<a class="headerlink" href="#debug-builds" title="Link to this heading"></a></h3>
+<p>To build native extensions with debug symbols:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
+</pre></div>
+</div>
+<p>Or set environment variable:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nv">DEBUG</span><span class="o">=</span><span class="m">1</span><span class="w"> </span>ivpm<span class="w"> </span>build
+</pre></div>
+</div>
+<p>This passes <code class="docutils literal notranslate"><span class="pre">-g</span></code> flag to the C/C++ compiler and disables optimization.</p>
+</section>
+<section id="example-building-a-package-with-native-extensions">
+<h3>Example: Building a Package with Native Extensions<a class="headerlink" href="#example-building-a-package-with-native-extensions" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">setup-deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setuptools</span>
+
+<span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setuptools</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-fast-lib</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/fast-lib.git</span>
+</pre></div>
+</div>
+<p><strong>Build process:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">    </span><span class="c1"># Fetch sources, install packages</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w">     </span><span class="c1"># Build native extensions</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="using-the-virtual-environment">
+<h2>Using the Virtual Environment<a class="headerlink" href="#using-the-virtual-environment" title="Link to this heading"></a></h2>
+<section id="activate-command">
+<h3>Activate Command<a class="headerlink" href="#activate-command" title="Link to this heading"></a></h3>
+<p>Run commands within the virtual environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># One-off command</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+
+<span class="c1"># Interactive shell</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pip<span class="w"> </span>list
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+</pre></div>
+</div>
+<p><strong>Behind the scenes:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code> sources <code class="docutils literal notranslate"><span class="pre">packages/python/bin/activate</span></code></p>
+</section>
+<section id="direct-access">
+<h3>Direct Access<a class="headerlink" href="#direct-access" title="Link to this heading"></a></h3>
+<p>You can also use the virtual environment directly:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use Python directly</span>
+$<span class="w"> </span>packages/python/bin/python<span class="w"> </span>script.py
+
+<span class="c1"># Install additional packages</span>
+$<span class="w"> </span>packages/python/bin/pip<span class="w"> </span>install<span class="w"> </span>extra-package
+
+<span class="c1"># Run installed scripts</span>
+$<span class="w"> </span>packages/python/bin/pytest
+</pre></div>
+</div>
+</section>
+<section id="environment-variables">
+<h3>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h3>
+<p>When activated, these variables are set:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">VIRTUAL_ENV</span></code> → <code class="docutils literal notranslate"><span class="pre">packages/python</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PATH</span></code> → <code class="docutils literal notranslate"><span class="pre">packages/python/bin:$PATH</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> → (can be customized via <code class="docutils literal notranslate"><span class="pre">env-sets</span></code>)</p></li>
+</ul>
+</section>
+</section>
+<section id="complete-examples">
+<h2>Complete Examples<a class="headerlink" href="#complete-examples" title="Link to this heading"></a></h2>
+<section id="example-1-pure-python-project">
+<h3>Example 1: Pure Python Project<a class="headerlink" href="#example-1-pure-python-project" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-analyzer</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pandas</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=2.0&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.24&quot;</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pandas</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=2.0&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.24&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mypy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black src/&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;mypy src/&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="example-2-mixed-source-and-binary">
+<h3>Example 2: Mixed Source and Binary<a class="headerlink" href="#example-2-mixed-source-and-binary" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ml-pipeline</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Binary packages from PyPI</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">torch</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=2.0&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">transformers</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">        </span><span class="c1"># Source package (co-developed)</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom-models</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/models.git</span>
+
+<span class="w">        </span><span class="c1"># Local development</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-utils</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/projects/utils</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python train.py&quot;</span>
+
+<span class="c1"># Edit custom-models or data-utils, changes immediate</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python train.py&quot;</span><span class="w">  </span><span class="c1"># Uses modified code</span>
+</pre></div>
+</div>
+</section>
+<section id="example-3-native-extensions-with-build">
+<h3>Example 3: Native Extensions with Build<a class="headerlink" href="#example-3-native-extensions-with-build" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">signal-processor</span>
+
+<span class="w">  </span><span class="nt">setup-deps</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cython</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scipy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fast-dsp</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/fast-dsp.git</span>
+</pre></div>
+</div>
+<p><strong>fast-dsp has C extensions that need compilation</strong></p>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">       </span><span class="c1"># Fetch and install</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w">        </span><span class="c1"># Build native extensions</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python process.py&quot;</span>
+
+<span class="c1"># Debug build</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;gdb python&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="package-not-importable">
+<h3>Package Not Importable<a class="headerlink" href="#package-not-importable" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ModuleNotFoundError</span></code> when importing</p>
+<p><strong>Check:</strong></p>
+<ol class="arabic">
+<li><p>Is the package in the active dependency set?</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Check dep-sets</span>
+</pre></div>
+</div>
+</li>
+<li><p>Was <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> run?</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</li>
+<li><p>Is the virtual environment activated?</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python -c &#39;import package&#39;&quot;</span>
+</pre></div>
+</div>
+</li>
+<li><p>List installed packages:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="editable-install-not-working">
+<h3>Editable Install Not Working<a class="headerlink" href="#editable-install-not-working" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Changes to source package not reflected</p>
+<p><strong>Check:</strong></p>
+<ol class="arabic">
+<li><p>Is it installed in editable mode?</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
+<span class="c1"># Look for -e /path/to/package</span>
+</pre></div>
+</div>
+</li>
+<li><p>Check the egg-link:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>packages/python/lib/python3.*/site-packages/package.egg-link
+</pre></div>
+</div>
+</li>
+</ol>
+<p><strong>Solution:</strong> Reinstall:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+</section>
+<section id="build-failures">
+<h3>Build Failures<a class="headerlink" href="#build-failures" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Native extension build fails</p>
+<p><strong>Common causes:</strong></p>
+<ol class="arabic simple">
+<li><p>Missing build dependencies (compiler, headers)</p></li>
+<li><p>Missing setup-deps</p></li>
+<li><p>Wrong order of installation</p></li>
+</ol>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install system dependencies (Ubuntu/Debian)</span>
+$<span class="w"> </span>sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>build-essential<span class="w"> </span>python3-dev
+
+<span class="c1"># Add setup-deps to ivpm.yaml</span>
+$<span class="w"> </span>vim<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Add setuptools, wheel, cython</span>
+
+<span class="c1"># Rebuild</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+$<span class="w"> </span>ivpm<span class="w"> </span>build
+</pre></div>
+</div>
+</section>
+<section id="version-conflicts">
+<h3>Version Conflicts<a class="headerlink" href="#version-conflicts" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Package version conflict errors</p>
+<p><strong>Check versions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
+</pre></div>
+</div>
+<p><strong>Solution:</strong> Adjust version specs in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Too restrictive</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package-a</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;==1.0.0&quot;</span>
+
+<span class="w">  </span><span class="c1"># Better</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package-a</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.0.0,&lt;2.0&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Use version ranges</strong> instead of exact versions for flexibility</p></li>
+<li><p><strong>Specify setup-deps</strong> for packages with build dependencies</p></li>
+<li><p><strong>Use editable installs</strong> for packages under active development</p></li>
+<li><p><strong>Keep dev tools separate</strong> in <code class="docutils literal notranslate"><span class="pre">default-dev</span></code> dependency set</p></li>
+<li><p><strong>Pin versions</strong> for reproducible builds (release deps)</p></li>
+<li><p><strong>Use –force-py-install</strong> after changing dependency sets</p></li>
+<li><p><strong>Leverage uv</strong> for faster package installation</p></li>
+<li><p><strong>Test with both pip and uv</strong> if distributing to diverse users</p></li>
+</ol>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic Python package setup</p></li>
+<li><p><a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> - Organizing Python and non-Python deps</p></li>
+<li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - PyPI package configuration</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="caching.html" class="btn btn-neutral float-left" title="Caching" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="github_releases.html" class="btn btn-neutral float-right" title="GitHub Releases" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

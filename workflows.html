@@ -1,0 +1,890 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Development Workflows &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Git Integration" href="git_integration.html" />
+    <link rel="prev" title="Environment &amp; Paths" href="environment_paths.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Development Workflows</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#project-lifecycle">Project Lifecycle</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#starting-a-new-project">Starting a New Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cloning-an-existing-project">Cloning an Existing Project</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#working-with-dependencies">Working with Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-new-dependency">Adding a New Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-git-dependency">Adding a Git Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-local-development-dependency">Adding a Local Development Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#removing-a-dependency">Removing a Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#updating-dependency-versions">Updating Dependency Versions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#daily-development">Daily Development</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#morning-routine">Morning Routine</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#interactive-development">Interactive Development</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#running-quick-commands">Running Quick Commands</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#working-with-editable-packages">Working with Editable Packages</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#modifying-dependency-source">Modifying Dependency Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#testing-changes-before-committing">Testing Changes Before Committing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-a-branch-in-a-dependency">Creating a Branch in a Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#submitting-upstream-changes">Submitting Upstream Changes</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#git-package-management">Git Package Management</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#checking-package-status">Checking Package Status</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#syncing-with-upstream">Syncing with Upstream</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#handling-merge-conflicts">Handling Merge Conflicts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#switching-branches">Switching Branches</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#building-and-testing">Building and Testing</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#building-python-extensions">Building Python Extensions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#running-tests">Running Tests</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#running-linters-and-formatters">Running Linters and Formatters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#continuous-integration">Continuous Integration</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#release-workflows">Release Workflows</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#preparing-a-release">Preparing a Release</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#creating-a-snapshot">Creating a Snapshot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#deploying-to-users">Deploying to Users</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#team-workflows">Team Workflows</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#onboarding-new-team-members">Onboarding New Team Members</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#shared-cache-setup">Shared Cache Setup</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#code-review-workflow">Code Review Workflow</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#feature-branch-workflow">Feature Branch Workflow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#common-scenarios">Common Scenarios</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#scenario-1-dependency-has-a-bug">Scenario 1: Dependency Has a Bug</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scenario-2-need-older-version-temporarily">Scenario 2: Need Older Version Temporarily</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scenario-3-working-on-multiple-projects">Scenario 3: Working on Multiple Projects</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scenario-4-cleaning-up-stale-dependencies">Scenario 4: Cleaning Up Stale Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting-common-issues">Troubleshooting Common Issues</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#package-already-loaded-but-not-visible">“Package Already Loaded” But Not Visible</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dependency-version-conflicts">Dependency Version Conflicts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#git-package-won-t-sync">Git Package Won’t Sync</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#python-package-not-importable">Python Package Not Importable</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Development Workflows</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/workflows.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="development-workflows">
+<h1>Development Workflows<a class="headerlink" href="#development-workflows" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>This guide covers common workflows for developing with IVPM, from project
+initialization through daily development and release preparation.</p>
+</section>
+<section id="project-lifecycle">
+<h2>Project Lifecycle<a class="headerlink" href="#project-lifecycle" title="Link to this heading"></a></h2>
+<section id="starting-a-new-project">
+<h3>Starting a New Project<a class="headerlink" href="#starting-a-new-project" title="Link to this heading"></a></h3>
+<p><strong>Step 1: Initialize</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>my-project
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>my-project
+$<span class="w"> </span>git<span class="w"> </span>init
+$<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span>my-project<span class="w"> </span>-v<span class="w"> </span><span class="m">0</span>.1.0
+</pre></div>
+</div>
+<p><strong>Step 2: Configure Dependencies</strong></p>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p><strong>Step 3: Create Project Structure</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>src/my_project<span class="w"> </span><span class="nb">test</span><span class="w"> </span>docs
+$<span class="w"> </span>touch<span class="w"> </span>src/my_project/__init__.py
+$<span class="w"> </span>touch<span class="w"> </span>test/test_basic.py
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;# My Project&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>README.md
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;packages/&quot;</span><span class="w"> </span>&gt;<span class="w"> </span>.gitignore
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;build/&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>.gitignore
+$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;__pycache__/&quot;</span><span class="w"> </span>&gt;&gt;<span class="w"> </span>.gitignore
+</pre></div>
+</div>
+<p><strong>Step 4: Initialize Dependencies</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+<p><strong>Step 5: Initial Commit</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>ivpm.yaml<span class="w"> </span>src/<span class="w"> </span>test/<span class="w"> </span>README.md<span class="w"> </span>.gitignore
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Initial project setup&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="cloning-an-existing-project">
+<h3>Cloning an Existing Project<a class="headerlink" href="#cloning-an-existing-project" title="Link to this heading"></a></h3>
+<p><strong>For end users:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
+<span class="c1"># Ready to use!</span>
+</pre></div>
+</div>
+<p><strong>For developers:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git<span class="w"> </span>-b<span class="w"> </span>develop
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+</pre></div>
+</div>
+</section>
+</section>
+<section id="working-with-dependencies">
+<h2>Working with Dependencies<a class="headerlink" href="#working-with-dependencies" title="Link to this heading"></a></h2>
+<section id="adding-a-new-dependency">
+<h3>Adding a New Dependency<a class="headerlink" href="#adding-a-new-dependency" title="Link to this heading"></a></h3>
+<p><strong>Step 1: Add to ivpm.yaml</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.20&quot;</span>
+</pre></div>
+</div>
+<p><strong>Step 2: Update</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+<p><strong>Step 3: Verify</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python -c &#39;import numpy; print(numpy.__version__)&#39;&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="adding-a-git-dependency">
+<h3>Adding a Git Dependency<a class="headerlink" href="#adding-a-git-dependency" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-library.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ls<span class="w"> </span>packages/my-library<span class="w">  </span><span class="c1"># Verify it&#39;s there</span>
+</pre></div>
+</div>
+</section>
+<section id="adding-a-local-development-dependency">
+<h3>Adding a Local Development Dependency<a class="headerlink" href="#adding-a-local-development-dependency" title="Link to this heading"></a></h3>
+<p>For co-development of multiple projects:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shared-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/projects/shared-lib</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+<span class="w">    </span><span class="nt">link</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ls<span class="w"> </span>-l<span class="w"> </span>packages/shared-lib<span class="w">  </span><span class="c1"># Should be a symlink</span>
+</pre></div>
+</div>
+</section>
+<section id="removing-a-dependency">
+<h3>Removing a Dependency<a class="headerlink" href="#removing-a-dependency" title="Link to this heading"></a></h3>
+<p><strong>Step 1: Remove from ivpm.yaml</strong></p>
+<p>Delete the dependency entry.</p>
+<p><strong>Step 2: Clean up</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/dependency-name
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install<span class="w">  </span><span class="c1"># If it was a Python package</span>
+</pre></div>
+</div>
+</section>
+<section id="updating-dependency-versions">
+<h3>Updating Dependency Versions<a class="headerlink" href="#updating-dependency-versions" title="Link to this heading"></a></h3>
+<p><strong>For PyPI packages:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Before</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=2.28&quot;</span>
+
+<span class="c1"># After</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=2.31&quot;</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+<p><strong>For Git packages:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Before</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib.git</span>
+<span class="w">  </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0.0</span>
+
+<span class="c1"># After</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib.git</span>
+<span class="w">  </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.1.0</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/lib
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+</section>
+<section id="daily-development">
+<h2>Daily Development<a class="headerlink" href="#daily-development" title="Link to this heading"></a></h2>
+<section id="morning-routine">
+<h3>Morning Routine<a class="headerlink" href="#morning-routine" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>my-project
+$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">  </span><span class="c1"># Get any new dependencies</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">  </span><span class="c1"># Check Git package status</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+</pre></div>
+</div>
+</section>
+<section id="interactive-development">
+<h3>Interactive Development<a class="headerlink" href="#interactive-development" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start environment</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$
+
+<span class="c1"># Run your code</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python<span class="w"> </span>src/main.py
+
+<span class="c1"># Run tests</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+
+<span class="c1"># Format code</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>black<span class="w"> </span>src/
+
+<span class="c1"># Type check</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>mypy<span class="w"> </span>src/
+
+<span class="c1"># Done for the session</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+</pre></div>
+</div>
+</section>
+<section id="running-quick-commands">
+<h3>Running Quick Commands<a class="headerlink" href="#running-quick-commands" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># No need to stay in activated environment</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="working-with-editable-packages">
+<h2>Working with Editable Packages<a class="headerlink" href="#working-with-editable-packages" title="Link to this heading"></a></h2>
+<section id="modifying-dependency-source">
+<h3>Modifying Dependency Source<a class="headerlink" href="#modifying-dependency-source" title="Link to this heading"></a></h3>
+<p>When a dependency is installed in editable mode (Git source):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>status
+$<span class="w"> </span><span class="c1"># Make changes</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Fix bug&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>push
+</pre></div>
+</div>
+<p>Changes are immediately available to your project.</p>
+</section>
+<section id="testing-changes-before-committing">
+<h3>Testing Changes Before Committing<a class="headerlink" href="#testing-changes-before-committing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span><span class="c1"># Edit files</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Uses modified code</span>
+</pre></div>
+</div>
+</section>
+<section id="creating-a-branch-in-a-dependency">
+<h3>Creating a Branch in a Dependency<a class="headerlink" href="#creating-a-branch-in-a-dependency" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>feature/new-thing
+$<span class="w"> </span><span class="c1"># Make changes</span>
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span>origin<span class="w"> </span>feature/new-thing
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+<p>Update <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> to use the new branch:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-library.git</span>
+<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">feature/new-thing</span>
+</pre></div>
+</div>
+</section>
+<section id="submitting-upstream-changes">
+<h3>Submitting Upstream Changes<a class="headerlink" href="#submitting-upstream-changes" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Make changes in packages/my-library</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>fix/issue-123
+$<span class="w"> </span><span class="c1"># Make changes</span>
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Fix issue 123&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span>origin<span class="w"> </span>fix/issue-123
+
+<span class="c1"># 2. Create pull request on GitHub</span>
+
+<span class="c1"># 3. After merge, update your project</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>vim<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Remove branch override if used</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>sync<span class="w">  </span><span class="c1"># Or rm -rf packages/my-library &amp;&amp; ivpm update</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="git-package-management">
+<h2>Git Package Management<a class="headerlink" href="#git-package-management" title="Link to this heading"></a></h2>
+<section id="checking-package-status">
+<h3>Checking Package Status<a class="headerlink" href="#checking-package-status" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status
+</pre></div>
+</div>
+<p>Output shows:</p>
+<ul class="simple">
+<li><p>Modified files</p></li>
+<li><p>Uncommitted changes</p></li>
+<li><p>Branch information</p></li>
+<li><p>Ahead/behind upstream</p></li>
+</ul>
+<p>Example output:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Package: my-library
+  Branch: main
+  Status: Clean
+
+Package: test-utils
+  Branch: develop
+  Status: Modified
+  M  src/utils.py
+  ?? new_file.txt
+</pre></div>
+</div>
+</section>
+<section id="syncing-with-upstream">
+<h3>Syncing with Upstream<a class="headerlink" href="#syncing-with-upstream" title="Link to this heading"></a></h3>
+<p>Update all Git packages from their upstream:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>sync
+</pre></div>
+</div>
+<p>This runs <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">fetch</span></code> and <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">merge</span></code> for each Git package.</p>
+<p><strong>Selective sync:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="handling-merge-conflicts">
+<h3>Handling Merge Conflicts<a class="headerlink" href="#handling-merge-conflicts" title="Link to this heading"></a></h3>
+<p>If <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> encounters conflicts:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>sync
+<span class="c1"># Error: Merge conflict in packages/my-library</span>
+
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>status
+$<span class="w"> </span><span class="c1"># Resolve conflicts</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
+$<span class="w"> </span>git<span class="w"> </span>commit
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="switching-branches">
+<h3>Switching Branches<a class="headerlink" href="#switching-branches" title="Link to this heading"></a></h3>
+<p><strong>Temporary branch switch:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>feature-branch
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+</pre></div>
+</div>
+<p><strong>Permanent branch switch:</strong></p>
+<p>Update <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-library.git</span>
+<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">feature-branch</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/my-library
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+</section>
+<section id="building-and-testing">
+<h2>Building and Testing<a class="headerlink" href="#building-and-testing" title="Link to this heading"></a></h2>
+<section id="building-python-extensions">
+<h3>Building Python Extensions<a class="headerlink" href="#building-python-extensions" title="Link to this heading"></a></h3>
+<p>For packages with native extensions:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build
+</pre></div>
+</div>
+<p><strong>Debug build:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
+</pre></div>
+</div>
+<p><strong>Specific dependency set:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>-d<span class="w"> </span>default-dev
+</pre></div>
+</div>
+</section>
+<section id="running-tests">
+<h3>Running Tests<a class="headerlink" href="#running-tests" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># All tests</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+
+<span class="c1"># Specific test file</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest test/test_feature.py&quot;</span>
+
+<span class="c1"># With coverage</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest --cov=src&quot;</span>
+
+<span class="c1"># Verbose</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest -v&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="running-linters-and-formatters">
+<h3>Running Linters and Formatters<a class="headerlink" href="#running-linters-and-formatters" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Format code</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black src/ test/&quot;</span>
+
+<span class="c1"># Check formatting</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span>
+
+<span class="c1"># Type checking</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;mypy src/&quot;</span>
+
+<span class="c1"># Linting</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pylint src/&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;flake8 src/&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="continuous-integration">
+<h3>Continuous Integration<a class="headerlink" href="#continuous-integration" title="Link to this heading"></a></h3>
+<p><strong>GitHub Actions example:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CI</span>
+
+<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pull_request</span><span class="p p-Indicator">]</span>
+
+<span class="nt">jobs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">test</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+<span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v3</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Set up Python</span>
+<span class="w">        </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/setup-python@v4</span>
+<span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">python-version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;3.10&#39;</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install IVPM</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install ivpm</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Update dependencies</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm update -d default-dev</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run tests</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest --cov=src&quot;</span>
+
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Check formatting</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;black --check src/&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="release-workflows">
+<h2>Release Workflows<a class="headerlink" href="#release-workflows" title="Link to this heading"></a></h2>
+<section id="preparing-a-release">
+<h3>Preparing a Release<a class="headerlink" href="#preparing-a-release" title="Link to this heading"></a></h3>
+<p><strong>Step 1: Switch to release dependencies</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default
+</pre></div>
+</div>
+<p><strong>Step 2: Run full test suite</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+</pre></div>
+</div>
+<p><strong>Step 3: Build documentation</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;sphinx-build docs/source docs/build&quot;</span>
+</pre></div>
+</div>
+<p><strong>Step 4: Update version</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span><span class="w">  </span><span class="c1"># Update version</span>
+</pre></div>
+</div>
+<p><strong>Step 5: Commit and tag</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>ivpm.yaml
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Release v1.0.0&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>tag<span class="w"> </span>-a<span class="w"> </span>v1.0.0<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Release version 1.0.0&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main<span class="w"> </span>--tags
+</pre></div>
+</div>
+</section>
+<section id="creating-a-snapshot">
+<h3>Creating a Snapshot<a class="headerlink" href="#creating-a-snapshot" title="Link to this heading"></a></h3>
+<p>Create a self-contained copy of your project with all dependencies:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>/path/to/snapshot-dir
+</pre></div>
+</div>
+<p>This creates a directory with:</p>
+<ul class="simple">
+<li><p>Project source</p></li>
+<li><p>All dependencies</p></li>
+<li><p>Python packages list (<code class="docutils literal notranslate"><span class="pre">python_pkgs.txt</span></code>)</p></li>
+<li><p>Updated <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> with exact versions</p></li>
+</ul>
+<p><strong>Use case:</strong> Archival, reproducible builds, offline development</p>
+</section>
+<section id="deploying-to-users">
+<h3>Deploying to Users<a class="headerlink" href="#deploying-to-users" title="Link to this heading"></a></h3>
+<p><strong>Option 1: Users clone with IVPM</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
+</pre></div>
+</div>
+<p><strong>Option 2: Traditional clone + update</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ivpm
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+<p><strong>Option 3: Snapshot distribution</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>release-v1.0
+$<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>project-v1.0.tar.gz<span class="w"> </span>release-v1.0/
+<span class="c1"># Distribute tarball</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="team-workflows">
+<h2>Team Workflows<a class="headerlink" href="#team-workflows" title="Link to this heading"></a></h2>
+<section id="onboarding-new-team-members">
+<h3>Onboarding New Team Members<a class="headerlink" href="#onboarding-new-team-members" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># New member&#39;s machine</span>
+$<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ivpm
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/company/project.git
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+<span class="c1"># Ready to develop!</span>
+</pre></div>
+</div>
+</section>
+<section id="shared-cache-setup">
+<h3>Shared Cache Setup<a class="headerlink" href="#shared-cache-setup" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Admin sets up shared cache</span>
+$<span class="w"> </span>sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/shared/ivpm-cache
+$<span class="w"> </span>sudo<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span>--shared<span class="w"> </span>/shared/ivpm-cache
+$<span class="w"> </span>sudo<span class="w"> </span>chown<span class="w"> </span>:devteam<span class="w"> </span>/shared/ivpm-cache
+
+<span class="c1"># Team members add to ~/.bashrc</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>/shared/ivpm-cache
+</pre></div>
+</div>
+<p>Benefits:</p>
+<ul class="simple">
+<li><p>First person downloads, everyone else gets instant symlinks</p></li>
+<li><p>Saves bandwidth and disk space</p></li>
+<li><p>Faster project initialization</p></li>
+</ul>
+</section>
+<section id="code-review-workflow">
+<h3>Code Review Workflow<a class="headerlink" href="#code-review-workflow" title="Link to this heading"></a></h3>
+<p><strong>Reviewer:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>review-branch
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">  </span><span class="c1"># Get any new dependencies</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Verify tests pass</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span><span class="w">  </span><span class="c1"># Check formatting</span>
+</pre></div>
+</div>
+</section>
+<section id="feature-branch-workflow">
+<h3>Feature Branch Workflow<a class="headerlink" href="#feature-branch-workflow" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start feature</span>
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>feature/awesome
+$<span class="w"> </span>vim<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Add any needed dependencies</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># Develop</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="c1"># work work work</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+
+<span class="c1"># Commit</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Add awesome feature&quot;</span>
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>-u<span class="w"> </span>origin<span class="w"> </span>feature/awesome
+
+<span class="c1"># After merge, cleanup</span>
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>main
+$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+</section>
+<section id="common-scenarios">
+<h2>Common Scenarios<a class="headerlink" href="#common-scenarios" title="Link to this heading"></a></h2>
+<section id="scenario-1-dependency-has-a-bug">
+<h3>Scenario 1: Dependency Has a Bug<a class="headerlink" href="#scenario-1-dependency-has-a-bug" title="Link to this heading"></a></h3>
+<p><strong>Quick fix:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/buggy-lib
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>fix/bug-123
+$<span class="w"> </span><span class="c1"># Fix the bug</span>
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Fix bug&quot;</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Test with fix</span>
+</pre></div>
+</div>
+<p><strong>Update project to use fix:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">buggy-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/buggy-lib.git</span>
+<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fix/bug-123</span>
+</pre></div>
+</div>
+</section>
+<section id="scenario-2-need-older-version-temporarily">
+<h3>Scenario 2: Need Older Version Temporarily<a class="headerlink" href="#scenario-2-need-older-version-temporarily" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-lib
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>v1.0.0
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Test with old version</span>
+
+<span class="c1"># Restore</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-lib
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>main
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="scenario-3-working-on-multiple-projects">
+<h3>Scenario 3: Working on Multiple Projects<a class="headerlink" href="#scenario-3-working-on-multiple-projects" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Project A uses library in development mode</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project-a
+$<span class="w"> </span>vim<span class="w"> </span>ivpm.yaml
+<span class="c1"># - name: shared-lib</span>
+<span class="c1">#   url: file:///home/user/projects/shared-lib</span>
+<span class="c1">#   src: dir</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># Edit library</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/projects/shared-lib
+$<span class="w"> </span><span class="c1"># Make changes</span>
+
+<span class="c1"># Test in Project A</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/projects/project-a
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Uses modified library</span>
+
+<span class="c1"># Test in Project B</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/projects/project-b
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Also uses modified library</span>
+</pre></div>
+</div>
+</section>
+<section id="scenario-4-cleaning-up-stale-dependencies">
+<h3>Scenario 4: Cleaning Up Stale Dependencies<a class="headerlink" href="#scenario-4-cleaning-up-stale-dependencies" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove packages directory</span>
+$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/
+
+<span class="c1"># Recreate from scratch</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Commit ivpm.yaml</strong> - Always version control your dependency configuration</p></li>
+<li><p><strong>Use dependency sets</strong> - Separate dev and release dependencies</p></li>
+<li><p><strong>Pin versions for releases</strong> - Use exact versions or tags for reproducibility</p></li>
+<li><p><strong>Use ranges for development</strong> - Allow flexibility with <code class="docutils literal notranslate"><span class="pre">&gt;=</span></code> version specs</p></li>
+<li><p><strong>Document custom workflows</strong> - Add team-specific instructions to README</p></li>
+<li><p><strong>Regular updates</strong> - Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code> and <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> periodically</p></li>
+<li><p><strong>Cache wisely</strong> - Use <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> for stable dependencies</p></li>
+<li><p><strong>Test before committing</strong> - Always run tests after dependency changes</p></li>
+<li><p><strong>Clean builds periodically</strong> - <code class="docutils literal notranslate"><span class="pre">rm</span> <span class="pre">-rf</span> <span class="pre">packages/</span> <span class="pre">&amp;&amp;</span> <span class="pre">ivpm</span> <span class="pre">update</span></code></p></li>
+<li><p><strong>Use .gitignore</strong> - Never commit <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory</p></li>
+</ol>
+</section>
+<section id="troubleshooting-common-issues">
+<h2>Troubleshooting Common Issues<a class="headerlink" href="#troubleshooting-common-issues" title="Link to this heading"></a></h2>
+<section id="package-already-loaded-but-not-visible">
+<h3>“Package Already Loaded” But Not Visible<a class="headerlink" href="#package-already-loaded-but-not-visible" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/problem-package
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="dependency-version-conflicts">
+<h3>Dependency Version Conflicts<a class="headerlink" href="#dependency-version-conflicts" title="Link to this heading"></a></h3>
+<p>Check what’s installed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
+</pre></div>
+</div>
+<p>Adjust version requirements in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
+</section>
+<section id="git-package-won-t-sync">
+<h3>Git Package Won’t Sync<a class="headerlink" href="#git-package-won-t-sync" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/problem-package
+$<span class="w"> </span>git<span class="w"> </span>status<span class="w">  </span><span class="c1"># Check for uncommitted changes</span>
+$<span class="w"> </span>git<span class="w"> </span>stash<span class="w">   </span><span class="c1"># Save local changes</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>sync
+</pre></div>
+</div>
+</section>
+<section id="python-package-not-importable">
+<h3>Python Package Not Importable<a class="headerlink" href="#python-package-not-importable" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span><span class="w">  </span><span class="c1"># Verify it&#39;s installed</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Initial setup and basic workflows</p></li>
+<li><p><a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> - Git-specific commands and workflows</p></li>
+<li><p><a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> - Python package management</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Using cache for better performance</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="environment_paths.html" class="btn btn-neutral float-left" title="Environment &amp; Paths" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="git_integration.html" class="btn btn-neutral float-right" title="Git Integration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

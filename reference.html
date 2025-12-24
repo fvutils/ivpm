@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="prev" title="Getting Started with IVPM" href="getting_started.html" /> 
+    <link rel="prev" title="Troubleshooting" href="troubleshooting.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -45,16 +45,30 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Reference</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#commands">Commands</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#ivpm.__main__-get_parser-positional-arguments">Positional Arguments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ivpm.__main__-get_parser-named-arguments">Named Arguments</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#Sub-commands">Sub-commands</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#activate">activate</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#build">build</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cache">cache</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#pkg-info">pkg-info</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#share">share</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#clone">clone</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#update">update</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#init">init</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#init_repeat1">init</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#git-status">git-status</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#git-update">git-update</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#snapshot">snapshot</a></li>
@@ -64,12 +78,63 @@
 </li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#yaml-file-format">YAML File Format</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#package-definition">Package Definition</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#named-package-dependency-set">Named package-dependency set</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#package-dependency-specification">Package Dependency specification</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#command-details">Command Details</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#activate">activate</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#build">build</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache">cache</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#cache-init">cache init</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cache-info">cache info</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#cache-clean">cache clean</a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#clone">clone</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#init">init</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pkg-info">pkg-info</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#share">share</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#snapshot">snapshot</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#status">status</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sync">sync</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#update">update</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#global-options">Global Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ivpm-cache">IVPM_CACHE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ivpm-project">IVPM_PROJECT</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ivpm-packages">IVPM_PACKAGES</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#github-token">GITHUB_TOKEN</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#yaml-file-format">YAML File Format</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#package-definition">Package Definition</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#package-definition">Package Definition</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#dependency-set">Dependency Set</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#named-package-dependency-set">Named package-dependency set</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#package-dependency">Package Dependency</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#package-dependency-specification">Package Dependency specification</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#environment-set">Environment Set</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#environment-variable-set">Environment variable set</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#environment-specification">Environment Specification</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#environment-variable-specification">Environment variable specification</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#common-patterns">Common Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-1-multi-environment-project">Pattern 1: Multi-Environment Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-2-monorepo-structure">Pattern 2: Monorepo Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-3-platform-specific-dependencies">Pattern 3: Platform-Specific Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
 </ul>
@@ -102,8 +167,8 @@
 <h1>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h1>
 <section id="commands">
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading"></a></h2>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span>
-            <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">status</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">update</span><span class="p">,</span><span class="n">snapshot</span><span class="p">,</span><span class="n">sync</span><span class="p">,</span><span class="n">status</span><span class="p">}</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">level</span> <span class="p">{</span><span class="n">INFO</span><span class="p">,</span><span class="n">DEBUG</span><span class="p">,</span><span class="n">WARN</span><span class="p">,</span><span class="n">NONE</span><span class="p">}]</span>
+            <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">cache</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">clone</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">status</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">update</span><span class="p">,</span><span class="n">snapshot</span><span class="p">,</span><span class="n">sync</span><span class="p">,</span><span class="n">status</span><span class="p">}</span>
             <span class="o">...</span>
 </pre></div>
 </div>
@@ -111,7 +176,17 @@
 <h3>Positional Arguments<a class="headerlink" href="#ivpm.__main__-get_parser-positional-arguments" title="Link to this heading"></a></h3>
 <dl class="option-list">
 <dt><kbd>command</kbd></dt>
-<dd><p>Possible choices: activate, build, pkg-info, share, update, init, git-status, git-update, snapshot, sync, status</p>
+<dd><p>Possible choices: activate, build, cache, pkg-info, share, clone, update, init, git-status, git-update, snapshot, sync, status</p>
+</dd>
+</dl>
+</section>
+<section id="ivpm.__main__-get_parser-named-arguments">
+<h3>Named Arguments<a class="headerlink" href="#ivpm.__main__-get_parser-named-arguments" title="Link to this heading"></a></h3>
+<dl class="option-list">
+<dt><kbd>--log-level</kbd></dt>
+<dd><p>Possible choices: INFO, DEBUG, WARN, NONE</p>
+<p>Set the logging level (default: NONE)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'NONE'</span></code></p>
 </dd>
 </dl>
 </section>
@@ -161,25 +236,110 @@
 </dl>
 </section>
 </section>
-<section id="pkg-info">
-<h4>pkg-info<a class="headerlink" href="#pkg-info" title="Link to this heading"></a></h4>
-<p>Collect paths/files for a listed set of packages</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">pkg</span><span class="o">-</span><span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">k</span> <span class="n">KIND</span><span class="p">]</span> <span class="p">{</span><span class="n">incdirs</span><span class="p">,</span><span class="n">paths</span><span class="p">,</span><span class="n">libdirs</span><span class="p">,</span><span class="n">libs</span><span class="p">}</span> <span class="n">pkgs</span> <span class="p">[</span><span class="n">pkgs</span> <span class="o">...</span><span class="p">]</span>
+<section id="cache">
+<h4>cache<a class="headerlink" href="#cache" title="Link to this heading"></a></h4>
+<p>Manage the IVPM package cache</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">{</span><span class="n">init</span><span class="p">,</span><span class="n">info</span><span class="p">,</span><span class="n">clean</span><span class="p">}</span> <span class="o">...</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat1">
 <h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat1" title="Link to this heading"></a></h5>
 <dl class="option-list">
+<dt><kbd>cache_cmd</kbd></dt>
+<dd><p>Possible choices: init, info, clean</p>
+</dd>
+</dl>
+</section>
+<section id="Sub-commands_repeat1">
+<h5>Sub-commands<a class="headerlink" href="#Sub-commands_repeat1" title="Link to this heading"></a></h5>
+<section id="init">
+<h6>init<a class="headerlink" href="#init" title="Link to this heading"></a></h6>
+<p>Initialize a new cache directory</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">init</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">s</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="n">cache_dir</span>
+</pre></div>
+</div>
+<section id="positional-arguments_repeat2">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat2" title="Link to this heading"></a></h6>
+<dl class="option-list">
+<dt><kbd>cache_dir</kbd></dt>
+<dd><p>Path to the cache directory to initialize</p>
+</dd>
+</dl>
+</section>
+<section id="named-arguments_repeat2">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Link to this heading"></a></h6>
+<dl class="option-list">
+<dt><kbd>-s, --shared</kbd></dt>
+<dd><p>Set group inheritance (chmod g+s) for shared cache usage</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-f, --force</kbd></dt>
+<dd><p>Force reinitialization of existing directory</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="info">
+<h6>info<a class="headerlink" href="#info" title="Link to this heading"></a></h6>
+<p>Show cache information (packages, versions, sizes)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">CACHE_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="named-arguments_repeat3">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Link to this heading"></a></h6>
+<dl class="option-list">
+<dt><kbd>-c, --cache-dir</kbd></dt>
+<dd><p>Cache directory (default: $IVPM_CACHE)</p>
+</dd>
+<dt><kbd>-v, --verbose</kbd></dt>
+<dd><p>Show detailed version information</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="clean">
+<h6>clean<a class="headerlink" href="#clean" title="Link to this heading"></a></h6>
+<p>Remove old cache entries</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">clean</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">CACHE_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DAYS</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="named-arguments_repeat4">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Link to this heading"></a></h6>
+<dl class="option-list">
+<dt><kbd>-c, --cache-dir</kbd></dt>
+<dd><p>Cache directory (default: $IVPM_CACHE)</p>
+</dd>
+<dt><kbd>-d, --days</kbd></dt>
+<dd><p>Remove entries older than this many days (default: 7)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">7</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+</section>
+</section>
+<section id="pkg-info">
+<h4>pkg-info<a class="headerlink" href="#pkg-info" title="Link to this heading"></a></h4>
+<p>Collect paths/files for a listed set of packages</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">pkg</span><span class="o">-</span><span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">k</span> <span class="n">KIND</span><span class="p">]</span>
+              <span class="p">{</span><span class="n">incdirs</span><span class="p">,</span><span class="n">paths</span><span class="p">,</span><span class="n">libdirs</span><span class="p">,</span><span class="n">libs</span><span class="p">,</span><span class="n">flags</span><span class="p">}</span> <span class="n">pkgs</span> <span class="p">[</span><span class="n">pkgs</span> <span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="positional-arguments_repeat3">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat3" title="Link to this heading"></a></h5>
+<dl class="option-list">
 <dt><kbd>type</kbd></dt>
-<dd><p>Possible choices: incdirs, paths, libdirs, libs</p>
+<dd><p>Possible choices: incdirs, paths, libdirs, libs, flags</p>
 <p>Specifies what info to query</p>
 </dd>
 <dt><kbd>pkgs</kbd></dt>
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments_repeat2">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat5">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat5" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-k, --kind</kbd></dt>
 <dd><p>Specifies qualifiers on the type of info to query</p>
@@ -193,29 +353,75 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">share</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="o">...</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat2">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat2" title="Link to this heading"></a></h5>
+<section id="positional-arguments_repeat4">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat4" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>path</kbd></dt>
 <dd></dd>
 </dl>
 </section>
 </section>
+<section id="clone">
+<h4>clone<a class="headerlink" href="#clone" title="Link to this heading"></a></h4>
+<p>Create a new workspace from a Git URL or path</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">clone</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">b</span> <span class="n">BRANCH</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span>
+           <span class="n">src</span> <span class="p">[</span><span class="n">workspace_dir</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="positional-arguments_repeat5">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat5" title="Link to this heading"></a></h5>
+<dl class="option-list">
+<dt><kbd>src</kbd></dt>
+<dd><p>Source URL or path to clone</p>
+</dd>
+<dt><kbd>workspace_dir</kbd></dt>
+<dd><p>Target workspace directory; defaults to basename of src</p>
+</dd>
+</dl>
+</section>
+<section id="named-arguments_repeat6">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat6" title="Link to this heading"></a></h5>
+<dl class="option-list">
+<dt><kbd>-a, --anonymous</kbd></dt>
+<dd><p>Clone anonymously (HTTPS); default converts to SSH when applicable</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-b, --branch</kbd></dt>
+<dd><p>Target branch; checks out existing or creates new</p>
+</dd>
+<dt><kbd>-d, --dep-set</kbd></dt>
+<dd><p>Dependency set to use for ivpm update</p>
+</dd>
+<dt><kbd>--py-uv</kbd></dt>
+<dd><p>Use ‘uv’ to manage virtual environment</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--py-pip</kbd></dt>
+<dd><p>Use ‘pip’ to manage virtual environment</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
 <section id="update">
 <h4>update<a class="headerlink" href="#update" title="Link to this heading"></a></h4>
 <p>Fetches packages specified in ivpm.yaml that have not already been loaded</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">skip</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span>
-            <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">prerls</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span>
+            <span class="p">[</span><span class="o">--</span><span class="n">skip</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">prerls</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
+            <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat3">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat7">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat7" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd><p>Specifies the project directory to use (default: cwd)</p>
 </dd>
 <dt><kbd>-d, --dep-set</kbd></dt>
 <dd><p>Uses dependencies from specified dep-set instead of ‘default-dev’</p>
+</dd>
+<dt><kbd>-j, --jobs</kbd></dt>
+<dd><p>Maximum number of parallel package fetches (default: number of CPU cores)</p>
 </dd>
 <dt><kbd>-a, --anonymous-git</kbd></dt>
 <dd><p>Clones git repositories in ‘anonymous’ mode</p>
@@ -244,21 +450,21 @@
 </dl>
 </section>
 </section>
-<section id="init">
-<h4>init<a class="headerlink" href="#init" title="Link to this heading"></a></h4>
+<section id="init_repeat1">
+<h4>init<a class="headerlink" href="#init_repeat1" title="Link to this heading"></a></h4>
 <p>Creates an initial ivpm.yaml file</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">init</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span> <span class="n">VERSION</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="n">name</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat3">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat3" title="Link to this heading"></a></h5>
+<section id="positional-arguments_repeat6">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat6" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments_repeat4">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat8">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat8" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-v, --version</kbd></dt>
 <dd><p>Default: <code class="docutils literal notranslate"><span class="pre">'0.0.1'</span></code></p>
@@ -275,8 +481,8 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">status</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat5">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat5" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat9">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat9" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -289,8 +495,8 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat6">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat6" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat10">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat10" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -303,16 +509,16 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">snapshot</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">r</span><span class="p">]</span> <span class="n">snapshot_dir</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat4">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat4" title="Link to this heading"></a></h5>
+<section id="positional-arguments_repeat7">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat7" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>snapshot_dir</kbd></dt>
 <dd><p>Specifies the directory where the snapshot will be created</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat7">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat7" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat11">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat11" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -339,81 +545,603 @@
 </section>
 </section>
 </section>
+<section id="command-details">
+<h2>Command Details<a class="headerlink" href="#command-details" title="Link to this heading"></a></h2>
+<section id="activate">
+<h3>activate<a class="headerlink" href="#activate" title="Link to this heading"></a></h3>
+<p>Activate the project-local Python virtual environment.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm activate [-c &lt;command&gt;] [-p &lt;project-dir&gt;] [args ...]
+</pre></div>
+</div>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-c</span> <span class="pre">&lt;command&gt;</span></code></dt><dd><p>Execute a command in the activated environment and exit</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-p,</span> <span class="pre">--project-dir</span> <span class="pre">&lt;dir&gt;</span></code></dt><dd><p>Specify project directory (default: current directory)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">args</span></code></dt><dd><p>Arguments passed to shell or command</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start interactive shell</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+
+<span class="c1"># Run single command</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+
+<span class="c1"># Different project directory</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-p<span class="w"> </span>/path/to/project<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ul class="simple">
+<li><p>Sources <code class="docutils literal notranslate"><span class="pre">packages/python/bin/activate</span></code></p></li>
+<li><p>Sets <code class="docutils literal notranslate"><span class="pre">VIRTUAL_ENV</span></code> and modifies <code class="docutils literal notranslate"><span class="pre">PATH</span></code></p></li>
+<li><p>Applies environment variables from <code class="docutils literal notranslate"><span class="pre">env-sets</span></code></p></li>
+<li><p>Without <code class="docutils literal notranslate"><span class="pre">-c</span></code>, starts an interactive shell</p></li>
+<li><p>With <code class="docutils literal notranslate"><span class="pre">-c</span></code>, runs command and exits</p></li>
+</ul>
+</section>
+<section id="build">
+<h3>build<a class="headerlink" href="#build" title="Link to this heading"></a></h3>
+<p>Build Python packages with native extensions.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm build [-d &lt;dep-set&gt;] [-g|--debug]
+</pre></div>
+</div>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--dep-set</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Use dependencies from specified dep-set (default: project’s default)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-g,</span> <span class="pre">--debug</span></code></dt><dd><p>Enable debug symbols in native extensions</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Build all packages</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build
+
+<span class="c1"># Debug build</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
+
+<span class="c1"># Specific dependency set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>-d<span class="w"> </span>default-dev
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ul class="simple">
+<li><p>Finds all Python packages with native extensions</p></li>
+<li><p>Runs <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">setup.py</span> <span class="pre">build_ext</span></code></p></li>
+<li><p>Installs built extensions</p></li>
+<li><p>Debug mode: sets <code class="docutils literal notranslate"><span class="pre">DEBUG=1</span></code>, adds <code class="docutils literal notranslate"><span class="pre">-g</span></code> flag</p></li>
+</ul>
+</section>
+<section id="cache">
+<h3>cache<a class="headerlink" href="#cache" title="Link to this heading"></a></h3>
+<p>Manage the IVPM package cache.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache &lt;subcommand&gt; [options]
+</pre></div>
+</div>
+<p><strong>Subcommands:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">init</span></code></dt><dd><p>Initialize a new cache directory</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">info</span></code></dt><dd><p>Show cache statistics and contents</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">clean</span></code></dt><dd><p>Remove old cache entries</p>
+</dd>
+</dl>
+<section id="cache-init">
+<h4>cache init<a class="headerlink" href="#cache-init" title="Link to this heading"></a></h4>
+<p>Initialize a cache directory.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache init [-s|--shared] [-f|--force] &lt;cache_dir&gt;
+</pre></div>
+</div>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-s,</span> <span class="pre">--shared</span></code></dt><dd><p>Set group inheritance (<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">g+s</span></code>) for shared access</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-f,</span> <span class="pre">--force</span></code></dt><dd><p>Reinitialize existing directory</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Personal cache</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span>~/.cache/ivpm
+
+<span class="c1"># Shared team cache</span>
+$<span class="w"> </span>sudo<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span>--shared<span class="w"> </span>/shared/ivpm-cache
+$<span class="w"> </span>sudo<span class="w"> </span>chown<span class="w"> </span>:devteam<span class="w"> </span>/shared/ivpm-cache
+</pre></div>
+</div>
+</section>
+<section id="cache-info">
+<h4>cache info<a class="headerlink" href="#cache-info" title="Link to this heading"></a></h4>
+<p>Display cache information.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache info [-c|--cache-dir &lt;dir&gt;] [-v|--verbose]
+</pre></div>
+</div>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-c,</span> <span class="pre">--cache-dir</span> <span class="pre">&lt;dir&gt;</span></code></dt><dd><p>Cache directory (default: <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code>)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">--verbose</span></code></dt><dd><p>Show detailed version information</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>info
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--verbose
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--cache-dir<span class="w"> </span>/path/to/cache
+</pre></div>
+</div>
+</section>
+<section id="cache-clean">
+<h4>cache clean<a class="headerlink" href="#cache-clean" title="Link to this heading"></a></h4>
+<p>Remove old cache entries.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache clean [-c|--cache-dir &lt;dir&gt;] [-d|--days &lt;n&gt;]
+</pre></div>
+</div>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-c,</span> <span class="pre">--cache-dir</span> <span class="pre">&lt;dir&gt;</span></code></dt><dd><p>Cache directory (default: <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code>)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--days</span> <span class="pre">&lt;n&gt;</span></code></dt><dd><p>Remove entries older than N days (default: 7)</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--cache-dir<span class="w"> </span>/shared/cache<span class="w"> </span>--days<span class="w"> </span><span class="m">14</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="clone">
+<h3>clone<a class="headerlink" href="#clone" title="Link to this heading"></a></h3>
+<p>Create a new workspace from a Git repository.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm clone [options] &lt;src&gt; [workspace_dir]
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">src</span></code></dt><dd><p>Git URL or local path to clone</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">workspace_dir</span></code></dt><dd><p>Target directory (default: basename of src)</p>
+</dd>
+</dl>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous</span></code></dt><dd><p>Clone anonymously over HTTPS (no SSH)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-b,</span> <span class="pre">--branch</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Checkout branch; create if doesn’t exist</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--dep-set</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Dependency set for <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code></p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-uv</span></code></dt><dd><p>Use ‘uv’ for Python package management</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-pip</span></code></dt><dd><p>Use ‘pip’ for Python package management</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic clone</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
+
+<span class="c1"># Custom directory</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git<span class="w"> </span>my-workspace
+
+<span class="c1"># Specific branch</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-b<span class="w"> </span>develop<span class="w"> </span>https://github.com/org/project.git
+
+<span class="c1"># Anonymous clone with dep-set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-a<span class="w"> </span>-d<span class="w"> </span>default<span class="w"> </span>https://github.com/org/project.git
+
+<span class="c1"># Use uv for package management</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--py-uv<span class="w"> </span>https://github.com/org/project.git
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ol class="arabic simple">
+<li><p>Clones Git repository</p></li>
+<li><p>Enters directory</p></li>
+<li><p>Runs <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> with specified options</p></li>
+</ol>
+</section>
+<section id="init">
+<h3>init<a class="headerlink" href="#init" title="Link to this heading"></a></h3>
+<p>Create a new <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> file.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm init [-v|--version &lt;ver&gt;] [-f|--force] &lt;name&gt;
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">name</span></code></dt><dd><p>Package name</p>
+</dd>
+</dl>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">--version</span> <span class="pre">&lt;ver&gt;</span></code></dt><dd><p>Initial version (default: 0.0.1)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-f,</span> <span class="pre">--force</span></code></dt><dd><p>Overwrite existing <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span>my-project
+$<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span>my-project<span class="w"> </span>-v<span class="w"> </span><span class="m">1</span>.0.0
+$<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span>my-project<span class="w"> </span>-f<span class="w">  </span><span class="c1"># Overwrite existing</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<p>Creates <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> with:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.0.1&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="pkg-info">
+<h3>pkg-info<a class="headerlink" href="#pkg-info" title="Link to this heading"></a></h3>
+<p>Query package information (paths, libraries, flags).</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm pkg-info &lt;type&gt; [-k &lt;kind&gt;] &lt;packages...&gt;
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">type</span></code></dt><dd><p>Information type: <code class="docutils literal notranslate"><span class="pre">incdirs</span></code>, <code class="docutils literal notranslate"><span class="pre">paths</span></code>, <code class="docutils literal notranslate"><span class="pre">libdirs</span></code>, <code class="docutils literal notranslate"><span class="pre">libs</span></code>, <code class="docutils literal notranslate"><span class="pre">flags</span></code></p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">packages</span></code></dt><dd><p>Package names to query</p>
+</dd>
+</dl>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-k,</span> <span class="pre">--kind</span> <span class="pre">&lt;kind&gt;</span></code></dt><dd><p>Qualifier for query type</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get include directories</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>pkg-info<span class="w"> </span>incdirs<span class="w"> </span>my-package
+
+<span class="c1"># Get paths by kind</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>pkg-info<span class="w"> </span>paths<span class="w"> </span>-k<span class="w"> </span>rtl<span class="w"> </span>my-package
+
+<span class="c1"># Get library directories</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>pkg-info<span class="w"> </span>libdirs<span class="w"> </span>package1<span class="w"> </span>package2
+</pre></div>
+</div>
+<p><strong>Use case:</strong> Integration with build systems (CMake, Make, etc.)</p>
+</section>
+<section id="share">
+<h3>share<a class="headerlink" href="#share" title="Link to this heading"></a></h3>
+<p>Return the IVPM share directory path.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm share [path ...]
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">path</span></code></dt><dd><p>Optional sub-path within share directory</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get share directory</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>share
+/path/to/ivpm/share
+
+<span class="c1"># Get CMake scripts path</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>share<span class="w"> </span>cmake
+/path/to/ivpm/share/cmake
+</pre></div>
+</div>
+<p><strong>Use case:</strong> Integration with build systems needing IVPM files.</p>
+</section>
+<section id="snapshot">
+<h3>snapshot<a class="headerlink" href="#snapshot" title="Link to this heading"></a></h3>
+<p>Create a self-contained snapshot of the project.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm snapshot [-p &lt;project-dir&gt;] [-r|--rls-deps] &lt;snapshot_dir&gt;
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">snapshot_dir</span></code></dt><dd><p>Output directory for snapshot</p>
+</dd>
+</dl>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-p,</span> <span class="pre">-project-dir</span> <span class="pre">&lt;dir&gt;</span></code></dt><dd><p>Project directory (default: current)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-r,</span> <span class="pre">--rls-deps</span></code></dt><dd><p>Use release deps (<code class="docutils literal notranslate"><span class="pre">default</span></code>) instead of dev deps</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>/tmp/my-snapshot
+$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>--rls-deps<span class="w"> </span>/tmp/release-snapshot
+$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>-p<span class="w"> </span>/path/to/project<span class="w"> </span>/tmp/snapshot
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<p>Creates directory with:</p>
+<ul class="simple">
+<li><p>Project source</p></li>
+<li><p>All dependency sources</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">python_pkgs.txt</span></code> (list of Python packages)</p></li>
+<li><p>Updated <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> with exact versions</p></li>
+</ul>
+<p><strong>Use case:</strong> Archival, reproducible builds, offline distribution</p>
+</section>
+<section id="status">
+<h3>status<a class="headerlink" href="#status" title="Link to this heading"></a></h3>
+<p>Check status of Git dependencies.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm status
+</pre></div>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status
+</pre></div>
+</div>
+<p><strong>Output:</strong></p>
+<p>For each Git package:</p>
+<ul class="simple">
+<li><p>Package name</p></li>
+<li><p>Current branch</p></li>
+<li><p>Modified files</p></li>
+<li><p>Untracked files</p></li>
+<li><p>Commits ahead/behind remote</p></li>
+</ul>
+<p><strong>Use case:</strong> See which dependencies have uncommitted changes.</p>
+</section>
+<section id="sync">
+<h3>sync<a class="headerlink" href="#sync" title="Link to this heading"></a></h3>
+<p>Synchronize Git dependencies with upstream.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm sync
+</pre></div>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>sync
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<p>For each Git package on a branch:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">fetch</span> <span class="pre">origin</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">merge</span> <span class="pre">origin/&lt;branch&gt;</span></code></p></li>
+</ol>
+<p>Skips:</p>
+<ul class="simple">
+<li><p>Packages on tags (immutable)</p></li>
+<li><p>Packages on specific commits (immutable)</p></li>
+<li><p>Packages with uncommitted changes (safety)</p></li>
+</ul>
+</section>
+<section id="update">
+<h3>update<a class="headerlink" href="#update" title="Link to this heading"></a></h3>
+<p>Fetch dependencies and initialize environment.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm update [options]
+</pre></div>
+</div>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-p,</span> <span class="pre">--project-dir</span> <span class="pre">&lt;dir&gt;</span></code></dt><dd><p>Project directory (default: current)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--dep-set</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Use specified dependency set</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-j,</span> <span class="pre">--jobs</span> <span class="pre">&lt;n&gt;</span></code></dt><dd><p>Parallel package fetches (default: CPU count)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous-git</span></code></dt><dd><p>Clone Git repos anonymously (HTTPS)</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--skip-py-install</span></code></dt><dd><p>Skip Python package installation</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--force-py-install</span></code></dt><dd><p>Force Python package reinstallation</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-prerls-packages</span></code></dt><dd><p>Allow pre-release Python packages</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-uv</span></code></dt><dd><p>Use ‘uv’ for package management</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-pip</span></code></dt><dd><p>Use ‘pip’ for package management</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic update</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># Specific dependency set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default
+
+<span class="c1"># Anonymous Git clones</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
+
+<span class="c1"># Parallel downloads</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-j<span class="w"> </span><span class="m">8</span>
+
+<span class="c1"># Skip Python install</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--skip-py-install
+
+<span class="c1"># Force Python reinstall</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+
+<span class="c1"># Use uv</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--py-uv
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ol class="arabic simple">
+<li><p>Read <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p>Select dependency set</p></li>
+<li><p>Fetch missing dependencies</p></li>
+<li><p>Resolve sub-dependencies recursively</p></li>
+<li><p>Create Python virtual environment (if needed)</p></li>
+<li><p>Install Python packages</p></li>
+</ol>
+</section>
+</section>
+<section id="global-options">
+<h2>Global Options<a class="headerlink" href="#global-options" title="Link to this heading"></a></h2>
+<p>These options apply to all commands:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--log-level</span> <span class="pre">&lt;level&gt;</span></code></dt><dd><p>Set logging level: <code class="docutils literal notranslate"><span class="pre">INFO</span></code>, <code class="docutils literal notranslate"><span class="pre">DEBUG</span></code>, <code class="docutils literal notranslate"><span class="pre">WARN</span></code>, <code class="docutils literal notranslate"><span class="pre">NONE</span></code> (default)</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>--log-level<span class="w"> </span>DEBUG<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>--log-level<span class="w"> </span>INFO<span class="w"> </span>status
+</pre></div>
+</div>
+</section>
+<section id="environment-variables">
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
+<section id="ivpm-cache">
+<h3>IVPM_CACHE<a class="headerlink" href="#ivpm-cache" title="Link to this heading"></a></h3>
+<p>Path to the package cache directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>~/.cache/ivpm
+</pre></div>
+</div>
+<p>Used by caching system. See <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a>.</p>
+</section>
+<section id="ivpm-project">
+<h3>IVPM_PROJECT<a class="headerlink" href="#ivpm-project" title="Link to this heading"></a></h3>
+<p>Set automatically by IVPM to project root directory.</p>
+<p>Available in <code class="docutils literal notranslate"><span class="pre">env-sets</span></code> as <code class="docutils literal notranslate"><span class="pre">${IVPM_PROJECT}</span></code>.</p>
+</section>
+<section id="ivpm-packages">
+<h3>IVPM_PACKAGES<a class="headerlink" href="#ivpm-packages" title="Link to this heading"></a></h3>
+<p>Set automatically by IVPM to packages directory.</p>
+<p>Available in <code class="docutils literal notranslate"><span class="pre">env-sets</span></code> as <code class="docutils literal notranslate"><span class="pre">${IVPM_PACKAGES}</span></code>.</p>
+</section>
+<section id="github-token">
+<h3>GITHUB_TOKEN<a class="headerlink" href="#github-token" title="Link to this heading"></a></h3>
+<p>GitHub API token for higher rate limits.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_TOKEN</span><span class="o">=</span>ghp_your_token_here
+</pre></div>
+</div>
+<p>Useful for GitHub Releases and API queries.</p>
+</section>
+</section>
 <section id="yaml-file-format">
 <h2>YAML File Format<a class="headerlink" href="#yaml-file-format" title="Link to this heading"></a></h2>
 <section id="package-definition">
-<span id="package-definition"></span><h3>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h3>
+<h3>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h3>
+<section id="package-definition">
+<span id="id1"></span><h4>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h4>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
-<td colspan="2"><p><em>object</em></p></td>
+<td colspan="5"><p><em>object</em></p></td>
 </tr>
-<tr class="row-even"><td colspan="3"><p>properties</p></td>
+<tr class="row-even"><td colspan="6"><p>properties</p></td>
 </tr>
-<tr class="row-odd"><td rowspan="3"><ul class="simple">
-<li><p><strong>name</strong></p></li>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>name</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Package name</em></p></td>
+<td colspan="5"><p>Name of the package</p></td>
 </tr>
-<tr class="row-even"><td colspan="2"><p>Name of the package</p></td>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="4"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>version</p></li>
+</ul>
+</td>
+<td colspan="5"><p>Version of the package</p></td>
 </tr>
-<tr class="row-even"><td rowspan="3"><ul class="simple">
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="4"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
 <li><p>deps-dir</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Dependency directory name</em></p></td>
-</tr>
-<tr class="row-odd"><td colspan="2"><p>Specifies directory where dependencies are stored. Defaults to ‘packages’</p></td>
+<td colspan="5"><p>Directory where dependencies are stored (default: ‘packages’)</p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
+<td colspan="4"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="3"><ul class="simple">
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
 <li><p>default-dep-set</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Default dependency set</em></p></td>
+<td colspan="5"><p>Default dependency set to use if not specified on command line</p></td>
 </tr>
-<tr class="row-even"><td colspan="2"><p>Specifies the default dep-set to use. Defaults to ‘default-dev’</p></td>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="4"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
-</tr>
-<tr class="row-even"><td rowspan="4"><ul class="simple">
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
 <li><p>dep-sets</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Dependency sets</em></p></td>
-</tr>
-<tr class="row-odd"><td colspan="2"><p>Specifies available dependency sets</p></td>
+<td colspan="5"><p><em>List of named dependency sets</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
-<td><p><em>array</em></p></td>
+<td colspan="4"><p><em>array</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>items</p></td>
-<td><p><a class="reference internal" href="#named-package-dependency-set"><span class="std std-ref">Named package-dependency set</span></a></p></td>
+<td colspan="4"><p><a class="reference internal" href="#named-package-dependency-set"><span class="std std-ref">Named package-dependency set</span></a></p></td>
 </tr>
-<tr class="row-even"><td><ul class="simple">
+<tr class="row-even"><td rowspan="3"><ul class="simple">
+<li><p>setup-deps</p></li>
+</ul>
+</td>
+<td colspan="5"><p><em>Setup-time dependencies that must be installed before other packages</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="4"><p><em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
+<td colspan="3"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="6"><ul class="simple">
+<li><p>paths</p></li>
+</ul>
+</td>
+<td colspan="5"><p><em>Path specifications organized by kind and type</em></p></td>
+</tr>
+<tr class="row-even"><td colspan="5"><p>Organize project paths for tools to discover (e.g., rtl/vlog, dv/sv)</p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="4"><p><em>object</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><p>additionalProperties</p></td>
+<td><p>type</p></td>
+<td colspan="3"><p><em>object</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><p>additionalProperties</p></td>
+<td><p>type</p></td>
+<td colspan="2"><p><em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
 <li><p>env-sets</p></li>
 </ul>
 </td>
-<td colspan="2"><p><span class="xref std std-ref">#/defs/env-sets</span></p></td>
+<td colspan="5"><p><em>Environment variable sets</em></p></td>
 </tr>
-<tr class="row-odd"><td><ul class="simple">
-<li><p>path-sets</p></li>
-</ul>
-</td>
-<td colspan="2"><p><span class="xref std std-ref">#/defs/path-sets</span></p></td>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="4"><p><em>array</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>items</p></td>
+<td colspan="4"><p><a class="reference internal" href="#environment-variable-set"><span class="std std-ref">Environment variable set</span></a></p></td>
 </tr>
 </tbody>
 </table>
 </section>
+</section>
+<section id="dependency-set">
+<h3>Dependency Set<a class="headerlink" href="#dependency-set" title="Link to this heading"></a></h3>
 <section id="named-package-dependency-set">
-<span id="named-package-dependency-set"></span><h3>Named package-dependency set<a class="headerlink" href="#named-package-dependency-set" title="Link to this heading"></a></h3>
+<span id="named-package-dependency-set"></span><h4>Named package-dependency set<a class="headerlink" href="#named-package-dependency-set" title="Link to this heading"></a></h4>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
@@ -426,6 +1154,15 @@
 </ul>
 </td>
 <td colspan="2"><p><em>Dependency-set identifier. ‘default’ and ‘default-dev’ are builtin names</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>default-dep-set</p></li>
+</ul>
+</td>
+<td colspan="2"><p><em>Default dep-set name for sub-packages to inherit if not explicitly specified</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
 <td><p><em>string</em></p></td>
@@ -445,8 +1182,11 @@
 </tbody>
 </table>
 </section>
+</section>
+<section id="package-dependency">
+<h3>Package Dependency<a class="headerlink" href="#package-dependency" title="Link to this heading"></a></h3>
 <section id="package-dependency-specification">
-<span id="package-dependency-specification"></span><h3>Package Dependency specification<a class="headerlink" href="#package-dependency-specification" title="Link to this heading"></a></h3>
+<span id="package-dependency-specification"></span><h4>Package Dependency specification<a class="headerlink" href="#package-dependency-specification" title="Link to this heading"></a></h4>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
@@ -469,33 +1209,44 @@
 <tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-even"><td rowspan="3"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>url</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Source URL</em></p></td>
-</tr>
-<tr class="row-odd"><td colspan="3"><p>URL from which to obtain the dependency. Used for all execpt ‘pypi’</p></td>
-</tr>
-<tr class="row-even"><td><p>type</p></td>
-<td colspan="2"><p><em>string</em></p></td>
-</tr>
-<tr class="row-odd"><td rowspan="17"><ul class="simple">
-<li><p>src</p></li>
-</ul>
-</td>
-<td colspan="3"><p><em>Source type</em></p></td>
-</tr>
-<tr class="row-even"><td colspan="3"><p>Specifies the source type. Much of the time auto-detect works</p></td>
+<td colspan="3"><p><em>URL from which to obtain the dependency. Used for all execpt ‘pypi’</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-even"><td rowspan="14"><p>anyOf</p></td>
+<tr class="row-even"><td rowspan="22"><ul class="simple">
+<li><p>src</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Specifies the source type. Most of the time auto-detect works</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="20"><p>oneOf</p></td>
 <td colspan="2"><p><em>URL points to a Git repository</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>const</p></td>
 <td><p>git</p></td>
+</tr>
+<tr class="row-even"><td colspan="2"><p><em>URL points to an HTTP/HTTPS resource</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>http</p></td>
+</tr>
+<tr class="row-even"><td colspan="2"><p><em>URL points to a local file (file://path)</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>file</p></td>
+</tr>
+<tr class="row-even"><td colspan="2"><p><em>URL points to a local directory (file://path)</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>dir</p></td>
 </tr>
 <tr class="row-even"><td colspan="2"><p><em>URL points to a .jar file. IVPM will not expand</em></p></td>
 </tr>
@@ -512,7 +1263,7 @@
 <tr class="row-odd"><td><p>const</p></td>
 <td><p>txz</p></td>
 </tr>
-<tr class="row-even"><td colspan="2"><p><em>URL points to a zip file. IPVM will expand</em></p></td>
+<tr class="row-even"><td colspan="2"><p><em>URL points to a zip file. IVPM will expand</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>const</p></td>
 <td><p>zip</p></td>
@@ -522,97 +1273,93 @@
 <tr class="row-odd"><td><p>const</p></td>
 <td><p>pypi</p></td>
 </tr>
-<tr class="row-even"><td colspan="2"><p><em>Source types are extensible. Consult documentation for other source types</em></p></td>
+<tr class="row-even"><td colspan="2"><p><em>GitHub Release - downloads platform-specific binaries or source from releases</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>gh-rls</p></td>
 </tr>
-<tr class="row-even"><td rowspan="9"><ul class="simple">
+<tr class="row-even"><td rowspan="6"><ul class="simple">
 <li><p>type</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Package type</em></p></td>
+<td colspan="3"><p><em>Specifies package type. Most of the time auto-detect works</em></p></td>
 </tr>
-<tr class="row-odd"><td colspan="3"><p>Specifies package type. Most of the time auto-detect works</p></td>
-</tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="6"><p>anyOf</p></td>
+<tr class="row-even"><td rowspan="4"><p>oneOf</p></td>
 <td colspan="2"><p><em>Data package. IVPM will not attempt to interpret</em></p></td>
 </tr>
-<tr class="row-even"><td><p>const</p></td>
+<tr class="row-odd"><td><p>const</p></td>
 <td><p>raw</p></td>
 </tr>
-<tr class="row-odd"><td colspan="2"><p><em>Python package that IVPM will install into the venv</em></p></td>
+<tr class="row-even"><td colspan="2"><p><em>Python package that IVPM will install into the venv</em></p></td>
 </tr>
-<tr class="row-even"><td><p>const</p></td>
+<tr class="row-odd"><td><p>const</p></td>
 <td><p>python</p></td>
 </tr>
-<tr class="row-odd"><td colspan="2"><p><em>Package types are extensible. Consult documentation for other package types</em></p></td>
-</tr>
-<tr class="row-even"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
-</tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>version</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Version-specification string for Python packages from PyPi</em></p></td>
+<td colspan="3"><p><em>Version-specification string for Python packages from PyPi or GitHub Releases</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>anonymous</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Clone using anonymous (non-PAT) Git</em></p></td>
+<td colspan="3"><p><em>Clone using anonymous (HTTPS) Git instead of SSH</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>boolean</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>branch</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>Git branch to checkout</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>tag</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>Git tag to checkout</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>commit</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>Git commit to checkout</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="3"><ul class="simple">
 <li><p>deps</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>When set to ‘skip’, sub-dependencies will not be loaded</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td><p>enum</p></td>
+<td colspan="2"><p>skip</p></td>
 </tr>
 <tr class="row-odd"><td rowspan="2"><ul class="simple">
 <li><p>depth</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Git clone depth</em></p></td>
+<td colspan="3"><p><em>Git clone depth (number of commits to fetch)</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
 <td colspan="2"><p><em>integer</em></p></td>
@@ -621,14 +1368,273 @@
 <li><p>dep-set</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Assuming the target is an IVPM package, Specifies the named dep-set to use</em></p></td>
+<td colspan="3"><p><em>Assuming the target is an IVPM package, specifies the named dep-set to use</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>cache</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Enable caching for this package. true=cached+readonly, false=readonly no cache, unspecified=full history+editable</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>boolean</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>link</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>For ‘dir’ source type: use symlink (true) or copy (false). Default: true</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>boolean</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>unpack</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>For archive files: whether to unpack the archive. Default: true (false for .jar)</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>boolean</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>file</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>For GitHub Releases: specific asset filename to download</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>prerelease</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>For GitHub Releases: include pre-release versions when selecting. Default: false</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>boolean</em></p></td>
+</tr>
 </tbody>
 </table>
 </section>
+</section>
+<section id="environment-set">
+<h3>Environment Set<a class="headerlink" href="#environment-set" title="Link to this heading"></a></h3>
+<section id="environment-variable-set">
+<span id="environment-variable-set"></span><h4>Environment variable set<a class="headerlink" href="#environment-variable-set" title="Link to this heading"></a></h4>
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>object</em></p></td>
+</tr>
+<tr class="row-even"><td colspan="3"><p>properties</p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p>name</p></li>
+</ul>
+</td>
+<td colspan="2"><p><em>Environment set identifier</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
+<li><p>env</p></li>
+</ul>
+</td>
+<td colspan="2"><p><em>List of environment variable specifications</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td><p><em>array</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>items</p></td>
+<td><p><a class="reference internal" href="#environment-variable-specification"><span class="std std-ref">Environment variable specification</span></a></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="environment-specification">
+<h3>Environment Specification<a class="headerlink" href="#environment-specification" title="Link to this heading"></a></h3>
+<section id="environment-variable-specification">
+<span id="environment-variable-specification"></span><h4>Environment variable specification<a class="headerlink" href="#environment-variable-specification" title="Link to this heading"></a></h4>
+<table class="docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="4"><p><em>object</em></p></td>
+</tr>
+<tr class="row-even"><td colspan="5"><p>properties</p></td>
+</tr>
+<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<li><p><strong>name</strong></p></li>
+</ul>
+</td>
+<td colspan="4"><p><em>Environment variable name</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="3"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="4"><ul class="simple">
+<li><p>value</p></li>
+</ul>
+</td>
+<td colspan="4"><p><em>Set the variable to this value (space-separated if array)</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><p>oneOf</p></td>
+<td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="4"><ul class="simple">
+<li><p>path</p></li>
+</ul>
+</td>
+<td colspan="4"><p><em>Set the variable as a path (colon-separated if array)</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><p>oneOf</p></td>
+<td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="4"><ul class="simple">
+<li><p>path-append</p></li>
+</ul>
+</td>
+<td colspan="4"><p><em>Append to the variable as a path</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><p>oneOf</p></td>
+<td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="4"><ul class="simple">
+<li><p>path-prepend</p></li>
+</ul>
+</td>
+<td colspan="4"><p><em>Prepend to the variable as a path</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><p>oneOf</p></td>
+<td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
+<section id="common-patterns">
+<h2>Common Patterns<a class="headerlink" href="#common-patterns" title="Link to this heading"></a></h2>
+<section id="pattern-1-multi-environment-project">
+<h3>Pattern 1: Multi-Environment Project<a class="headerlink" href="#pattern-1-multi-environment-project" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">versatile-project</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime.git</span>
+<span class="w">          </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+<span class="w">          </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime.git</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">coverage</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ci</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime.git</span>
+<span class="w">          </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+<span class="w">          </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">          </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+</section>
+<section id="pattern-2-monorepo-structure">
+<h3>Pattern 2: Monorepo Structure<a class="headerlink" href="#pattern-2-monorepo-structure" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">monorepo</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Shared libraries</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">common-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${IVPM_PROJECT}/../common-lib</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+
+<span class="w">        </span><span class="c1"># External deps</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+</section>
+<section id="pattern-3-platform-specific-dependencies">
+<h3>Pattern 3: Platform-Specific Dependencies<a class="headerlink" href="#pattern-3-platform-specific-dependencies" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cross-platform</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">common-tool</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">          </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p><strong>The gh-rls automatically selects platform-specific binaries.</strong></p>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic command usage</p></li>
+<li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> - Common command workflows</p></li>
+<li><p><a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> - Git command details</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Cache command usage</p></li>
+</ul>
 </section>
 </section>
 
@@ -636,7 +1642,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="getting_started.html" class="btn btn-neutral float-left" title="Getting Started with IVPM" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="troubleshooting.html" class="btn btn-neutral float-left" title="Troubleshooting" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
     </div>
 
   <hr/>

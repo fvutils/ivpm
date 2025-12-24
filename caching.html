@@ -1,0 +1,737 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Caching &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Python Package Management" href="python_packages.html" />
+    <link rel="prev" title="Package Types &amp; Sources" href="package_types.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Caching</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cache-modes">Cache Modes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#enabling-the-cache">Enabling the Cache</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#initializing-a-cache-directory">Initializing a Cache Directory</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#cache-organization">Cache Organization</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#package-caching">Package Caching</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#enabling-caching-for-packages">Enabling Caching for Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#git-packages">Git Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#http-url-packages">HTTP/URL Packages</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#github-releases">GitHub Releases</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#cache-management">Cache Management</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#viewing-cache-information">Viewing Cache Information</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cleaning-the-cache">Cleaning the Cache</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#practical-examples">Practical Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-1-development-with-caching">Example 1: Development with Caching</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-shared-team-cache">Example 2: Shared Team Cache</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-3-multi-project-workflow">Example 3: Multi-Project Workflow</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#when-to-use-caching">When to Use Caching</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#use-cache-true-when">Use <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> when:</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#use-cache-false-when">Use <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code> when:</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#use-no-cache-attribute-when">Use no cache attribute when:</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#cache-not-working">Cache Not Working</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#broken-symlinks">Broken Symlinks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#permission-denied-shared-cache">Permission Denied (Shared Cache)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-growing-too-large">Cache Growing Too Large</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#performance-tips">Performance Tips</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#command-reference">Command Reference</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#cache-init">cache init</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-info">cache info</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cache-clean">cache clean</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Caching</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/caching.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="caching">
+<h1>Caching<a class="headerlink" href="#caching" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM supports caching of package data to:</p>
+<ul class="simple">
+<li><p>Reduce network traffic when fetching version-controlled files</p></li>
+<li><p>Reduce disk space for shared dependencies that aren’t being edited</p></li>
+<li><p>Speed up project initialization across multiple workspaces</p></li>
+</ul>
+<p>Cached packages are always <strong>read-only</strong> and <strong>symlinked</strong> into the
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory, allowing multiple projects to share the same cached
+package data.</p>
+</section>
+<section id="cache-modes">
+<h2>Cache Modes<a class="headerlink" href="#cache-modes" title="Link to this heading"></a></h2>
+<p>IVPM supports three caching modes per package, controlled by the <code class="docutils literal notranslate"><span class="pre">cache</span></code> attribute:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>cache value</p></th>
+<th class="head"><p>Cached?</p></th>
+<th class="head"><p>History?</p></th>
+<th class="head"><p>Editable?</p></th>
+<th class="head"><p>Use Case</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Yes</p></td>
+<td><p>No</p></td>
+<td><p>No</p></td>
+<td><p>Production deps, stable releases</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p>No</p></td>
+<td><p>No</p></td>
+<td><p>No</p></td>
+<td><p>One-time use, temp deps</p></td>
+</tr>
+<tr class="row-even"><td><p>(unspecified)</p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+<td><p>Yes</p></td>
+<td><p>Development, co-development</p></td>
+</tr>
+</tbody>
+</table>
+<dl class="simple">
+<dt><strong>cache: true</strong></dt><dd><ul class="simple">
+<li><p>Package stored in <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code></p></li>
+<li><p>Symlinked into <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>Read-only (cannot modify)</p></li>
+<li><p>No Git history (shallow clone)</p></li>
+<li><p>Shared across projects</p></li>
+</ul>
+</dd>
+<dt><strong>cache: false</strong></dt><dd><ul class="simple">
+<li><p>Not cached</p></li>
+<li><p>Cloned directly to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>Read-only (cannot modify)</p></li>
+<li><p>No Git history (shallow clone)</p></li>
+<li><p>Cannot be edited</p></li>
+</ul>
+</dd>
+<dt><strong>cache not specified</strong></dt><dd><ul class="simple">
+<li><p>Not cached</p></li>
+<li><p>Cloned directly to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>Full Git history</p></li>
+<li><p>Can be modified and committed</p></li>
+<li><p>Development-friendly</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<section id="enabling-the-cache">
+<h3>Enabling the Cache<a class="headerlink" href="#enabling-the-cache" title="Link to this heading"></a></h3>
+<p>Caching is enabled by setting the <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> environment variable to point
+to the cache directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>/path/to/cache
+</pre></div>
+</div>
+<p>Add this to your shell rc file (<code class="docutils literal notranslate"><span class="pre">.bashrc</span></code>, <code class="docutils literal notranslate"><span class="pre">.zshrc</span></code>, etc.) to make it permanent.</p>
+<p><strong>Recommended cache locations:</strong></p>
+<ul class="simple">
+<li><p>Personal cache: <code class="docutils literal notranslate"><span class="pre">~/.cache/ivpm</span></code> or <code class="docutils literal notranslate"><span class="pre">~/ivpm-cache</span></code></p></li>
+<li><p>Shared cache: <code class="docutils literal notranslate"><span class="pre">/shared/ivpm-cache</span></code> or <code class="docutils literal notranslate"><span class="pre">/opt/ivpm-cache</span></code></p></li>
+</ul>
+<p>If <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is not set, IVPM will fall back to full clones (no caching) with
+a warning message.</p>
+</section>
+<section id="initializing-a-cache-directory">
+<h3>Initializing a Cache Directory<a class="headerlink" href="#initializing-a-cache-directory" title="Link to this heading"></a></h3>
+<p>Create a new cache directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span>/path/to/cache
+</pre></div>
+</div>
+<p>For <strong>shared environments</strong> where multiple users access the cache, use the
+<code class="docutils literal notranslate"><span class="pre">--shared</span></code> option to set group inheritance permissions (<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">g+s</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span>--shared<span class="w"> </span>/shared/ivpm-cache
+sudo<span class="w"> </span>chown<span class="w"> </span>:developers<span class="w"> </span>/shared/ivpm-cache
+<span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>/shared/ivpm-cache
+</pre></div>
+</div>
+<p>This ensures new files inherit the group ownership of the cache directory.</p>
+</section>
+</section>
+<section id="cache-organization">
+<h2>Cache Organization<a class="headerlink" href="#cache-organization" title="Link to this heading"></a></h2>
+<p>The cache is organized by package name, with version-specific subdirectories:</p>
+<ul class="simple">
+<li><p>For Git packages, the version is the commit hash</p></li>
+<li><p>For HTTP packages, the version is derived from the Last-Modified header or ETag</p></li>
+<li><p>For GitHub Releases, the version includes the release tag and platform info</p></li>
+</ul>
+<p>Example structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>$IVPM_CACHE/
+├── gtest/
+│   ├── abc123def456.../           # Git commit hash
+│   └── 789xyz012abc.../           # Different commit
+├── boost/
+│   ├── Thu_01-Jan-2024_120000/   # HTTP Last-Modified timestamp
+│   └── Fri_15-Mar-2024_093000/
+└── uv/
+    ├── 0.1.0_linux_x86_64/       # GitHub Release with platform
+    └── 0.1.1_darwin_arm64/
+</pre></div>
+</div>
+<p>Each version directory contains the complete, read-only package content.</p>
+</section>
+<section id="package-caching">
+<h2>Package Caching<a class="headerlink" href="#package-caching" title="Link to this heading"></a></h2>
+<section id="enabling-caching-for-packages">
+<h3>Enabling Caching for Packages<a class="headerlink" href="#enabling-caching-for-packages" title="Link to this heading"></a></h3>
+<p>To enable caching for a package, set the <code class="docutils literal notranslate"><span class="pre">cache</span></code> attribute in your <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gtest</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/google/googletest.git</span>
+<span class="w">        </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+<span class="w">        </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">cache</span></code> attribute can be:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">true</span></code> - Enable caching (read-only, symlinked from cache)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">false</span></code> - No cache, read-only (clone without history, not cached)</p></li>
+<li><p>Unspecified - No cache, editable (full history, can be modified)</p></li>
+</ul>
+<p>Cached packages are always read-only and are symlinked into the <code class="docutils literal notranslate"><span class="pre">packages/</span></code>
+directory.</p>
+</section>
+<section id="git-packages">
+<h3>Git Packages<a class="headerlink" href="#git-packages" title="Link to this heading"></a></h3>
+<p>IVPM supports caching for <strong>any Git repository</strong>, not just GitHub.</p>
+<p><strong>For GitHub URLs</strong> (recommended for speed):</p>
+<ol class="arabic simple">
+<li><p>IVPM queries the GitHub API to get the commit hash of the target branch/tag</p></li>
+<li><p>If the commit exists in the cache, it symlinks to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>If not cached, clones without history, stores in cache, and symlinks</p></li>
+</ol>
+<p><strong>For general Git URLs:</strong></p>
+<ol class="arabic simple">
+<li><p>IVPM uses <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">ls-remote</span></code> to get the commit hash</p></li>
+<li><p>If the commit exists in the cache, it symlinks to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>If not cached, clones without history, stores in cache, and symlinks</p></li>
+</ol>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># GitHub repo (uses API)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># GitLab repo (uses git ls-remote)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">other-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://gitlab.com/org/lib.git</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">release-1.0</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># Self-hosted Git (uses git ls-remote)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">internal-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://git.company.com/team/lib.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stable</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Cache key:</strong> The full commit hash (40 characters)</p>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Multiple projects can share the same cached version</p></li>
+<li><p>Updates only download if the commit hash changes</p></li>
+<li><p>Significant time savings for large repositories</p></li>
+</ul>
+</section>
+<section id="http-url-packages">
+<h3>HTTP/URL Packages<a class="headerlink" href="#http-url-packages" title="Link to this heading"></a></h3>
+<p>For cacheable HTTP URLs (e.g., <code class="docutils literal notranslate"><span class="pre">.tar.gz</span></code> files):</p>
+<ol class="arabic simple">
+<li><p>IVPM fetches the Last-Modified date or ETag via HTTP HEAD request</p></li>
+<li><p>If a matching entry exists in the cache, it symlinks to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>If not cached, downloads, unpacks, stores in cache, and symlinks</p></li>
+</ol>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">boost</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.tar.gz</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-data</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/vectors-v2.tar.gz</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Cache key:</strong> Last-Modified header (converted to safe filename) or ETag</p>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Avoid re-downloading large archives</p></li>
+<li><p>CDN files are often stable and benefit from caching</p></li>
+</ul>
+</section>
+<section id="github-releases">
+<h3>GitHub Releases<a class="headerlink" href="#github-releases" title="Link to this heading"></a></h3>
+<p>GitHub Release packages support platform-specific caching:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/astral-sh/uv</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Cache key:</strong> <code class="docutils literal notranslate"><span class="pre">&lt;release-tag&gt;_&lt;platform&gt;_&lt;architecture&gt;</span></code></p>
+<p>Examples:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0.1.0_linux_x86_64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0.1.0_darwin_arm64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">0.1.0_windows_x86_64</span></code></p></li>
+</ul>
+<p>This allows different platforms to cache different binaries for the same release.</p>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Cache platform-specific binaries separately</p></li>
+<li><p>Share cache across team members on the same platform</p></li>
+<li><p>Avoid re-downloading large binary releases</p></li>
+</ul>
+</section>
+</section>
+<section id="cache-management">
+<h2>Cache Management<a class="headerlink" href="#cache-management" title="Link to this heading"></a></h2>
+<p>IVPM provides commands to manage the cache.</p>
+<section id="viewing-cache-information">
+<h3>Viewing Cache Information<a class="headerlink" href="#viewing-cache-information" title="Link to this heading"></a></h3>
+<p>See packages, number of cached versions, and total size:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>info
+</pre></div>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--verbose</span></code> for detailed version information:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--verbose
+</pre></div>
+</div>
+<p>Example output:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Cache</span> <span class="n">directory</span><span class="p">:</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">user</span><span class="o">/.</span><span class="n">cache</span><span class="o">/</span><span class="n">ivpm</span>
+<span class="n">Total</span> <span class="n">packages</span><span class="p">:</span> <span class="mi">15</span>
+<span class="n">Total</span> <span class="n">versions</span><span class="p">:</span> <span class="mi">47</span>
+<span class="n">Total</span> <span class="n">size</span><span class="p">:</span> <span class="mf">2.3</span> <span class="n">GB</span>
+
+<span class="n">Package</span><span class="p">:</span> <span class="n">gtest</span>
+  <span class="n">Versions</span><span class="p">:</span> <span class="mi">3</span>
+  <span class="n">Size</span><span class="p">:</span> <span class="mi">45</span> <span class="n">MB</span>
+
+<span class="n">Package</span><span class="p">:</span> <span class="n">boost</span>
+  <span class="n">Versions</span><span class="p">:</span> <span class="mi">2</span>
+  <span class="n">Size</span><span class="p">:</span> <span class="mi">856</span> <span class="n">MB</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is not set, specify the cache directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--cache-dir<span class="w"> </span>/path/to/cache
+</pre></div>
+</div>
+</section>
+<section id="cleaning-the-cache">
+<h3>Cleaning the Cache<a class="headerlink" href="#cleaning-the-cache" title="Link to this heading"></a></h3>
+<p>Remove cache entries older than a specified number of days:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
+</pre></div>
+</div>
+<p>This removes entries that haven’t been accessed in 7 days (the default).</p>
+<p><strong>To remove old entries:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove entries older than 30 days</span>
+ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
+
+<span class="c1"># Use a specific cache directory</span>
+ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--cache-dir<span class="w"> </span>/shared/cache<span class="w"> </span>--days<span class="w"> </span><span class="m">14</span>
+</pre></div>
+</div>
+<p><strong>What gets removed:</strong></p>
+<ul class="simple">
+<li><p>Version directories with access time (atime) older than specified days</p></li>
+<li><p>Empty package directories after version removal</p></li>
+<li><p>Symlinks in projects will become broken and need <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> to recreate</p></li>
+</ul>
+</section>
+</section>
+<section id="practical-examples">
+<h2>Practical Examples<a class="headerlink" href="#practical-examples" title="Link to this heading"></a></h2>
+<section id="example-1-development-with-caching">
+<h3>Example 1: Development with Caching<a class="headerlink" href="#example-1-development-with-caching" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Stable library - cache it</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">googletest</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/google/googletest.git</span>
+<span class="w">          </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.14.0</span>
+<span class="w">          </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">        </span><span class="c1"># Co-developed library - don&#39;t cache</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">          </span><span class="c1"># No cache attribute - editable</span>
+
+<span class="w">        </span><span class="c1"># Test data - cache it</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-vectors</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/vectors.tar.gz</span>
+<span class="w">          </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">googletest</span></code> → Cached, read-only, symlinked</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">my-lib</span></code> → Not cached, full history, editable</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">test-vectors</span></code> → Cached, read-only, symlinked</p></li>
+</ul>
+</section>
+<section id="example-2-shared-team-cache">
+<h3>Example 2: Shared Team Cache<a class="headerlink" href="#example-2-shared-team-cache" title="Link to this heading"></a></h3>
+<p><strong>Setup:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Admin sets up shared cache</span>
+sudo<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>/shared/ivpm-cache
+sudo<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span>--shared<span class="w"> </span>/shared/ivpm-cache
+sudo<span class="w"> </span>chown<span class="w"> </span>:devteam<span class="w"> </span>/shared/ivpm-cache
+
+<span class="c1"># Team members add to their ~/.bashrc</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>/shared/ivpm-cache
+</pre></div>
+</div>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">large-dataset</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/data-10GB.tar.gz</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">big-library</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/big-lib.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stable</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>First team member downloads, all others get instant symlink</p></li>
+<li><p>Saves bandwidth and disk space across the team</p></li>
+<li><p>Managed with <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">cache</span> <span class="pre">clean</span></code> periodically</p></li>
+</ul>
+</section>
+<section id="example-3-multi-project-workflow">
+<h3>Example 3: Multi-Project Workflow<a class="headerlink" href="#example-3-multi-project-workflow" title="Link to this heading"></a></h3>
+<p><strong>Scenario:</strong> Working on three related projects</p>
+<p><strong>Project A:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">common-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/common.git</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v2.0</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Project B:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">common-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/common.git</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v2.0</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Project C:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">common-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/common.git</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v2.0</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong> All three projects share the same cached <code class="docutils literal notranslate"><span class="pre">common-lib</span></code> at commit
+corresponding to tag v2.0. Total disk usage: 1× instead of 3×.</p>
+</section>
+</section>
+<section id="when-to-use-caching">
+<h2>When to Use Caching<a class="headerlink" href="#when-to-use-caching" title="Link to this heading"></a></h2>
+<section id="use-cache-true-when">
+<h3>Use <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> when:<a class="headerlink" href="#use-cache-true-when" title="Link to this heading"></a></h3>
+<p>✅ Stable, released versions (tags)
+✅ Large repositories you don’t modify
+✅ Third-party dependencies
+✅ Shared across multiple projects
+✅ Team environments with shared cache
+✅ CI/CD builds
+✅ Binary releases from GitHub</p>
+</section>
+<section id="use-cache-false-when">
+<h3>Use <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code> when:<a class="headerlink" href="#use-cache-false-when" title="Link to this heading"></a></h3>
+<p>⚠️ You want read-only but not cached
+⚠️ One-time use packages
+⚠️ Testing package updates
+⚠️ Temporary dependencies</p>
+</section>
+<section id="use-no-cache-attribute-when">
+<h3>Use no cache attribute when:<a class="headerlink" href="#use-no-cache-attribute-when" title="Link to this heading"></a></h3>
+<p>✅ Actively developing/modifying
+✅ Co-developed packages
+✅ Need full Git history
+✅ Making commits to the package
+✅ Branching or rebasing</p>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="cache-not-working">
+<h3>Cache Not Working<a class="headerlink" href="#cache-not-working" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Packages not being cached</p>
+<p><strong>Check:</strong></p>
+<ol class="arabic">
+<li><p>Is <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> set?</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">echo</span><span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+</pre></div>
+</div>
+</li>
+<li><p>Does the cache directory exist?</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-la<span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+</pre></div>
+</div>
+</li>
+<li><p>Is <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> in your <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>?</p></li>
+<li><p>Check IVPM output for cache hit/miss messages</p></li>
+</ol>
+<p><strong>Solution:</strong> If not set, initialize:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>~/.cache/ivpm
+ivpm<span class="w"> </span>cache<span class="w"> </span>init<span class="w"> </span><span class="nv">$IVPM_CACHE</span>
+ivpm<span class="w"> </span>update<span class="w">  </span><span class="c1"># Re-run to use cache</span>
+</pre></div>
+</div>
+</section>
+<section id="broken-symlinks">
+<h3>Broken Symlinks<a class="headerlink" href="#broken-symlinks" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Symlinks in <code class="docutils literal notranslate"><span class="pre">packages/</span></code> pointing to non-existent cache entries</p>
+<p><strong>Cause:</strong> Cache was cleaned or manually deleted</p>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove broken symlinks</span>
+find<span class="w"> </span>packages/<span class="w"> </span>-type<span class="w"> </span>l<span class="w"> </span>!<span class="w"> </span>-exec<span class="w"> </span><span class="nb">test</span><span class="w"> </span>-e<span class="w"> </span><span class="o">{}</span><span class="w"> </span><span class="se">\;</span><span class="w"> </span>-delete
+
+<span class="c1"># Re-run update to recreate</span>
+ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="permission-denied-shared-cache">
+<h3>Permission Denied (Shared Cache)<a class="headerlink" href="#permission-denied-shared-cache" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Cannot write to shared cache</p>
+<p><strong>Check permissions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ls<span class="w"> </span>-la<span class="w"> </span>/shared/ivpm-cache
+</pre></div>
+</div>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Add yourself to the group</span>
+sudo<span class="w"> </span>usermod<span class="w"> </span>-a<span class="w"> </span>-G<span class="w"> </span>devteam<span class="w"> </span><span class="nv">$USER</span>
+
+<span class="c1"># Re-login or newgrp</span>
+newgrp<span class="w"> </span>devteam
+
+<span class="c1"># Verify permissions</span>
+ls<span class="w"> </span>-la<span class="w"> </span>/shared/ivpm-cache
+</pre></div>
+</div>
+</section>
+<section id="cache-growing-too-large">
+<h3>Cache Growing Too Large<a class="headerlink" href="#cache-growing-too-large" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Cache directory taking too much space</p>
+<p><strong>Solutions:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># View cache size</span>
+ivpm<span class="w"> </span>cache<span class="w"> </span>info
+
+<span class="c1"># Clean old entries</span>
+ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
+
+<span class="c1"># Manual cleanup (advanced)</span>
+du<span class="w"> </span>-sh<span class="w"> </span><span class="nv">$IVPM_CACHE</span>/*/<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-h
+</pre></div>
+</div>
+</section>
+</section>
+<section id="performance-tips">
+<h2>Performance Tips<a class="headerlink" href="#performance-tips" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Enable caching for large dependencies</strong> - Saves significant time</p></li>
+<li><p><strong>Use shallow clones</strong> when not caching - Combine <code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code> with <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code></p></li>
+<li><p><strong>Shared cache for teams</strong> - Set up once, benefits everyone</p></li>
+<li><p><strong>Regular cleanup</strong> - Schedule <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">cache</span> <span class="pre">clean</span></code> monthly</p></li>
+<li><p><strong>Monitor cache size</strong> - Use <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">cache</span> <span class="pre">info</span></code> periodically</p></li>
+<li><p><strong>Cache stable versions</strong> - Use tags or specific commits with <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code></p></li>
+<li><p><strong>Don’t cache development deps</strong> - Leave packages you’re actively modifying uncached</p></li>
+</ol>
+</section>
+<section id="command-reference">
+<h2>Command Reference<a class="headerlink" href="#command-reference" title="Link to this heading"></a></h2>
+<section id="cache-init">
+<h3>cache init<a class="headerlink" href="#cache-init" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache init [-s/--shared] [-f/--force] &lt;cache_dir&gt;
+</pre></div>
+</div>
+<p>Options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">-s,</span> <span class="pre">--shared</span></code>: Set group inheritance (<code class="docutils literal notranslate"><span class="pre">chmod</span> <span class="pre">g+s</span></code>) for shared cache usage</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-f,</span> <span class="pre">--force</span></code>: Force reinitialization of an existing directory</p></li>
+</ul>
+</section>
+<section id="cache-info">
+<h3>cache info<a class="headerlink" href="#cache-info" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache info [-c/--cache-dir &lt;dir&gt;] [-v/--verbose]
+</pre></div>
+</div>
+<p>Options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">-c,</span> <span class="pre">--cache-dir</span></code>: Cache directory (default: <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">--verbose</span></code>: Show detailed version information</p></li>
+</ul>
+</section>
+<section id="cache-clean">
+<h3>cache clean<a class="headerlink" href="#cache-clean" title="Link to this heading"></a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache clean [-c/--cache-dir &lt;dir&gt;] [-d/--days &lt;n&gt;]
+</pre></div>
+</div>
+<p>Options:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">-c,</span> <span class="pre">--cache-dir</span></code>: Cache directory (default: <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--days</span></code>: Remove entries older than this many days (default: 7)</p></li>
+</ul>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - Understanding cache attribute on different package types</p></li>
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic cache setup</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="package_types.html" class="btn btn-neutral float-left" title="Package Types &amp; Sources" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="python_packages.html" class="btn btn-neutral float-right" title="Python Package Management" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Reference" href="reference.html" />
+    <link rel="next" title="Core Concepts" href="core_concepts.html" />
     <link rel="prev" title="Introduction" href="introduction.html" /> 
 </head>
 
@@ -47,10 +47,60 @@
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Getting Started with IVPM</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#installing-ivpm">Installing IVPM</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#initializing-an-exiting-ivpm-project">Initializing an Exiting IVPM Project</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#initializing-a-new-ivpm-project">Initializing a New IVPM Project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quick-start-clone-an-existing-project">Quick Start: Clone an Existing Project</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#clone-command-options">Clone Command Options</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#creating-a-new-ivpm-project">Creating a New IVPM Project</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#step-1-initialize-the-project">Step 1: Initialize the Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-2-add-dependency-sets">Step 2: Add Dependency Sets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-3-run-initial-update">Step 3: Run Initial Update</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#step-4-create-your-project-structure">Step 4: Create Your Project Structure</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#working-with-dependencies">Working with Dependencies</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#adding-dependencies">Adding Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#updating-dependencies">Updating Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#using-the-python-virtual-environment">Using the Python Virtual Environment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#activate-for-a-single-command">Activate for a Single Command</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#start-an-interactive-shell">Start an Interactive Shell</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#practical-examples">Practical Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-1-simple-python-project">Example 1: Simple Python Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-mixed-dependencies">Example 2: Mixed Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-3-using-dependency-sets">Example 3: Using Dependency Sets</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#common-workflows">Common Workflows</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#daily-development">Daily Development</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#adding-a-new-dependency">Adding a New Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#syncing-with-upstream">Syncing with Upstream</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#update-fails-with-ssh-error">Update Fails with SSH Error</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#python-package-not-found">Python Package Not Found</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dependencies-not-loading">Dependencies Not Loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#slow-updates">Slow Updates</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#next-steps">Next Steps</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
 
@@ -84,44 +134,457 @@
 <h2>Installing IVPM<a class="headerlink" href="#installing-ivpm" title="Link to this heading"></a></h2>
 <p>IVPM must be installed before it can be used to work with a project. Typically,
 the easiest approach is to install IVPM as a user-installed package:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>ivpm
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>ivpm
 </pre></div>
 </div>
 <p>Once this is done, you can invoke IVPM either via the entry-point script (ivpm)
 or as a Python module:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>ivpm<span class="w"> </span>--help
-%<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>ivpm<span class="w"> </span>--help
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>--help
+$<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </span>ivpm<span class="w"> </span>--help
 </pre></div>
 </div>
 </section>
-<section id="initializing-an-exiting-ivpm-project">
-<h2>Initializing an Exiting IVPM Project<a class="headerlink" href="#initializing-an-exiting-ivpm-project" title="Link to this heading"></a></h2>
-<p>After fetching the source for an IVPM-enabled project, the <cite>ivpm update</cite> command
-is used to fetch source dependencies and initialize a Python virtual environment
-for the project.</p>
-<p>The IVPM project, itself, is IVPM-enabled. The steps to fetch and initialize
-the project are shown below (assuming ivpm has already been installed):</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>%<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/fvutils/ivpm
-%<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>ivpm
-%<span class="w"> </span>ivpm<span class="w"> </span>update
+<section id="quick-start-clone-an-existing-project">
+<h2>Quick Start: Clone an Existing Project<a class="headerlink" href="#quick-start-clone-an-existing-project" title="Link to this heading"></a></h2>
+<p>The fastest way to start with IVPM is to clone an existing IVPM-enabled project:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
 </pre></div>
 </div>
-<p>Note that, by default, IVPM clones sub-projects using your ssh public key. If
-this key has not been registered with a Git server, then cloning any projects
-from that server will fail. Git projects can be cloned using https
-(ie anonymously) by running <cite>ivpm update -a</cite>.</p>
-<p>IVPM performs the following tasks as a part of the <cite>update</cite> operation:</p>
+<p>This single command:</p>
+<ol class="arabic simple">
+<li><p>Clones the Git repository</p></li>
+<li><p>Reads the project’s <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p>Fetches all dependencies</p></li>
+<li><p>Creates a Python virtual environment</p></li>
+<li><p>Installs Python packages</p></li>
+</ol>
+<p>After cloning, you’re ready to work:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python --version&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+</pre></div>
+</div>
+<section id="clone-command-options">
+<h3>Clone Command Options<a class="headerlink" href="#clone-command-options" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span><span class="o">[</span>options<span class="o">]</span><span class="w"> </span>&lt;src-url-or-path&gt;<span class="w"> </span><span class="o">[</span>workspace_dir<span class="o">]</span>
+</pre></div>
+</div>
+<p><strong>Common options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous</span></code></dt><dd><p>Clone anonymously over HTTPS instead of using SSH. By default,
+HTTPS URLs are converted to SSH form (<code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-b,</span> <span class="pre">--branch</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Checkout the specified branch. If <code class="docutils literal notranslate"><span class="pre">origin/&lt;name&gt;</span></code> exists, it
+will be checked out tracking the remote; otherwise, a new local branch is created.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--dep-set</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Specify the dependency set for <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> (e.g., <code class="docutils literal notranslate"><span class="pre">default-dev</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-uv</span></code> or <code class="docutils literal notranslate"><span class="pre">--py-pip</span></code></dt><dd><p>Choose whether <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> should use “uv” or “pip”
+to manage the project-local Python virtual environment.</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone with default workspace directory name</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/fvutils/ivpm
+
+<span class="c1"># Clone into specific directory with new branch</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>my-workspace<span class="w"> </span>-b<span class="w"> </span>feature/new
+
+<span class="c1"># Clone anonymously and select dependency set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-a<span class="w"> </span>https://github.com/org/project<span class="w"> </span>-d<span class="w"> </span>default-dev
+
+<span class="c1"># Clone and use uv for Python package management</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>--py-uv
+</pre></div>
+</div>
+</section>
+</section>
+<section id="creating-a-new-ivpm-project">
+<h2>Creating a New IVPM Project<a class="headerlink" href="#creating-a-new-ivpm-project" title="Link to this heading"></a></h2>
+<p>To create a new IVPM-enabled project from scratch:</p>
+<section id="step-1-initialize-the-project">
+<h3>Step 1: Initialize the Project<a class="headerlink" href="#step-1-initialize-the-project" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>my-project
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>my-project
+$<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span>my-project<span class="w"> </span>-v<span class="w"> </span><span class="m">0</span>.1.0
+</pre></div>
+</div>
+<p>This creates a basic <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="step-2-add-dependency-sets">
+<h3>Step 2: Add Dependency Sets<a class="headerlink" href="#step-2-add-dependency-sets" title="Link to this heading"></a></h3>
+<p>Edit <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> to add your dependencies:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Runtime dependencies</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Runtime dependencies</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">requests</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="c1"># Development dependencies</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+</section>
+<section id="step-3-run-initial-update">
+<h3>Step 3: Run Initial Update<a class="headerlink" href="#step-3-run-initial-update" title="Link to this heading"></a></h3>
+<p>Fetch dependencies and create the Python virtual environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+<p>This creates:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>my-project/
+├── ivpm.yaml
+└── packages/
+    └── python/           # Virtual environment
+        ├── bin/
+        ├── lib/
+        └── ...
+</pre></div>
+</div>
+</section>
+<section id="step-4-create-your-project-structure">
+<h3>Step 4: Create Your Project Structure<a class="headerlink" href="#step-4-create-your-project-structure" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>mkdir<span class="w"> </span>-p<span class="w"> </span>src/my_project<span class="w"> </span><span class="nb">test</span>
+$<span class="w"> </span>touch<span class="w"> </span>src/my_project/__init__.py
+$<span class="w"> </span>touch<span class="w"> </span>test/test_basic.py
+</pre></div>
+</div>
+<p>Now you have a complete project structure:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>my-project/
+├── ivpm.yaml
+├── packages/
+│   └── python/
+├── src/
+│   └── my_project/
+│       └── __init__.py
+└── test/
+    └── test_basic.py
+</pre></div>
+</div>
+</section>
+</section>
+<section id="working-with-dependencies">
+<h2>Working with Dependencies<a class="headerlink" href="#working-with-dependencies" title="Link to this heading"></a></h2>
+<section id="adding-dependencies">
+<h3>Adding Dependencies<a class="headerlink" href="#adding-dependencies" title="Link to this heading"></a></h3>
+<p>To add a new dependency, edit <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<p><strong>Add a PyPI package:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.20&quot;</span>
+</pre></div>
+</div>
+<p><strong>Add a Git repository:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-library.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">main</span>
+</pre></div>
+</div>
+<p><strong>Add a local development package:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">co-developed</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///home/user/projects/library</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dir</span>
+</pre></div>
+</div>
+<p>After editing, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="updating-dependencies">
+<h3>Updating Dependencies<a class="headerlink" href="#updating-dependencies" title="Link to this heading"></a></h3>
+<p>To fetch the latest changes from Git repositories:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">    </span><span class="c1"># Check status of all Git packages</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>sync<span class="w">      </span><span class="c1"># Update Git packages from upstream</span>
+</pre></div>
+</div>
+<p>To update Python packages:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+</section>
+</section>
+<section id="using-the-python-virtual-environment">
+<h2>Using the Python Virtual Environment<a class="headerlink" href="#using-the-python-virtual-environment" title="Link to this heading"></a></h2>
+<p>IVPM creates a project-local Python virtual environment in <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code>.</p>
+<section id="activate-for-a-single-command">
+<h3>Activate for a Single Command<a class="headerlink" href="#activate-for-a-single-command" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python -m my_module&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="start-an-interactive-shell">
+<h3>Start an Interactive Shell<a class="headerlink" href="#start-an-interactive-shell" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+</pre></div>
+</div>
+<p>The shell prompt shows <code class="docutils literal notranslate"><span class="pre">(venv)</span></code> when the environment is active.</p>
+</section>
+</section>
+<section id="practical-examples">
+<h2>Practical Examples<a class="headerlink" href="#practical-examples" title="Link to this heading"></a></h2>
+<section id="example-1-simple-python-project">
+<h3>Example 1: Simple Python Project<a class="headerlink" href="#example-1-simple-python-project" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">data-processor</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pandas</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pandas</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">black</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black src/&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="example-2-mixed-dependencies">
+<h3>Example 2: Mixed Dependencies<a class="headerlink" href="#example-2-mixed-dependencies" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verification-env</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Python test framework</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cocotb</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">        </span><span class="c1"># Co-developed Python library</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bus-models</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/bus-models.git</span>
+
+<span class="w">        </span><span class="c1"># Verilog RTL (raw package)</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uart-rtl</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/uart.git</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
+
+<span class="w">        </span><span class="c1"># Test vectors</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-data</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://cdn.example.com/vectors.tar.gz</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;make sim&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="example-3-using-dependency-sets">
+<h3>Example 3: Using Dependency Sets<a class="headerlink" href="#example-3-using-dependency-sets" title="Link to this heading"></a></h3>
+<p><strong>ivpm.yaml:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soc-design</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-core</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cpu.git</span>
+<span class="w">          </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-core</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cpu.git</span><span class="w">  </span><span class="c1"># Development branch</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-framework</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/test.git</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fpga</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-core</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cpu.git</span>
+<span class="w">          </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xilinx-ips</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/xilinx.git</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Development work</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev
+
+<span class="c1"># Release build</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default
+
+<span class="c1"># FPGA build</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>fpga
+</pre></div>
+</div>
+</section>
+</section>
+<section id="common-workflows">
+<h2>Common Workflows<a class="headerlink" href="#common-workflows" title="Link to this heading"></a></h2>
+<section id="daily-development">
+<h3>Daily Development<a class="headerlink" href="#daily-development" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Start working</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>my-project
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+
+<span class="c1"># 2. Work on code</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python<span class="w"> </span>src/my_script.py
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+
+<span class="c1"># 3. Check dependency status</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>ivpm<span class="w"> </span>status
+
+<span class="c1"># 4. Done for the day</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+</pre></div>
+</div>
+</section>
+<section id="adding-a-new-dependency">
+<h3>Adding a New Dependency<a class="headerlink" href="#adding-a-new-dependency" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Edit ivpm.yaml to add dependency</span>
+$<span class="w"> </span>vim<span class="w"> </span>ivpm.yaml
+
+<span class="c1"># 2. Update to fetch new dependency</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># 3. Verify it&#39;s available</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python -c &#39;import new_package&#39;&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="syncing-with-upstream">
+<h3>Syncing with Upstream<a class="headerlink" href="#syncing-with-upstream" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Check status of all Git dependencies</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>status
+
+<span class="c1"># 2. Update from upstream</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>sync
+
+<span class="c1"># 3. Re-install Python packages if needed</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
+</pre></div>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="update-fails-with-ssh-error">
+<h3>Update Fails with SSH Error<a class="headerlink" href="#update-fails-with-ssh-error" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Cannot clone Git repositories with SSH</p>
+<p><strong>Solution:</strong> Use anonymous (HTTPS) cloning:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
+</pre></div>
+</div>
+<p>Or set <code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib.git</span>
+<span class="w">    </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+<section id="python-package-not-found">
+<h3>Python Package Not Found<a class="headerlink" href="#python-package-not-found" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Cannot import a package that should be installed</p>
+<p><strong>Solution:</strong> Verify the package is in the active dependency set:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev<span class="w">  </span><span class="c1"># Ensure correct dep-set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span><span class="w">  </span><span class="c1"># Check installed packages</span>
+</pre></div>
+</div>
+</section>
+<section id="dependencies-not-loading">
+<h3>Dependencies Not Loading<a class="headerlink" href="#dependencies-not-loading" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Expected dependencies not appearing in <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p>
+<p><strong>Solution:</strong> Check your dependency set:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># See what&#39;s configured</span>
+$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml
+
+<span class="c1"># Try explicit dependency set</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev
+</pre></div>
+</div>
+</section>
+<section id="slow-updates">
+<h3>Slow Updates<a class="headerlink" href="#slow-updates" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> is very slow</p>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Use caching</strong> for Git dependencies:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">large-repo</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/large.git</span>
+<span class="w">    </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Use shallow clones</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">repo</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/repo.git</span>
+<span class="w">    </span><span class="nt">depth</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Skip Python reinstall</strong> if already done:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--skip-py-install
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<p>Now that you have the basics:</p>
 <ul class="simple">
-<li><p>Fetches the source for each dependent project (eg .git, .tar.gz, .jar, etc)</p></li>
-<li><p>Identifies dependent projects that are, themselves, IVPM-enabled and
-determines sub-dependencies</p></li>
-<li><p>Identifies dependent projects that are Python projects and dependencies
-from PyPi. Installs these into the project-local Python virtual
-environment, with source projects installed in <cite>editable</cite> mode.</p></li>
+<li><p>Read <a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> to understand IVPM’s model</p></li>
+<li><p>Learn about <a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> for complex projects</p></li>
+<li><p>Explore <a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> for all dependency options</p></li>
+<li><p>Set up <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> for faster updates</p></li>
+<li><p>See <a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> for Python-specific features</p></li>
 </ul>
-</section>
-<section id="initializing-a-new-ivpm-project">
-<h2>Initializing a New IVPM Project<a class="headerlink" href="#initializing-a-new-ivpm-project" title="Link to this heading"></a></h2>
 </section>
 </section>
 
@@ -130,7 +593,7 @@ environment, with source projects installed in <cite>editable</cite> mode.</p></
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="introduction.html" class="btn btn-neutral float-left" title="Introduction" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="reference.html" class="btn btn-neutral float-right" title="Reference" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="core_concepts.html" class="btn btn-neutral float-right" title="Core Concepts" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

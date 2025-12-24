@@ -1,0 +1,537 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dependency Sets &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Package Types &amp; Sources" href="package_types.html" />
+    <link rel="prev" title="Core Concepts" href="core_concepts.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Dependency Sets</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#what-are-dependency-sets">What are Dependency Sets?</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#why-use-dependency-sets">Why Use Dependency Sets?</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#separate-concerns">Separate Concerns</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#multiple-build-targets">Multiple Build Targets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#faster-updates">Faster Updates</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#defining-dependency-sets">Defining Dependency Sets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#basic-structure">Basic Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#standard-names">Standard Names</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#using-dependency-sets">Using Dependency Sets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#selecting-a-set">Selecting a Set</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-examples">Complete Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#hierarchical-dependency-sets">Hierarchical Dependency Sets</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#dependency-set-inheritance">Dependency Set Inheritance</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#overriding-dependency-sets">Overriding Dependency Sets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#default-dependency-set-for-sub-packages">Default Dependency Set for Sub-Packages</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#dependency-set-diagram">Dependency Set Diagram</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#common-patterns">Common Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-1-shared-dependencies">Pattern 1: Shared Dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-2-development-tools-only">Pattern 2: Development Tools Only</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pattern-3-conditional-dependencies">Pattern 3: Conditional Dependencies</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#missing-dependency-set">Missing Dependency Set</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#package-not-loading">Package Not Loading</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#wrong-dependencies-loaded">Wrong Dependencies Loaded</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Dependency Sets</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/dependency_sets.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dependency-sets">
+<h1>Dependency Sets<a class="headerlink" href="#dependency-sets" title="Link to this heading"></a></h1>
+<section id="what-are-dependency-sets">
+<h2>What are Dependency Sets?<a class="headerlink" href="#what-are-dependency-sets" title="Link to this heading"></a></h2>
+<p><strong>Dependency sets</strong> are named collections of package dependencies. They allow you to
+define different dependency profiles for different scenarios, such as development
+vs. release, or different build targets.</p>
+</section>
+<section id="why-use-dependency-sets">
+<h2>Why Use Dependency Sets?<a class="headerlink" href="#why-use-dependency-sets" title="Link to this heading"></a></h2>
+<section id="separate-concerns">
+<h3>Separate Concerns<a class="headerlink" href="#separate-concerns" title="Link to this heading"></a></h3>
+<p>Development and release often need different dependencies:</p>
+<p><strong>Development needs:</strong></p>
+<ul class="simple">
+<li><p>Testing frameworks (pytest, unittest)</p></li>
+<li><p>Debugging tools</p></li>
+<li><p>Documentation generators</p></li>
+<li><p>Linters and formatters</p></li>
+<li><p>Build tools</p></li>
+</ul>
+<p><strong>Release needs:</strong></p>
+<ul class="simple">
+<li><p>Only runtime dependencies</p></li>
+<li><p>Minimal footprint</p></li>
+<li><p>No development tools</p></li>
+</ul>
+<p><strong>Example:</strong> A verification IP might depend on UVM libraries at runtime, but also
+need waveform viewers and coverage tools during development.</p>
+</section>
+<section id="multiple-build-targets">
+<h3>Multiple Build Targets<a class="headerlink" href="#multiple-build-targets" title="Link to this heading"></a></h3>
+<p>Different configurations may need different dependencies:</p>
+<ul class="simple">
+<li><p>FPGA vs ASIC builds</p></li>
+<li><p>Simulation vs synthesis</p></li>
+<li><p>Different test suites</p></li>
+<li><p>Platform-specific dependencies</p></li>
+</ul>
+</section>
+<section id="faster-updates">
+<h3>Faster Updates<a class="headerlink" href="#faster-updates" title="Link to this heading"></a></h3>
+<p>By selecting only the dependencies you need, <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> runs faster and uses
+less disk space.</p>
+</section>
+</section>
+<section id="defining-dependency-sets">
+<h2>Defining Dependency Sets<a class="headerlink" href="#defining-dependency-sets" title="Link to this heading"></a></h2>
+<section id="basic-structure">
+<h3>Basic Structure<a class="headerlink" href="#basic-structure" title="Link to this heading"></a></h3>
+<p>Define dependency sets in your <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span><span class="w">  </span><span class="c1"># Default when not specified</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span><span class="w">           </span><span class="c1"># Release dependencies</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime-lib.git</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span><span class="w">       </span><span class="c1"># Development dependencies</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime-lib.git</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-framework</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/test-framework.git</span>
+</pre></div>
+</div>
+</section>
+<section id="standard-names">
+<h3>Standard Names<a class="headerlink" href="#standard-names" title="Link to this heading"></a></h3>
+<p>While you can use any names, IVPM recognizes these standard names:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">default</span></code></dt><dd><p>Release/runtime dependencies. Use this for packages you’re distributing.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">default-dev</span></code></dt><dd><p>Development dependencies. Includes everything from <code class="docutils literal notranslate"><span class="pre">default</span></code> plus
+development tools.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="using-dependency-sets">
+<h2>Using Dependency Sets<a class="headerlink" href="#using-dependency-sets" title="Link to this heading"></a></h2>
+<section id="selecting-a-set">
+<h3>Selecting a Set<a class="headerlink" href="#selecting-a-set" title="Link to this heading"></a></h3>
+<p><strong>On the command line:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use development dependencies (default if default-dep-set is set)</span>
+ivpm<span class="w"> </span>update
+
+<span class="c1"># Explicitly use development dependencies</span>
+ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default-dev
+
+<span class="c1"># Use release dependencies</span>
+ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>default
+
+<span class="c1"># Use custom dependency set</span>
+ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </span>fpga-build
+</pre></div>
+</div>
+<p><strong>Setting the default:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+</pre></div>
+</div>
+<p>If <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> is specified, that set is used when no <code class="docutils literal notranslate"><span class="pre">-d</span></code> option
+is given to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>.</p>
+</section>
+<section id="complete-examples">
+<h3>Complete Examples<a class="headerlink" href="#complete-examples" title="Link to this heading"></a></h3>
+<p><strong>Example 1: Simple Dev/Release Split</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uart-ip</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wishbone-if</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/vendor/wishbone.git</span>
+<span class="w">          </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wishbone-if</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/vendor/wishbone.git</span>
+<span class="w">          </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cocotb</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vcd-tools</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/tools/vcd.git</span>
+</pre></div>
+</div>
+<p><strong>Example 2: Multiple Build Targets</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soc-design</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sim</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sim</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-core</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cpu.git</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verilator</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/verilator/verilator.git</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fpga</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-core</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cpu.git</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xilinx-ips</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/xilinx.git</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">asic</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-core</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/cpu.git</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pdk-libs</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/pdk.git</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="hierarchical-dependency-sets">
+<h2>Hierarchical Dependency Sets<a class="headerlink" href="#hierarchical-dependency-sets" title="Link to this heading"></a></h2>
+<p>When a dependency has its own <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, you can control which of <em>its</em>
+dependency sets is loaded.</p>
+<section id="dependency-set-inheritance">
+<h3>Dependency Set Inheritance<a class="headerlink" href="#dependency-set-inheritance" title="Link to this heading"></a></h3>
+<p>By default, sub-packages inherit the parent’s dependency set name:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Root Project
+  dep-set: &quot;default-dev&quot;
+    ↓
+  Dependency A (uses &quot;default-dev&quot;)
+    ↓
+  Sub-dependency A1 (uses &quot;default-dev&quot;)
+</pre></div>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Root project</span>
+<span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-project</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sub-package</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/sub.git</span>
+<span class="w">          </span><span class="c1"># No dep-set specified → inherits &quot;default-dev&quot;</span>
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">default-dev</span></code> runs:</p>
+<ol class="arabic simple">
+<li><p>Loads <code class="docutils literal notranslate"><span class="pre">root-project</span></code> with <code class="docutils literal notranslate"><span class="pre">default-dev</span></code></p></li>
+<li><p>Fetches <code class="docutils literal notranslate"><span class="pre">sub-package</span></code></p></li>
+<li><p>Loads <code class="docutils literal notranslate"><span class="pre">sub-package</span></code> with <code class="docutils literal notranslate"><span class="pre">default-dev</span></code> (inherited)</p></li>
+</ol>
+</section>
+<section id="overriding-dependency-sets">
+<h3>Overriding Dependency Sets<a class="headerlink" href="#overriding-dependency-sets" title="Link to this heading"></a></h3>
+<p>You can explicitly specify which dependency set a sub-package should use:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-project</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library-a</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/library-a.git</span>
+<span class="w">          </span><span class="nt">dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span><span class="w">  </span><span class="c1"># Use release deps from library-a</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-tools</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tools.git</span>
+<span class="w">          </span><span class="nt">dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span><span class="w">  </span><span class="c1"># Use dev deps from tools</span>
+</pre></div>
+</div>
+<p><strong>Use case:</strong> Include a third-party library’s release dependencies even when
+developing, to avoid pulling in all their development tools.</p>
+</section>
+<section id="default-dependency-set-for-sub-packages">
+<h3>Default Dependency Set for Sub-Packages<a class="headerlink" href="#default-dependency-set-for-sub-packages" title="Link to this heading"></a></h3>
+<p>You can set a default <code class="docutils literal notranslate"><span class="pre">dep-set</span></code> that all sub-packages will use:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-project</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span><span class="w">  </span><span class="c1"># All sub-packages use &quot;default&quot;</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library-a</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/library-a.git</span>
+<span class="w">          </span><span class="c1"># Uses &quot;default&quot; (from default-dep-set)</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library-b</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/library-b.git</span>
+<span class="w">          </span><span class="nt">dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span><span class="w">  </span><span class="c1"># Override: use dev deps</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="dependency-set-diagram">
+<h2>Dependency Set Diagram<a class="headerlink" href="#dependency-set-diagram" title="Link to this heading"></a></h2>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>┌──────────────────────────────────────────────────┐
+│ Root Project: ivpm update -d default-dev         │
+│   default-dep-set in dep-set: default            │
+└────────┬─────────────────────────────────────────┘
+         │
+         ├─ Library A (dep-set: not specified)
+         │    → Uses &quot;default&quot; (from parent&#39;s default-dep-set)
+         │    ├─ Sub-dep A1 → Uses &quot;default&quot; (inherited)
+         │    └─ Sub-dep A2 → Uses &quot;default&quot; (inherited)
+         │
+         ├─ Library B (dep-set: default-dev)
+         │    → Uses &quot;default-dev&quot; (explicitly overridden)
+         │    └─ Sub-dep B1 → Uses &quot;default-dev&quot; (inherited)
+         │
+         └─ Tool C (dep-set: not specified)
+              → Uses &quot;default&quot; (from parent&#39;s default-dep-set)
+</pre></div>
+</div>
+</section>
+<section id="common-patterns">
+<h2>Common Patterns<a class="headerlink" href="#common-patterns" title="Link to this heading"></a></h2>
+<section id="pattern-1-shared-dependencies">
+<h3>Pattern 1: Shared Dependencies<a class="headerlink" href="#pattern-1-shared-dependencies" title="Link to this heading"></a></h3>
+<p>Include common dependencies in both sets:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core-lib</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/core.git</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core-lib</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/core.git</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+</section>
+<section id="pattern-2-development-tools-only">
+<h3>Pattern 2: Development Tools Only<a class="headerlink" href="#pattern-2-development-tools-only" title="Link to this heading"></a></h3>
+<p>Keep development tools completely separate:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime.git</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tools</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">linter</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">formatter</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p>Usage: <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">default</span> <span class="pre">&amp;&amp;</span> <span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">tools</span></code></p>
+</section>
+<section id="pattern-3-conditional-dependencies">
+<h3>Pattern 3: Conditional Dependencies<a class="headerlink" href="#pattern-3-conditional-dependencies" title="Link to this heading"></a></h3>
+<p>Use different dependency sets for optional features:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">minimal</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/core.git</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">with-gui</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/core.git</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gui-toolkit</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/gui.git</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">with-plugins</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/core.git</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">plugin-system</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/plugins.git</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Use standard names</strong> (<code class="docutils literal notranslate"><span class="pre">default</span></code>, <code class="docutils literal notranslate"><span class="pre">default-dev</span></code>) for consistency</p></li>
+<li><p><strong>Set default-dep-set</strong> in your project root for developer convenience</p></li>
+<li><p><strong>Keep release deps minimal</strong> - only include what’s needed at runtime</p></li>
+<li><p><strong>Document custom sets</strong> - explain when to use each set</p></li>
+<li><p><strong>Control sub-dependencies</strong> - use <code class="docutils literal notranslate"><span class="pre">dep-set</span></code> override to avoid pulling excess deps</p></li>
+<li><p><strong>Test both profiles</strong> - ensure <code class="docutils literal notranslate"><span class="pre">default</span></code> works without dev tools</p></li>
+</ol>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="missing-dependency-set">
+<h3>Missing Dependency Set<a class="headerlink" href="#missing-dependency-set" title="Link to this heading"></a></h3>
+<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">Dep-set</span> <span class="pre">&lt;name&gt;</span> <span class="pre">is</span> <span class="pre">not</span> <span class="pre">present</span> <span class="pre">in</span> <span class="pre">project</span> <span class="pre">&lt;project&gt;</span></code></p>
+<p><strong>Solution:</strong> Check that:</p>
+<ol class="arabic simple">
+<li><p>The dep-set is defined in the project’s <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p>The name matches exactly (case-sensitive)</p></li>
+<li><p>If using <code class="docutils literal notranslate"><span class="pre">dep-set</span></code> override, the target package has that set</p></li>
+</ol>
+</section>
+<section id="package-not-loading">
+<h3>Package Not Loading<a class="headerlink" href="#package-not-loading" title="Link to this heading"></a></h3>
+<p><strong>Issue:</strong> Expected package not appearing in <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p>
+<p><strong>Check:</strong></p>
+<ol class="arabic simple">
+<li><p>Is it in the active dependency set?</p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">&lt;set-name&gt;</span></code> with the correct set</p></li>
+<li><p>Check if <code class="docutils literal notranslate"><span class="pre">deps:</span> <span class="pre">skip</span></code> is set on any dependencies</p></li>
+</ol>
+</section>
+<section id="wrong-dependencies-loaded">
+<h3>Wrong Dependencies Loaded<a class="headerlink" href="#wrong-dependencies-loaded" title="Link to this heading"></a></h3>
+<p><strong>Issue:</strong> Getting development tools when you wanted release deps</p>
+<p><strong>Solution:</strong></p>
+<ol class="arabic simple">
+<li><p>Check <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> in root <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p>Explicitly specify: <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">default</span></code></p></li>
+<li><p>Check <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> in each dependency set</p></li>
+</ol>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> - Understanding IVPM’s model</p></li>
+<li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - Complete dependency attribute reference</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="core_concepts.html" class="btn btn-neutral float-left" title="Core Concepts" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="package_types.html" class="btn btn-neutral float-right" title="Package Types &amp; Sources" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
