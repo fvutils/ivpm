@@ -76,6 +76,15 @@ class PackageFile(PackageURL):
             os.chdir(cwd)
 
     def _install_zip(self, pkg_src, pkg_path):
+            # Convert to absolute paths before changing directory
+            pkg_src = os.path.abspath(pkg_src)
+            pkg_path = os.path.abspath(pkg_path)
+            
+            # Remove destination if it already exists to avoid conflicts
+            if os.path.exists(pkg_path):
+                import shutil
+                shutil.rmtree(pkg_path)
+            
             cwd = os.getcwd()
             try:
                 os.chdir(os.path.dirname(pkg_path))
