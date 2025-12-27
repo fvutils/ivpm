@@ -122,8 +122,7 @@ class PackageHttp(PackageFile):
             shutil.rmtree(temp_dir)
         
         download_dir = os.path.join(update_info.deps_dir, ".download")
-        if not os.path.isdir(download_dir):
-            os.makedirs(download_dir)
+        os.makedirs(download_dir, exist_ok=True)
         
         if self.unpack:
             pkg_path = os.path.join(download_dir, os.path.basename(self.url))
@@ -153,9 +152,8 @@ class PackageHttp(PackageFile):
         """Normal download without caching."""
         # Need to fetch, then unpack these
         download_dir = os.path.join(update_info.deps_dir, ".download")
-            
-        if not os.path.isdir(download_dir):
-            os.makedirs(download_dir)
+        
+        os.makedirs(download_dir, exist_ok=True)
 
         if self.unpack:
             pkg_path = os.path.join(download_dir, 
