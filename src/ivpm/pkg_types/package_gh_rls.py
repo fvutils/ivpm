@@ -43,6 +43,9 @@ class PackageGhRls(PackageHttp):
     def process_options(self, opts, si):
         super().process_options(opts, si)
 
+        # Strip trailing slashes to avoid API URL formatting issues
+        self.url = self.url.rstrip('/')
+
         if self.url.find("github.com") == -1:
             raise Exception("GitHub release URL must be specified. URL %s doesn't contain github.com" % self.url)
         

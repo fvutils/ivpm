@@ -128,4 +128,36 @@ class TestGhRls(TestBase):
         
         self.assertTrue(has_source, "Source files not found - may have downloaded binary instead")
 
+    @unittest.skipUnless(_check_github_api_available(), "GitHub API rate-limited or unavailable")
+    def test_trailing_slash_in_url(self):
+        # Test that URLs with trailing slashes are handled correctly
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: gh_rls_trailing_slash_test
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: test-pkg-slash
+                      url: https://github.com/astral-sh/uv/
+                      src: gh-rls
+                      version: latest
+                      source: true
+        """)
+
+        # Fetch and install dependencies - should not fail with 404
+        self.ivpm_update(skip_venv=True)
+
+        pkg_dir = os.path.join(self.testdir, "packages", "test-pkg-slash")
+        self.assertTrue(os.path.isdir(pkg_dir), "test-pkg-slash package directory missing")
+        
+        # Verify source was downloaded
+        has_source = False
+        for item in os.listdir(pkg_dir):
+            if item in ["Cargo.toml", "pyproject.toml", "setup.py", "README.md", "src", "crates"]:
+                has_source = True
+                break
+        
+        self.assertTrue(has_source, "Source files not found - trailing slash may have broken URL processing")
+
+
 
