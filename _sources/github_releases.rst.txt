@@ -202,6 +202,7 @@ Supported Platforms
 
 - Detects glibc version
 - Matches manylinux wheels (``manylinux_2_17_x86_64``, etc.)
+- Matches generic Linux binaries (``linux-x86_64``, ``linux-aarch64``, etc.)
 - Supported architectures: x86_64, aarch64, armv7l
 
 **macOS:**
@@ -225,7 +226,8 @@ IVPM looks for:
 1. ``manylinux_2_31_x86_64`` (exact match)
 2. ``manylinux_2_28_x86_64`` (older compatible)
 3. ``manylinux_2_17_x86_64`` (manylinux2014)
-4. Falls back to source
+4. Generic ``linux-x86_64`` or ``linux_x86_64`` binaries
+5. Falls back to source
 
 **macOS arm64 (M1/M2):**
 
@@ -243,10 +245,12 @@ IVPM looks for:
 2. Falls back to any Windows asset
 3. Falls back to source
 
-manylinux Compatibility
------------------------
+Linux Binary Naming Schemes
+---------------------------
 
-IVPM understands manylinux tags:
+IVPM supports two Linux binary naming schemes:
+
+**1. manylinux Tags (Preferred for Python wheels and glibc-aware packages):**
 
 .. list-table::
    :header-rows: 1
@@ -272,6 +276,26 @@ IVPM understands manylinux tags:
      - Recent systems
 
 IVPM selects the newest compatible manylinux version for your system.
+
+**2. Generic Linux Naming (Common for C/C++ tools like protobuf):**
+
+IVPM also recognizes generic Linux binary naming patterns:
+
+- ``linux-x86_64`` or ``linux_x86_64``
+- ``linux-aarch64`` or ``linux_aarch64`` or ``linux-arm64``
+- ``linux-aarch_64`` (protobuf style)
+
+Examples:
+
+- ``protoc-33.2-linux-x86_64.zip``
+- ``tool-v1.0-linux-aarch64.tar.gz``
+- ``binary-linux_x86_64.tar.xz``
+
+**Selection Priority:**
+
+1. IVPM first looks for manylinux-tagged assets (glibc-aware)
+2. If none found, falls back to generic Linux naming patterns
+3. If neither found, falls back to source archives
 
 Source Fallback
 ===============
@@ -388,7 +412,35 @@ Example 4: Including Prereleases
 2. Selects most recent (could be beta, rc, etc.)
 3. Downloads platform-specific asset
 
-Example 5: Mixed Binaries and Source
+Example 5: Protocol Buffers
+---------------------------
+
+.. code-block:: yaml
+
+    deps:
+      - name: protobuf
+        url: https://github.com/protocolbuffers/protobuf
+        src: gh-rls
+        version: latest
+
+**What happens:**
+
+1. Queries GitHub API for latest release
+2. Detects your platform (e.g., Linux x86_64)
+3. Selects ``protoc-33.2-linux-x86_64.zip`` (generic Linux naming)
+4. Downloads and extracts to ``packages/protobuf/``
+
+**Usage:**
+
+.. code-block:: bash
+
+    $ ivpm update
+    $ packages/protobuf/bin/protoc --version
+    libprotoc 33.2
+
+This demonstrates IVPM's support for generic Linux binary naming (not manylinux).
+
+Example 6: Mixed Binaries and Source
 -------------------------------------
 
 .. code-block:: yaml
@@ -528,17 +580,21 @@ Asset Naming Issues
 
 **Example release assets:**
 
-- ``tool-1.0-linux64.tar.gz`` ← Not detected (needs manylinux tag)
+- ``tool-1.0-linux64.tar.gz`` ← Not detected (needs more specific pattern)
+- ``tool-1.0-linux-x86_64.tar.gz`` ← Detected (generic Linux)
+- ``tool-1.0-manylinux_2_17_x86_64.tar.gz`` ← Detected (manylinux)
 - ``tool-1.0-macosx.tar.gz`` ← Detected (has "mac")
 - ``tool-1.0.tar.gz`` ← Used as fallback source
 
+**Supported naming patterns:**
+
+- **Linux:** ``manylinux_X_Y_arch``, ``manylinux2014_arch``, ``linux-arch``, ``linux_arch``
+- **macOS:** ``macos``, ``darwin``, ``osx`` with optional ``x86_64``, ``arm64``, ``aarch64``
+- **Windows:** ``windows``, ``win64``, ``win32``, ``win`` with optional ``x86_64``, ``amd64``
+
 **Workaround:**
 
-Contact package maintainer to use standard naming:
-
-- Linux: Include ``manylinux`` tag
-- macOS: Include ``macos``, ``darwin``, or ``osx``
-- Windows: Include ``windows``, ``win64``, or ``win32``
+Contact package maintainer to use standard naming patterns listed above.
 
 Best Practices
 ==============

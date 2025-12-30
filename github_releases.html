@@ -70,7 +70,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#platform-selection">Platform Selection</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#supported-platforms">Supported Platforms</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#platform-detection-examples">Platform Detection Examples</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#manylinux-compatibility">manylinux Compatibility</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#linux-binary-naming-schemes">Linux Binary Naming Schemes</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#source-fallback">Source Fallback</a></li>
@@ -79,7 +79,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#example-2-specific-version-with-cache">Example 2: Specific Version with Cache</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-3-version-range">Example 3: Version Range</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-4-including-prereleases">Example 4: Including Prereleases</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-5-mixed-binaries-and-source">Example 5: Mixed Binaries and Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-5-protocol-buffers">Example 5: Protocol Buffers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-6-mixed-binaries-and-source">Example 6: Mixed Binaries and Source</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
@@ -308,6 +309,7 @@ macOS, Windows) or falls back to source archives.</p>
 <ul class="simple">
 <li><p>Detects glibc version</p></li>
 <li><p>Matches manylinux wheels (<code class="docutils literal notranslate"><span class="pre">manylinux_2_17_x86_64</span></code>, etc.)</p></li>
+<li><p>Matches generic Linux binaries (<code class="docutils literal notranslate"><span class="pre">linux-x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">linux-aarch64</span></code>, etc.)</p></li>
 <li><p>Supported architectures: x86_64, aarch64, armv7l</p></li>
 </ul>
 <p><strong>macOS:</strong></p>
@@ -330,6 +332,7 @@ macOS, Windows) or falls back to source archives.</p>
 <li><p><code class="docutils literal notranslate"><span class="pre">manylinux_2_31_x86_64</span></code> (exact match)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">manylinux_2_28_x86_64</span></code> (older compatible)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">manylinux_2_17_x86_64</span></code> (manylinux2014)</p></li>
+<li><p>Generic <code class="docutils literal notranslate"><span class="pre">linux-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">linux_x86_64</span></code> binaries</p></li>
 <li><p>Falls back to source</p></li>
 </ol>
 <p><strong>macOS arm64 (M1/M2):</strong></p>
@@ -347,9 +350,10 @@ macOS, Windows) or falls back to source archives.</p>
 <li><p>Falls back to source</p></li>
 </ol>
 </section>
-<section id="manylinux-compatibility">
-<h3>manylinux Compatibility<a class="headerlink" href="#manylinux-compatibility" title="Link to this heading"></a></h3>
-<p>IVPM understands manylinux tags:</p>
+<section id="linux-binary-naming-schemes">
+<h3>Linux Binary Naming Schemes<a class="headerlink" href="#linux-binary-naming-schemes" title="Link to this heading"></a></h3>
+<p>IVPM supports two Linux binary naming schemes:</p>
+<p><strong>1. manylinux Tags (Preferred for Python wheels and glibc-aware packages):</strong></p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -386,6 +390,25 @@ macOS, Windows) or falls back to source archives.</p>
 </tbody>
 </table>
 <p>IVPM selects the newest compatible manylinux version for your system.</p>
+<p><strong>2. Generic Linux Naming (Common for C/C++ tools like protobuf):</strong></p>
+<p>IVPM also recognizes generic Linux binary naming patterns:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">linux-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">linux_x86_64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">linux-aarch64</span></code> or <code class="docutils literal notranslate"><span class="pre">linux_aarch64</span></code> or <code class="docutils literal notranslate"><span class="pre">linux-arm64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">linux-aarch_64</span></code> (protobuf style)</p></li>
+</ul>
+<p>Examples:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">protoc-33.2-linux-x86_64.zip</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tool-v1.0-linux-aarch64.tar.gz</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">binary-linux_x86_64.tar.xz</span></code></p></li>
+</ul>
+<p><strong>Selection Priority:</strong></p>
+<ol class="arabic simple">
+<li><p>IVPM first looks for manylinux-tagged assets (glibc-aware)</p></li>
+<li><p>If none found, falls back to generic Linux naming patterns</p></li>
+<li><p>If neither found, falls back to source archives</p></li>
+</ol>
 </section>
 </section>
 <section id="source-fallback">
@@ -491,8 +514,32 @@ $<span class="w"> </span>packages/uv/uv<span class="w"> </span>--version
 <li><p>Downloads platform-specific asset</p></li>
 </ol>
 </section>
-<section id="example-5-mixed-binaries-and-source">
-<h3>Example 5: Mixed Binaries and Source<a class="headerlink" href="#example-5-mixed-binaries-and-source" title="Link to this heading"></a></h3>
+<section id="example-5-protocol-buffers">
+<h3>Example 5: Protocol Buffers<a class="headerlink" href="#example-5-protocol-buffers" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">protobuf</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/protocolbuffers/protobuf</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+</pre></div>
+</div>
+<p><strong>What happens:</strong></p>
+<ol class="arabic simple">
+<li><p>Queries GitHub API for latest release</p></li>
+<li><p>Detects your platform (e.g., Linux x86_64)</p></li>
+<li><p>Selects <code class="docutils literal notranslate"><span class="pre">protoc-33.2-linux-x86_64.zip</span></code> (generic Linux naming)</p></li>
+<li><p>Downloads and extracts to <code class="docutils literal notranslate"><span class="pre">packages/protobuf/</span></code></p></li>
+</ol>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>packages/protobuf/bin/protoc<span class="w"> </span>--version
+libprotoc<span class="w"> </span><span class="m">33</span>.2
+</pre></div>
+</div>
+<p>This demonstrates IVPM’s support for generic Linux binary naming (not manylinux).</p>
+</section>
+<section id="example-6-mixed-binaries-and-source">
+<h3>Example 6: Mixed Binaries and Source<a class="headerlink" href="#example-6-mixed-binaries-and-source" title="Link to this heading"></a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verification-suite</span>
 <span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
@@ -612,17 +659,20 @@ ivpm<span class="w"> </span>update
 <p><strong>Cause:</strong> Asset naming doesn’t match IVPM’s patterns</p>
 <p><strong>Example release assets:</strong></p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-linux64.tar.gz</span></code> ← Not detected (needs manylinux tag)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-linux64.tar.gz</span></code> ← Not detected (needs more specific pattern)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-linux-x86_64.tar.gz</span></code> ← Detected (generic Linux)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-manylinux_2_17_x86_64.tar.gz</span></code> ← Detected (manylinux)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-macosx.tar.gz</span></code> ← Detected (has “mac”)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0.tar.gz</span></code> ← Used as fallback source</p></li>
 </ul>
-<p><strong>Workaround:</strong></p>
-<p>Contact package maintainer to use standard naming:</p>
+<p><strong>Supported naming patterns:</strong></p>
 <ul class="simple">
-<li><p>Linux: Include <code class="docutils literal notranslate"><span class="pre">manylinux</span></code> tag</p></li>
-<li><p>macOS: Include <code class="docutils literal notranslate"><span class="pre">macos</span></code>, <code class="docutils literal notranslate"><span class="pre">darwin</span></code>, or <code class="docutils literal notranslate"><span class="pre">osx</span></code></p></li>
-<li><p>Windows: Include <code class="docutils literal notranslate"><span class="pre">windows</span></code>, <code class="docutils literal notranslate"><span class="pre">win64</span></code>, or <code class="docutils literal notranslate"><span class="pre">win32</span></code></p></li>
+<li><p><strong>Linux:</strong> <code class="docutils literal notranslate"><span class="pre">manylinux_X_Y_arch</span></code>, <code class="docutils literal notranslate"><span class="pre">manylinux2014_arch</span></code>, <code class="docutils literal notranslate"><span class="pre">linux-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">linux_arch</span></code></p></li>
+<li><p><strong>macOS:</strong> <code class="docutils literal notranslate"><span class="pre">macos</span></code>, <code class="docutils literal notranslate"><span class="pre">darwin</span></code>, <code class="docutils literal notranslate"><span class="pre">osx</span></code> with optional <code class="docutils literal notranslate"><span class="pre">x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">arm64</span></code>, <code class="docutils literal notranslate"><span class="pre">aarch64</span></code></p></li>
+<li><p><strong>Windows:</strong> <code class="docutils literal notranslate"><span class="pre">windows</span></code>, <code class="docutils literal notranslate"><span class="pre">win64</span></code>, <code class="docutils literal notranslate"><span class="pre">win32</span></code>, <code class="docutils literal notranslate"><span class="pre">win</span></code> with optional <code class="docutils literal notranslate"><span class="pre">x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">amd64</span></code></p></li>
 </ul>
+<p><strong>Workaround:</strong></p>
+<p>Contact package maintainer to use standard naming patterns listed above.</p>
 </section>
 </section>
 <section id="best-practices">
