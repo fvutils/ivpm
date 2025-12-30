@@ -233,6 +233,10 @@
 				"prerelease": {
 					"type": "boolean",
 					"title": "For GitHub Releases: include pre-release versions when selecting. Default: false"
+				},
+				"source": {
+					"type": "boolean",
+					"title": "For GitHub Releases: force fetching source archive (.tar.gz) instead of platform-specific binary. Default: false"
 				}
 			}
 		},

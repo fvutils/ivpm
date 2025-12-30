@@ -95,3 +95,37 @@ class TestGhRls(TestBase):
         out = self.exec([exe_path, "--version"], cwd=self.testdir)
         self.assertIn("libprotoc", out)
 
+    @unittest.skipUnless(_check_github_api_available(), "GitHub API rate-limited or unavailable")
+    def test_source_forced(self):
+        # Test that source=true forces download of source archive instead of binary
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: gh_rls_source_test
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: test-pkg
+                      url: https://github.com/astral-sh/uv
+                      src: gh-rls
+                      version: latest
+                      source: true
+        """)
+
+        # Fetch and install dependencies
+        self.ivpm_update(skip_venv=True)
+
+        pkg_dir = os.path.join(self.testdir, "packages", "test-pkg")
+        self.assertTrue(os.path.isdir(pkg_dir), "test-pkg package directory missing")
+        
+        # When source=true, we should get source files, not just binaries
+        # Check for common source indicators (e.g., Cargo.toml for uv, or README)
+        has_source = False
+        for item in os.listdir(pkg_dir):
+            # Look for source indicators
+            if item in ["Cargo.toml", "pyproject.toml", "setup.py", "README.md", "src", "crates"]:
+                has_source = True
+                break
+        
+        self.assertTrue(has_source, "Source files not found - may have downloaded binary instead")
+
+

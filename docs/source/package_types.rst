@@ -275,6 +275,9 @@ binaries or falls back to source.
 ``prerelease``
     Include pre-release versions (default: false)
 
+``source``
+    Force fetching source archive (.tar.gz) instead of platform-specific binary (default: false)
+
 ``cache``
     Enable caching (version includes platform info)
 
@@ -321,6 +324,13 @@ If no platform-specific binary is found, falls back to source (tarball/zipball).
       url: https://github.com/org/binary
       src: gh-rls
       cache: true
+    
+    # Force source download
+    - name: build-from-source
+      url: https://github.com/org/tool
+      src: gh-rls
+      version: latest
+      source: true
 
 Package Types
 =============
@@ -601,6 +611,9 @@ All Package Attributes
    * - ``prerelease``
      - boolean
      - Include GitHub prereleases
+   * - ``source``
+     - boolean
+     - Force source archive for gh-rls
 
 See Also
 ========

@@ -38,6 +38,7 @@ class PackageGhRls(PackageHttp):
     version : str = "latest"
     file : Optional[str] = None
     prerelease : bool = False  # Whether to include prerelease releases when selecting
+    source : bool = False  # Whether to force fetching source archive instead of binary
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
@@ -53,6 +54,9 @@ class PackageGhRls(PackageHttp):
 
         if "prerelease" in opts.keys():
             self.prerelease = bool(opts["prerelease"])
+
+        if "source" in opts.keys():
+            self.source = bool(opts["source"])
 
 
     def update(self, update_info):
@@ -120,7 +124,8 @@ class PackageGhRls(PackageHttp):
         if self.file is not None:
             raise NotImplementedError("File specification not yet supported")
 
-        has_binaries = self._has_binary_assets(assets)
+        # If source=true, skip binary detection and go straight to source
+        has_binaries = self._has_binary_assets(assets) if not self.source else False
         if not has_binaries:
             file_url, forced_ext = self._choose_source_url(rls)
             if file_url is None:
