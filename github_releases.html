@@ -73,14 +73,18 @@
 <li class="toctree-l3"><a class="reference internal" href="#linux-binary-naming-schemes">Linux Binary Naming Schemes</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#source-fallback">Source Fallback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#source-fallback">Source Fallback</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#forcing-source-download">Forcing Source Download</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#complete-examples">Complete Examples</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#example-1-installing-uv">Example 1: Installing uv</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-2-specific-version-with-cache">Example 2: Specific Version with Cache</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-3-version-range">Example 3: Version Range</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-4-including-prereleases">Example 4: Including Prereleases</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-5-protocol-buffers">Example 5: Protocol Buffers</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-6-mixed-binaries-and-source">Example 6: Mixed Binaries and Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-6-forcing-source-download">Example 6: Forcing Source Download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-7-mixed-binaries-and-source">Example 7: Mixed Binaries and Source</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
@@ -93,6 +97,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#advanced-configuration">Advanced Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#forcing-source-archives">Forcing Source Archives</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#specific-asset-file-not-yet-implemented">Specific Asset File (Not Yet Implemented)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#custom-url-patterns">Custom URL Patterns</a></li>
 </ul>
@@ -429,6 +434,33 @@ macOS, Windows) or falls back to source archives.</p>
 <li><p>macOS: <code class="docutils literal notranslate"><span class="pre">tool-macos.tar.gz</span></code></p></li>
 </ul>
 <p>On FreeBSD (unsupported), IVPM will download <code class="docutils literal notranslate"><span class="pre">source.tar.gz</span></code>.</p>
+<section id="forcing-source-download">
+<h3>Forcing Source Download<a class="headerlink" href="#forcing-source-download" title="Link to this heading"></a></h3>
+<p>You can force IVPM to download the source archive instead of platform-specific binaries
+using the <code class="docutils literal notranslate"><span class="pre">source</span></code> option:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+<span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>This is useful when:</p>
+<ul class="simple">
+<li><p>You want to build from source for optimization or customization</p></li>
+<li><p>Binary releases don’t work on your platform</p></li>
+<li><p>You need to audit or modify the source code</p></li>
+<li><p>You’re distributing to users who will build themselves</p></li>
+</ul>
+<p>When <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">true</span></code> is set:</p>
+<ol class="arabic simple">
+<li><p>IVPM skips all platform binary detection</p></li>
+<li><p>Downloads <code class="docutils literal notranslate"><span class="pre">tarball_url</span></code> (GitHub’s source tarball, typically <code class="docutils literal notranslate"><span class="pre">.tar.gz</span></code>)</p></li>
+<li><p>Falls back to <code class="docutils literal notranslate"><span class="pre">zipball_url</span></code> if tarball not available</p></li>
+<li><p>Extracts to your packages directory</p></li>
+</ol>
+</section>
 </section>
 <section id="complete-examples">
 <h2>Complete Examples<a class="headerlink" href="#complete-examples" title="Link to this heading"></a></h2>
@@ -538,8 +570,29 @@ libprotoc<span class="w"> </span><span class="m">33</span>.2
 </div>
 <p>This demonstrates IVPM’s support for generic Linux binary naming (not manylinux).</p>
 </section>
-<section id="example-6-mixed-binaries-and-source">
-<h3>Example 6: Mixed Binaries and Source<a class="headerlink" href="#example-6-mixed-binaries-and-source" title="Link to this heading"></a></h3>
+<section id="example-6-forcing-source-download">
+<h3>Example 6: Forcing Source Download<a class="headerlink" href="#example-6-forcing-source-download" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verilator</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/verilator/verilator</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+<span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>What happens:</strong></p>
+<ol class="arabic simple">
+<li><p>Queries GitHub API for latest release</p></li>
+<li><p>Skips all binary detection (even if binaries are available)</p></li>
+<li><p>Downloads source tarball (<code class="docutils literal notranslate"><span class="pre">tarball_url</span></code>)</p></li>
+<li><p>Extracts to <code class="docutils literal notranslate"><span class="pre">packages/verilator/</span></code></p></li>
+</ol>
+<p><strong>Use case:</strong></p>
+<p>Building Verilator from source for custom optimization flags or when
+pre-built binaries aren’t compatible with your system.</p>
+</section>
+<section id="example-7-mixed-binaries-and-source">
+<h3>Example 7: Mixed Binaries and Source<a class="headerlink" href="#example-7-mixed-binaries-and-source" title="Link to this heading"></a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verification-suite</span>
 <span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
@@ -690,6 +743,31 @@ ivpm<span class="w"> </span>update
 </section>
 <section id="advanced-configuration">
 <h2>Advanced Configuration<a class="headerlink" href="#advanced-configuration" title="Link to this heading"></a></h2>
+<section id="forcing-source-archives">
+<h3>Forcing Source Archives<a class="headerlink" href="#forcing-source-archives" title="Link to this heading"></a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">true</span></code> to skip platform binary selection and download source:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span>
+<span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>This downloads the GitHub source tarball (<code class="docutils literal notranslate"><span class="pre">.tar.gz</span></code>) or zipball (<code class="docutils literal notranslate"><span class="pre">.zip</span></code>)
+instead of platform-specific binaries.</p>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Full source code access for building with custom flags</p></li>
+<li><p>Avoid binary compatibility issues</p></li>
+<li><p>Works on any platform (not just those with prebuilt binaries)</p></li>
+</ul>
+<p><strong>Tradeoffs:</strong></p>
+<ul class="simple">
+<li><p>Requires build tools and dependencies to be installed</p></li>
+<li><p>Slower initial setup compared to downloading prebuilt binaries</p></li>
+<li><p>May need manual build steps after download</p></li>
+</ul>
+</section>
 <section id="specific-asset-file-not-yet-implemented">
 <h3>Specific Asset File (Not Yet Implemented)<a class="headerlink" href="#specific-asset-file-not-yet-implemented" title="Link to this heading"></a></h3>
 <p>Future support for selecting specific asset:</p>

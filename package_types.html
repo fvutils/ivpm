@@ -349,6 +349,8 @@ binaries or falls back to source.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">prerelease</span></code></dt><dd><p>Include pre-release versions (default: false)</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">source</span></code></dt><dd><p>Force fetching source archive (.tar.gz) instead of platform-specific binary (default: false)</p>
+</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (version includes platform info)</p>
 </dd>
 </dl>
@@ -390,6 +392,13 @@ binaries or falls back to source.</p>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/binary</span>
 <span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
 <span class="w">  </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Force source download</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build-from-source</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+<span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
 </section>
@@ -698,6 +707,10 @@ binaries or falls back to source.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prerelease</span></code></p></td>
 <td><p>boolean</p></td>
 <td><p>Include GitHub prereleases</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">source</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Force source archive for gh-rls</p></td>
 </tr>
 </tbody>
 </table>

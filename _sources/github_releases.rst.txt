@@ -318,6 +318,35 @@ If a release has:
 
 On FreeBSD (unsupported), IVPM will download ``source.tar.gz``.
 
+Forcing Source Download
+-----------------------
+
+You can force IVPM to download the source archive instead of platform-specific binaries 
+using the ``source`` option:
+
+.. code-block:: yaml
+
+    deps:
+      - name: tool
+        url: https://github.com/org/tool
+        src: gh-rls
+        version: latest
+        source: true
+
+This is useful when:
+
+- You want to build from source for optimization or customization
+- Binary releases don't work on your platform
+- You need to audit or modify the source code
+- You're distributing to users who will build themselves
+
+When ``source: true`` is set:
+
+1. IVPM skips all platform binary detection
+2. Downloads ``tarball_url`` (GitHub's source tarball, typically ``.tar.gz``)
+3. Falls back to ``zipball_url`` if tarball not available
+4. Extracts to your packages directory
+
 Complete Examples
 =================
 
@@ -440,7 +469,31 @@ Example 5: Protocol Buffers
 
 This demonstrates IVPM's support for generic Linux binary naming (not manylinux).
 
-Example 6: Mixed Binaries and Source
+Example 6: Forcing Source Download
+-----------------------------------
+
+.. code-block:: yaml
+
+    deps:
+      - name: verilator
+        url: https://github.com/verilator/verilator
+        src: gh-rls
+        version: latest
+        source: true
+
+**What happens:**
+
+1. Queries GitHub API for latest release
+2. Skips all binary detection (even if binaries are available)
+3. Downloads source tarball (``tarball_url``)
+4. Extracts to ``packages/verilator/``
+
+**Use case:**
+
+Building Verilator from source for custom optimization flags or when 
+pre-built binaries aren't compatible with your system.
+
+Example 7: Mixed Binaries and Source
 -------------------------------------
 
 .. code-block:: yaml
@@ -617,6 +670,34 @@ Best Practices
 
 Advanced Configuration
 ======================
+
+Forcing Source Archives
+-----------------------
+
+Use ``source: true`` to skip platform binary selection and download source:
+
+.. code-block:: yaml
+
+    - name: tool
+      url: https://github.com/org/tool
+      src: gh-rls
+      version: "1.0.0"
+      source: true
+
+This downloads the GitHub source tarball (``.tar.gz``) or zipball (``.zip``) 
+instead of platform-specific binaries.
+
+**Benefits:**
+
+- Full source code access for building with custom flags
+- Avoid binary compatibility issues
+- Works on any platform (not just those with prebuilt binaries)
+
+**Tradeoffs:**
+
+- Requires build tools and dependencies to be installed
+- Slower initial setup compared to downloading prebuilt binaries
+- May need manual build steps after download
 
 Specific Asset File (Not Yet Implemented)
 ------------------------------------------
