@@ -383,7 +383,28 @@ class PackageGhRls(PackageHttp):
                 return (2, 17, arch)      # manylinux2014 -> glibc 2.17
         return None
 
+    def _parse_linux_generic(self, name):
+        """
+        Parse generic Linux naming pattern (e.g., protobuf style: protoc-33.2-linux-x86_64.zip).
+        Returns arch or None if not a Linux binary.
+        """
+        n = (name or "").lower()
+        # Match patterns like: linux-x86_64, linux-aarch64, linux_x86_64, etc.
+        m = re.search(r"linux[_-]([a-z0-9_]+)", n)
+        if m:
+            arch = m.group(1)
+            # Normalize arch names
+            if arch in ("x86_64", "amd64"):
+                return "x86_64"
+            elif arch in ("aarch_64", "aarch64", "arm64"):
+                return "aarch64"
+            elif arch.startswith("armv7"):
+                return "armv7l"
+            return arch
+        return None
+
     def _select_linux_asset(self, assets, arch, glibc):
+        # First, try manylinux-tagged assets (preferred for glibc compatibility)
         candidates = []
         for a in assets:
             nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
@@ -394,12 +415,19 @@ class PackageGhRls(PackageHttp):
                 continue
             ver = (tag[0], tag[1])
             candidates.append((ver, a))
-        if not candidates:
-            return None
-        eligible = [(ver, a) for (ver, a) in candidates if ver <= glibc]
-        if eligible:
-            eligible.sort(key=lambda x: x[0])
-            return eligible[-1][1]
+        if candidates:
+            eligible = [(ver, a) for (ver, a) in candidates if ver <= glibc]
+            if eligible:
+                eligible.sort(key=lambda x: x[0])
+                return eligible[-1][1]
+        
+        # Fallback: try generic Linux naming pattern (e.g., protobuf style)
+        for a in assets:
+            nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
+            parsed_arch = self._parse_linux_generic(nm)
+            if parsed_arch == arch:
+                return a
+        
         return None
 
     def _select_macos_asset(self, assets, arch):
@@ -437,6 +465,8 @@ class PackageGhRls(PackageHttp):
         for a in assets:
             nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
             if self._parse_manylinux(nm) is not None:
+                return True
+            if self._parse_linux_generic(nm) is not None:
                 return True
             if any(k in nm for k in ("macos", "darwin", "osx", "windows", "win64", "win32", "win")):
                 return True
