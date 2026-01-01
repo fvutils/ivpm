@@ -107,6 +107,18 @@ This creates a basic ``ivpm.yaml`` file:
       name: my-project
       version: "0.1.0"
 
+**JSON Schema Support**
+
+For IDE autocompletion and validation, add a ``$schema`` reference at the top of your ``ivpm.yaml``:
+
+.. code-block:: yaml
+
+    $schema: https://fvutils.github.io/ivpm/ivpm.schema.json
+    
+    package:
+      name: my-project
+      version: "0.1.0"
+
 Step 2: Add Dependency Sets
 ----------------------------
 
@@ -114,6 +126,8 @@ Edit ``ivpm.yaml`` to add your dependencies:
 
 .. code-block:: yaml
 
+    $schema: https://fvutils.github.io/ivpm/ivpm.schema.json
+    
     package:
       name: my-project
       version: "0.1.0"

@@ -609,6 +609,28 @@ Useful for GitHub Releases and API queries.
 YAML File Format
 ================
 
+JSON Schema
+-----------
+
+IVPM provides a JSON Schema for ``ivpm.yaml`` files that enables IDE autocompletion
+and validation. To use it, add a ``$schema`` reference at the top of your file:
+
+.. code-block:: yaml
+
+    $schema: https://fvutils.github.io/ivpm/ivpm.schema.json
+    
+    package:
+      name: my-project
+      version: "0.1.0"
+
+The schema is available at:
+
+- **Primary:** https://fvutils.github.io/ivpm/ivpm.schema.json
+- **Legacy (backwards compatibility):** https://fvutils.github.io/ivpm/ivpm.json
+
+Most modern editors (VS Code, IntelliJ, Vim with LSP) will automatically provide
+validation and autocompletion when the ``$schema`` field is present.
+
 Package Definition
 ------------------
 

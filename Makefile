@@ -22,6 +22,7 @@ html : $(PACKAGES_DIR)/python
 	$(PACKAGES_DIR)/python/bin/sphinx-build -M html \
 		$(IVPM_DIR)/docs/source build
 	if test ! -f build/html/ivpm.json; then cd $(IVPM_DIR)/build/html; ln -s $(IVPM_DIR)/src/ivpm/share/ivpm.json; fi
+	if test ! -f build/html/ivpm.schema.json; then cd $(IVPM_DIR)/build/html; ln -s $(IVPM_DIR)/src/ivpm/share/ivpm.json ivpm.schema.json; fi
 
 clean :
 	rm -rf build 
