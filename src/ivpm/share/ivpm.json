@@ -23,9 +23,9 @@
 			"items": {
 				"$ref": "#/defs/package-dep"
 			}
-		},
-		"required": [ "package", "version" ]
+		}
 	},
+	"required": [ "package", "version" ],
 	"defs": {
 		"package-def": {
 			"title": "Package Definition",
