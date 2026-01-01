@@ -215,11 +215,22 @@ $<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span
 <span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
 </pre></div>
 </div>
+<p><strong>JSON Schema Support</strong></p>
+<p>For IDE autocompletion and validation, add a <code class="docutils literal notranslate"><span class="pre">$schema</span></code> reference at the top of your <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">$schema</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://fvutils.github.io/ivpm/ivpm.schema.json</span>
+
+<span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+</pre></div>
+</div>
 </section>
 <section id="step-2-add-dependency-sets">
 <h3>Step 2: Add Dependency Sets<a class="headerlink" href="#step-2-add-dependency-sets" title="Link to this heading"></a></h3>
 <p>Edit <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> to add your dependencies:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">$schema</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://fvutils.github.io/ivpm/ivpm.schema.json</span>
+
+<span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
 <span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
 <span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>

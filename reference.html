@@ -106,6 +106,7 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#yaml-file-format">YAML File Format</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#json-schema">JSON Schema</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#package-definition">Package Definition</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#package-definition">Package Definition</a></li>
 </ul>
@@ -1027,6 +1028,25 @@ $<span class="w"> </span>ivpm<span class="w"> </span>--log-level<span class="w">
 </section>
 <section id="yaml-file-format">
 <h2>YAML File Format<a class="headerlink" href="#yaml-file-format" title="Link to this heading"></a></h2>
+<section id="json-schema">
+<h3>JSON Schema<a class="headerlink" href="#json-schema" title="Link to this heading"></a></h3>
+<p>IVPM provides a JSON Schema for <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files that enables IDE autocompletion
+and validation. To use it, add a <code class="docutils literal notranslate"><span class="pre">$schema</span></code> reference at the top of your file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">$schema</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://fvutils.github.io/ivpm/ivpm.schema.json</span>
+
+<span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0.1.0&quot;</span>
+</pre></div>
+</div>
+<p>The schema is available at:</p>
+<ul class="simple">
+<li><p><strong>Primary:</strong> <a class="reference external" href="https://fvutils.github.io/ivpm/ivpm.schema.json">https://fvutils.github.io/ivpm/ivpm.schema.json</a></p></li>
+<li><p><strong>Legacy (backwards compatibility):</strong> <a class="reference external" href="https://fvutils.github.io/ivpm/ivpm.json">https://fvutils.github.io/ivpm/ivpm.json</a></p></li>
+</ul>
+<p>Most modern editors (VS Code, IntelliJ, Vim with LSP) will automatically provide
+validation and autocompletion when the <code class="docutils literal notranslate"><span class="pre">$schema</span></code> field is present.</p>
+</section>
 <section id="package-definition">
 <h3>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h3>
 <section id="package-definition">
