@@ -248,9 +248,33 @@ IVPM looks for:
 Linux Binary Naming Schemes
 ---------------------------
 
-IVPM supports two Linux binary naming schemes:
+IVPM supports three Linux binary naming schemes:
 
-**1. manylinux Tags (Preferred for Python wheels and glibc-aware packages):**
+**1. OS-Specific Naming (For distribution-specific builds):**
+
+IVPM recognizes distribution and version-specific binary naming patterns:
+
+- ``ubuntu-22.04-x86_64`` or ``ubuntu-24.04-x86_64``
+- ``debian-11-x86_64`` or ``debian-12-aarch64``
+- ``fedora-39-x86_64`` or ``centos-8-x86_64``
+- ``rhel-9-x86_64`` or ``alpine-3.18-x86_64``
+
+Examples:
+
+- ``qemu-riscv-ubuntu-22.04-x86_64-master.20826406641.tar.gz``
+- ``tool-ubuntu-24.04-aarch64.tar.gz``
+- ``package-debian-11-x86_64.zip``
+
+**Important:** When OS-specific packages are detected in a release:
+
+- IVPM **requires** an exact match for your distribution and version
+- If no match is found, an error is raised with available options
+- Use ``source: true`` to bypass OS-specific requirements and download source
+
+This ensures you don't accidentally use incompatible binaries built for 
+different distributions or versions.
+
+**2. manylinux Tags (For Python wheels and glibc-aware packages):**
 
 .. list-table::
    :header-rows: 1
@@ -277,7 +301,7 @@ IVPM supports two Linux binary naming schemes:
 
 IVPM selects the newest compatible manylinux version for your system.
 
-**2. Generic Linux Naming (Common for C/C++ tools like protobuf):**
+**3. Generic Linux Naming (Common for C/C++ tools like protobuf):**
 
 IVPM also recognizes generic Linux binary naming patterns:
 
@@ -293,9 +317,14 @@ Examples:
 
 **Selection Priority:**
 
-1. IVPM first looks for manylinux-tagged assets (glibc-aware)
-2. If none found, falls back to generic Linux naming patterns
-3. If neither found, falls back to source archives
+1. IVPM first checks for OS-specific assets (ubuntu, debian, etc.)
+   
+   - If found, requires exact match or fails with helpful error
+   - Error message lists available OS-specific options
+
+2. If no OS-specific assets, looks for manylinux-tagged assets (glibc-aware)
+3. If none found, falls back to generic Linux naming patterns
+4. If neither found, falls back to source archives
 
 Source Fallback
 ===============
@@ -469,7 +498,55 @@ Example 5: Protocol Buffers
 
 This demonstrates IVPM's support for generic Linux binary naming (not manylinux).
 
-Example 6: Forcing Source Download
+Example 6: OS-Specific Binaries (QEMU)
+---------------------------------------
+
+.. code-block:: yaml
+
+    deps:
+      - name: qemu-riscv
+        url: https://github.com/edapack/qemu-riscv
+        src: gh-rls
+        version: latest
+
+**What happens:**
+
+1. Queries GitHub API for latest release
+2. Detects OS-specific packages (e.g., ``ubuntu-22.04``, ``ubuntu-24.04``)
+3. Detects your Linux distribution and version (e.g., Ubuntu 24.04)
+4. Selects exact match: ``qemu-riscv-ubuntu-24.04-x86_64-*.tar.gz``
+5. Downloads and extracts to ``packages/qemu-riscv/``
+
+**If no exact match:**
+
+.. code-block:: text
+
+    Error: No OS-specific package found for ubuntu-24.04-x86_64.
+    Available: ubuntu-22.04-x86_64, ubuntu-22.04-aarch64.
+    Consider setting source=true to download source instead.
+
+**Workaround when your OS isn't supported:**
+
+.. code-block:: yaml
+
+    deps:
+      - name: qemu-riscv
+        url: https://github.com/edapack/qemu-riscv
+        src: gh-rls
+        version: latest
+        source: true  # Download source instead of OS-specific binary
+
+**Usage:**
+
+.. code-block:: bash
+
+    $ ivpm update
+    $ packages/qemu-riscv/bin/qemu-system-riscv64 --version
+
+This demonstrates IVPM's support for OS-specific binary packages that are built 
+for particular Linux distributions and versions.
+
+Example 7: Forcing Source Download
 -----------------------------------
 
 .. code-block:: yaml
@@ -493,7 +570,7 @@ Example 6: Forcing Source Download
 Building Verilator from source for custom optimization flags or when 
 pre-built binaries aren't compatible with your system.
 
-Example 7: Mixed Binaries and Source
+Example 8: Mixed Binaries and Source
 -------------------------------------
 
 .. code-block:: yaml
@@ -570,6 +647,71 @@ glibc Version Too New
 2. Use older release
 3. Build from source
 
+OS-Specific Package Not Found
+------------------------------
+
+**Error:** ``No OS-specific package found for ubuntu-24.04-x86_64``
+
+**Causes:**
+
+1. Your Linux distribution/version doesn't have a prebuilt binary
+2. Package maintainer only builds for specific distributions
+3. Your architecture (aarch64, x86_64) isn't supported
+
+**Solutions:**
+
+1. **Use source mode:**
+
+   .. code-block:: yaml
+
+       - name: tool
+         url: https://github.com/org/tool
+         src: gh-rls
+         source: true  # Download source instead
+
+2. **Check available distributions:**
+
+   The error message lists available OS-specific packages. Consider using 
+   a supported distribution or asking the maintainer to add support.
+
+3. **Try a compatible version:**
+
+   Sometimes binaries from similar distributions work (e.g., Ubuntu 22.04 
+   binary might work on Ubuntu 24.04). However, IVPM enforces exact matches 
+   to prevent compatibility issues.
+
+Cannot Determine Linux Distribution
+------------------------------------
+
+**Error:** ``OS-specific packages found but unable to determine Linux distribution``
+
+**Cause:** IVPM couldn't read ``/etc/os-release`` or it's missing distribution info
+
+**Check your system:**
+
+.. code-block:: bash
+
+    $ cat /etc/os-release
+    NAME="Ubuntu"
+    VERSION_ID="24.04"
+    ...
+
+**Solutions:**
+
+1. **Use source mode:**
+
+   .. code-block:: yaml
+
+       - name: tool
+         url: https://github.com/org/tool
+         src: gh-rls
+         source: true
+
+2. **Ensure /etc/os-release exists:**
+
+   Most modern Linux distributions include this file. If missing, you may 
+   be on a very old or custom system.
+
 No Release Found
 ----------------
 
@@ -641,7 +783,9 @@ Asset Naming Issues
 
 **Supported naming patterns:**
 
-- **Linux:** ``manylinux_X_Y_arch``, ``manylinux2014_arch``, ``linux-arch``, ``linux_arch``
+- **Linux OS-specific:** ``ubuntu-22.04-arch``, ``debian-11-arch``, ``fedora-39-arch``
+- **Linux manylinux:** ``manylinux_X_Y_arch``, ``manylinux2014_arch``
+- **Linux generic:** ``linux-arch``, ``linux_arch``
 - **macOS:** ``macos``, ``darwin``, ``osx`` with optional ``x86_64``, ``arm64``, ``aarch64``
 - **Windows:** ``windows``, ``win64``, ``win32``, ``win`` with optional ``x86_64``, ``amd64``
 

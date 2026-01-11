@@ -83,13 +83,16 @@
 <li class="toctree-l3"><a class="reference internal" href="#example-3-version-range">Example 3: Version Range</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-4-including-prereleases">Example 4: Including Prereleases</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#example-5-protocol-buffers">Example 5: Protocol Buffers</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-6-forcing-source-download">Example 6: Forcing Source Download</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#example-7-mixed-binaries-and-source">Example 7: Mixed Binaries and Source</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-6-os-specific-binaries-qemu">Example 6: OS-Specific Binaries (QEMU)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-7-forcing-source-download">Example 7: Forcing Source Download</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-8-mixed-binaries-and-source">Example 8: Mixed Binaries and Source</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#no-suitable-binary-found">No Suitable Binary Found</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#glibc-version-too-new">glibc Version Too New</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#os-specific-package-not-found">OS-Specific Package Not Found</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cannot-determine-linux-distribution">Cannot Determine Linux Distribution</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#no-release-found">No Release Found</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#rate-limiting-github-api">Rate Limiting (GitHub API)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#asset-naming-issues">Asset Naming Issues</a></li>
@@ -357,8 +360,30 @@ macOS, Windows) or falls back to source archives.</p>
 </section>
 <section id="linux-binary-naming-schemes">
 <h3>Linux Binary Naming Schemes<a class="headerlink" href="#linux-binary-naming-schemes" title="Link to this heading"></a></h3>
-<p>IVPM supports two Linux binary naming schemes:</p>
-<p><strong>1. manylinux Tags (Preferred for Python wheels and glibc-aware packages):</strong></p>
+<p>IVPM supports three Linux binary naming schemes:</p>
+<p><strong>1. OS-Specific Naming (For distribution-specific builds):</strong></p>
+<p>IVPM recognizes distribution and version-specific binary naming patterns:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ubuntu-22.04-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">ubuntu-24.04-x86_64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">debian-11-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">debian-12-aarch64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fedora-39-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">centos-8-x86_64</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">rhel-9-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">alpine-3.18-x86_64</span></code></p></li>
+</ul>
+<p>Examples:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">qemu-riscv-ubuntu-22.04-x86_64-master.20826406641.tar.gz</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">tool-ubuntu-24.04-aarch64.tar.gz</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">package-debian-11-x86_64.zip</span></code></p></li>
+</ul>
+<p><strong>Important:</strong> When OS-specific packages are detected in a release:</p>
+<ul class="simple">
+<li><p>IVPM <strong>requires</strong> an exact match for your distribution and version</p></li>
+<li><p>If no match is found, an error is raised with available options</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">source:</span> <span class="pre">true</span></code> to bypass OS-specific requirements and download source</p></li>
+</ul>
+<p>This ensures you don’t accidentally use incompatible binaries built for
+different distributions or versions.</p>
+<p><strong>2. manylinux Tags (For Python wheels and glibc-aware packages):</strong></p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -395,7 +420,7 @@ macOS, Windows) or falls back to source archives.</p>
 </tbody>
 </table>
 <p>IVPM selects the newest compatible manylinux version for your system.</p>
-<p><strong>2. Generic Linux Naming (Common for C/C++ tools like protobuf):</strong></p>
+<p><strong>3. Generic Linux Naming (Common for C/C++ tools like protobuf):</strong></p>
 <p>IVPM also recognizes generic Linux binary naming patterns:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">linux-x86_64</span></code> or <code class="docutils literal notranslate"><span class="pre">linux_x86_64</span></code></p></li>
@@ -410,7 +435,13 @@ macOS, Windows) or falls back to source archives.</p>
 </ul>
 <p><strong>Selection Priority:</strong></p>
 <ol class="arabic simple">
-<li><p>IVPM first looks for manylinux-tagged assets (glibc-aware)</p></li>
+<li><p>IVPM first checks for OS-specific assets (ubuntu, debian, etc.)</p>
+<ul class="simple">
+<li><p>If found, requires exact match or fails with helpful error</p></li>
+<li><p>Error message lists available OS-specific options</p></li>
+</ul>
+</li>
+<li><p>If no OS-specific assets, looks for manylinux-tagged assets (glibc-aware)</p></li>
 <li><p>If none found, falls back to generic Linux naming patterns</p></li>
 <li><p>If neither found, falls back to source archives</p></li>
 </ol>
@@ -570,8 +601,48 @@ libprotoc<span class="w"> </span><span class="m">33</span>.2
 </div>
 <p>This demonstrates IVPM’s support for generic Linux binary naming (not manylinux).</p>
 </section>
-<section id="example-6-forcing-source-download">
-<h3>Example 6: Forcing Source Download<a class="headerlink" href="#example-6-forcing-source-download" title="Link to this heading"></a></h3>
+<section id="example-6-os-specific-binaries-qemu">
+<h3>Example 6: OS-Specific Binaries (QEMU)<a class="headerlink" href="#example-6-os-specific-binaries-qemu" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu-riscv</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/edapack/qemu-riscv</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+</pre></div>
+</div>
+<p><strong>What happens:</strong></p>
+<ol class="arabic simple">
+<li><p>Queries GitHub API for latest release</p></li>
+<li><p>Detects OS-specific packages (e.g., <code class="docutils literal notranslate"><span class="pre">ubuntu-22.04</span></code>, <code class="docutils literal notranslate"><span class="pre">ubuntu-24.04</span></code>)</p></li>
+<li><p>Detects your Linux distribution and version (e.g., Ubuntu 24.04)</p></li>
+<li><p>Selects exact match: <code class="docutils literal notranslate"><span class="pre">qemu-riscv-ubuntu-24.04-x86_64-*.tar.gz</span></code></p></li>
+<li><p>Downloads and extracts to <code class="docutils literal notranslate"><span class="pre">packages/qemu-riscv/</span></code></p></li>
+</ol>
+<p><strong>If no exact match:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Error: No OS-specific package found for ubuntu-24.04-x86_64.
+Available: ubuntu-22.04-x86_64, ubuntu-22.04-aarch64.
+Consider setting source=true to download source instead.
+</pre></div>
+</div>
+<p><strong>Workaround when your OS isn’t supported:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">qemu-riscv</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/edapack/qemu-riscv</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latest</span>
+<span class="w">    </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Download source instead of OS-specific binary</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>packages/qemu-riscv/bin/qemu-system-riscv64<span class="w"> </span>--version
+</pre></div>
+</div>
+<p>This demonstrates IVPM’s support for OS-specific binary packages that are built
+for particular Linux distributions and versions.</p>
+</section>
+<section id="example-7-forcing-source-download">
+<h3>Example 7: Forcing Source Download<a class="headerlink" href="#example-7-forcing-source-download" title="Link to this heading"></a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verilator</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/verilator/verilator</span>
@@ -591,8 +662,8 @@ libprotoc<span class="w"> </span><span class="m">33</span>.2
 <p>Building Verilator from source for custom optimization flags or when
 pre-built binaries aren’t compatible with your system.</p>
 </section>
-<section id="example-7-mixed-binaries-and-source">
-<h3>Example 7: Mixed Binaries and Source<a class="headerlink" href="#example-7-mixed-binaries-and-source" title="Link to this heading"></a></h3>
+<section id="example-8-mixed-binaries-and-source">
+<h3>Example 8: Mixed Binaries and Source<a class="headerlink" href="#example-8-mixed-binaries-and-source" title="Link to this heading"></a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verification-suite</span>
 <span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
@@ -661,6 +732,63 @@ ldd<span class="w"> </span><span class="o">(</span>GNU<span class="w"> </span>li
 <li><p>Build from source</p></li>
 </ol>
 </section>
+<section id="os-specific-package-not-found">
+<h3>OS-Specific Package Not Found<a class="headerlink" href="#os-specific-package-not-found" title="Link to this heading"></a></h3>
+<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">OS-specific</span> <span class="pre">package</span> <span class="pre">found</span> <span class="pre">for</span> <span class="pre">ubuntu-24.04-x86_64</span></code></p>
+<p><strong>Causes:</strong></p>
+<ol class="arabic simple">
+<li><p>Your Linux distribution/version doesn’t have a prebuilt binary</p></li>
+<li><p>Package maintainer only builds for specific distributions</p></li>
+<li><p>Your architecture (aarch64, x86_64) isn’t supported</p></li>
+</ol>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Use source mode:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Download source instead</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Check available distributions:</strong></p>
+<p>The error message lists available OS-specific packages. Consider using
+a supported distribution or asking the maintainer to add support.</p>
+</li>
+<li><p><strong>Try a compatible version:</strong></p>
+<p>Sometimes binaries from similar distributions work (e.g., Ubuntu 22.04
+binary might work on Ubuntu 24.04). However, IVPM enforces exact matches
+to prevent compatibility issues.</p>
+</li>
+</ol>
+</section>
+<section id="cannot-determine-linux-distribution">
+<h3>Cannot Determine Linux Distribution<a class="headerlink" href="#cannot-determine-linux-distribution" title="Link to this heading"></a></h3>
+<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">OS-specific</span> <span class="pre">packages</span> <span class="pre">found</span> <span class="pre">but</span> <span class="pre">unable</span> <span class="pre">to</span> <span class="pre">determine</span> <span class="pre">Linux</span> <span class="pre">distribution</span></code></p>
+<p><strong>Cause:</strong> IVPM couldn’t read <code class="docutils literal notranslate"><span class="pre">/etc/os-release</span></code> or it’s missing distribution info</p>
+<p><strong>Check your system:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>/etc/os-release
+<span class="nv">NAME</span><span class="o">=</span><span class="s2">&quot;Ubuntu&quot;</span>
+<span class="nv">VERSION_ID</span><span class="o">=</span><span class="s2">&quot;24.04&quot;</span>
+...
+</pre></div>
+</div>
+<p><strong>Solutions:</strong></p>
+<ol class="arabic">
+<li><p><strong>Use source mode:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
+<span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Ensure /etc/os-release exists:</strong></p>
+<p>Most modern Linux distributions include this file. If missing, you may
+be on a very old or custom system.</p>
+</li>
+</ol>
+</section>
 <section id="no-release-found">
 <h3>No Release Found<a class="headerlink" href="#no-release-found" title="Link to this heading"></a></h3>
 <p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">latest</span> <span class="pre">release</span></code> or <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">release</span> <span class="pre">matches</span> <span class="pre">version</span> <span class="pre">spec</span></code></p>
@@ -720,7 +848,9 @@ ivpm<span class="w"> </span>update
 </ul>
 <p><strong>Supported naming patterns:</strong></p>
 <ul class="simple">
-<li><p><strong>Linux:</strong> <code class="docutils literal notranslate"><span class="pre">manylinux_X_Y_arch</span></code>, <code class="docutils literal notranslate"><span class="pre">manylinux2014_arch</span></code>, <code class="docutils literal notranslate"><span class="pre">linux-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">linux_arch</span></code></p></li>
+<li><p><strong>Linux OS-specific:</strong> <code class="docutils literal notranslate"><span class="pre">ubuntu-22.04-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">debian-11-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">fedora-39-arch</span></code></p></li>
+<li><p><strong>Linux manylinux:</strong> <code class="docutils literal notranslate"><span class="pre">manylinux_X_Y_arch</span></code>, <code class="docutils literal notranslate"><span class="pre">manylinux2014_arch</span></code></p></li>
+<li><p><strong>Linux generic:</strong> <code class="docutils literal notranslate"><span class="pre">linux-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">linux_arch</span></code></p></li>
 <li><p><strong>macOS:</strong> <code class="docutils literal notranslate"><span class="pre">macos</span></code>, <code class="docutils literal notranslate"><span class="pre">darwin</span></code>, <code class="docutils literal notranslate"><span class="pre">osx</span></code> with optional <code class="docutils literal notranslate"><span class="pre">x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">arm64</span></code>, <code class="docutils literal notranslate"><span class="pre">aarch64</span></code></p></li>
 <li><p><strong>Windows:</strong> <code class="docutils literal notranslate"><span class="pre">windows</span></code>, <code class="docutils literal notranslate"><span class="pre">win64</span></code>, <code class="docutils literal notranslate"><span class="pre">win32</span></code>, <code class="docutils literal notranslate"><span class="pre">win</span></code> with optional <code class="docutils literal notranslate"><span class="pre">x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">amd64</span></code></p></li>
 </ul>
