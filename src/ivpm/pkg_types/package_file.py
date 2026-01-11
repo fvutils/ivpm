@@ -69,7 +69,16 @@ class PackageFile(PackageURL):
 
             for fi in tf:
                 if fi.name.find("/") != -1:
-                    fi.name = fi.name[fi.name.find("/")+1:]
+                    # Strip the first path component from the name
+                    first_slash = fi.name.find("/")
+                    fi.name = fi.name[first_slash+1:]
+                    
+                    # For symbolic links, also strip the first path component from linkname
+                    if fi.issym() or fi.islnk():
+                        if fi.linkname.find("/") != -1:
+                            first_slash_link = fi.linkname.find("/")
+                            fi.linkname = fi.linkname[first_slash_link+1:]
+                    
                     tf.extract(fi, path=os.path.basename(pkg_path))
             tf.close()
         finally:
