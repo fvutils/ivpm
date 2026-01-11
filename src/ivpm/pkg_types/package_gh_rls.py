@@ -343,6 +343,28 @@ class PackageGhRls(PackageHttp):
         else:
             return m
 
+    def _get_linux_distro_info(self):
+        """
+        Get Linux distribution information.
+        Returns (distro_name, version_str) or (None, None) if unable to determine.
+        """
+        try:
+            if os.path.exists("/etc/os-release"):
+                with open("/etc/os-release", "r") as f:
+                    content = f.read()
+                    distro_id = None
+                    version_id = None
+                    for line in content.split('\n'):
+                        if line.startswith("ID="):
+                            distro_id = line.split("=", 1)[1].strip().strip('"').lower()
+                        elif line.startswith("VERSION_ID="):
+                            version_id = line.split("=", 1)[1].strip().strip('"')
+                    if distro_id and version_id:
+                        return (distro_id, version_id)
+        except Exception:
+            pass
+        return (None, None)
+
     def _get_system_info(self):
         sysname = platform.system().lower()
         machine = platform.machine()
@@ -391,6 +413,28 @@ class PackageGhRls(PackageHttp):
                 return (2, 17, arch)      # manylinux2014 -> glibc 2.17
         return None
 
+    def _parse_linux_os_specific(self, name):
+        """
+        Parse OS-specific Linux naming pattern (e.g., ubuntu-22.04-x86_64, ubuntu-24.04-aarch64).
+        Returns (distro, version, arch) or None if not an OS-specific binary.
+        """
+        n = (name or "").lower()
+        # Match patterns like: ubuntu-22.04-x86_64, ubuntu-24.04-aarch64, debian-11-x86_64
+        m = re.search(r"(ubuntu|debian|fedora|centos|rhel|alpine)[_-](\d+(?:\.\d+)?)[_-]([a-z0-9_]+)", n)
+        if m:
+            distro = m.group(1)
+            version = m.group(2)
+            arch = m.group(3)
+            # Normalize arch names
+            if arch in ("x86_64", "amd64"):
+                arch = "x86_64"
+            elif arch in ("aarch_64", "aarch64", "arm64"):
+                arch = "aarch64"
+            elif arch.startswith("armv7"):
+                arch = "armv7l"
+            return (distro, version, arch)
+        return None
+
     def _parse_linux_generic(self, name):
         """
         Parse generic Linux naming pattern (e.g., protobuf style: protoc-33.2-linux-x86_64.zip).
@@ -412,7 +456,44 @@ class PackageGhRls(PackageHttp):
         return None
 
     def _select_linux_asset(self, assets, arch, glibc):
-        # First, try manylinux-tagged assets (preferred for glibc compatibility)
+        # First, check if there are OS-specific assets
+        os_specific_assets = []
+        for a in assets:
+            nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
+            parsed = self._parse_linux_os_specific(nm)
+            if parsed is not None:
+                os_specific_assets.append((parsed, a))
+        
+        # If OS-specific packages exist, we must find a matching one (when source=false)
+        if os_specific_assets:
+            distro, distro_ver = self._get_linux_distro_info()
+            if distro is None or distro_ver is None:
+                # Can't determine distro, list available OS-specific packages
+                available = []
+                for (d, v, a), _ in os_specific_assets:
+                    available.append(f"{d}-{v}-{a}")
+                raise Exception(
+                    f"OS-specific packages found but unable to determine Linux distribution. "
+                    f"Available: {', '.join(sorted(set(available)))}. "
+                    f"Consider setting source=true to download source instead."
+                )
+            
+            # Try to find exact match
+            for (pkg_distro, pkg_ver, pkg_arch), asset in os_specific_assets:
+                if pkg_distro == distro and pkg_ver == distro_ver and pkg_arch == arch:
+                    return asset
+            
+            # No exact match found - report available options
+            available = []
+            for (d, v, a), _ in os_specific_assets:
+                available.append(f"{d}-{v}-{a}")
+            raise Exception(
+                f"No OS-specific package found for {distro}-{distro_ver}-{arch}. "
+                f"Available: {', '.join(sorted(set(available)))}. "
+                f"Consider setting source=true to download source instead."
+            )
+        
+        # No OS-specific assets, try manylinux-tagged assets (preferred for glibc compatibility)
         candidates = []
         for a in assets:
             nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
@@ -472,6 +553,8 @@ class PackageGhRls(PackageHttp):
     def _has_binary_assets(self, assets):
         for a in assets:
             nm = (a.get("name") or os.path.basename(a.get("browser_download_url", ""))).lower()
+            if self._parse_linux_os_specific(nm) is not None:
+                return True
             if self._parse_manylinux(nm) is not None:
                 return True
             if self._parse_linux_generic(nm) is not None:

@@ -159,5 +159,36 @@ class TestGhRls(TestBase):
         
         self.assertTrue(has_source, "Source files not found - trailing slash may have broken URL processing")
 
+    @unittest.skipUnless(platform.system().lower() == "linux", "Linux-only test")
+    @unittest.skipUnless(_check_github_api_available(), "GitHub API rate-limited or unavailable")
+    def test_os_specific_packages(self):
+        # Test that OS-specific packages (like qemu-riscv) are handled correctly
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: gh_rls_qemu_riscv
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: qemu-riscv
+                      url: https://github.com/edapack/qemu-riscv
+                      src: gh-rls
+                      version: latest
+        """)
+
+        # Fetch and install dependencies
+        # This should either succeed (if on ubuntu 22.04 or 24.04 x86_64) 
+        # or fail with clear error message about OS-specific packages
+        try:
+            self.ivpm_update(skip_venv=True)
+            pkg_dir = os.path.join(self.testdir, "packages", "qemu-riscv")
+            self.assertTrue(os.path.isdir(pkg_dir), "qemu-riscv package directory missing")
+        except Exception as e:
+            # Should get informative error about OS-specific packages
+            error_msg = str(e)
+            self.assertTrue(
+                "OS-specific package" in error_msg or "ubuntu" in error_msg.lower(),
+                f"Expected OS-specific package error, got: {error_msg}"
+            )
+
 
 
