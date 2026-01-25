@@ -24,5 +24,5 @@ license = {file = "LICENSE" }
 ivpm = "ivpm.__main__:main"
 
 [tool.setuptools.package-data]
-ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/cmake/*']
+ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*']
 

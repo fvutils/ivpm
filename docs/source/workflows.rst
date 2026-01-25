@@ -576,7 +576,7 @@ Deploying to Users
 
     $ ivpm clone https://github.com/org/project.git
 
-**Option 2: Traditional clone + update**
+**Option 2: Traditional git clone (without IVPM)**
 
 .. code-block:: bash
 
@@ -584,6 +584,9 @@ Deploying to Users
     $ cd project
     $ pip install ivpm
     $ ivpm update
+
+Note: ``ivpm clone`` automatically runs ``ivpm update`` after cloning, so you only
+need to run ``ivpm update`` separately when using ``git clone`` directly.
 
 **Option 3: Snapshot distribution**
 

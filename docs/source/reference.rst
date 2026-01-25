@@ -262,7 +262,10 @@ Create a new workspace from a Git repository.
 
 1. Clones Git repository
 2. Enters directory
-3. Runs ``ivpm update`` with specified options
+3. Automatically runs ``ivpm update`` with specified options
+
+Note: Since ``clone`` automatically runs ``update``, you don't need to run
+``ivpm update`` separately after ``ivpm clone``.
 
 init
 ----

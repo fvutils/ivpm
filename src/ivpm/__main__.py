@@ -28,10 +28,25 @@ from .cmds.cmd_status import CmdStatus
 from .cmds.cmd_sync import CmdSync
 
 
+def get_share_dir():
+    """Return the path to the IVPM share directory"""
+    ivpm_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(ivpm_dir, "share")
+
 def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
     subcommands : Dict[str, object] = {}
-    parser = argparse.ArgumentParser(prog="ivpm")
+    
+    # Build the epilog with the skill.md path
+    share_dir = get_share_dir()
+    skill_path = os.path.join(share_dir, "skill.md")
+    epilog = f"Agent skill documentation: {skill_path}"
+    
+    parser = argparse.ArgumentParser(
+        prog="ivpm",
+        description="IVPM (IP and Verification Package Manager) - A lightweight project-local package manager for managing software dependencies. Excels at managing projects where dependencies are co-developed.",
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
 
     # Global options that apply to all sub-commands
     parser.add_argument("--log-level", dest="log_level",
