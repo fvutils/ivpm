@@ -8,14 +8,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Development Workflows &mdash; IVPM  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=5929fcd5"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -643,13 +643,15 @@ $<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
 </pre></div>
 </div>
-<p><strong>Option 2: Traditional clone + update</strong></p>
+<p><strong>Option 2: Traditional git clone (without IVPM)</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
 $<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ivpm
 $<span class="w"> </span>ivpm<span class="w"> </span>update
 </pre></div>
 </div>
+<p>Note: <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">clone</span></code> automatically runs <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> after cloning, so you only
+need to run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> separately when using <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">clone</span></code> directly.</p>
 <p><strong>Option 3: Snapshot distribution</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>snapshot<span class="w"> </span>release-v1.0
 $<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>project-v1.0.tar.gz<span class="w"> </span>release-v1.0/

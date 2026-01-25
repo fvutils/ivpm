@@ -8,14 +8,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Reference &mdash; IVPM  documentation</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=5929fcd5"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -168,6 +168,8 @@
 <h1>Reference<a class="headerlink" href="#reference" title="Link to this heading"></a></h1>
 <section id="commands">
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading"></a></h2>
+<p><p>IVPM (IP and Verification Package Manager) - A lightweight project-local package manager for managing software dependencies. Excels at managing projects where dependencies are co-developed.</p>
+</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">level</span> <span class="p">{</span><span class="n">INFO</span><span class="p">,</span><span class="n">DEBUG</span><span class="p">,</span><span class="n">WARN</span><span class="p">,</span><span class="n">NONE</span><span class="p">}]</span>
             <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">cache</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">clone</span><span class="p">,</span><span class="n">update</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">status</span><span class="p">,</span><span class="n">git</span><span class="o">-</span><span class="n">update</span><span class="p">,</span><span class="n">snapshot</span><span class="p">,</span><span class="n">sync</span><span class="p">,</span><span class="n">status</span><span class="p">}</span>
             <span class="o">...</span>
@@ -545,6 +547,8 @@
 </div>
 </section>
 </section>
+<p><p>Agent skill documentation: /home/runner/work/ivpm/ivpm/src/ivpm/share/skill.md</p>
+</p>
 </section>
 <section id="command-details">
 <h2>Command Details<a class="headerlink" href="#command-details" title="Link to this heading"></a></h2>
@@ -749,8 +753,10 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 <ol class="arabic simple">
 <li><p>Clones Git repository</p></li>
 <li><p>Enters directory</p></li>
-<li><p>Runs <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> with specified options</p></li>
+<li><p>Automatically runs <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> with specified options</p></li>
 </ol>
+<p>Note: Since <code class="docutils literal notranslate"><span class="pre">clone</span></code> automatically runs <code class="docutils literal notranslate"><span class="pre">update</span></code>, you don’t need to run
+<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> separately after <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">clone</span></code>.</p>
 </section>
 <section id="init">
 <h3>init<a class="headerlink" href="#init" title="Link to this heading"></a></h3>
