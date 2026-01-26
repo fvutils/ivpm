@@ -1,0 +1,15 @@
+# Package A depends on B in its default-dev set
+# This creates a potential cycle: A -> B -> C -> A
+# But when loaded from root that specifies all three,
+# the cycle should be broken because root "owns" the deps
+package:
+  name: circular_pkg_a
+
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: circular_pkg_b
+          url: file://${DATA_DIR}/circular_pkg_b
+          src: dir
+    - name: default
+      deps: []

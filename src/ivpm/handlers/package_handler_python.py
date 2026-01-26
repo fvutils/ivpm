@@ -118,11 +118,14 @@ class PackageHandlerPython(PackageHandler):
                         if dp in self.pkgs_info.keys():
                             dp_p = self.pkgs_info[dp]
                             if dp_p.src_type != "pypi":
-                                python_deps_m[pyp].add(dp)
-                        # if dp in python_pkgs_s:
-                        #     dp_p = pkgs_info[dp]
-                        #     if dp_p.src_type != SourceType.PyPi:
-                        #         python_deps_m[pyp].add(dp)
+                                # Only add a dependency edge if dp was resolved
+                                # by this package (pyp). If dp was resolved at a
+                                # higher level (e.g., root or another package),
+                                # there's no dependency edge from pyp to dp.
+                                # This prevents circular dependencies when upper-level
+                                # imports override lower-level imports.
+                                if dp_p.resolved_by == pyp:
+                                    python_deps_m[pyp].add(dp)
                 else:
                     _logger.warning("Project %s does not contain its target dependency set (%s)",
                         p.proj_info.name,
@@ -255,11 +258,11 @@ class PackageHandlerPython(PackageHandler):
                         if dp in self.pkgs_info.keys():
                             dp_p = self.pkgs_info[dp]
                             if dp_p.src_type != "pypi":
-                                python_deps_m[pyp].add(dp)
-                        # if dp in python_pkgs_s:
-                        #     dp_p = pkgs_info[dp]
-                        #     if dp_p.src_type != SourceType.PyPi:
-                        #         python_deps_m[pyp].add(dp)
+                                # Only add a dependency edge if dp was resolved
+                                # by this package (pyp). If dp was resolved at a
+                                # higher level, there's no dependency edge.
+                                if dp_p.resolved_by == pyp:
+                                    python_deps_m[pyp].add(dp)
                 else:
                     _logger.warning("Project %s does not contain its target dependency set (%s)",
                         p.proj_info.name,

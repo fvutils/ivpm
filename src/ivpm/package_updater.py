@@ -134,9 +134,11 @@ class PackageUpdater(object):
                                 dep = ds.packages[d]
                         
                                 if dep.name not in pkg_deps.keys():
+                                    # Track which package caused this dependency to be resolved
+                                    dep.resolved_by = pkg.name
                                     pkg_deps[dep.name] = dep
                                 else:
-                                    # TODO: warn about possible version conflict?
+                                    # Already resolved by a higher-level package - don't override
                                     pass
             
             # Collect new dependencies and add to queue

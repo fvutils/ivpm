@@ -1,0 +1,12 @@
+# Package B depends on C in its default-dev set
+package:
+  name: circular_pkg_b
+
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: circular_pkg_c
+          url: file://${DATA_DIR}/circular_pkg_c
+          src: dir
+    - name: default
+      deps: []

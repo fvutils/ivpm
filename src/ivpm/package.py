@@ -102,6 +102,9 @@ class Package(object):
     setup_deps : Set[str] = dc.field(default_factory=set)
     dep_set : str = None
     proj_info : 'ProjInfo'= None
+    # Track which package caused this dependency to be resolved.
+    # None means it was resolved at the root level.
+    resolved_by : str = None
 
     def build(self, pkgs_info):
         pass
