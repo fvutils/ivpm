@@ -27,6 +27,7 @@ jobs:
 
     - name: Build Docs
       run: |
+        ./packages/python/bin/python3 -m pip install sphinx sphinx-jsonschema sphinx-argparse sphinx-rtd-theme
         ./packages/python/bin/sphinx-build -M html ./docs/source build
         cp src/ivpm/share/ivpm.json build/html/
         cp src/ivpm/share/ivpm.json build/html/ivpm.schema.json
