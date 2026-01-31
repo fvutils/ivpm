@@ -46,7 +46,7 @@
 				},
 				"default-dep-set": {
 					"type": "string",
-					"description": "Default dependency set to use if not specified on command line"
+					"description": "Default dependency set to use if not specified on command line. If not set, uses the first dep-set in the file"
 				},
 				"dep-sets": {
 					"type": "array",
@@ -92,7 +92,7 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"title": "Dependency-set identifier. 'default' and 'default-dev' are builtin names"
+					"title": "Dependency-set identifier. Common names include 'default' and 'default-dev'"
 				},
 				"default-dep-set": {
 					"type": "string",

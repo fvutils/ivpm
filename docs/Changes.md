@@ -1,4 +1,8 @@
 
+# 2.5.0
+- Change `update` behavior to use the first dep-set by default
+  instead of searching for 'default-dev'.
+
 # 2.4.0
 - Add parallel fetch for packages
 

@@ -212,12 +212,13 @@ class ProjectOps(object):
     
     def _getDepSet(self, proj_info, dep_set):
         if dep_set is None:
-            if "default-dev" in proj_info.dep_set_m.keys():
-                dep_set = "default-dev"
-            elif len(proj_info.dep_set_m.keys()) == 1:
+            # Priority: 1) default-dep-set setting, 2) first dep-set in file
+            if proj_info.default_dep_set is not None:
+                dep_set = proj_info.default_dep_set
+            elif len(proj_info.dep_set_m.keys()) > 0:
                 dep_set = list(proj_info.dep_set_m.keys())[0]
             else:
-                fatal("No default-dev dep-set and multiple dep-sets present")
+                fatal("No dependency sets defined in project")
 
         if dep_set not in proj_info.dep_set_m.keys():
             raise Exception("Dep-set %s is not present" % dep_set)

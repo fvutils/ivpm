@@ -30,7 +30,7 @@ from .utils import fatal, note, get_venv_python, setup_venv
 @dc.dataclass
 class ProjectSync(object):
     root_dir : str
-    dep_set : str = "default-dev"
+    dep_set : str = None
     anonymous : bool = False
     skip_venv : bool = False
     debug : bool = False
@@ -58,11 +58,21 @@ class ProjectSync(object):
         print("********************************************************************")
 
         if self.debug:
-            for self.dep_set in proj_info.dep_set_m.keys():
-                print("DepSet: %s" % self.dep_set)
-                for d in proj_info.dep_set_m[self.dep_set].packages.keys():
+            for ds_name in proj_info.dep_set_m.keys():
+                print("DepSet: %s" % ds_name)
+                for d in proj_info.dep_set_m[ds_name].packages.keys():
                     print("  Package: %s" % d)
                     
+        # Determine which dep-set to use
+        if self.dep_set is None:
+            # Priority: 1) default-dep-set setting, 2) first dep-set in file
+            if proj_info.default_dep_set is not None:
+                self.dep_set = proj_info.default_dep_set
+            elif len(proj_info.dep_set_m.keys()) > 0:
+                self.dep_set = list(proj_info.dep_set_m.keys())[0]
+            else:
+                fatal("No dependency sets defined in project")
+
         if self.dep_set not in proj_info.dep_set_m.keys():
             raise Exception("Dep-set %s is not present" % self.dep_set)
         else:

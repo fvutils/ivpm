@@ -71,7 +71,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     build_cmd = subparser.add_parser("build",
         help="Build all sub-projects with an IVPM-supported build infrastructure (Python)")
     build_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
-        help="Uses dependencies from specified dep-set instead of 'default-dev'")
+        help="Uses dependencies from specified dep-set instead of default")
     build_cmd.add_argument("-g", "--debug", 
         action="store_true",
         help="Enables debug for native extensions")
@@ -151,7 +151,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
         help="Specifies the project directory to use (default: cwd)")
     update_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
-        help="Uses dependencies from specified dep-set instead of 'default-dev'")
+        help="Uses dependencies from specified dep-set instead of default")
     update_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=None,
         help="Maximum number of parallel package fetches (default: number of CPU cores)")
     update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
