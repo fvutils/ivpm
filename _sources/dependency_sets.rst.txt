@@ -89,7 +89,7 @@ While you can use any names, IVPM recognizes these standard names:
 
 ``default-dev``
     Development dependencies. Includes everything from ``default`` plus 
-    development tools.
+    development tools. This is no longer special - any name can be used.
 
 Using Dependency Sets
 =====================
@@ -101,7 +101,7 @@ Selecting a Set
 
 .. code-block:: bash
 
-    # Use development dependencies (default if default-dep-set is set)
+    # Use default dep-set (from default-dep-set or first dep-set)
     ivpm update
     
     # Explicitly use development dependencies
@@ -122,7 +122,8 @@ Selecting a Set
       default-dep-set: default-dev
 
 If ``default-dep-set`` is specified, that set is used when no ``-d`` option 
-is given to ``ivpm update``.
+is given to ``ivpm update``. If ``default-dep-set`` is not specified, the 
+first dep-set listed in the file is used as the default.
 
 Complete Examples
 -----------------

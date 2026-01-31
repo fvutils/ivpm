@@ -203,7 +203,7 @@ less disk space.</p>
 <dt><code class="docutils literal notranslate"><span class="pre">default</span></code></dt><dd><p>Release/runtime dependencies. Use this for packages you’re distributing.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">default-dev</span></code></dt><dd><p>Development dependencies. Includes everything from <code class="docutils literal notranslate"><span class="pre">default</span></code> plus
-development tools.</p>
+development tools. This is no longer special - any name can be used.</p>
 </dd>
 </dl>
 </section>
@@ -213,7 +213,7 @@ development tools.</p>
 <section id="selecting-a-set">
 <h3>Selecting a Set<a class="headerlink" href="#selecting-a-set" title="Link to this heading"></a></h3>
 <p><strong>On the command line:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use development dependencies (default if default-dep-set is set)</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use default dep-set (from default-dep-set or first dep-set)</span>
 ivpm<span class="w"> </span>update
 
 <span class="c1"># Explicitly use development dependencies</span>
@@ -233,7 +233,8 @@ ivpm<span class="w"> </span>update<span class="w"> </span>-d<span class="w"> </s
 </pre></div>
 </div>
 <p>If <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> is specified, that set is used when no <code class="docutils literal notranslate"><span class="pre">-d</span></code> option
-is given to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>.</p>
+is given to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>. If <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> is not specified, the
+first dep-set listed in the file is used as the default.</p>
 </section>
 <section id="complete-examples">
 <h3>Complete Examples<a class="headerlink" href="#complete-examples" title="Link to this heading"></a></h3>
