@@ -1,0 +1,21 @@
+
+package:
+  name: envrc_nonleaf
+
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: envrc_leaf1
+          url: file://${DATA_DIR}/envrc_leaf1
+          src: dir
+        - name: envrc_leaf2
+          url: file://${DATA_DIR}/envrc_leaf2
+          src: dir
+    - name: default
+      deps:
+        - name: envrc_leaf1
+          url: file://${DATA_DIR}/envrc_leaf1
+          src: dir
+        - name: envrc_leaf2
+          url: file://${DATA_DIR}/envrc_leaf2
+          src: dir

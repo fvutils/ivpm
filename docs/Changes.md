@@ -1,4 +1,11 @@
 
+# 2.6.0
+- Add direnv support: IVPM now generates a `packages.envrc` file at the
+  project root after `update`. It contains `source_env` entries for every
+  sub-package that provides an `export.envrc` or `.envrc` file, ordered by
+  dependency (leaves first). `export.envrc` is preferred over `.envrc` when
+  both exist.
+
 # 2.5.0
 - Change `update` behavior to use the first dep-set by default
   instead of searching for 'default-dev'.

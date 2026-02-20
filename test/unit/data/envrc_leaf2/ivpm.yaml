@@ -1,0 +1,9 @@
+
+package:
+  name: envrc_leaf2
+
+  dep-sets:
+    - name: default-dev
+      deps: []
+    - name: default
+      deps: []
