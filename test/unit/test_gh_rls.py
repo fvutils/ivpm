@@ -190,5 +190,49 @@ class TestGhRls(TestBase):
                 f"Expected OS-specific package error, got: {error_msg}"
             )
 
+    @unittest.skipUnless(_check_github_api_available(), "GitHub API rate-limited or unavailable")
+    def test_tag_fallback_latest(self):
+        """Test that gh-rls falls back to tags when a project has no formal releases."""
+        # OpenROAD-flow-scripts uses tags but not formal GitHub releases
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: gh_rls_tag_fallback
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: orfs
+                      url: https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts
+                      src: gh-rls
+                      version: latest
+                      source: true
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        pkg_dir = os.path.join(self.testdir, "packages", "orfs")
+        self.assertTrue(os.path.isdir(pkg_dir), "orfs package directory missing")
+
+    @unittest.skipUnless(_check_github_api_available(), "GitHub API rate-limited or unavailable")
+    def test_tag_fallback_exact_version(self):
+        """Test that gh-rls finds a specific tag when it is not a formal release."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: gh_rls_tag_exact
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: orfs
+                      url: https://github.com/The-OpenROAD-Project/OpenROAD-flow-scripts
+                      src: gh-rls
+                      version: 26Q1
+                      source: true
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        pkg_dir = os.path.join(self.testdir, "packages", "orfs")
+        self.assertTrue(os.path.isdir(pkg_dir), "orfs package directory missing")
+
+
 
 

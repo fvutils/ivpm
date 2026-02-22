@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import os
+import fnmatch
 import httpx
 import json
 import re
@@ -89,20 +90,45 @@ class PackageGhRls(PackageHttp):
         else:
             return self._update_normal(update_info, pkg_dir, file_url, forced_ext)
 
+    def _repo_base_url(self):
+        """Return the base GitHub API URL for this package's repo."""
+        github_com_idx = self.url.find("github.com")
+        return "https://api.github.com/repos/" + self.url[github_com_idx + len("github.com") + 1:]
+
+    def _fetch_tags(self):
+        """Fetch tags from GitHub API and normalize them to release-like dicts."""
+        tags_url = self._repo_base_url() + "/tags"
+        resp = httpx.get(tags_url, follow_redirects=True)
+        if resp.status_code != 200:
+            return []
+        tags = json.loads(resp.content)
+        # Normalize tags to look like release dicts so existing version-selection
+        # logic can be reused.  Tags only provide source archives, no binary assets.
+        normalized = []
+        for t in tags:
+            normalized.append({
+                "tag_name": t["name"],
+                "prerelease": False,
+                "assets": [],
+                "tarball_url": t.get("tarball_url"),
+                "zipball_url": t.get("zipball_url"),
+                "_is_tag": True,
+            })
+        return normalized
+
     def _resolve_release(self):
         """Query GitHub API and resolve the release and asset to download.
         
         Returns:
             Tuple of (rls_info, rls, file_url, forced_ext)
         """
-        github_com_idx = self.url.find("github.com")
-        url = "https://api.github.com/repos/" + self.url[github_com_idx + len("github.com") + 1:] + "/releases"
-        rls_info = httpx.get(url, follow_redirects=True)
+        releases_url = self._repo_base_url() + "/releases"
+        rls_info_resp = httpx.get(releases_url, follow_redirects=True)
 
-        if rls_info.status_code != 200:
-            raise Exception("Failed to fetch release info: %d" % rls_info.status_code)
+        if rls_info_resp.status_code != 200:
+            raise Exception("Failed to fetch release info: %d" % rls_info_resp.status_code)
 
-        rls_info = json.loads(rls_info.content)
+        rls_info = json.loads(rls_info_resp.content)
 
         # Select release per version specification
         rls = None
@@ -113,11 +139,22 @@ class PackageGhRls(PackageHttp):
                 rls = r
                 break
             if rls is None:
-                raise Exception("Failed to find latest release (prerelease=%s)" % self.prerelease)
+                # No formal releases — fall back to most recent tag
+                tags = self._fetch_tags()
+                if tags:
+                    rls = tags[0]
+                    rls_info = tags
+                else:
+                    raise Exception("Failed to find latest release (prerelease=%s)" % self.prerelease)
         else:
             rls = self._select_release_by_version(rls_info)
             if rls is None:
-                raise Exception(f"No release matches version spec '{self.version}' (prerelease={self.prerelease})")
+                # Not found in releases — try tags
+                tags = self._fetch_tags()
+                rls = self._select_release_by_version(tags)
+                if rls is None:
+                    raise Exception(f"No release or tag matches version spec '{self.version}'")
+                rls_info = tags
 
         # Determine file to download
         file_url = None
@@ -125,7 +162,17 @@ class PackageGhRls(PackageHttp):
 
         assets = rls.get("assets", [])
         if self.file is not None:
-            raise NotImplementedError("File specification not yet supported")
+            # Filter assets to those whose name starts with the basename or matches it as a pattern
+            filtered = [
+                a for a in assets
+                if (lambda nm: nm.startswith(self.file) or fnmatch.fnmatch(nm, self.file))(
+                    a.get("name") or os.path.basename(a.get("browser_download_url", ""))
+                )
+            ]
+            if not filtered:
+                names = [a.get("name") or os.path.basename(a.get("browser_download_url", "")) for a in assets]
+                raise Exception(f"No assets matching basename '{self.file}' found in release. Available assets: {', '.join(names)}")
+            assets = filtered
 
         # If source=true, skip binary detection and go straight to source
         has_binaries = self._has_binary_assets(assets) if not self.source else False
