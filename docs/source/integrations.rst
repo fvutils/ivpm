@@ -195,65 +195,94 @@ CI/CD Integration
 GitHub Actions
 --------------
 
+IVPM has built-in support for the GitHub Actions cache service.  When a
+workflow runs inside GHA, IVPM auto-detects the environment and transparently
+stores and restores packages — no ``actions/cache`` step required.
+
+Built-in GHA Cache Backend (Recommended)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The simplest approach: just run ``ivpm update`` normally.  IVPM detects
+``ACTIONS_CACHE_URL`` / ``ACTIONS_RUNTIME_TOKEN`` (set by GHA automatically)
+and activates the GHA backend.
+
 **.github/workflows/ci.yml:**
 
 .. code-block:: yaml
 
     name: CI
-    
+
     on:
       push:
         branches: [ main, develop ]
       pull_request:
         branches: [ main ]
-    
+
     jobs:
       test:
         runs-on: ubuntu-latest
-        
+
         steps:
-          - uses: actions/checkout@v3
-          
-          - name: Set up Python
-            uses: actions/setup-python@v4
-            with:
-              python-version: '3.10'
-          
+          - uses: actions/checkout@v4
+
           - name: Install IVPM
             run: pip install ivpm
-          
-          - name: Setup cache
-            uses: actions/cache@v3
-            with:
-              path: ~/.cache/ivpm
-              key: ivpm-${{ runner.os }}-${{ hashFiles('ivpm.yaml') }}
-              restore-keys: |
-                ivpm-${{ runner.os }}-
-          
+
           - name: Update dependencies
-            run: |
-              export IVPM_CACHE=~/.cache/ivpm
-              ivpm cache init $IVPM_CACHE
-              ivpm update -a -d default-dev
-          
+            run: ivpm update -a -d default-dev
+            # No IVPM_CACHE or actions/cache step needed.
+            # IVPM auto-detects GHA and caches each package individually.
+
           - name: Run tests
             run: ivpm activate -c "pytest --cov=src"
-          
+
           - name: Upload coverage
             uses: codecov/codecov-action@v3
 
-With Caching
-~~~~~~~~~~~~
+Per-package GHA cache keys follow the pattern
+``ivpm-pkg-{OS}-{name}-{version}`` so cache entries are reused across
+branches and workflow runs.
+
+The Python virtual environment (``packages/python``) and the pip/uv wheel
+cache are also saved and restored automatically.
+
+Explicit Cache Backend Selection
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+To force a specific backend regardless of environment:
 
 .. code-block:: yaml
 
-    - name: Cache IVPM packages
-      uses: actions/cache@v3
+    - name: Update dependencies
+      run: ivpm update --cache-backend gha -a -d default-dev
+
+Or disable caching entirely:
+
+.. code-block:: yaml
+
+    - name: Update dependencies
+      run: ivpm update --cache-backend none -a -d default-dev
+
+Manual ``actions/cache`` Approach (Legacy)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you prefer to manage caching yourself with ``actions/cache``, or if you
+are using a GHA version that does not expose ``ACTIONS_CACHE_URL``:
+
+.. code-block:: yaml
+
+    - name: Setup IVPM cache
+      uses: actions/cache@v4
       with:
-        path: |
-          ~/.cache/ivpm
-          packages/
+        path: ~/.cache/ivpm
         key: ivpm-${{ runner.os }}-${{ hashFiles('ivpm.yaml') }}
+        restore-keys: |
+          ivpm-${{ runner.os }}-
+
+    - name: Update dependencies
+      run: |
+        export IVPM_CACHE=~/.cache/ivpm
+        ivpm update --cache-backend filesystem -a -d default-dev
 
 Matrix Testing
 ~~~~~~~~~~~~~~
@@ -262,19 +291,14 @@ Matrix Testing
 
     strategy:
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.9', '3.10', '3.11', '3.12']
         os: [ubuntu-latest, macos-latest, windows-latest]
-    
+
     runs-on: ${{ matrix.os }}
-    
+
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python-version }}
-      
+      - uses: actions/checkout@v4
+
       - name: Install IVPM
         run: pip install ivpm
       

@@ -66,6 +66,131 @@ IVPM supports three caching modes per package, controlled by the ``cache`` attri
     - Can be modified and committed
     - Development-friendly
 
+Cache Backends
+==============
+
+IVPM supports a pluggable cache backend system.  The backend controls
+*where* package data is stored and retrieved.
+
+Available Backends
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
+
+   * - Backend
+     - Description
+   * - ``auto``
+     - Auto-detect: use ``gha`` if running inside GitHub Actions, else
+       ``filesystem`` if ``IVPM_CACHE`` is set, else no caching.
+       **This is the default.**
+   * - ``filesystem``
+     - Local directory cache.  Requires ``IVPM_CACHE`` environment variable
+       or ``local-dir`` in the ``cache:`` YAML block.
+   * - ``gha``
+     - GitHub Actions cache service.  Two-level cache: local filesystem (L1)
+       plus the GHA REST API (L2).  Requires ``ACTIONS_CACHE_URL`` and
+       ``ACTIONS_RUNTIME_TOKEN`` (set automatically by GHA runners).
+   * - ``none``
+     - Disable caching entirely, even if ``IVPM_CACHE`` is set.
+
+Selecting a Backend
+-------------------
+
+There are three ways to select a backend, evaluated in priority order:
+
+1. **CLI flag** (highest priority):
+
+   .. code-block:: bash
+
+       ivpm update --cache-backend gha
+       ivpm update --cache-backend filesystem
+       ivpm update --cache-backend none
+
+2. **Environment variable:**
+
+   .. code-block:: bash
+
+       export IVPM_CACHE_BACKEND=gha   # or filesystem | none | auto
+
+3. **``cache:`` block in ``ivpm.yaml``** (see :ref:`cache-yaml-block` below).
+
+4. **Auto-detect** (lowest priority): GHA if inside GitHub Actions, otherwise
+   filesystem if ``IVPM_CACHE`` is set, otherwise no caching.
+
+GitHub Actions Backend
+----------------------
+
+When running inside a GitHub Actions workflow, IVPM can automatically exploit
+the GHA cache service — no ``actions/cache`` step required.
+
+**How it works:**
+
+- Each package version is stored as an individual GHA cache entry, keyed by
+  ``ivpm-pkg-{OS}-{name}-{version}``.
+- On the first run, packages are fetched normally and uploaded to the GHA cache
+  in the background (async).
+- On subsequent runs (e.g. later workflow runs or parallel matrix jobs), IVPM
+  restores packages from the GHA cache into a local L1 directory before linking.
+- The Python virtual environment and pip wheel cache are also saved/restored.
+
+**Auto-detection:** The GHA backend activates automatically when both
+``ACTIONS_CACHE_URL`` and ``ACTIONS_RUNTIME_TOKEN`` are set.  These are
+injected by GitHub Actions runners.  No workflow changes are needed.
+
+**Manual activation** (e.g., in a self-hosted runner without auto env vars):
+
+.. code-block:: bash
+
+    ivpm update --cache-backend gha
+
+.. _cache-yaml-block:
+
+``cache:`` Block in ``ivpm.yaml``
+---------------------------------
+
+Fine-tune backend behaviour in ``ivpm.yaml`` under the top-level ``package:``
+key:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      cache:
+        backend: auto           # auto | filesystem | gha | none
+        local-dir: ~/.cache/ivpm   # override IVPM_CACHE
+        key-prefix: myproject   # prefix for GHA cache keys (default: ivpm)
+        include-python-venv: true   # save/restore Python venv (default: true)
+        include-pip-cache: true     # save/restore pip wheel cache (default: true)
+        max-age-days: 30            # local cache eviction threshold (default: 30)
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 15 60
+
+   * - Key
+     - Default
+     - Description
+   * - ``backend``
+     - ``auto``
+     - Which backend to use (``auto`` / ``filesystem`` / ``gha`` / ``none``)
+   * - ``local-dir``
+     - ``$IVPM_CACHE``
+     - Local directory for the filesystem or GHA L1 cache
+   * - ``key-prefix``
+     - ``ivpm``
+     - Short string prepended to all GHA cache keys
+   * - ``include-python-venv``
+     - ``true``
+     - Whether to save/restore the Python virtual environment
+   * - ``include-pip-cache``
+     - ``true``
+     - Whether to save/restore the pip/uv wheel cache
+   * - ``max-age-days``
+     - ``30``
+     - Remove local cache entries older than this many days on clean
+
 Configuration
 =============
 
@@ -606,24 +731,26 @@ cache info
 
 .. code-block:: text
 
-   ivpm cache info [-c/--cache-dir <dir>] [-v/--verbose]
+   ivpm cache info [-c/--cache-dir <dir>] [-v/--verbose] [--backend {auto,filesystem,gha,none}]
 
 Options:
 
 - ``-c, --cache-dir``: Cache directory (default: ``$IVPM_CACHE``)
 - ``-v, --verbose``: Show detailed version information
+- ``--backend``: Which backend to query (default: ``auto``)
 
 cache clean
 -----------
 
 .. code-block:: text
 
-   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>]
+   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>] [--backend {auto,filesystem,gha,none}]
 
 Options:
 
 - ``-c, --cache-dir``: Cache directory (default: ``$IVPM_CACHE``)
 - ``-d, --days``: Remove entries older than this many days (default: 7)
+- ``--backend``: Which backend to clean (default: ``auto``)
 
 See Also
 ========

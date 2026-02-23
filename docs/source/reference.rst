@@ -158,7 +158,7 @@ Display cache information.
 
 .. code-block:: text
 
-    ivpm cache info [-c|--cache-dir <dir>] [-v|--verbose]
+    ivpm cache info [-c|--cache-dir <dir>] [-v|--verbose] [--backend <name>]
 
 **Options:**
 
@@ -167,6 +167,9 @@ Display cache information.
 
 ``-v, --verbose``
     Show detailed version information
+
+``--backend {auto,filesystem,gha,none}``
+    Backend to query (default: ``auto``)
 
 **Examples:**
 
@@ -185,7 +188,7 @@ Remove old cache entries.
 
 .. code-block:: text
 
-    ivpm cache clean [-c|--cache-dir <dir>] [-d|--days <n>]
+    ivpm cache clean [-c|--cache-dir <dir>] [-d|--days <n>] [--backend <name>]
 
 **Options:**
 
@@ -194,6 +197,9 @@ Remove old cache entries.
 
 ``-d, --days <n>``
     Remove entries older than N days (default: 7)
+
+``--backend {auto,filesystem,gha,none}``
+    Backend to clean (default: ``auto``)
 
 **Examples:**
 
