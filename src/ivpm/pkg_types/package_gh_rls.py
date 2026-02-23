@@ -30,7 +30,6 @@ import shutil
 import dataclasses as dc
 from typing import Optional
 from ..proj_info import ProjInfo
-from ..cache import Cache
 from ..utils import note
 from .package_http import PackageHttp
 
@@ -252,10 +251,7 @@ class PackageGhRls(PackageHttp):
 
         cache = update_info.cache
         if cache is None:
-            cache = Cache()
-
-        if not cache.is_enabled():
-            note("IVPM_CACHE not set - falling back to no-cache mode for %s" % self.name)
+            note("No cache backend configured - falling back to no-cache mode for %s" % self.name)
             return self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
 
         if cache.has_version(self.name, version):

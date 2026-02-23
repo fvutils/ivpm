@@ -20,12 +20,24 @@
 #*
 #****************************************************************************
 import os
+import dataclasses as dc
 from enum import Enum, auto
 from ivpm.packages_info import PackagesInfo
 from .ivpm_yaml_reader import IvpmYamlReader
 from .msg import error, fatal, note
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .env_spec import EnvSpec
+
+
+@dc.dataclass
+class CacheConfig:
+    """Settings parsed from the ``cache:`` block in ivpm.yaml."""
+    backend: Optional[str] = None           # auto|filesystem|gha|none
+    local_dir: Optional[str] = None         # override for local cache directory
+    key_prefix: Optional[str] = None        # prefix for GHA cache keys
+    include_python_venv: bool = True
+    include_pip_cache: bool = True
+    max_age_days: int = 30
 
 class ProjInfo():
     """Holds information read about a project from its IVPM file"""
@@ -52,6 +64,7 @@ class ProjInfo():
         self.process_deps = True
         self.paths : Dict[str, Dict[str, List[str]]] = {}
         self.env_settings : List[EnvSpec] = []
+        self.cache_config : Optional[CacheConfig] = None
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()

@@ -28,7 +28,7 @@ from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
 from ..utils import note, fatal
-from ..cache import Cache, is_github_url, parse_github_url
+from ..cache import is_github_url, parse_github_url
 
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
 
@@ -158,11 +158,7 @@ class PackageGit(PackageURL):
         
         cache = update_info.cache
         if cache is None:
-            cache = Cache()
-        
-        # If cache is not properly configured, fall back to full clone
-        if not cache.is_enabled():
-            note("IVPM_CACHE not set - falling back to full clone for %s" % self.name)
+            note("No cache backend configured - falling back to full clone for %s" % self.name)
             return self._update_full_clone(update_info, pkg_dir)
         
         # Check if this version is cached

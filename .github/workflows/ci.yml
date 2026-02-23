@@ -47,4 +47,53 @@ jobs:
         branch: gh-pages
         folder: build/html
 
+  gha-cache-integration:
+    runs-on: ubuntu-latest
+    services:
+      cache-server:
+        image: ghcr.io/falcondev-oss/github-actions-cache-server:8
+        ports:
+          - 3000:3000
+        env:
+          API_BASE_URL: http://localhost:3000
+          STORAGE_DRIVER: filesystem
+          STORAGE_FILESYSTEM_PATH: /data/cache
+          DB_DRIVER: sqlite
+          DB_SQLITE_PATH: /data/cache-server.db
+    steps:
+    - uses: actions/checkout@v4
+    - name: Configure Python
+      run: |
+        ./bootstrap.sh
+        ./packages/python/bin/python3 -m pip install setuptools build --upgrade
+    - name: Run GHA cache integration tests
+      env:
+        IVPM_TEST_GHA_SERVER: "1"
+        ACTIONS_CACHE_URL: http://localhost:3000/
+        ACTIONS_RUNTIME_TOKEN: ivpm-ci-test-token
+      run: |
+        export PYTHONPATH=$(pwd)/src:$(pwd)/test
+        cd test
+        ../packages/python/bin/python3 -m unittest unit.test_gha_integration -v
+    - name: Verify cache-backend=gha (first run — populate)
+      env:
+        ACTIONS_CACHE_URL: http://localhost:3000/
+        ACTIONS_RUNTIME_TOKEN: ivpm-ci-test-token
+        IVPM_CACHE: /tmp/ivpm-cache
+      run: |
+        export PYTHONPATH=$(pwd)/src
+        ./packages/python/bin/python3 -m ivpm update --cache-backend gha --skip-py-install \
+          2>&1 | tee /tmp/ivpm-run1.log
+    - name: Verify cache-backend=gha (second run — cache hit)
+      env:
+        ACTIONS_CACHE_URL: http://localhost:3000/
+        ACTIONS_RUNTIME_TOKEN: ivpm-ci-test-token
+        IVPM_CACHE: /tmp/ivpm-cache-hit
+      run: |
+        export PYTHONPATH=$(pwd)/src
+        ./packages/python/bin/python3 -m ivpm update --cache-backend gha --skip-py-install \
+          2>&1 | tee /tmp/ivpm-run2.log
+        # At least one "Restored … from GHA cache" message should appear
+        grep -q "Restored" /tmp/ivpm-run2.log || \
+          { echo "ERROR: expected 'Restored' in second run log"; cat /tmp/ivpm-run2.log; exit 1; }
 

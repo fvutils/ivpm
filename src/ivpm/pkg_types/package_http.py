@@ -28,7 +28,6 @@ from .package_file import PackageFile
 from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note
 from ..package import SourceType2Ext
-from ..cache import Cache
 
 class PackageHttp(PackageFile):
 
@@ -102,11 +101,7 @@ class PackageHttp(PackageFile):
         
         cache = update_info.cache
         if cache is None:
-            cache = Cache()
-        
-        # If cache is not properly configured, fall back to no cache
-        if not cache.is_enabled():
-            note("IVPM_CACHE not set - falling back to no-cache mode for %s" % self.name)
+            note("No cache backend configured - falling back to no-cache mode for %s" % self.name)
             return self._update_no_cache_readonly(update_info, pkg_dir)
         
         # Check if this version is cached

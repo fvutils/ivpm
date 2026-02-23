@@ -86,7 +86,19 @@ class IvpmYamlReader(object):
                 self.process_env_directive(
                     ret,
                     evar)
-            
+
+        if "cache" in pkg.keys():
+            from .proj_info import CacheConfig
+            c = pkg["cache"]
+            ret.cache_config = CacheConfig(
+                backend=c.get("backend"),
+                local_dir=c.get("local-dir"),
+                key_prefix=c.get("key-prefix"),
+                include_python_venv=c.get("include-python-venv", True),
+                include_pip_cache=c.get("include-pip-cache", True),
+                max_age_days=c.get("max-age-days", 30),
+            )
+
         return ret
 
     def read_dep_sets(self, info : 'ProjInfo', dep_sets):

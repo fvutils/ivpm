@@ -19,9 +19,11 @@
 #*     Author: 
 #*
 #****************************************************************************
+import hashlib
 import logging
 import os
 import json
+import sys
 import dataclasses as dc
 from typing import Tuple, List, Optional
 from .package import Package, SourceType
@@ -32,8 +34,20 @@ from .update_event import UpdateEventDispatcher
 from .update_tui import create_update_tui, RichUpdateTUI
 from .utils import fatal, note, get_venv_python, setup_venv, warning
 from .package_lock import write_lock, check_lock_changes
+from .cache_backend.registry import BackendRegistry
 
 _logger = logging.getLogger("ivpm.project_ops")
+
+
+def _compute_req_hash(root_dir: str) -> str:
+    """Compute a stable hash of the project's dependency specification files."""
+    h = hashlib.sha256()
+    for fname in ("ivpm.yaml", "requirements.txt"):
+        path = os.path.join(root_dir, fname)
+        if os.path.isfile(path):
+            with open(path, "rb") as f:
+                h.update(f.read())
+    return h.hexdigest()[:16]
 
 
 @dc.dataclass
@@ -69,44 +83,68 @@ class ProjectOps(object):
         if isinstance(tui, RichUpdateTUI):
             tui.start()
  
+        # Select and activate cache backend early so venv restore hooks work.
+        explicit_backend = getattr(args, "cache_backend", None)
+        cache_backend = BackendRegistry.select(
+            explicit=explicit_backend, config=proj_info.cache_config
+        )
+        if cache_backend is not None:
+            cache_backend.activate()
+
+        any_errors = False
         try:
             # Ensure that we have a python virtual environment setup
             if not skip_venv:
-                if not os.path.isdir(os.path.join(deps_dir, "python")):
+                venv_dir = os.path.join(deps_dir, "python")
+                if not os.path.isdir(venv_dir):
                     uv_pip = "auto"
                     if hasattr(args, "py_uv") and args.py_uv:
                         uv_pip = "uv"
                     elif hasattr(args, "py_pip") and args.py_pip:
                         uv_pip = "pip"
-                    
-                    # Signal venv creation start
-                    venv_start_time = time.time()
-                    event_dispatcher.dispatch(UpdateEvent(
-                        event_type=UpdateEventType.VENV_START
-                    ))
-                    
-                    try:
-                        ivpm_python = setup_venv(
-                            os.path.join(deps_dir, "python"), 
-                            uv_pip=uv_pip,
-                            suppress_output=suppress_output
+
+                    # Try to restore venv from cache before building a fresh one
+                    venv_restored = False
+                    if cache_backend is not None:
+                        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+                        req_hash = _compute_req_hash(self.root_dir)
+                        venv_restored = cache_backend.try_restore_venv(
+                            venv_dir, py_ver, req_hash
                         )
-                        # Signal venv creation complete
+
+                    if not venv_restored:
+                        # Signal venv creation start
+                        venv_start_time = time.time()
                         event_dispatcher.dispatch(UpdateEvent(
-                            event_type=UpdateEventType.VENV_COMPLETE,
-                            duration=time.time() - venv_start_time
+                            event_type=UpdateEventType.VENV_START
                         ))
-                    except Exception as e:
-                        # Signal venv creation error
-                        event_dispatcher.dispatch(UpdateEvent(
-                            event_type=UpdateEventType.VENV_ERROR,
-                            error_message=str(e)
-                        ))
-                        raise
+                        try:
+                            ivpm_python = setup_venv(
+                                venv_dir,
+                                uv_pip=uv_pip,
+                                suppress_output=suppress_output
+                            )
+                            # Notify backend so it can upload the fresh venv later
+                            if cache_backend is not None:
+                                cache_backend.notify_venv_rebuilt()
+                            # Signal venv creation complete
+                            event_dispatcher.dispatch(UpdateEvent(
+                                event_type=UpdateEventType.VENV_COMPLETE,
+                                duration=time.time() - venv_start_time
+                            ))
+                        except Exception as e:
+                            # Signal venv creation error
+                            event_dispatcher.dispatch(UpdateEvent(
+                                event_type=UpdateEventType.VENV_ERROR,
+                                error_message=str(e)
+                            ))
+                            raise
+                    else:
+                        ivpm_python = get_venv_python(venv_dir)
                 else:
                     note("python virtual environment already exists")
-                    ivpm_python = get_venv_python(os.path.join(deps_dir, "python"))
-                
+                    ivpm_python = get_venv_python(venv_dir)
+
             _logger.info("Processing root package %s", proj_info.name)
 
             if self.debug:
@@ -143,10 +181,13 @@ class ProjectOps(object):
 
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
             updater = PackageUpdater(deps_dir, pkg_handler, args=args)
-            
+
+            # Attach the already-selected cache backend to the updater
+            updater.update_info.cache = cache_backend
+
             # Configure event dispatcher on update_info
             updater.update_info.event_dispatcher = event_dispatcher
-            
+
             # Suppress subprocess output when using Rich TUI
             updater.update_info.suppress_output = suppress_output
 
@@ -158,8 +199,8 @@ class ProjectOps(object):
 
             # Call the handlers to take care of project-level setup work
             update_info = ProjectUpdateInfo(
-                args, deps_dir, 
-                force_py_install=force_py_install, 
+                args, deps_dir,
+                force_py_install=force_py_install,
                 skip_venv=skip_venv,
                 suppress_output=suppress_output
             )
@@ -177,7 +218,13 @@ class ProjectOps(object):
             ivpm_json["dep-set"] = dep_set
             with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
                 json.dump(ivpm_json, fp)
+
+        except Exception:
+            any_errors = True
+            raise
         finally:
+            if cache_backend is not None:
+                cache_backend.deactivate(success=not any_errors)
             # Ensure TUI is stopped on exception
             if isinstance(tui, RichUpdateTUI):
                 tui.stop()

@@ -232,13 +232,15 @@ class PackageHandlerPython(PackageHandler):
 
             note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
             suppress_output = getattr(update_info, 'suppress_output', False)
+            pip_cache_dir = getattr(update_info.cache, 'pip_cache_dir', None) if update_info.cache else None
             for reqfile in python_requirements_paths:
                 self._install_requirements(
                     os.path.join(update_info.deps_dir, "python"),
                     reqfile,
                     getattr(update_info.args, "py_prerls_packages", False),
                     self.use_uv,
-                    suppress_output=suppress_output)
+                    suppress_output=suppress_output,
+                    pip_cache_dir=pip_cache_dir)
 
     def get_lock_entries(self, deps_dir: str) -> dict:
         """Return pip-resolved package versions from the managed venv.
@@ -335,7 +337,8 @@ class PackageHandlerPython(PackageHandler):
                               requirements_file,
                               use_pre,
                               use_uv,
-                              suppress_output=False):
+                              suppress_output=False,
+                              pip_cache_dir=None):
         """Installs the requirements specified in a file"""
 
         # Setup output redirection
@@ -349,6 +352,8 @@ class PackageHandlerPython(PackageHandler):
         if use_uv:
             env = os.environ.copy()
             env["VIRTUAL_ENV"] = python_dir
+            if pip_cache_dir:
+                env["UV_CACHE_DIR"] = pip_cache_dir
 
             cmd = [
                 shutil.which("uv"),
@@ -375,6 +380,8 @@ class PackageHandlerPython(PackageHandler):
             ps = ";" if platform.system() == "Windows" else ":"
             env = os.environ.copy()
             env["PYTHONPATH"] = ps.join(sys.path)
+            if pip_cache_dir:
+                env["PIP_CACHE_DIR"] = pip_cache_dir
 
             cwd = os.getcwd()
             os.chdir(os.path.join(python_dir))

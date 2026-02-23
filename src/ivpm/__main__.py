@@ -99,6 +99,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Cache directory (default: $IVPM_CACHE)")
     cache_info_cmd.add_argument("-v", "--verbose", dest="verbose", action="store_true",
         help="Show detailed version information")
+    cache_info_cmd.add_argument("--backend", dest="backend",
+        choices=["auto", "filesystem", "gha", "none"],
+        help="Cache backend to query (default: auto)")
 
     cache_clean_cmd = cache_subparser.add_parser("clean",
         help="Remove old cache entries")
@@ -106,6 +109,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Cache directory (default: $IVPM_CACHE)")
     cache_clean_cmd.add_argument("-d", "--days", dest="days", type=int, default=7,
         help="Remove entries older than this many days (default: 7)")
+    cache_clean_cmd.add_argument("--backend", dest="backend",
+        choices=["auto", "filesystem", "gha", "none"],
+        help="Cache backend to clean (default: auto)")
 
     cache_cmd.set_defaults(func=CmdCache())
     subcommands["cache"] = cache_cmd
@@ -180,6 +186,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--force", dest="force",
         action="store_true", default=False,
         help="Suppress safety errors during refresh; implies --refresh-all")
+    update_cmd.add_argument("--cache-backend", dest="cache_backend",
+        choices=["auto", "filesystem", "gha", "none"], default=None,
+        help="Cache backend to use (default: auto-detect)")
     subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
