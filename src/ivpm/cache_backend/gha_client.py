@@ -112,7 +112,11 @@ class GHACacheClient:
         req = urllib.request.Request(download_url)
         with urllib.request.urlopen(req) as resp:
             with tarfile.open(fileobj=resp, mode="r|gz") as tf:
-                tf.extractall(dest_dir)
+                try:
+                    tf.extractall(dest_dir, filter="data")
+                except TypeError:
+                    # filter= was added in Python 3.12 (backported to 3.11.4/3.10.12)
+                    tf.extractall(dest_dir)  # noqa: S202
         _logger.debug("Downloaded and extracted to %s", dest_dir)
 
     def upload(self, key: str, src_dir: str) -> bool:
@@ -170,6 +174,9 @@ class GHACacheClient:
             return False
 
         # Step 2: build tar.gz in memory (stream to temp file to allow chunking)
+        if not src_dir or not os.path.isdir(src_dir):
+            _logger.warning("Cannot upload %r: %r is not a valid directory", key, src_dir)
+            return False
         with tempfile.NamedTemporaryFile(suffix=".tar.gz", delete=False) as tmp:
             tmp_path = tmp.name
         try:

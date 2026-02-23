@@ -103,6 +103,13 @@ class CacheBackend(ABC):
     def notify_venv_rebuilt(self) -> None:
         """Called after a fresh venv is created so the backend can persist it."""
 
+    def set_venv_info(self, venv_dir: str, py_version: str, req_hash: str) -> None:
+        """Provide venv metadata to the backend (e.g. when venv already exists).
+
+        Called even when the venv was not rebuilt so the backend has the correct
+        req_hash for pip-cache key construction.
+        """
+
     # ------------------------------------------------------------------ #
     # Discovery                                                            #
     # ------------------------------------------------------------------ #

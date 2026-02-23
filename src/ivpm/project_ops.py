@@ -144,6 +144,11 @@ class ProjectOps(object):
                 else:
                     note("python virtual environment already exists")
                     ivpm_python = get_venv_python(venv_dir)
+                    # Provide req_hash to backend so pip-cache upload uses the right key
+                    if cache_backend is not None:
+                        py_ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+                        req_hash = _compute_req_hash(self.root_dir)
+                        cache_backend.set_venv_info(venv_dir, py_ver, req_hash)
 
             _logger.info("Processing root package %s", proj_info.name)
 

@@ -137,18 +137,30 @@ class GHACacheBackend(CacheBackend):
         if download_url is None:
             return False
 
-        # Download and populate L1
+        # Download and populate L1 atomically: extract to a temp dir first,
+        # then rename into the final location so a concurrent download to the
+        # same entry cannot corrupt the cache directory.
         dest = self._fs._version_dir(package_name, version)
+        parent = os.path.dirname(dest)
         try:
             self._fs._ensure_pkg_dir(package_name)
-            client.download(download_url, dest)
+            tmp_dest = dest + ".tmp"
+            if os.path.exists(tmp_dest):
+                shutil.rmtree(tmp_dest, ignore_errors=True)
+            client.download(download_url, tmp_dest)
+            if os.path.exists(dest):
+                # Another thread/process beat us to it — discard our copy
+                shutil.rmtree(tmp_dest, ignore_errors=True)
+            else:
+                os.rename(tmp_dest, dest)
             self._fs._make_readonly(dest)
             note(f"Restored {package_name} {version[:12]} from GHA cache")
             return True
         except Exception as exc:
             _logger.warning("Failed to restore %s from GHA cache: %s", package_name, exc)
-            if os.path.exists(dest):
-                shutil.rmtree(dest, ignore_errors=True)
+            for path in (dest + ".tmp", dest):
+                if os.path.exists(path):
+                    shutil.rmtree(path, ignore_errors=True)
             return False
 
     def store_version(self, package_name: str, version: str, source_path: str) -> str:
@@ -190,7 +202,7 @@ class GHACacheBackend(CacheBackend):
                     _logger.warning("GHA upload error: %s", exc)
             self._pending_uploads.clear()
 
-        self._executor.shutdown(wait=False)
+        self._executor.shutdown(wait=True)
 
         if not success:
             return
