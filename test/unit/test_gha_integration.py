@@ -294,5 +294,125 @@ class TestGHACacheBackendIntegration(GHAIntegrationBase):
             self.assertIsNotNone(client.lookup(key))
 
 
+
+# ---------------------------------------------------------------------------
+# Layer 4: tests against the REAL GitHub Actions cache service
+# ---------------------------------------------------------------------------
+
+_GHA_CACHE_URL = os.environ.get("ACTIONS_CACHE_URL", "")
+_GHA_TOKEN = os.environ.get("ACTIONS_RUNTIME_TOKEN", "")
+_GHA_RUN_ID = os.environ.get("GITHUB_RUN_ID", "local")
+_GHA_RUN_ATTEMPT = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+
+_REAL_GHA_SKIP_REASON = (
+    "Not running inside GitHub Actions (ACTIONS_CACHE_URL / "
+    "ACTIONS_RUNTIME_TOKEN not set)."
+)
+
+
+@unittest.skipUnless(_GHA_CACHE_URL and _GHA_TOKEN, _REAL_GHA_SKIP_REASON)
+class TestGHACacheReal(TestBase):
+    """Tests against the live GitHub Actions cache service.
+
+    These tests run automatically when the workflow executes on a GHA
+    runner (ACTIONS_CACHE_URL and ACTIONS_RUNTIME_TOKEN are present).
+    They are skipped silently in all other environments.
+
+    Cache keys include the run ID and attempt number so parallel runs and
+    re-runs never collide on the same key.
+    """
+
+    # Unique prefix per run so retries and concurrent jobs don't conflict
+    _KEY_PREFIX = f"ivpm-test-{_GHA_RUN_ID}-{_GHA_RUN_ATTEMPT}"
+
+    def _make_client(self):
+        from ivpm.cache_backend.gha_client import GHACacheClient
+        return GHACacheClient(
+            cache_url=_GHA_CACHE_URL,
+            token=_GHA_TOKEN,
+            key_prefix=self._KEY_PREFIX,
+            os_name=os.environ.get("RUNNER_OS", "Linux"),
+        )
+
+    def _make_src_dir(self, name: str = "pkg", content: str = "hello") -> str:
+        src = os.path.join(self.testdir, f"src_{name}")
+        os.makedirs(src, exist_ok=True)
+        with open(os.path.join(src, "data.txt"), "w") as f:
+            f.write(content)
+        return src
+
+    # --- GHACacheClient against real service ---
+
+    def test_real_lookup_miss(self):
+        """A key that was never uploaded must return None."""
+        client = self._make_client()
+        result = client.lookup(client.pkg_key("no-such-pkg", "v0"))
+        self.assertIsNone(result)
+
+    def test_real_upload_and_lookup(self):
+        """Upload a key and immediately look it up."""
+        client = self._make_client()
+        src = self._make_src_dir("real-up", "real-upload")
+        key = client.pkg_key("real-upload-pkg", "v1")
+        ok = client.upload(key, src)
+        self.assertTrue(ok, "upload should succeed against real GHA service")
+        url = client.lookup(key)
+        self.assertIsNotNone(url, "lookup should find recently uploaded key")
+
+    def test_real_roundtrip(self):
+        """Upload a directory, download it, verify contents."""
+        client = self._make_client()
+        src = self._make_src_dir("real-rt", "roundtrip-content")
+        key = client.pkg_key("real-roundtrip-pkg", "v1")
+        self.assertTrue(client.upload(key, src))
+
+        url = client.lookup(key)
+        self.assertIsNotNone(url)
+
+        dest = os.path.join(self.testdir, "real-dest")
+        client.download(url, dest)
+        fpath = os.path.join(dest, "data.txt")
+        self.assertTrue(os.path.isfile(fpath))
+        with open(fpath) as f:
+            self.assertEqual(f.read(), "roundtrip-content")
+
+    # --- GHACacheBackend L2 restore against real service ---
+
+    def test_real_backend_l2_restore(self):
+        """Store via backend, evict L1, verify L2 restores into L1."""
+        from ivpm.cache_backend.gha import GHACacheBackend
+        from .test_base import _force_rmtree
+
+        local_dir = os.path.join(self.testdir, "l1")
+        os.makedirs(local_dir)
+        backend = GHACacheBackend(
+            local_dir=local_dir,
+            key_prefix=self._KEY_PREFIX,
+        )
+
+        # Build a small source package
+        src = self._make_src_dir("real-bk", "backend-data")
+        backend.store_version("real-bk-pkg", "v1", src)
+        backend.deactivate(success=True)
+
+        # Evict L1
+        pkg_dir = os.path.join(local_dir, "real-bk-pkg")
+        if os.path.isdir(pkg_dir):
+            _force_rmtree(pkg_dir)
+
+        # Fresh backend — must restore from L2
+        backend2 = GHACacheBackend(
+            local_dir=local_dir,
+            key_prefix=self._KEY_PREFIX,
+        )
+        self.assertTrue(
+            backend2.has_version("real-bk-pkg", "v1"),
+            "GHA L2 should restore the package after L1 eviction",
+        )
+        restored = os.path.join(local_dir, "real-bk-pkg", "v1")
+        self.assertTrue(os.path.isfile(os.path.join(restored, "data.txt")))
+
+
 if __name__ == "__main__":
     unittest.main()
+
