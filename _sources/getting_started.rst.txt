@@ -69,6 +69,11 @@ Clone Command Options
     Choose whether ``ivpm update`` should use "uv" or "pip"
     to manage the project-local Python virtual environment.
 
+``--py-system-site-packages``
+    Opt in to inheriting system site-packages inside the virtual environment.
+    By default the environment is **isolated**; use this flag only when you
+    need access to system-installed packages (e.g. hardware-specific bindings).
+
 **Examples:**
 
 .. code-block:: bash

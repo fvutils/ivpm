@@ -36,6 +36,18 @@ Creates::
         └── ...
 
 The virtual environment is created using Python's built-in ``venv`` module.
+By default the environment is **isolated**: packages installed in the base
+Python or system Python are **not** visible inside it.  This ensures
+reproducible, self-contained workspaces.
+
+To opt in to inheriting system site-packages (e.g. for hardware-specific
+Python extensions that cannot be installed via pip), pass
+``--py-system-site-packages`` to ``ivpm update`` or ``ivpm clone``:
+
+.. code-block:: bash
+
+    $ ivpm update --py-system-site-packages
+    $ ivpm clone https://github.com/org/project --py-system-site-packages
 
 Package Manager Selection
 --------------------------

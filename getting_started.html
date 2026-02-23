@@ -183,6 +183,10 @@ will be checked out tracking the remote; otherwise, a new local branch is create
 <dt><code class="docutils literal notranslate"><span class="pre">--py-uv</span></code> or <code class="docutils literal notranslate"><span class="pre">--py-pip</span></code></dt><dd><p>Choose whether <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> should use “uv” or “pip”
 to manage the project-local Python virtual environment.</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-system-site-packages</span></code></dt><dd><p>Opt in to inheriting system site-packages inside the virtual environment.
+By default the environment is <strong>isolated</strong>; use this flag only when you
+need access to system-installed packages (e.g. hardware-specific bindings).</p>
+</dd>
 </dl>
 <p><strong>Examples:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Clone with default workspace directory name</span>

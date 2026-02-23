@@ -168,7 +168,17 @@ project-local virtual environment.</p>
     └── ...
 </pre></div>
 </div>
-<p>The virtual environment is created using Python’s built-in <code class="docutils literal notranslate"><span class="pre">venv</span></code> module.</p>
+<p>The virtual environment is created using Python’s built-in <code class="docutils literal notranslate"><span class="pre">venv</span></code> module.
+By default the environment is <strong>isolated</strong>: packages installed in the base
+Python or system Python are <strong>not</strong> visible inside it.  This ensures
+reproducible, self-contained workspaces.</p>
+<p>To opt in to inheriting system site-packages (e.g. for hardware-specific
+Python extensions that cannot be installed via pip), pass
+<code class="docutils literal notranslate"><span class="pre">--py-system-site-packages</span></code> to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> or <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">clone</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--py-system-site-packages
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>--py-system-site-packages
+</pre></div>
+</div>
 </section>
 <section id="package-manager-selection">
 <h3>Package Manager Selection<a class="headerlink" href="#package-manager-selection" title="Link to this heading"></a></h3>
