@@ -40,6 +40,7 @@ class PackageGit(PackageURL):
     tag : str = None
     depth : str = None
     anonymous : bool = None
+    resolved_commit : str = None  # actual commit hash after fetch
 
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
@@ -53,6 +54,7 @@ class PackageGit(PackageURL):
 
         if os.path.exists(pkg_dir) or os.path.islink(pkg_dir):
             note("package %s is already loaded" % self.name)
+            self._capture_resolved_commit(pkg_dir)
         else:
             # Check if caching is enabled and supported
             if self.cache is True:
@@ -152,6 +154,8 @@ class PackageGit(PackageURL):
         if commit_hash is None:
             fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
         
+        self.resolved_commit = commit_hash
+        
         cache = update_info.cache
         if cache is None:
             cache = Cache()
@@ -192,6 +196,7 @@ class PackageGit(PackageURL):
         note("loading package %s (no cache, read-only)" % self.name)
         
         self._clone_to_dir(update_info, pkg_dir, depth=1)
+        self._capture_resolved_commit(pkg_dir)
         
         # Make read-only
         self._make_readonly(pkg_dir)
@@ -203,8 +208,23 @@ class PackageGit(PackageURL):
         note("loading package %s" % self.name)
         
         self._clone_to_dir(update_info, pkg_dir, depth=self.depth)
+        self._capture_resolved_commit(pkg_dir)
         
         return ProjInfo.mkFromProj(pkg_dir)
+
+    def _capture_resolved_commit(self, pkg_dir: str):
+        """Read the HEAD commit hash from a cloned repo and store in resolved_commit."""
+        if self.resolved_commit is not None:
+            return  # already set (e.g. by cache path)
+        try:
+            result = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, cwd=pkg_dir, timeout=10
+            )
+            if result.returncode == 0:
+                self.resolved_commit = result.stdout.strip()
+        except Exception:
+            pass
 
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
         """Clone the repo to the specified directory."""

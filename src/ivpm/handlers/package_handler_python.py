@@ -240,9 +240,41 @@ class PackageHandlerPython(PackageHandler):
                     self.use_uv,
                     suppress_output=suppress_output)
 
+    def get_lock_entries(self, deps_dir: str) -> dict:
+        """Return pip-resolved package versions from the managed venv.
+
+        Queries the venv's Python interpreter with ``pip list --format=json``.
+        This works regardless of whether ``pip`` or ``uv`` was used to install
+        packages — both write to the same venv site-packages directory.
+        """
+        python_dir = os.path.join(deps_dir, "python")
+        if not os.path.isdir(python_dir):
+            return {}
+
+        venv_python = get_venv_python(python_dir)
+        if not os.path.isfile(venv_python):
+            return {}
+
+        try:
+            result = subprocess.run(
+                [venv_python, "-m", "pip", "list", "--format=json"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                _logger.warning("pip list failed: %s", result.stderr.strip())
+                return {}
+
+            import json
+            raw = json.loads(result.stdout)
+            versions = {item["name"]: item["version"] for item in raw}
+            return {"python_packages": versions}
+        except Exception as e:
+            _logger.warning("Failed to query pip versions for lock file: %s", e)
+            return {}
+
     def build(self, build_info : ProjectBuildInfo):
-        python_deps_m = {}
-        py_pkg_m = {}
         _logger.debug("src_pkg_s: %s", str(self.src_pkg_s))
         for pyp in self.src_pkg_s:
             _logger.debug("pyp: %s", pyp) 

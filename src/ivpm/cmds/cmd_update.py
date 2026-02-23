@@ -30,7 +30,10 @@ class CmdUpdate(object):
         ProjectOps(args.project_dir).update(
             dep_set=ds_name,
             force_py_install=args.force_py_install,
-            args=args)
+            args=args,
+            lock_file=getattr(args, "lock_file", None),
+            refresh_all=getattr(args, "refresh_all", False),
+            force=getattr(args, "force", False))
 
 
 

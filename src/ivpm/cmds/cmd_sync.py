@@ -12,6 +12,7 @@ from ivpm.arg_utils import ensure_have_project_dir
 from ivpm.msg import fatal, note
 from ..project_ops import ProjectOps
 from ..proj_info import ProjInfo
+from ..package_lock import write_lock, read_lock
 
 
 
@@ -80,5 +81,58 @@ class CmdSync(object):
                 os.chdir(cwd)
             elif os.path.isdir(pkg_path):
                 print("Note: skipping non-Git package \"" + dir + "\"")
-                sys.stdout.flush()        
-        pass
+                sys.stdout.flush()
+
+        # Update package-lock.json to reflect the new state of all packages.
+        # We re-read the current commit hashes by patching the existing lock
+        # entries — this preserves all non-git package entries unchanged.
+        self._update_lock_after_sync(packages_dir)
+
+    def _update_lock_after_sync(self, packages_dir: str):
+        """Regenerate package-lock.json after sync by reading current HEAD commits."""
+        lock_path = os.path.join(packages_dir, "package-lock.json")
+        if not os.path.isfile(lock_path):
+            return  # No lock file to update
+
+        try:
+            lock = read_lock(lock_path)
+        except Exception as e:
+            note("Warning: could not read package-lock.json for update: %s" % e)
+            return
+
+        packages = lock.get("packages", {})
+
+        for name, entry in packages.items():
+            if entry.get("src") != "git":
+                continue
+            pkg_path = os.path.join(packages_dir, name)
+            if not os.path.isdir(os.path.join(pkg_path, ".git")):
+                continue
+            try:
+                result = subprocess.run(
+                    ["git", "rev-parse", "HEAD"],
+                    capture_output=True, text=True, cwd=pkg_path, timeout=10
+                )
+                if result.returncode == 0:
+                    entry["commit_resolved"] = result.stdout.strip()
+            except Exception:
+                pass
+
+        # Re-use write_lock's atomic write by building a minimal fake pkgs dict.
+        # Simpler: just write the patched lock dict directly (atomically).
+        import json, hashlib
+        from datetime import datetime, timezone
+
+        lock["generated"] = datetime.now(timezone.utc).isoformat()
+        lock.pop("sha256", None)
+        body = json.dumps(lock, indent=2, sort_keys=True)
+        checksum = hashlib.sha256(body.encode()).hexdigest()
+        lock["sha256"] = checksum
+
+        tmp_path = lock_path + ".tmp"
+        with open(tmp_path, "w") as f:
+            json.dump(lock, indent=2, sort_keys=True, fp=f)
+            f.write("\n")
+        os.replace(tmp_path, lock_path)
+        note("Updated package-lock.json after sync")
+

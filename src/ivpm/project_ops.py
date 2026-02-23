@@ -31,6 +31,7 @@ from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from .update_event import UpdateEventDispatcher
 from .update_tui import create_update_tui, RichUpdateTUI
 from .utils import fatal, note, get_venv_python, setup_venv, warning
+from .package_lock import write_lock, check_lock_changes
 
 _logger = logging.getLogger("ivpm.project_ops")
 
@@ -44,7 +45,10 @@ class ProjectOps(object):
                dep_set : str = None,
                force_py_install : bool = False,
                skip_venv : bool = False,
-               args = None):
+               args = None,
+               lock_file : str = None,
+               refresh_all : bool = False,
+               force : bool = False):
         from .update_event import UpdateEvent, UpdateEventType
         import time
         
@@ -111,15 +115,31 @@ class ProjectOps(object):
                     for d in proj_info.dep_set_m[self.dep_set].packages.keys():
                         _logger.debug("  Package: %s", d)
 
-            ds = self._getDepSet(proj_info, dep_set)
+            if lock_file:
+                # Reproduction mode: use lock file as the sole package source
+                from .package_lock import IvpmLockReader
+                note("Reproducing workspace from lock file: %s" % lock_file)
+                lock_reader = IvpmLockReader(lock_file)
+                ds = lock_reader.build_packages_info()
+            else:
+                ds = self._getDepSet(proj_info, dep_set)
 
-            # If the root dependency set doesn't specify a source
-            # for IVPM, auto-load it from PyPi
-            if "ivpm" not in ds.packages.keys():
-                _logger.info("Will install IVPM from PyPi")
-                ivpm = Package("ivpm")
-                ivpm.src_type = SourceType.PyPi
-                ds.packages["ivpm"] = ivpm
+                # If the root dependency set doesn't specify a source
+                # for IVPM, auto-load it from PyPi
+                if "ivpm" not in ds.packages.keys():
+                    _logger.info("Will install IVPM from PyPi")
+                    ivpm = Package("ivpm")
+                    ivpm.src_type = SourceType.PyPi
+                    ds.packages["ivpm"] = ivpm
+
+                # Change detection: compare current specs against existing lock
+                if not refresh_all and not force:
+                    diffs = check_lock_changes(deps_dir, ds.packages)
+                    if diffs:
+                        note("The following packages have changed specs vs package-lock.json:")
+                        for name, diff in diffs.items():
+                            note("  %s: run with --refresh-all to re-fetch" % name)
+                        note("No packages re-fetched. Use --refresh-all to update.")
 
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
             updater = PackageUpdater(deps_dir, pkg_handler, args=args)
@@ -147,6 +167,10 @@ class ProjectOps(object):
 
             # Signal update complete
             updater.update_info.update_complete()
+
+            # Write package-lock.json with resolved package versions
+            handler_contributions = pkg_handler.get_lock_entries(deps_dir)
+            write_lock(deps_dir, updater.all_pkgs, handler_contributions)
 
             # Finally, write out some meta-data
             ivpm_json = {}

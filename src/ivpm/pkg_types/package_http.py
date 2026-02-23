@@ -57,7 +57,10 @@ class PackageHttp(PackageFile):
         """Get version identifier for a URL using HEAD request.
         
         Uses Last-Modified header or ETag as version identifier.
+        Also stores resolved_etag / resolved_last_modified on self.
         """
+        self.resolved_etag = None
+        self.resolved_last_modified = None
         try:
             response = httpx.head(url, follow_redirects=True, timeout=30)
             
@@ -65,6 +68,7 @@ class PackageHttp(PackageFile):
             if "Last-Modified" in response.headers:
                 # Convert to a safe directory name
                 lm = response.headers["Last-Modified"]
+                self.resolved_last_modified = lm
                 # Replace problematic characters
                 return lm.replace(" ", "_").replace(":", "-").replace(",", "")
             
@@ -79,6 +83,7 @@ class PackageHttp(PackageFile):
                     etag = etag[2:]
                 # Strip quotes again in case W/"..." format
                 etag = etag.strip('"').strip("'")
+                self.resolved_etag = etag
                 return etag
             
             # Last resort: use URL hash

@@ -42,5 +42,11 @@ class PackageHandlerList(PackageHandler):
 
     def update(self, update_info):
         for h in self.handlers:
-            h.update(update_info) 
+            h.update(update_info)
+
+    def get_lock_entries(self, deps_dir: str) -> dict:
+        result = {}
+        for h in self.handlers:
+            result.update(h.get_lock_entries(deps_dir))
+        return result
 

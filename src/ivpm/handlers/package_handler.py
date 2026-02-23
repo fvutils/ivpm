@@ -37,6 +37,15 @@ class PackageHandler(object):
         """Called after an 'update' action completes"""
         pass
 
+    def get_lock_entries(self, deps_dir: str) -> dict:
+        """Return extra top-level keys to merge into the lock file.
+
+        Called after update() completes.  The default returns an empty dict.
+        Handlers that want to contribute lock data (e.g. pip-resolved versions)
+        override this method.
+        """
+        return {}
+
     def build(self, build_info : ProjectBuildInfo):
         pass
 

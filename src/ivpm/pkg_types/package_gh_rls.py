@@ -40,6 +40,7 @@ class PackageGhRls(PackageHttp):
     file : Optional[str] = None
     prerelease : bool = False  # Whether to include prerelease releases when selecting
     source : bool = False  # Whether to force fetching source archive instead of binary
+    resolved_version : str = None  # actual release tag after fetch
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
@@ -78,9 +79,9 @@ class PackageGhRls(PackageHttp):
 
         # Query release metadata
         rls_info, rls, file_url, forced_ext = self._resolve_release()
-
         # Get version from release tag for caching
         release_tag = rls.get("tag_name", "")
+        self.resolved_version = release_tag
 
         # Check if caching is enabled
         if self.cache is True:

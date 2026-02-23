@@ -172,6 +172,14 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--py-pip",
         help="Use 'uv' to manage virtual environment",
         action="store_true")
+    update_cmd.add_argument("--lock-file", dest="lock_file", default=None,
+        help="Reproduce workspace from a package-lock.json file (ignores ivpm.yaml)")
+    update_cmd.add_argument("--refresh-all", dest="refresh_all",
+        action="store_true", default=False,
+        help="Re-fetch all packages regardless of existing package-lock.json state")
+    update_cmd.add_argument("--force", dest="force",
+        action="store_true", default=False,
+        help="Suppress safety errors during refresh; implies --refresh-all")
     subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     

@@ -800,6 +800,78 @@ Python Package Not Importable
     $ ivpm update --force-py-install
     $ ivpm activate -c "pip list"  # Verify it's installed
 
+Reproducible Workspaces
+=======================
+
+Every ``ivpm update`` and ``ivpm sync`` run automatically writes
+``packages/package-lock.json`` recording the exact resolved identity of every
+fetched package (git commit hashes, release tags, pip versions, HTTP ETags).
+See :doc:`package_lock` for full details.
+
+Archiving a Workspace for Reproduction
+---------------------------------------
+
+.. code-block:: bash
+
+    # Fetch/update normally
+    $ ivpm update
+
+    # Archive the lock file (packages/ is typically .gitignore'd)
+    $ cp packages/package-lock.json ./ivpm.lock
+    $ git add ivpm.lock
+    $ git commit -m "Lock dependency versions"
+
+Reproducing an Archived Workspace
+-----------------------------------
+
+.. code-block:: bash
+
+    # On any machine (or in CI)
+    $ ivpm update --lock-file ./ivpm.lock
+
+* ``ivpm.yaml`` package specs are **not read** — the lock file is the sole
+  source of truth.
+* Every package is fetched at its pinned version (commit hash, release tag, etc.).
+* The IVPM package cache is consulted first; already-cached versions are
+  reused without a network call.
+
+CI Workflow with Lock File
+----------------------------
+
+.. code-block:: yaml
+
+    name: Reproducible CI
+
+    on: [push, pull_request]
+
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+
+          - name: Install IVPM
+            run: pip install ivpm
+
+          - name: Reproduce locked workspace
+            run: ivpm update --lock-file ./ivpm.lock
+
+          - name: Run tests
+            run: ivpm activate -c "pytest"
+
+Refreshing All Packages
+--------------------------
+
+When you want to pull upstream changes without editing ``ivpm.yaml``:
+
+.. code-block:: bash
+
+    # Re-fetch everything; update lock file with new resolved versions
+    $ ivpm update --refresh-all
+
+    # Archive updated lock
+    $ cp packages/package-lock.json ./ivpm.lock
+
 See Also
 ========
 
@@ -807,3 +879,4 @@ See Also
 - :doc:`git_integration` - Git-specific commands and workflows
 - :doc:`python_packages` - Python package management
 - :doc:`caching` - Using cache for better performance
+- :doc:`package_lock` - Package lock file and reproducible workspaces

@@ -25,6 +25,7 @@ from ..package import Package
 @dc.dataclass
 class PackagePyPi(Package):
     version : str = None
+    resolved_version : str = None  # actual installed version after pip install
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
