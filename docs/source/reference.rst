@@ -239,6 +239,13 @@ Create a new workspace from a Git repository.
 ``--py-pip``
     Use 'pip' for Python package management
 
+``--py-system-site-packages``
+    Inherit the base Python's system site-packages inside the created virtual
+    environment.  By default the environment is **isolated** (system packages
+    are not visible).  Pass this flag only when you intentionally need access
+    to system-installed packages (e.g. hardware-specific Python bindings that
+    cannot be installed via pip).
+
 **Examples:**
 
 .. code-block:: bash
@@ -522,6 +529,12 @@ Fetch dependencies and initialize environment.
 
 ``--py-pip``
     Use 'pip' for package management
+
+``--py-system-site-packages``
+    Inherit the base Python's system site-packages inside the created virtual
+    environment.  By default the environment is **isolated** (system packages
+    are not visible).  Pass this flag only when you intentionally need access
+    to system-installed packages.
 
 ``--lock-file <path>``
     Reproduce workspace from a ``package-lock.json`` file.  ``ivpm.yaml``

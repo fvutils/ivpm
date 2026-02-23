@@ -142,6 +142,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Use 'uv' to manage virtual environment")
     clone_cmd.add_argument("--py-pip", dest="py_pip", action="store_true",
         help="Use 'pip' to manage virtual environment")
+    clone_cmd.add_argument("--py-system-site-packages", dest="py_system_site_packages",
+        action="store_true", default=False,
+        help="Inherit system site-packages in the virtual environment (default: isolated)")
     clone_cmd.set_defaults(func=CmdClone())
     subcommands["clone"] = clone_cmd
 
@@ -170,8 +173,11 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Use 'uv' to manage virtual environment",
         action="store_true")
     update_cmd.add_argument("--py-pip",
-        help="Use 'uv' to manage virtual environment",
+        help="Use 'pip' to manage virtual environment",
         action="store_true")
+    update_cmd.add_argument("--py-system-site-packages", dest="py_system_site_packages",
+        action="store_true", default=False,
+        help="Inherit system site-packages in the virtual environment (default: isolated)")
     update_cmd.add_argument("--lock-file", dest="lock_file", default=None,
         help="Reproduce workspace from a package-lock.json file (ignores ivpm.yaml)")
     update_cmd.add_argument("--refresh-all", dest="refresh_all",

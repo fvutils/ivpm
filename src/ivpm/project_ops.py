@@ -78,6 +78,10 @@ class ProjectOps(object):
                         uv_pip = "uv"
                     elif hasattr(args, "py_pip") and args.py_pip:
                         uv_pip = "pip"
+                    system_site_packages = (
+                        hasattr(args, "py_system_site_packages") and
+                        bool(args.py_system_site_packages)
+                    )
                     
                     # Signal venv creation start
                     venv_start_time = time.time()
@@ -89,7 +93,8 @@ class ProjectOps(object):
                         ivpm_python = setup_venv(
                             os.path.join(deps_dir, "python"), 
                             uv_pip=uv_pip,
-                            suppress_output=suppress_output
+                            suppress_output=suppress_output,
+                            system_site_packages=system_site_packages
                         )
                         # Signal venv creation complete
                         event_dispatcher.dispatch(UpdateEvent(

@@ -76,7 +76,7 @@ def get_venv_python(python_dir):
         
     return ivpm_python
 
-def setup_venv(python_dir, uv_pip="auto", suppress_output=False):
+def setup_venv(python_dir, uv_pip="auto", suppress_output=False, system_site_packages=False):
     note("creating Python virtual environment")
 
     if uv_pip == "auto":
@@ -106,9 +106,10 @@ def setup_venv(python_dir, uv_pip="auto", suppress_output=False):
             "venv",
             "--python",
             python,
-            "--system-site-packages",
-            python_dir
         ]
+        if system_site_packages:
+            cmd.append("--system-site-packages")
+        cmd.append(python_dir)
 
         result = subprocess.run(
             cmd,
@@ -145,14 +146,18 @@ def setup_venv(python_dir, uv_pip="auto", suppress_output=False):
         ivpm_python = get_venv_python(python_dir)
     else:
         note("Using 'pip' to manage virtual environment")
+        venv_cmd = [python, "-m", "venv"]
+        if system_site_packages:
+            venv_cmd.append("--system-site-packages")
+        venv_cmd.append(python_dir)
         if suppress_output:
             result = subprocess.run(
-                [python, "-m", "venv", "--system-site-packages", python_dir],
+                venv_cmd,
                 stdout=stdout_arg,
                 stderr=stderr_arg
             )
         else:
-            os.system(python + " -m venv --system-site-packages " + python_dir)
+            os.system(" ".join(venv_cmd))
         note("upgrading pip")
         ivpm_python = get_venv_python(python_dir)
 
