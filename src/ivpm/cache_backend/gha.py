@@ -182,7 +182,6 @@ class GHACacheBackend(CacheBackend):
     # ------------------------------------------------------------------ #
 
     def activate(self) -> None:
-        note(f"GHA cache backend activated (L1: {self._local_dir})")
         os.makedirs(self._local_dir, exist_ok=True)
 
         # Set up pip/uv cache directory

@@ -82,10 +82,7 @@ jobs:
         IVPM_CACHE: /tmp/ivpm-cache
       run: |
         export PYTHONPATH=$(pwd)/src
-        ./packages/python/bin/python3 -m ivpm update --cache-backend gha --skip-py-install \
-          2>&1 | tee /tmp/ivpm-run1.log
-        grep -q "GHA cache backend activated" /tmp/ivpm-run1.log || \
-          { echo "ERROR: expected 'GHA cache backend activated' in first run log"; cat /tmp/ivpm-run1.log; exit 1; }
+        ./packages/python/bin/python3 -m ivpm update --cache-backend gha --skip-py-install
     - name: Verify cache-backend=gha (second run — cache hit)
       env:
         ACTIONS_CACHE_URL: http://localhost:3000/
@@ -93,9 +90,5 @@ jobs:
         IVPM_CACHE: /tmp/ivpm-cache-hit
       run: |
         export PYTHONPATH=$(pwd)/src
-        ./packages/python/bin/python3 -m ivpm update --cache-backend gha --skip-py-install \
-          2>&1 | tee /tmp/ivpm-run2.log
-        # Verify the GHA backend was activated (message printed by GHACacheBackend.activate)
-        grep -q "GHA cache backend activated" /tmp/ivpm-run2.log || \
-          { echo "ERROR: expected 'GHA cache backend activated' in second run log"; cat /tmp/ivpm-run2.log; exit 1; }
+        ./packages/python/bin/python3 -m ivpm update --cache-backend gha --skip-py-install
 
