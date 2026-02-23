@@ -12,7 +12,6 @@ Usage::
 """
 import os
 import shutil
-import socket
 import subprocess
 import tempfile
 import time
@@ -46,6 +45,7 @@ _FAKE_TOKEN = "ivpm-test-token"
 
 def _free_port() -> int:
     """Return an available TCP port on localhost."""
+    import socket
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
@@ -80,18 +80,26 @@ def _start_cache_server(data_dir: str) -> tuple:
     return container_id, port, cache_url
 
 
-def _wait_for_server(port: int, timeout: float = 30.0) -> None:
-    """Poll until the cache server is accepting connections or timeout."""
+def _wait_for_server(port: int, timeout: float = 60.0) -> None:
+    """Poll until the cache server responds to HTTP requests or timeout.
+
+    We make real HTTP GET requests rather than just checking TCP so we know
+    the application layer is initialised (SQLite migration, etc. complete).
+    Any HTTP response — even 404 — means the server is ready.
+    """
+    import urllib.request as _ureq
+
+    url = f"http://127.0.0.1:{port}/"
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            with socket.create_connection(("127.0.0.1", port), timeout=1):
-                # Give the HTTP layer a moment to initialise after TCP is up
-                time.sleep(0.5)
+            with _ureq.urlopen(_ureq.Request(url), timeout=2):
                 return
-        except OSError:
+        except Exception:
             time.sleep(0.5)
-    raise TimeoutError(f"GHA cache server did not start on port {port} within {timeout}s")
+    raise TimeoutError(
+        f"GHA cache server did not respond on port {port} within {timeout}s"
+    )
 
 
 def _stop_container(container_id: str) -> None:
