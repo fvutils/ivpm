@@ -1,0 +1,397 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Package Lock File &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Python Package Management" href="python_packages.html" />
+    <link rel="prev" title="Caching" href="caching.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Package Lock File</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#key-properties">Key Properties</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#lock-file-format">Lock File Format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#change-detection">Change Detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#reproduction-mode">Reproduction Mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#ci-cd-reproducibility-pattern">CI/CD Reproducibility Pattern</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#syncing-and-the-lock-file">Syncing and the Lock File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#python-package-version-locking">Python Package Version Locking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#format-versioning">Format Versioning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Package Lock File</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/package_lock.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="package-lock-file">
+<h1>Package Lock File<a class="headerlink" href="#package-lock-file" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The <strong>package lock file</strong> (<code class="docutils literal notranslate"><span class="pre">packages/package-lock.json</span></code>) records the
+fully-resolved identity of every fetched package.  Unlike <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>,
+which describes <em>what you want</em> (e.g. <code class="docutils literal notranslate"><span class="pre">branch:</span> <span class="pre">main</span></code>), the lock file
+records <em>what you actually got</em> (e.g. <code class="docutils literal notranslate"><span class="pre">commit_resolved:</span> <span class="pre">a1b2c3d</span></code>).</p>
+<p>The lock file is written automatically as a side-effect of <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>
+and <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code>.  It is a <strong>local artifact</strong> — it lives inside the
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory alongside the fetched packages and is not committed
+to version control by default.</p>
+<p>When you need to reproduce an exact workspace — for archival, CI, or
+debugging — copy the lock file to a stable location and pass it back to
+<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">--lock-file</span></code>.</p>
+</section>
+<section id="key-properties">
+<h2>Key Properties<a class="headerlink" href="#key-properties" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Complete transitive closure</strong> — every package fetched, including
+transitive dependencies, is recorded.  There is no need to scan
+sub-package <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files during reproduction.</p></li>
+<li><p><strong>Source-type aware</strong> — each entry records the fields relevant to its
+source type (git commit hash, GitHub release tag, HTTP ETag, pip version,
+etc.).</p></li>
+<li><p><strong>Platform-agnostic version</strong> — for GitHub Releases (<code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>), the
+resolved <em>version tag</em> (e.g. <code class="docutils literal notranslate"><span class="pre">v2.3.1</span></code>) is stored.  The correct
+platform binary is resolved at fetch time, so the same lock file works
+across Linux, macOS, and Windows.</p></li>
+<li><p><strong>Reproducibility flag</strong> — packages sourced from local paths (<code class="docutils literal notranslate"><span class="pre">dir</span></code>,
+<code class="docutils literal notranslate"><span class="pre">file</span></code>) are still recorded but are marked <code class="docutils literal notranslate"><span class="pre">&quot;reproducible&quot;:</span> <span class="pre">false</span></code>
+because they cannot be restored on a different machine.</p></li>
+<li><p><strong>Python package versions</strong> — the Python handler contributes the
+complete set of pip-installed package versions under the
+<code class="docutils literal notranslate"><span class="pre">python_packages</span></code> key, enabling full Python environment reproducibility.
+This works regardless of whether <code class="docutils literal notranslate"><span class="pre">pip</span></code> or <code class="docutils literal notranslate"><span class="pre">uv</span></code> was used to install.</p></li>
+<li><p><strong>Integrity checksum</strong> — a SHA-256 checksum of the lock file body is
+embedded in the <code class="docutils literal notranslate"><span class="pre">sha256</span></code> field.  IVPM warns (but does not fail) if the
+checksum does not match, allowing you to detect accidental manual edits.</p></li>
+</ul>
+</section>
+<section id="lock-file-format">
+<h2>Lock File Format<a class="headerlink" href="#lock-file-format" title="Link to this heading"></a></h2>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;ivpm_lock_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;generated&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2024-01-15T10:23:00+00:00&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;sha256&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;...&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;packages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;my_git_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;git&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://github.com/org/my_git_lib.git&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;branch&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;main&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;tag&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;commit_requested&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;commit_resolved&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;cache&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;resolved_by&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;default&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;my_tool&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gh-rls&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://github.com/org/my_tool&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;version_requested&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;latest&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;version_resolved&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;v2.3.1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;cache&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;resolved_by&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;an_archive&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;http&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;url&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/archive.tar.gz&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;etag&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;last_modified&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;Wed, 15 Jan 2024 00:00:00 GMT&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;cache&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;resolved_by&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my_git_lib&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pypi&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;version_requested&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;&gt;=2.0&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;version_resolved&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.31.0&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;resolved_by&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">},</span>
+<span class="w">    </span><span class="nt">&quot;local_lib&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;dir&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;../../shared/local_lib&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;resolved_by&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;root&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">null</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;python_packages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;certifi&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2024.1.1&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;charset-normalizer&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.3.2&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;idna&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.6&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.31.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;urllib3&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2.1.0&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Fields common to all entries:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">src</span></code></dt><dd><p>Source type: <code class="docutils literal notranslate"><span class="pre">git</span></code>, <code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>, <code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">pypi</span></code>, <code class="docutils literal notranslate"><span class="pre">dir</span></code>, <code class="docutils literal notranslate"><span class="pre">file</span></code>, etc.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">resolved_by</span></code></dt><dd><p>The package that first introduced this dependency.  <code class="docutils literal notranslate"><span class="pre">&quot;root&quot;</span></code> means it
+came directly from the top-level <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.  The <em>first</em> (highest-
+priority) specification wins; lower-level duplicates are ignored.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">dep_set</span></code></dt><dd><p>The dependency-set name used when loading sub-dependencies from this
+package.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reproducible</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">true</span></code> for packages that can be restored on any machine.
+<code class="docutils literal notranslate"><span class="pre">false</span></code> for <code class="docutils literal notranslate"><span class="pre">dir</span></code> and <code class="docutils literal notranslate"><span class="pre">file</span></code> packages (local paths).</p>
+</dd>
+</dl>
+</section>
+<section id="change-detection">
+<h2>Change Detection<a class="headerlink" href="#change-detection" title="Link to this heading"></a></h2>
+<p>When <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> runs and a lock file already exists, IVPM compares the
+<strong>user-specified</strong> fields in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> against the corresponding lock
+entry for each package:</p>
+<ul class="simple">
+<li><p><strong>git</strong>: <code class="docutils literal notranslate"><span class="pre">url</span></code>, <code class="docutils literal notranslate"><span class="pre">branch</span></code>, <code class="docutils literal notranslate"><span class="pre">tag</span></code>, <code class="docutils literal notranslate"><span class="pre">commit</span></code>, <code class="docutils literal notranslate"><span class="pre">cache</span></code></p></li>
+<li><p><strong>gh-rls</strong>: <code class="docutils literal notranslate"><span class="pre">url</span></code>, <code class="docutils literal notranslate"><span class="pre">version</span></code></p></li>
+<li><p><strong>http</strong>: <code class="docutils literal notranslate"><span class="pre">url</span></code></p></li>
+<li><p><strong>pypi</strong>: <code class="docutils literal notranslate"><span class="pre">version</span></code></p></li>
+</ul>
+<p>If the specs <strong>match</strong>, the package is considered up to date and no network
+calls are made.  If the specs <strong>differ</strong> (e.g. you changed <code class="docutils literal notranslate"><span class="pre">branch:</span> <span class="pre">main</span></code>
+to <code class="docutils literal notranslate"><span class="pre">branch:</span> <span class="pre">dev</span></code>), IVPM reports the differences but does <strong>not</strong> re-fetch
+unless you also pass <code class="docutils literal notranslate"><span class="pre">--refresh-all</span></code> or <code class="docutils literal notranslate"><span class="pre">--force</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Reports differences, takes no action</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># Re-fetches packages whose specs changed</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--refresh-all
+
+<span class="c1"># Re-fetches everything; suppresses safety errors</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force
+</pre></div>
+</div>
+</section>
+<section id="reproduction-mode">
+<h2>Reproduction Mode<a class="headerlink" href="#reproduction-mode" title="Link to this heading"></a></h2>
+<p>Pass a lock file as input to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> to reproduce an exact workspace:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--lock-file<span class="w"> </span>./ivpm.lock
+</pre></div>
+</div>
+<p>In this mode:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> is <strong>not read</strong> for packages — the lock file is the sole
+source of truth.</p></li>
+<li><p>Every package is fetched at its pinned resolved version:</p>
+<ul>
+<li><p><strong>git</strong> — shallow clone at <code class="docutils literal notranslate"><span class="pre">commit_resolved</span></code>; falls back to full clone
+if the server does not support arbitrary commit fetch.</p></li>
+<li><p><strong>gh-rls</strong> — fetches the exact <code class="docutils literal notranslate"><span class="pre">version_resolved</span></code> tag; platform binary
+selection still occurs at fetch time.</p></li>
+<li><p><strong>http</strong> — fetches the same URL; warns if the ETag/Last-Modified header
+no longer matches.</p></li>
+<li><p><strong>pypi</strong> — installs <code class="docutils literal notranslate"><span class="pre">version_resolved</span></code> exactly.</p></li>
+</ul>
+</li>
+<li><p>Sub-package <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files are <strong>not</strong> scanned; the lock file already
+encodes the complete transitive closure.</p></li>
+<li><p>The <code class="docutils literal notranslate"><span class="pre">packages/</span></code> destination is still determined by the active
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> (or the CLI default), not the lock file.</p></li>
+<li><p>Cache interaction is unchanged: if the pinned version is already in the
+IVPM cache, it is reused.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The lock file does not encode absolute paths.  <code class="docutils literal notranslate"><span class="pre">deps_dir</span></code> can differ
+between the machine that generated the lock and the machine that
+consumes it.</p>
+</div>
+</section>
+<section id="ci-cd-reproducibility-pattern">
+<h2>CI/CD Reproducibility Pattern<a class="headerlink" href="#ci-cd-reproducibility-pattern" title="Link to this heading"></a></h2>
+<p>The recommended workflow for CI reproducibility:</p>
+<p><strong>On the developer workstation:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Fetch/update packages normally</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+
+<span class="c1"># 2. Archive the lock file (packages/ may be .gitignore&#39;d)</span>
+$<span class="w"> </span>cp<span class="w"> </span>packages/package-lock.json<span class="w"> </span>./ivpm.lock
+
+<span class="c1"># 3. Commit the lock file alongside ivpm.yaml</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>ivpm.lock
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Update dependency lock file&quot;</span>
+</pre></div>
+</div>
+<p><strong>In CI:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Reproduce the exact workspace from the committed lock file</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--lock-file<span class="w"> </span>./ivpm.lock
+</pre></div>
+</div>
+<p><strong>GitHub Actions example:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install IVPM</span>
+<span class="w">  </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install ivpm</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Reproduce workspace from lock</span>
+<span class="w">  </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm update --lock-file ./ivpm.lock</span>
+
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run tests</span>
+<span class="w">  </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="syncing-and-the-lock-file">
+<h2>Syncing and the Lock File<a class="headerlink" href="#syncing-and-the-lock-file" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> pulls the latest upstream commits into all editable (writable)
+git packages.  After sync completes, the lock file is automatically
+regenerated to reflect the new <code class="docutils literal notranslate"><span class="pre">HEAD</span></code> commit of each updated package.</p>
+<p>This means <code class="docutils literal notranslate"><span class="pre">packages/package-lock.json</span></code> always represents the <strong>current
+state</strong> of your packages directory, whether packages were fetched by
+<code class="docutils literal notranslate"><span class="pre">update</span></code> or brought forward by <code class="docutils literal notranslate"><span class="pre">sync</span></code>.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>sync
+<span class="c1"># ... merges upstream changes into editable packages ...</span>
+<span class="c1"># Note: Updated package-lock.json after sync</span>
+</pre></div>
+</div>
+</section>
+<section id="python-package-version-locking">
+<h2>Python Package Version Locking<a class="headerlink" href="#python-package-version-locking" title="Link to this heading"></a></h2>
+<p>After Python packages are installed into the IVPM-managed virtual
+environment, the Python handler queries the venv for all installed package
+versions using <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">list</span></code>.  This works regardless of whether <code class="docutils literal notranslate"><span class="pre">pip</span></code> or
+<code class="docutils literal notranslate"><span class="pre">uv</span></code> was used to install packages — both write to the same venv
+<code class="docutils literal notranslate"><span class="pre">site-packages</span></code> directory.</p>
+<p>The result is stored under the top-level <code class="docutils literal notranslate"><span class="pre">python_packages</span></code> key in the lock
+file.  In reproduction mode (<code class="docutils literal notranslate"><span class="pre">--lock-file</span></code>), PyPI packages are pinned to
+their <code class="docutils literal notranslate"><span class="pre">version_resolved</span></code> value, which corresponds to the version recorded
+in <code class="docutils literal notranslate"><span class="pre">python_packages</span></code>.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">python_packages</span></code> records <em>all</em> packages installed in the venv,
+including transitive pip dependencies that were not explicitly listed in
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
+</div>
+</section>
+<section id="format-versioning">
+<h2>Format Versioning<a class="headerlink" href="#format-versioning" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">ivpm_lock_version</span></code> field guards against schema changes.  IVPM will
+reject lock files with an unrecognised version number and emit a clear error:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ValueError: package-lock.json version 2 is not supported (expected 1).
+Please regenerate the lock file with this version of ivpm.
+</pre></div>
+</div>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> — Reproducible build and CI workflows</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> — How IVPM caches packages</p></li>
+<li><p><a class="reference internal" href="reference.html"><span class="doc">Reference</span></a> — Full <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> / <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> option reference</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="caching.html" class="btn btn-neutral float-left" title="Caching" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="python_packages.html" class="btn btn-neutral float-right" title="Python Package Management" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

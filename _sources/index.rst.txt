@@ -16,6 +16,7 @@ Welcome to IVPM's documentation!
    dependency_sets
    package_types
    caching
+   package_lock
    python_packages
    github_releases
    environment_paths

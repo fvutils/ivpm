@@ -480,6 +480,9 @@ Skips:
 - Packages on specific commits (immutable)
 - Packages with uncommitted changes (safety)
 
+After sync completes, ``packages/package-lock.json`` is updated to reflect
+the new commit hashes of all synced packages.  See :doc:`package_lock`.
+
 update
 ------
 
@@ -520,7 +523,19 @@ Fetch dependencies and initialize environment.
 ``--py-pip``
     Use 'pip' for package management
 
-**Examples:**
+``--lock-file <path>``
+    Reproduce workspace from a ``package-lock.json`` file.  ``ivpm.yaml``
+    is not read for packages; the lock file supplies the complete package
+    list at pinned resolved versions.  See :doc:`package_lock`.
+
+``--refresh-all``
+    Re-fetch all packages regardless of the existing ``package-lock.json``
+    state.  Use when you want to pull upstream changes without changing
+    ``ivpm.yaml`` specs.
+
+``--force``
+    Suppress safety errors during refresh (e.g. uncommitted local changes)
+    and implies ``--refresh-all``.
 
 .. code-block:: bash
 
@@ -542,17 +557,21 @@ Fetch dependencies and initialize environment.
     # Force Python reinstall
     $ ivpm update --force-py-install
     
-    # Use uv
-    $ ivpm update --py-uv
+    # Reproduce exact workspace from a committed lock file
+    $ ivpm update --lock-file ./ivpm.lock
+
+    # Re-fetch all packages (pull upstream changes)
+    $ ivpm update --refresh-all
 
 **Behavior:**
 
-1. Read ``ivpm.yaml``
+1. Read ``ivpm.yaml`` (or ``--lock-file`` if provided)
 2. Select dependency set
-3. Fetch missing dependencies
+3. Fetch missing dependencies (skip up-to-date packages per lock file)
 4. Resolve sub-dependencies recursively
 5. Create Python virtual environment (if needed)
 6. Install Python packages
+7. Write/update ``packages/package-lock.json``
 
 Global Options
 ==============
