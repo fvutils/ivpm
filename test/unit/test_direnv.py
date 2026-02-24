@@ -19,13 +19,13 @@ class TestDirenv(TestBase):
 
         self.ivpm_update(skip_venv=True)
 
-        envrc_path = os.path.join(self.testdir, "packages.envrc")
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
         self.assertTrue(os.path.isfile(envrc_path),
                         "packages.envrc should be generated")
 
         with open(envrc_path) as f:
             content = f.read()
-        self.assertIn("source_env ./packages/envrc_leaf1/export.envrc", content)
+        self.assertIn("source_env ./envrc_leaf1/export.envrc", content)
 
     def test_no_envrc_no_file(self):
         """Packages without envrc files produce no packages.envrc."""
@@ -42,7 +42,7 @@ class TestDirenv(TestBase):
 
         self.ivpm_update(skip_venv=True)
 
-        envrc_path = os.path.join(self.testdir, "packages.envrc")
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
         self.assertFalse(os.path.isfile(envrc_path),
                          "packages.envrc should NOT be generated when no envrc files exist")
 
@@ -61,11 +61,11 @@ class TestDirenv(TestBase):
 
         self.ivpm_update(skip_venv=True)
 
-        envrc_path = os.path.join(self.testdir, "packages.envrc")
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
         self.assertTrue(os.path.isfile(envrc_path))
         with open(envrc_path) as f:
             content = f.read()
-        self.assertIn("source_env ./packages/envrc_leaf2/.envrc", content)
+        self.assertIn("source_env ./envrc_leaf2/.envrc", content)
 
     def test_dependency_order(self):
         """Leaf packages appear before dependents in packages.envrc."""
@@ -82,15 +82,15 @@ class TestDirenv(TestBase):
 
         self.ivpm_update(skip_venv=True)
 
-        envrc_path = os.path.join(self.testdir, "packages.envrc")
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
         self.assertTrue(os.path.isfile(envrc_path))
         with open(envrc_path) as f:
             content = f.read()
 
         # All three packages should appear
-        self.assertIn("packages/envrc_leaf1/export.envrc", content)
-        self.assertIn("packages/envrc_leaf2/.envrc", content)
-        self.assertIn("packages/envrc_nonleaf/export.envrc", content)
+        self.assertIn("envrc_leaf1/export.envrc", content)
+        self.assertIn("envrc_leaf2/.envrc", content)
+        self.assertIn("envrc_nonleaf/export.envrc", content)
 
         # Leaves must appear before the non-leaf that depends on them
         idx_leaf1 = content.index("envrc_leaf1")
@@ -117,7 +117,7 @@ class TestDirenv(TestBase):
         # envrc_leaf1 already has export.envrc; verify it's used not .envrc
         self.ivpm_update(skip_venv=True)
 
-        with open(os.path.join(self.testdir, "packages.envrc")) as f:
+        with open(os.path.join(self.testdir, "packages", "packages.envrc")) as f:
             content = f.read()
         self.assertIn("export.envrc", content)
         self.assertNotIn("envrc_leaf1/.envrc", content)

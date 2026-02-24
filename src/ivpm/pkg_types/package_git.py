@@ -370,6 +370,7 @@ class PackageGit(PackageURL):
     
     def process_options(self, opts, si):
         super().process_options(opts, si)
+        self.src_type = "git"
 
         if "anonymous" in opts.keys():
             self.anonymous = opts["anonymous"]

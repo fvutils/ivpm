@@ -243,6 +243,44 @@ class TestPackageLock(unittest.TestCase):
         with self.assertRaises(ValueError):
             read_lock(lock_path)
 
+    # ------------------------------------------------------------------
+    # src_type set at create time (regression test for sub-package URLs)
+    # ------------------------------------------------------------------
+
+    def test_dir_pkg_src_type_set_by_create(self):
+        """PackageDir.create must set src_type='dir' so the lock file records the path."""
+        from ivpm.pkg_types.pkg_type_rgy import PkgTypeRgy
+        class _Si:
+            pass
+        pkg = PkgTypeRgy.inst().mkPackage("dir", "mypkg", {"url": "file:///some/path"}, _Si())
+        self.assertEqual(pkg.src_type, "dir")
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        entry = data["packages"]["mypkg"]
+        self.assertEqual(entry["src"], "dir")
+        self.assertIn("path", entry)
+        self.assertEqual(entry["path"], "/some/path")
+
+    def test_git_pkg_src_type_set_by_create(self):
+        """PackageGit.create must set src_type='git' so the lock file records the URL."""
+        from ivpm.pkg_types.pkg_type_rgy import PkgTypeRgy
+        class _Si:
+            pass
+        pkg = PkgTypeRgy.inst().mkPackage(
+            "git", "myrepo",
+            {"url": "https://github.com/org/myrepo.git", "branch": "main"},
+            _Si()
+        )
+        self.assertEqual(pkg.src_type, "git")
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        entry = data["packages"]["myrepo"]
+        self.assertEqual(entry["src"], "git")
+        self.assertEqual(entry["url"], "https://github.com/org/myrepo.git")
+        self.assertEqual(entry["branch"], "main")
+
 
 if __name__ == "__main__":
     unittest.main()

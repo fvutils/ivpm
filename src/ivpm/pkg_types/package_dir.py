@@ -62,6 +62,7 @@ class PackageDir(PackageURL):
     
     def process_options(self, opts, si):
         super().process_options(opts, si)
+        self.src_type = "dir"
 
         if "link" in opts.keys():
             self.link = bool(opts["link"]) 

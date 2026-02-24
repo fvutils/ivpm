@@ -38,7 +38,20 @@ class TestSmoke(TestBase):
         self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/nonleaf_refleaf_proj1")))
         self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/leaf_proj1")))
         self.assertTrue(os.path.isdir(os.path.join(self.testdir, "packages/leaf_proj2")))
-#        self.assertTrue(os.path.isfile(os.path.join(self.testdir, "packages/leaf_proj1/leaf_proj1.txt")))
+
+        # Sub-packages resolved by nonleaf_refleaf_proj1 must have their
+        # source URL recorded in the lock file so the workspace can be reproduced.
+        import json
+        with open(os.path.join(self.testdir, "packages/package-lock.json")) as f:
+            lock = json.load(f)
+        for pkg_name in ("leaf_proj1", "leaf_proj2"):
+            entry = lock["packages"][pkg_name]
+            self.assertEqual(entry["src"], "dir",
+                             "%s must have src='dir' in lock file" % pkg_name)
+            self.assertIn("path", entry,
+                          "%s must have a path recorded in lock file" % pkg_name)
+            self.assertTrue(entry["path"],
+                            "%s path must not be empty" % pkg_name)
 
     def test_git_fetch_leaf1(self):
         self.mkFile("ivpm.yaml", """
