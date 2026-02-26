@@ -163,7 +163,8 @@ class ProjectOps(object):
 
             # Call the handlers to take care of project-level setup work
             update_info = ProjectUpdateInfo(
-                args, deps_dir, 
+                args, deps_dir,
+                project_name=proj_info.name,
                 force_py_install=force_py_install, 
                 skip_venv=skip_venv,
                 suppress_output=suppress_output

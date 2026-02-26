@@ -62,6 +62,7 @@ class ProjectStatusResult(object):
 
 @dc.dataclass
 class ProjectUpdateInfo(ProjectOpsInfo):
+    project_name : Optional[str] = None
     force_py_install : bool = False
     skip_venv : bool = False
     cache: Optional['Cache'] = None

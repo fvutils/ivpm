@@ -1,0 +1,8 @@
+package:
+  name: skills_bad_frontmatter
+
+  dep-sets:
+    - name: default-dev
+      deps: []
+    - name: default
+      deps: []

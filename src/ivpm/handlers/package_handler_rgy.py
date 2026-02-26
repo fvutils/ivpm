@@ -24,6 +24,7 @@ import logging
 from .package_handler_list import PackageHandlerList
 from .package_handler_python import PackageHandlerPython
 from .package_handler_direnv import PackageHandlerDirenv
+from .package_handler_skills import PackageHandlerSkills
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_rgy")
 
@@ -41,6 +42,7 @@ class PackageHandlerRgy(object):
     def _load(self):
         self.addHandler(PackageHandlerPython)
         self.addHandler(PackageHandlerDirenv)
+        self.addHandler(PackageHandlerSkills)
 
     def mkHandler(self):
         h = PackageHandlerList()

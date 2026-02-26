@@ -1,0 +1,8 @@
+package:
+  name: skills_leaf1
+
+  dep-sets:
+    - name: default-dev
+      deps: []
+    - name: default
+      deps: []
