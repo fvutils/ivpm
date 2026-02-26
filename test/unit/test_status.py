@@ -191,7 +191,8 @@ class TestStatus(TestBase):
             sys.stdout = old_stdout
 
         self.assertIn("clean", output)
-        self.assertIn("dirty", output)
+        self.assertIn("dirty", output)   # package *name* is "dirty"
+        self.assertIn("modified", output)
         self.assertIn("lib", output)
         self.assertNotIn("foo.py", output)  # verbose=0
 

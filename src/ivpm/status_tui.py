@@ -88,8 +88,8 @@ class RichStatusTUI:
                 git_total += 1
                 if s.is_dirty:
                     dirty_count += 1
-                    marker = Text("✗", style="bold red")
-                    state = Text("dirty", style="red")
+                    marker = Text("✎", style="bold cyan")
+                    state = Text("modified", style="cyan")
                 else:
                     marker = Text("✓", style="bold green")
                     state = Text("clean", style="green")
@@ -132,7 +132,7 @@ class RichStatusTUI:
         clean_count = git_total - dirty_count
         summary = "%d package(s)" % (len(results) - pypi_count if verbose < 2 else len(results))
         if git_total:
-            summary += " · %d git (%d clean, %d dirty)" % (git_total, clean_count, dirty_count)
+            summary += " · %d git (%d clean, %d modified)" % (git_total, clean_count, dirty_count)
         if non_vcs_count - pypi_count > 0:
             summary += " · %d non-VCS" % (non_vcs_count - pypi_count)
         if pypi_count:
@@ -141,7 +141,7 @@ class RichStatusTUI:
             else:
                 summary += " · %d pypi" % pypi_count
 
-        border = "green" if dirty_count == 0 else "red"
+        border = "green" if dirty_count == 0 else "cyan"
         console.print(Panel(summary, border_style=border, title="Status"))
 
 
@@ -165,8 +165,8 @@ class TranscriptStatusTUI:
                 git_total += 1
                 if s.is_dirty:
                     dirty_count += 1
-                    marker = "✗"
-                    state = "dirty"
+                    marker = "✎"
+                    state = "modified"
                 else:
                     marker = "✓"
                     state = "clean"
@@ -192,7 +192,7 @@ class TranscriptStatusTUI:
         shown = len(results) - (pypi_count if verbose < 2 else 0)
         print("%d package(s)" % shown, end="")
         if git_total:
-            print(" · %d git (%d clean, %d dirty)" % (git_total, clean_count, dirty_count), end="")
+            print(" · %d git (%d clean, %d modified)" % (git_total, clean_count, dirty_count), end="")
         if non_vcs_count - pypi_count > 0:
             print(" · %d non-VCS" % (non_vcs_count - pypi_count), end="")
         if pypi_count:
