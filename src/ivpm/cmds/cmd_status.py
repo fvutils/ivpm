@@ -13,7 +13,7 @@ class CmdStatus(object):
             args.project_dir = os.getcwd()
 
         results = ProjectOps(args.project_dir).status(args=args)
-        verbose = getattr(args, "verbose", False)
+        verbose = getattr(args, "verbose", 0)
         tui = create_status_tui(args)
         tui.render(results, verbose=verbose)
 

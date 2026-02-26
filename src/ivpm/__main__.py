@@ -225,8 +225,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Checks the status of sub-dependencies such as git repositories")
     status_cmd.set_defaults(func=CmdStatus())
     status_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None)
-    status_cmd.add_argument("-v", "--verbose", action="store_true", default=False,
-        help="Show modified/untracked files for dirty packages")
+    status_cmd.add_argument("-v", "--verbose", action="count", default=0,
+        help="Show modified/untracked files (-v); also show pypi packages (-v -v)")
     status_cmd.add_argument("--no-rich", action="store_true", default=False,
         help="Plain-text output without Rich formatting")
 

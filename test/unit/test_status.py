@@ -185,7 +185,7 @@ class TestStatus(TestBase):
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            TranscriptStatusTUI().render(results, verbose=False)
+            TranscriptStatusTUI().render(results, verbose=0)
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout
@@ -193,7 +193,7 @@ class TestStatus(TestBase):
         self.assertIn("clean", output)
         self.assertIn("dirty", output)
         self.assertIn("lib", output)
-        self.assertNotIn("foo.py", output)  # verbose=False
+        self.assertNotIn("foo.py", output)  # verbose=0
 
     def test_transcript_render_verbose(self):
         """TranscriptStatusTUI with verbose=True shows modified files."""
@@ -211,7 +211,7 @@ class TestStatus(TestBase):
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
         try:
-            TranscriptStatusTUI().render(results, verbose=True)
+            TranscriptStatusTUI().render(results, verbose=1)
             output = sys.stdout.getvalue()
         finally:
             sys.stdout = old_stdout

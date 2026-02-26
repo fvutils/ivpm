@@ -61,7 +61,7 @@ def _upstream_label(s: PkgVcsStatus) -> str:
 class RichStatusTUI:
     """Render status results as a Rich table."""
 
-    def render(self, results: List[PkgVcsStatus], verbose: bool = False):
+    def render(self, results: List[PkgVcsStatus], verbose: int = 0):
         from rich.console import Console
         from rich.table import Table
         from rich.text import Text
@@ -76,9 +76,14 @@ class RichStatusTUI:
         table.add_column("State", no_wrap=True)
         table.add_column("Upstream", no_wrap=True)
 
-        git_total = dirty_count = non_vcs_count = 0
+        git_total = dirty_count = non_vcs_count = pypi_count = 0
 
         for s in results:
+            if s.src_type == "pypi":
+                pypi_count += 1
+                if verbose < 2:
+                    continue
+
             if s.vcs == "git":
                 git_total += 1
                 if s.is_dirty:
@@ -115,7 +120,7 @@ class RichStatusTUI:
             table.add_row(marker, Text(s.name), branch_text, commit_text, state, up_text)
 
             # Dirty file details — only with -v
-            if verbose and s.vcs == "git" and s.modified:
+            if verbose >= 1 and s.vcs == "git" and s.modified:
                 for line in s.modified:
                     table.add_row(
                         Text(""), Text(""),
@@ -125,11 +130,16 @@ class RichStatusTUI:
         console.print(table)
 
         clean_count = git_total - dirty_count
-        summary = "%d package(s)" % len(results)
+        summary = "%d package(s)" % (len(results) - pypi_count if verbose < 2 else len(results))
         if git_total:
             summary += " · %d git (%d clean, %d dirty)" % (git_total, clean_count, dirty_count)
-        if non_vcs_count:
-            summary += " · %d non-VCS" % non_vcs_count
+        if non_vcs_count - pypi_count > 0:
+            summary += " · %d non-VCS" % (non_vcs_count - pypi_count)
+        if pypi_count:
+            if verbose < 2:
+                summary += " · %d pypi (hidden, use -vv to show)" % pypi_count
+            else:
+                summary += " · %d pypi" % pypi_count
 
         border = "green" if dirty_count == 0 else "red"
         console.print(Panel(summary, border_style=border, title="Status"))
@@ -142,10 +152,15 @@ class RichStatusTUI:
 class TranscriptStatusTUI:
     """Render status results as plain text."""
 
-    def render(self, results: List[PkgVcsStatus], verbose: bool = False):
-        git_total = dirty_count = non_vcs_count = 0
+    def render(self, results: List[PkgVcsStatus], verbose: int = 0):
+        git_total = dirty_count = non_vcs_count = pypi_count = 0
 
         for s in results:
+            if s.src_type == "pypi":
+                pypi_count += 1
+                if verbose < 2:
+                    continue
+
             if s.vcs == "git":
                 git_total += 1
                 if s.is_dirty:
@@ -162,7 +177,7 @@ class TranscriptStatusTUI:
                 print("  %s  %-30s  %-25s  %s  %-6s  upstream:%s" % (
                     marker, s.name, branch, commit, state, upstream))
 
-                if verbose and s.modified:
+                if verbose >= 1 and s.modified:
                     for line in s.modified:
                         print("       %s" % line)
 
@@ -174,11 +189,17 @@ class TranscriptStatusTUI:
 
         clean_count = git_total - dirty_count
         print("")
-        print("%d package(s)" % len(results), end="")
+        shown = len(results) - (pypi_count if verbose < 2 else 0)
+        print("%d package(s)" % shown, end="")
         if git_total:
             print(" · %d git (%d clean, %d dirty)" % (git_total, clean_count, dirty_count), end="")
-        if non_vcs_count:
-            print(" · %d non-VCS" % non_vcs_count, end="")
+        if non_vcs_count - pypi_count > 0:
+            print(" · %d non-VCS" % (non_vcs_count - pypi_count), end="")
+        if pypi_count:
+            if verbose < 2:
+                print(" · %d pypi (hidden, use -vv to show)" % pypi_count, end="")
+            else:
+                print(" · %d pypi" % pypi_count, end="")
         print("")
 
 
