@@ -224,6 +224,11 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     status_cmd = subparser.add_parser("status",
         help="Checks the status of sub-dependencies such as git repositories")
     status_cmd.set_defaults(func=CmdStatus())
+    status_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None)
+    status_cmd.add_argument("-v", "--verbose", action="store_true", default=False,
+        help="Show modified/untracked files for dirty packages")
+    status_cmd.add_argument("--no-rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
 
     if parser_ext is not None:
         for ext in parser_ext:

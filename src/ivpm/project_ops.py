@@ -207,8 +207,54 @@ class ProjectOps(object):
 
         pass
 
-    def status(self, dep_set : str = None):
-        pass
+    def status(self, dep_set: str = None, args=None):
+        from .proj_info import ProjInfo
+        from .pkg_status import PkgVcsStatus
+        from .project_ops_info import ProjectStatusInfo
+        from .pkg_types.pkg_type_rgy import PkgTypeRgy
+        from .package_lock import read_lock
+
+        proj_info = ProjInfo.mkFromProj(self.root_dir)
+        if proj_info is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
+
+        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
+        lock_path = os.path.join(deps_dir, "package-lock.json")
+
+        if not os.path.isfile(lock_path):
+            fatal("package-lock.json not found in %s — run 'ivpm update' first" % deps_dir)
+
+        lock = read_lock(lock_path)
+        packages = lock.get("packages", {})
+
+        status_info = ProjectStatusInfo(args=args, deps_dir=deps_dir)
+        rgy = PkgTypeRgy.inst()
+
+        results = []
+        for name, entry in packages.items():
+            src = entry.get("src", "")
+            if not rgy.hasPkgType(src):
+                results.append(PkgVcsStatus(
+                    name=name,
+                    src_type=src,
+                    path=os.path.join(deps_dir, name),
+                    vcs="none",
+                ))
+                continue
+
+            pkg = rgy.mkPackage(src, name, entry, None)
+            pkg.path = os.path.join(deps_dir, name)
+            result = pkg.status(status_info)
+            if result is None:
+                result = PkgVcsStatus(
+                    name=name,
+                    src_type=src,
+                    path=pkg.path,
+                    vcs="none",
+                )
+            results.append(result)
+
+        return sorted(results, key=lambda r: r.name)
 
     def sync(self, dep_set : str = None):
         pass

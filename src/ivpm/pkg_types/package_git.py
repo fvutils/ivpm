@@ -24,6 +24,7 @@ import os
 import sys
 import subprocess
 import dataclasses as dc
+from typing import Optional
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
@@ -330,8 +331,70 @@ class PackageGit(PackageURL):
         mode = os.stat(path).st_mode
         os.chmod(path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
     
-    def status(self, status_info : ProjectStatusInfo):
-        pass
+    def status(self, status_info: ProjectStatusInfo):
+        from ..pkg_status import PkgVcsStatus
+
+        pkg_dir = os.path.join(status_info.deps_dir, self.name)
+
+        if not os.path.isdir(os.path.join(pkg_dir, ".git")):
+            return PkgVcsStatus(
+                name=self.name,
+                src_type="git",
+                path=pkg_dir,
+                vcs="git",
+                branch="(not fetched)",
+                error="directory not found or not a git repo",
+            )
+
+        def _git(args):
+            r = subprocess.run(
+                ["git"] + args,
+                capture_output=True, text=True, cwd=pkg_dir, timeout=10
+            )
+            return r.returncode, r.stdout.strip()
+
+        # Branch
+        _, branch_raw = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+        branch = None if branch_raw == "HEAD" else branch_raw
+
+        # Tag (only when exactly on a tag)
+        rc_tag, tag_raw = _git(["describe", "--tags", "--exact-match", "HEAD"])
+        tag = tag_raw if rc_tag == 0 else None
+
+        # Short commit hash
+        _, commit = _git(["rev-parse", "--short", "HEAD"])
+
+        # Dirty / modified files
+        _, porcelain = _git(["status", "--porcelain"])
+        modified = [line for line in porcelain.splitlines() if line.strip()]
+        is_dirty = len(modified) > 0
+
+        # Ahead / behind upstream (silenced if no upstream)
+        ahead: Optional[int] = None
+        behind: Optional[int] = None
+        rc_ab, ab_raw = _git(["rev-list", "--left-right", "--count", "@{u}...HEAD"])
+        if rc_ab == 0 and ab_raw:
+            parts = ab_raw.split()
+            if len(parts) == 2:
+                try:
+                    behind = int(parts[0])
+                    ahead = int(parts[1])
+                except ValueError:
+                    pass
+
+        return PkgVcsStatus(
+            name=self.name,
+            src_type="git",
+            path=pkg_dir,
+            vcs="git",
+            branch=branch,
+            tag=tag,
+            commit=commit,
+            is_dirty=is_dirty,
+            modified=modified,
+            ahead=ahead,
+            behind=behind,
+        )
     
     def sync(self, sync_info : ProjectSyncInfo):
         if not os.path.isdir(os.path.join(sync_info.deps_dir, dir, ".git")):

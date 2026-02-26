@@ -52,7 +52,7 @@ class ProjectSyncInfo(ProjectOpsInfo):
 
 @dc.dataclass
 class ProjectStatusInfo(ProjectOpsInfo):
-    pass
+    dep_set: Optional[str] = None
 
 @dc.dataclass
 class ProjectStatusResult(object):
