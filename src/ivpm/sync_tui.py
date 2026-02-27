@@ -61,6 +61,13 @@ _ATTENTION_OUTCOMES = {
 }
 
 
+def _dur(state: Optional[dict]) -> str:
+    """Format duration from a progress state dict, or return empty string."""
+    if state and "duration" in state:
+        return "%.1fs" % state["duration"]
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Rich TUI
 # ---------------------------------------------------------------------------
@@ -151,74 +158,74 @@ class RichSyncTUI(SyncProgressListener):
 
         console = Console()
 
-        # ── Main table ────────────────────────────────────────────────────
+        # ── Main table — one row per package with inline status + duration ─
         table = Table(show_header=True, header_style="bold", box=None,
                       padding=(0, 1))
         table.add_column("",        width=3, no_wrap=True)
         table.add_column("Package", style="bold", no_wrap=True)
         table.add_column("Branch",  no_wrap=True)
-        table.add_column("Commits", no_wrap=True)
         table.add_column("Status",  no_wrap=True)
         table.add_column("Δ",       no_wrap=True)
+        table.add_column("Time",    no_wrap=True)
 
         counts = {o: 0 for o in SyncOutcome}
+        pypi_count = 0
         attention_items = []
 
         for r in results:
             counts[r.outcome] += 1
+
+            # Hide pypi packages (sync is a no-op for them); tally for summary.
+            if r.src_type == "pypi":
+                pypi_count += 1
+                continue
+
             icon, style = _ICONS.get(r.outcome, ("?", "dim"))
             marker = Text(icon, style=style)
             branch_text = Text(r.branch or "—", style="" if r.branch else "dim")
+            dur_text = Text(_dur(self._pkg_states.get(r.name)), style="dim")
 
             if r.outcome == SyncOutcome.SYNCED:
-                commits = Text("%s→%s" % (r.old_commit or "?", r.new_commit or "?"),
+                status = Text("%s→%s" % (r.old_commit or "?", r.new_commit or "?"),
                                style="green")
                 delta  = Text("↓%d" % r.commits_behind, style="green") if r.commits_behind else Text("")
-                status = Text("synced", style="green")
 
             elif r.outcome == SyncOutcome.UP_TO_DATE:
-                commits = Text(r.old_commit or "—", style="dim")
-                delta   = Text("=", style="dim")
-                status  = Text("up-to-date", style="dim")
+                status = Text("up-to-date  %s" % (r.old_commit or ""), style="dim")
+                delta  = Text("=", style="dim")
 
             elif r.outcome == SyncOutcome.CONFLICT:
-                commits = Text(r.old_commit or "—", style="red")
-                delta   = Text("↓%d" % r.commits_behind, style="red") if r.commits_behind else Text("")
-                status  = Text("conflict", style="bold red")
+                status = Text("conflict  %s" % (r.old_commit or ""), style="bold red")
+                delta  = Text("↓%d" % r.commits_behind, style="red") if r.commits_behind else Text("")
                 attention_items.append(r)
 
             elif r.outcome == SyncOutcome.DIRTY:
-                commits = Text(r.old_commit or "—", style="yellow")
-                delta   = Text("")
-                status  = Text("dirty", style="bold yellow")
+                status = Text("dirty  %s" % (r.old_commit or ""), style="bold yellow")
+                delta  = Text("")
                 attention_items.append(r)
 
             elif r.outcome == SyncOutcome.AHEAD:
                 ahead_str = "↑%d" % r.commits_ahead if r.commits_ahead else "ahead"
-                commits = Text(r.old_commit or "—", style="yellow")
-                delta   = Text(ahead_str, style="bold yellow")
-                status  = Text("ahead of origin", style="bold yellow")
+                status = Text("ahead  %s" % (r.old_commit or ""), style="bold yellow")
+                delta  = Text(ahead_str, style="bold yellow")
                 attention_items.append(r)
 
             elif r.outcome == SyncOutcome.ERROR:
-                commits = Text("—", style="red")
-                delta   = Text("")
-                status  = Text(r.error or "error", style="bold red")
+                status = Text(r.error or "error", style="bold red")
+                delta  = Text("")
                 attention_items.append(r)
 
             elif r.outcome in _DRY_OUTCOMES:
-                commits = Text(r.old_commit or "—", style="cyan")
-                delta   = Text("↓%d" % r.commits_behind, style="cyan") if r.commits_behind else Text("")
-                status  = Text(r.outcome.value, style="cyan")
+                status = Text("%s  %s" % (r.outcome.value, r.old_commit or ""), style="cyan")
+                delta  = Text("↓%d" % r.commits_behind, style="cyan") if r.commits_behind else Text("")
                 if r.outcome in (SyncOutcome.DRY_DIRTY, SyncOutcome.DRY_WOULD_CONFLICT):
                     attention_items.append(r)
 
             else:  # SKIPPED
-                commits = Text("—", style="dim")
-                delta   = Text("")
-                status  = Text(r.skipped_reason or "skipped", style="dim")
+                status = Text(r.skipped_reason or "skipped", style="dim")
+                delta  = Text("")
 
-            table.add_row(marker, Text(r.name), branch_text, commits, status, delta)
+            table.add_row(marker, Text(r.name), branch_text, status, delta, dur_text)
 
         console.print(table)
 
@@ -293,6 +300,8 @@ class RichSyncTUI(SyncProgressListener):
                 parts.append("%d error" % counts[SyncOutcome.ERROR])
         if counts[SyncOutcome.SKIPPED]:
             parts.append("%d skipped" % counts[SyncOutcome.SKIPPED])
+        if pypi_count:
+            parts.append("%d pypi (hidden)" % pypi_count)
 
         summary = " · ".join(parts) if parts else "nothing to do"
         if dry_run:
@@ -339,60 +348,69 @@ class TranscriptSyncTUI(SyncProgressListener):
     # ── Final render ──────────────────────────────────────────────────────
 
     def render(self, results: List[PkgSyncResult], dry_run: bool = False):
+        # Progress lines (>> / <<) already showed each package during sync.
+        # Only print details for packages needing attention, then a summary.
+        pypi_count = 0
+        counts = {o: 0 for o in SyncOutcome}
         for r in results:
-            icon, _ = _ICONS.get(r.outcome, ("?", "dim"))
+            counts[r.outcome] += 1
+            if r.src_type == "pypi":
+                pypi_count += 1
+                continue
+            if r.outcome not in _ATTENTION_OUTCOMES:
+                continue
 
-            if r.outcome == SyncOutcome.SYNCED:
-                print("  %s  %-30s  %-15s  %s→%s"
-                      % (icon, r.name, r.branch or "—",
-                         r.old_commit or "?", r.new_commit or "?"))
-
-            elif r.outcome == SyncOutcome.UP_TO_DATE:
-                print("  %s  %-30s  %-15s  (up-to-date)"
-                      % (icon, r.name, r.branch or "—"))
-
-            elif r.outcome == SyncOutcome.SKIPPED:
-                print("  %s  %-30s  (%s)"
-                      % (icon, r.name, r.skipped_reason or "skipped"))
-
-            elif r.outcome == SyncOutcome.CONFLICT:
-                print("  %s  %-30s  %-15s  CONFLICT"
-                      % (icon, r.name, r.branch or "—"))
+            icon, _ = _ICONS.get(r.outcome, ("?", ""))
+            print("  %s  %-30s  %-15s  %s" % (icon, r.name, r.branch or "—",
+                                                r.outcome.value.upper()))
+            if r.outcome == SyncOutcome.CONFLICT:
                 if r.conflict_files:
                     print("     Conflicting files:")
                     for f in r.conflict_files:
                         print("       %s" % f)
                 for step in r.next_steps:
                     print("     %s" % step)
-
-            elif r.outcome == SyncOutcome.DIRTY:
-                print("  %s  %-30s  %-15s  dirty (cannot sync)"
-                      % (icon, r.name, r.branch or "—"))
+            elif r.outcome in (SyncOutcome.DIRTY, SyncOutcome.DRY_DIRTY):
                 if r.dirty_files:
                     print("     Modified files:")
                     for f in r.dirty_files:
                         print("       %s" % f)
-
-            elif r.outcome == SyncOutcome.AHEAD:
-                print("  %s  %-30s  %-15s  ↑%s local commit(s) not on origin"
-                      % (icon, r.name, r.branch or "—", r.commits_ahead or "?"))
-
             elif r.outcome == SyncOutcome.ERROR:
-                print("  %s  %-30s  ERROR: %s"
-                      % (icon, r.name, r.error or ""))
+                print("     %s" % (r.error or ""))
+            elif r.outcome == SyncOutcome.DRY_WOULD_CONFLICT:
+                print("     diverged — git diff HEAD..origin/%s" % (r.branch or ""))
 
-            elif r.outcome in _DRY_OUTCOMES:
-                print("  %s  %-30s  %-15s  %s"
-                      % (icon, r.name, r.branch or "—", r.outcome.value))
-                if r.outcome == SyncOutcome.DRY_DIRTY and r.dirty_files:
-                    print("     Modified files:")
-                    for f in r.dirty_files:
-                        print("       %s" % f)
-
-            else:
-                print("  %s  %-30s  %s" % (icon, r.name, r.outcome.value))
+        # ── Summary line ─────────────────────────────────────────────────
+        parts = []
+        if dry_run:
+            if counts[SyncOutcome.DRY_WOULD_SYNC]:
+                parts.append("%d would sync" % counts[SyncOutcome.DRY_WOULD_SYNC])
+            if counts[SyncOutcome.DRY_WOULD_CONFLICT]:
+                parts.append("%d would conflict" % counts[SyncOutcome.DRY_WOULD_CONFLICT])
+            if counts[SyncOutcome.DRY_DIRTY]:
+                parts.append("%d dirty" % counts[SyncOutcome.DRY_DIRTY])
+            if counts[SyncOutcome.UP_TO_DATE]:
+                parts.append("%d up-to-date" % counts[SyncOutcome.UP_TO_DATE])
+        else:
+            if counts[SyncOutcome.SYNCED]:
+                parts.append("%d synced" % counts[SyncOutcome.SYNCED])
+            if counts[SyncOutcome.UP_TO_DATE]:
+                parts.append("%d up-to-date" % counts[SyncOutcome.UP_TO_DATE])
+            if counts[SyncOutcome.CONFLICT]:
+                parts.append("%d conflict" % counts[SyncOutcome.CONFLICT])
+            if counts[SyncOutcome.DIRTY]:
+                parts.append("%d dirty" % counts[SyncOutcome.DIRTY])
+            if counts[SyncOutcome.AHEAD]:
+                parts.append("%d ahead" % counts[SyncOutcome.AHEAD])
+            if counts[SyncOutcome.ERROR]:
+                parts.append("%d error" % counts[SyncOutcome.ERROR])
+        if counts[SyncOutcome.SKIPPED]:
+            parts.append("%d skipped" % counts[SyncOutcome.SKIPPED])
+        if pypi_count:
+            parts.append("%d pypi (hidden)" % pypi_count)
 
         print("")
+        print("Sync: " + (" · ".join(parts) if parts else "nothing to do"))
         if dry_run:
             print("[dry-run — no changes made]")
 

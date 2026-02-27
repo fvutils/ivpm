@@ -314,12 +314,16 @@ class ProjectOps(object):
                     if progress:
                         progress.on_pkg_start(name)
                     src = entry.get("src", "")
+                    # Normalize src aliases that appear in lock files but aren't
+                    # registered directly (http archive types → "url").
+                    if src in ("tgz", "txz", "zip", "jar", "http"):
+                        src = "url"
                     if not rgy.hasPkgType(src):
                         result = PkgSyncResult(
                             name=name, src_type=src,
                             path=os.path.join(deps_dir, name),
                             outcome=SyncOutcome.SKIPPED,
-                            skipped_reason="unknown package type",
+                            skipped_reason=src or "non-git",
                         )
                     else:
                         pkg = rgy.mkPackage(src, name, entry, None)
