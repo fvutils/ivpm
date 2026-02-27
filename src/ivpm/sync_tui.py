@@ -68,12 +68,43 @@ def _dur(state: Optional[dict]) -> str:
     return ""
 
 
+def _row_status(r: PkgSyncResult):
+    """Return (delta_Text, status_Text) for a completed result row."""
+    from rich.text import Text
+    if r.outcome == SyncOutcome.SYNCED:
+        status = Text("%s→%s" % (r.old_commit or "?", r.new_commit or "?"), style="green")
+        delta  = Text("↓%d" % r.commits_behind, style="green") if r.commits_behind else Text("")
+    elif r.outcome == SyncOutcome.UP_TO_DATE:
+        status = Text("up-to-date  %s" % (r.old_commit or ""), style="dim")
+        delta  = Text("=", style="dim")
+    elif r.outcome == SyncOutcome.CONFLICT:
+        status = Text("conflict  %s" % (r.old_commit or ""), style="bold red")
+        delta  = Text("↓%d" % r.commits_behind, style="red") if r.commits_behind else Text("")
+    elif r.outcome == SyncOutcome.DIRTY:
+        status = Text("dirty  %s" % (r.old_commit or ""), style="bold yellow")
+        delta  = Text("")
+    elif r.outcome == SyncOutcome.AHEAD:
+        ahead_str = "↑%d" % r.commits_ahead if r.commits_ahead else "ahead"
+        status = Text("ahead  %s" % (r.old_commit or ""), style="bold yellow")
+        delta  = Text(ahead_str, style="bold yellow")
+    elif r.outcome == SyncOutcome.ERROR:
+        status = Text(r.error or "error", style="bold red")
+        delta  = Text("")
+    elif r.outcome in _DRY_OUTCOMES:
+        status = Text("%s  %s" % (r.outcome.value, r.old_commit or ""), style="cyan")
+        delta  = Text("↓%d" % r.commits_behind, style="cyan") if r.commits_behind else Text("")
+    else:  # SKIPPED
+        status = Text(r.skipped_reason or "skipped", style="dim")
+        delta  = Text("")
+    return delta, status
+
+
 # ---------------------------------------------------------------------------
 # Rich TUI
 # ---------------------------------------------------------------------------
 
 class RichSyncTUI(SyncProgressListener):
-    """Rich-based TUI: live spinner display during sync, final table after."""
+    """Rich-based TUI: single live table that becomes the final output."""
 
     def __init__(self):
         from rich.console import Console
@@ -100,134 +131,80 @@ class RichSyncTUI(SyncProgressListener):
     # ── Lifecycle ─────────────────────────────────────────────────────────
 
     def start(self):
-        """Begin the live display (call before triggering sync)."""
         from rich.live import Live
         from rich.table import Table
-        tbl = Table(show_header=False, box=None, padding=(0, 1))
+        tbl = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
         self._live = Live(tbl, console=self.console, refresh_per_second=10)
         self._live.start()
 
     def stop(self):
-        """End the live display."""
         if self._live:
             self._live.stop()
             self._live = None
 
-    def _refresh(self):
-        if not self._live:
-            return
+    def _build_table(self, spinner=True):
+        """Build the unified package table (used for both live and final display)."""
         from rich.spinner import Spinner
         from rich.table import Table
         from rich.text import Text
 
-        tbl = Table(show_header=False, box=None, padding=(0, 1))
-        tbl.add_column("s",    width=3)
-        tbl.add_column("name", style="bold")
-        tbl.add_column("info")
+        tbl = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
+        tbl.add_column("",        width=3,  no_wrap=True)
+        tbl.add_column("Package", style="bold", no_wrap=True)
+        tbl.add_column("Branch",  no_wrap=True)
+        tbl.add_column("Status",  no_wrap=True)
+        tbl.add_column("Δ",       no_wrap=True)
+        tbl.add_column("Time",    no_wrap=True)
 
         for name in self._order:
             state = self._pkg_states[name]
             if not state["done"]:
-                marker = Spinner("dots", style="bold cyan")
-                info   = Text(name, style="dim")
+                if spinner:
+                    marker = Spinner("dots", style="bold cyan")
+                else:
+                    marker = Text("…", style="dim")
+                tbl.add_row(marker, Text(name), Text(""), Text("", style="dim"),
+                            Text(""), Text(""))
             else:
                 r = state["result"]
+                # Skip pypi in the live/final table
+                if r.src_type == "pypi":
+                    continue
                 icon, style = _ICONS.get(r.outcome, ("?", "dim"))
-                marker = Text(icon, style=style)
-                dur    = "%.1fs" % state.get("duration", 0)
-                label  = r.outcome.value
-                if r.outcome == SyncOutcome.SYNCED and r.old_commit and r.new_commit:
-                    label = "%s→%s" % (r.old_commit, r.new_commit)
-                elif r.outcome == SyncOutcome.SKIPPED:
-                    label = r.skipped_reason or "skipped"
-                elif r.outcome == SyncOutcome.ERROR:
-                    label = r.error or "error"
-                info = Text("%s  %s" % (label, dur))
+                marker  = Text(icon, style=style)
+                branch  = Text(r.branch or "—", style="" if r.branch else "dim")
+                dur     = Text(_dur(state), style="dim")
+                delta, status = _row_status(r)
+                tbl.add_row(marker, Text(name), branch, status, delta, dur)
 
-            tbl.add_row(marker, Text(name), info)
+        return tbl
 
-        self._live.update(tbl)
+    def _refresh(self):
+        if self._live:
+            self._live.update(self._build_table(spinner=True))
 
     # ── Final render ──────────────────────────────────────────────────────
 
     def render(self, results: List[PkgSyncResult], dry_run: bool = False):
-        from rich.console import Console
-        from rich.table import Table
         from rich.text import Text
         from rich.panel import Panel
 
-        console = Console()
-
-        # ── Main table — one row per package with inline status + duration ─
-        table = Table(show_header=True, header_style="bold", box=None,
-                      padding=(0, 1))
-        table.add_column("",        width=3, no_wrap=True)
-        table.add_column("Package", style="bold", no_wrap=True)
-        table.add_column("Branch",  no_wrap=True)
-        table.add_column("Status",  no_wrap=True)
-        table.add_column("Δ",       no_wrap=True)
-        table.add_column("Time",    no_wrap=True)
+        # Final refresh with complete data, then stop the live display.
+        if self._live:
+            self._live.update(self._build_table(spinner=False))
+            self._live.stop()
+            self._live = None
 
         counts = {o: 0 for o in SyncOutcome}
         pypi_count = 0
         attention_items = []
-
         for r in results:
             counts[r.outcome] += 1
-
-            # Hide pypi packages (sync is a no-op for them); tally for summary.
             if r.src_type == "pypi":
                 pypi_count += 1
                 continue
-
-            icon, style = _ICONS.get(r.outcome, ("?", "dim"))
-            marker = Text(icon, style=style)
-            branch_text = Text(r.branch or "—", style="" if r.branch else "dim")
-            dur_text = Text(_dur(self._pkg_states.get(r.name)), style="dim")
-
-            if r.outcome == SyncOutcome.SYNCED:
-                status = Text("%s→%s" % (r.old_commit or "?", r.new_commit or "?"),
-                               style="green")
-                delta  = Text("↓%d" % r.commits_behind, style="green") if r.commits_behind else Text("")
-
-            elif r.outcome == SyncOutcome.UP_TO_DATE:
-                status = Text("up-to-date  %s" % (r.old_commit or ""), style="dim")
-                delta  = Text("=", style="dim")
-
-            elif r.outcome == SyncOutcome.CONFLICT:
-                status = Text("conflict  %s" % (r.old_commit or ""), style="bold red")
-                delta  = Text("↓%d" % r.commits_behind, style="red") if r.commits_behind else Text("")
+            if r.outcome in _ATTENTION_OUTCOMES:
                 attention_items.append(r)
-
-            elif r.outcome == SyncOutcome.DIRTY:
-                status = Text("dirty  %s" % (r.old_commit or ""), style="bold yellow")
-                delta  = Text("")
-                attention_items.append(r)
-
-            elif r.outcome == SyncOutcome.AHEAD:
-                ahead_str = "↑%d" % r.commits_ahead if r.commits_ahead else "ahead"
-                status = Text("ahead  %s" % (r.old_commit or ""), style="bold yellow")
-                delta  = Text(ahead_str, style="bold yellow")
-                attention_items.append(r)
-
-            elif r.outcome == SyncOutcome.ERROR:
-                status = Text(r.error or "error", style="bold red")
-                delta  = Text("")
-                attention_items.append(r)
-
-            elif r.outcome in _DRY_OUTCOMES:
-                status = Text("%s  %s" % (r.outcome.value, r.old_commit or ""), style="cyan")
-                delta  = Text("↓%d" % r.commits_behind, style="cyan") if r.commits_behind else Text("")
-                if r.outcome in (SyncOutcome.DRY_DIRTY, SyncOutcome.DRY_WOULD_CONFLICT):
-                    attention_items.append(r)
-
-            else:  # SKIPPED
-                status = Text(r.skipped_reason or "skipped", style="dim")
-                delta  = Text("")
-
-            table.add_row(marker, Text(r.name), branch_text, status, delta, dur_text)
-
-        console.print(table)
 
         # ── Attention panel ───────────────────────────────────────────────
         if attention_items:
@@ -269,7 +246,7 @@ class RichSyncTUI(SyncProgressListener):
             has_error = any(r.outcome in (SyncOutcome.CONFLICT, SyncOutcome.ERROR)
                             for r in attention_items)
             border = "red" if has_error else "yellow"
-            console.print(Panel(
+            self.console.print(Panel(
                 "\n".join(lines).rstrip(),
                 title="Attention", border_style=border,
             ))
@@ -316,7 +293,7 @@ class RichSyncTUI(SyncProgressListener):
         else:
             border = "green"
 
-        console.print(Panel(summary, title="Sync", border_style=border))
+        self.console.print(Panel(summary, title="Sync", border_style=border))
 
 
 # ---------------------------------------------------------------------------
