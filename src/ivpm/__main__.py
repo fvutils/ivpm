@@ -220,6 +220,13 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     sync_cmd = subparser.add_parser("sync",
         help="Synchronizes dependent packages with an upstream source (if available)")
     sync_cmd.set_defaults(func=CmdSync())
+    sync_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None)
+    sync_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
+        default=False, help="Fetch and report sync-ability without merging")
+    sync_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=0,
+        help="Number of parallel sync operations (default: CPU count)")
+    sync_cmd.add_argument("--no-rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
 
     status_cmd = subparser.add_parser("status",
         help="Checks the status of sub-dependencies such as git repositories")

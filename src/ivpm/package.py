@@ -112,8 +112,15 @@ class Package(object):
     def status(self, pkgs_info):
         pass
 
-    def sync(self, pkgs_info):
-        pass
+    def sync(self, sync_info):
+        from .pkg_sync import PkgSyncResult, SyncOutcome
+        return PkgSyncResult(
+            name=self.name,
+            src_type=str(getattr(self, "src_type", "") or ""),
+            path=os.path.join(sync_info.deps_dir, self.name),
+            outcome=SyncOutcome.SKIPPED,
+            skipped_reason="not a VCS package",
+        )
 
     def update(self, update_info : ProjectUpdateInfo) -> 'ProjInfo':
         from .proj_info import ProjInfo

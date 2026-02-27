@@ -396,40 +396,182 @@ class PackageGit(PackageURL):
             behind=behind,
         )
     
-    def sync(self, sync_info : ProjectSyncInfo):
-        if not os.path.isdir(os.path.join(sync_info.deps_dir, dir, ".git")):
-            fatal("Package \"" + dir + "\" is not a Git repository")
-        _logger.info("Package: %s", dir)
+    def sync(self, sync_info: ProjectSyncInfo):
+        from ..pkg_sync import PkgSyncResult, SyncOutcome
+        import stat as _stat
+
+        pkg_dir = os.path.join(sync_info.deps_dir, self.name)
+        dry_run = sync_info.dry_run
+
+        # Tag-pinned packages have no meaningful "latest" to pull.
+        if self.tag is not None:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.SKIPPED,
+                skipped_reason="pinned to tag %s" % self.tag,
+            )
+
+        # Read-only packages are cached; skip silently.
         try:
-            branch = subprocess.check_output(
-                ["git", "branch"],
-                cwd=os.path.join(sync_info.deps_dir, dir))
-        except Exception as e:
-            fatal("failed to get branch of package \"" + dir + "\"")
+            mode = os.stat(pkg_dir).st_mode
+            is_writable = bool(mode & _stat.S_IWUSR)
+        except Exception:
+            is_writable = False
+        if not is_writable:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.SKIPPED,
+                skipped_reason="read-only (cached)",
+            )
 
-        branch = branch.strip()
-        if len(branch) == 0:
-            fatal("branch is empty")
+        # Must be a real git checkout.
+        if not os.path.isdir(os.path.join(pkg_dir, ".git")):
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.ERROR,
+                error="not a git repository",
+            )
 
-        branch_lines = branch.decode().splitlines()
-        branch = None
-        for bl in branch_lines:
-            if bl[0] == "*":
-                branch = bl[1:].strip()
-                break
-        if branch is None:
-            fatal("Failed to identify branch")
+        def _git(*args):
+            r = subprocess.run(
+                ["git"] + list(args),
+                capture_output=True, text=True, cwd=pkg_dir, timeout=60,
+            )
+            return r.returncode, r.stdout.strip(), r.stderr.strip()
 
-        status = subprocess.run(
-            ["git", "fetch"],
-            cwd=os.path.join(sync_info.deps_dir, dir))
-        if status.returncode != 0:
-            fatal("Failed to run git fetch on package %s" % dir)
-        status = subprocess.run(
-            ["git", "merge", "origin/" + branch],
-            cwd=os.path.join(sync_info.deps_dir, dir))
-        if status.returncode != 0:
-            fatal("Failed to run git merge origin/%s on package %s" % (branch, dir))
+        # Current branch (detached HEAD → skip).
+        rc, branch, _ = _git("rev-parse", "--abbrev-ref", "HEAD")
+        if rc != 0:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.ERROR, error="failed to determine branch",
+            )
+        if branch == "HEAD":
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.SKIPPED, skipped_reason="detached HEAD",
+            )
+
+        _, old_commit, _ = _git("rev-parse", "--short", "HEAD")
+
+        # Detect dirty working tree.
+        _, porcelain, _ = _git("status", "--porcelain")
+        dirty_files = [ln for ln in porcelain.splitlines() if ln.strip()]
+
+        # Fetch from origin (safe in both real and dry-run modes).
+        rc, _, err = _git("fetch", "origin")
+        if rc != 0:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.ERROR, branch=branch,
+                old_commit=old_commit,
+                error="git fetch failed: %s" % err,
+            )
+
+        # Ahead / behind upstream.
+        rc, ab_raw, _ = _git("rev-list", "--left-right", "--count",
+                              "@{u}...HEAD")
+        behind = ahead = 0
+        if rc == 0 and ab_raw:
+            parts = ab_raw.split()
+            if len(parts) == 2:
+                try:
+                    behind, ahead = int(parts[0]), int(parts[1])
+                except ValueError:
+                    pass
+
+        # Nothing to pull and no local commits → up-to-date.
+        if behind == 0 and ahead == 0:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.UP_TO_DATE,
+                branch=branch, old_commit=old_commit,
+            )
+
+        # Strictly ahead (nothing to pull, but local work exists).
+        if behind == 0 and ahead > 0:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.AHEAD,
+                branch=branch, old_commit=old_commit, commits_ahead=ahead,
+            )
+
+        # There are upstream commits to pull (behind > 0).
+        # Dirty tree blocks a real merge.
+        if dirty_files and not dry_run:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.DIRTY,
+                branch=branch, old_commit=old_commit,
+                dirty_files=dirty_files,
+            )
+
+        if dry_run:
+            # Diverged history (ahead > 0 as well) → would conflict.
+            if ahead > 0:
+                return PkgSyncResult(
+                    name=self.name, src_type="git", path=pkg_dir,
+                    outcome=SyncOutcome.DRY_WOULD_CONFLICT,
+                    branch=branch, old_commit=old_commit,
+                    commits_behind=behind, commits_ahead=ahead,
+                )
+            # Check whether a fast-forward is possible.
+            rc_ff, _, _ = _git("merge-base", "--is-ancestor",
+                               "HEAD", "origin/%s" % branch)
+            if rc_ff == 0:
+                if dirty_files:
+                    return PkgSyncResult(
+                        name=self.name, src_type="git", path=pkg_dir,
+                        outcome=SyncOutcome.DRY_DIRTY,
+                        branch=branch, old_commit=old_commit,
+                        commits_behind=behind, dirty_files=dirty_files,
+                    )
+                return PkgSyncResult(
+                    name=self.name, src_type="git", path=pkg_dir,
+                    outcome=SyncOutcome.DRY_WOULD_SYNC,
+                    branch=branch, old_commit=old_commit,
+                    commits_behind=behind,
+                )
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.DRY_WOULD_CONFLICT,
+                branch=branch, old_commit=old_commit, commits_behind=behind,
+            )
+
+        # Real merge.
+        rc, _, _ = _git("merge", "origin/%s" % branch)
+        if rc != 0:
+            # Collect unmerged files from index before aborting.
+            _, st_out, _ = _git("status", "--porcelain")
+            conflict_files = [
+                ln[3:] for ln in st_out.splitlines()
+                if ln[:2] in ("UU", "AA", "DD", "AU", "UA", "DU", "UD")
+            ]
+            _git("merge", "--abort")
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.CONFLICT,
+                branch=branch, old_commit=old_commit, commits_behind=behind,
+                conflict_files=conflict_files,
+                next_steps=[
+                    "cd %s && git status" % pkg_dir,
+                    "cd %s && git mergetool" % pkg_dir,
+                    "cd %s && git merge --abort" % pkg_dir,
+                ],
+            )
+
+        _, new_commit, _ = _git("rev-parse", "--short", "HEAD")
+
+        # Update submodules if the project uses them.
+        if os.path.isfile(os.path.join(pkg_dir, ".gitmodules")):
+            _git("submodule", "update", "--init", "--recursive")
+
+        return PkgSyncResult(
+            name=self.name, src_type="git", path=pkg_dir,
+            outcome=SyncOutcome.SYNCED,
+            branch=branch, old_commit=old_commit, new_commit=new_commit,
+            commits_behind=behind,
+        )
     
     def process_options(self, opts, si):
         super().process_options(opts, si)

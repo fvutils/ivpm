@@ -173,10 +173,73 @@ def write_lock(
     os.replace(tmp_path, lock_path)
     _logger.info("Wrote package-lock.json (%d packages)", len(packages))
 
+def _write_lock_dict(lock_path: str, lock: dict) -> None:
+    """Atomically (re-)write a lock dict to *lock_path*.
 
-# ---------------------------------------------------------------------------
-# Read
-# ---------------------------------------------------------------------------
+    Strips any stale ``sha256`` key, refreshes the ``generated`` timestamp,
+    recomputes the checksum over the canonical body (without the checksum
+    key), then inserts it before the final write.  This is the single place
+    where the lock-file integrity stamp is managed.
+    """
+    lock = dict(lock)       # shallow copy — don't mutate caller's dict
+    lock.pop("sha256", None)
+    lock["generated"] = datetime.now(timezone.utc).isoformat()
+
+    body = json.dumps(lock, indent=2, sort_keys=True)
+    lock["sha256"] = hashlib.sha256(body.encode()).hexdigest()
+
+    tmp_path = lock_path + ".tmp"
+    with open(tmp_path, "w") as f:
+        json.dump(lock, indent=2, sort_keys=True, fp=f)
+        f.write("\n")
+    os.replace(tmp_path, lock_path)
+
+
+def patch_lock_after_sync(lock_path: str, sync_results) -> None:
+    """Update ``commit_resolved`` for synced packages and re-write the lock.
+
+    Called by ``ProjectOps.sync()`` after a successful (non-dry-run) sync.
+    Only packages whose outcome is SYNCED are updated; all others are left
+    unchanged.
+    """
+    from .pkg_sync import SyncOutcome
+
+    if not os.path.isfile(lock_path):
+        return
+
+    try:
+        lock = read_lock(lock_path)
+    except Exception as e:
+        _logger.warning("Could not read package-lock.json for sync update: %s", e)
+        return
+
+    packages = lock.get("packages", {})
+    changed = False
+    for result in sync_results:
+        if result.outcome != SyncOutcome.SYNCED:
+            continue
+        if result.name not in packages:
+            continue
+        entry = packages[result.name]
+        if entry.get("src") != "git":
+            continue
+        # Re-read full commit hash from the working directory
+        try:
+            r = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                capture_output=True, text=True, cwd=result.path, timeout=10,
+            )
+            if r.returncode == 0:
+                entry["commit_resolved"] = r.stdout.strip()
+                changed = True
+        except Exception:
+            pass
+
+    if changed:
+        _write_lock_dict(lock_path, lock)
+        _logger.info("Updated package-lock.json after sync")
+
+
 
 def read_lock(lock_path: str) -> dict:
     """Read and validate a lock file.  Returns the parsed dict."""

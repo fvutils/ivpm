@@ -23,7 +23,7 @@ import dataclasses as dc
 import enum
 import logging
 import time
-from typing import Optional
+from typing import List, Optional
 
 from .update_event import UpdateEvent, UpdateEventType, UpdateEventDispatcher
 
@@ -48,7 +48,10 @@ class ProjectBuildInfo(ProjectOpsInfo):
 
 @dc.dataclass
 class ProjectSyncInfo(ProjectOpsInfo):
-    pass
+    dry_run: bool = False
+    packages_filter: Optional[List[str]] = None  # if set, only sync named packages
+    max_parallel: int = 0                         # 0 = cpu_count()
+    progress: Optional[object] = None             # SyncProgressListener instance
 
 @dc.dataclass
 class ProjectStatusInfo(ProjectOpsInfo):

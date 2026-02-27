@@ -99,8 +99,8 @@ class TestBase(unittest.TestCase):
                 skip_venv=skip_venv,
                 args=args)
     
-    def ivpm_sync(self, dep_set=None):
-        ProjectOps(self.testdir).sync(dep_set=dep_set)
+    def ivpm_sync(self, dep_set=None, args=None):
+        ProjectOps(self.testdir).sync(dep_set=dep_set, args=args)
         
     def exec(self, cmd, cwd=None):
         return subprocess.check_output(cmd, cwd=cwd).decode("utf-8")

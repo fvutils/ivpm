@@ -256,8 +256,110 @@ class ProjectOps(object):
 
         return sorted(results, key=lambda r: r.name)
 
-    def sync(self, dep_set : str = None):
-        pass
+    def sync(self, dep_set: str = None, args=None):
+        import asyncio
+        import multiprocessing
+        from .pkg_sync import PkgSyncResult, SyncOutcome
+        from .project_ops_info import ProjectSyncInfo
+        from .pkg_types.pkg_type_rgy import PkgTypeRgy
+        from .package_lock import read_lock, patch_lock_after_sync
+        from .proj_info import ProjInfo
+
+        proj_info = ProjInfo.mkFromProj(self.root_dir)
+        if proj_info is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
+
+        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
+        lock_path = os.path.join(deps_dir, "package-lock.json")
+
+        if not os.path.isfile(lock_path):
+            fatal("package-lock.json not found in %s — run 'ivpm update' first" % deps_dir)
+
+        lock = read_lock(lock_path)
+        packages = lock.get("packages", {})
+
+        dry_run          = getattr(args, "dry_run",          False) if args is not None else False
+        packages_filter  = getattr(args, "packages_filter",  None)  if args is not None else None
+        max_parallel     = getattr(args, "jobs",             0)     if args is not None else 0
+        progress         = getattr(args, "_sync_progress",   None)  if args is not None else None
+
+        sync_info = ProjectSyncInfo(
+            args=args,
+            deps_dir=deps_dir,
+            dry_run=dry_run,
+            packages_filter=packages_filter,
+            max_parallel=max_parallel or 0,
+            progress=progress,
+        )
+        rgy = PkgTypeRgy.inst()
+
+        # Filter the package list once.
+        pkg_items = [
+            (name, entry) for name, entry in packages.items()
+            if not packages_filter or name in packages_filter
+        ]
+
+        if not pkg_items:
+            return []
+
+        # ── Parallel execution ─────────────────────────────────────────────
+        n_workers = sync_info.max_parallel or multiprocessing.cpu_count()
+
+        async def _run_all():
+            semaphore = asyncio.Semaphore(n_workers)
+            loop = asyncio.get_event_loop()
+
+            async def _run_one(name, entry):
+                async with semaphore:
+                    if progress:
+                        progress.on_pkg_start(name)
+                    src = entry.get("src", "")
+                    if not rgy.hasPkgType(src):
+                        result = PkgSyncResult(
+                            name=name, src_type=src,
+                            path=os.path.join(deps_dir, name),
+                            outcome=SyncOutcome.SKIPPED,
+                            skipped_reason="unknown package type",
+                        )
+                    else:
+                        pkg = rgy.mkPackage(src, name, entry, None)
+                        pkg.path = os.path.join(deps_dir, name)
+                        result = await loop.run_in_executor(
+                            None, pkg.sync, sync_info
+                        )
+                    if progress:
+                        progress.on_pkg_result(result)
+                    return result
+
+            return await asyncio.gather(
+                *[_run_one(n, e) for n, e in pkg_items],
+                return_exceptions=True,
+            )
+
+        raw = asyncio.run(_run_all())
+
+        results = []
+        for i, r in enumerate(raw):
+            if isinstance(r, Exception):
+                name = pkg_items[i][0]
+                entry = pkg_items[i][1]
+                err_result = PkgSyncResult(
+                    name=name,
+                    src_type=entry.get("src", ""),
+                    path=os.path.join(deps_dir, name),
+                    outcome=SyncOutcome.ERROR,
+                    error=str(r),
+                )
+                if progress:
+                    progress.on_pkg_result(err_result)
+                results.append(err_result)
+            else:
+                results.append(r)
+
+        if not dry_run:
+            patch_lock_after_sync(lock_path, results)
+
+        return sorted(results, key=lambda r: r.name)
 
     def _init(self, dep_set : str = None) -> Tuple['ProjInfo', str, str]:
         from .proj_info import ProjInfo
