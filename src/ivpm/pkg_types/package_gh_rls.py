@@ -96,10 +96,18 @@ class PackageGhRls(PackageHttp):
         github_com_idx = self.url.find("github.com")
         return "https://api.github.com/repos/" + self.url[github_com_idx + len("github.com") + 1:]
 
+    def _github_headers(self):
+        """Return headers for GitHub API requests, including auth token if available."""
+        headers = {"Accept": "application/vnd.github+json"}
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        return headers
+
     def _fetch_tags(self):
         """Fetch tags from GitHub API and normalize them to release-like dicts."""
         tags_url = self._repo_base_url() + "/tags"
-        resp = httpx.get(tags_url, follow_redirects=True)
+        resp = httpx.get(tags_url, headers=self._github_headers(), follow_redirects=True)
         if resp.status_code != 200:
             return []
         tags = json.loads(resp.content)
@@ -124,7 +132,7 @@ class PackageGhRls(PackageHttp):
             Tuple of (rls_info, rls, file_url, forced_ext)
         """
         releases_url = self._repo_base_url() + "/releases"
-        rls_info_resp = httpx.get(releases_url, follow_redirects=True)
+        rls_info_resp = httpx.get(releases_url, headers=self._github_headers(), follow_redirects=True)
 
         if rls_info_resp.status_code != 200:
             raise Exception("Failed to fetch release info: %d" % rls_info_resp.status_code)

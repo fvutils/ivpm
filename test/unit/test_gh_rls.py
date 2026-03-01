@@ -6,13 +6,21 @@ from .test_base import TestBase
 
 
 def _check_github_api_available():
-    """Check if GitHub API is accessible (not rate-limited)."""
+    """Check if GitHub API is accessible and not rate-limited."""
     try:
         import httpx
-        resp = httpx.get("https://api.github.com/rate_limit", timeout=5)
-        if resp.status_code == 403:
+        import os
+        headers = {"Accept": "application/vnd.github+json"}
+        token = os.environ.get("GITHUB_TOKEN")
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        resp = httpx.get("https://api.github.com/rate_limit", headers=headers, timeout=5)
+        if resp.status_code != 200:
             return False
-        return True
+        import json
+        data = json.loads(resp.content)
+        remaining = data.get("rate", {}).get("remaining", 0)
+        return remaining > 10
     except Exception:
         return False
 

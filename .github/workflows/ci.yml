@@ -15,6 +15,8 @@ jobs:
         ./bootstrap.sh
         ./packages/python/bin/python3 -m pip install setuptools build --upgrade
     - name: Run Tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         export PYTHONPATH=$(pwd)/src:$(pwd)/test
         cd test
