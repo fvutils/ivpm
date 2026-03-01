@@ -111,12 +111,12 @@ class BuildExt(_build_ext):
 
             os.makedirs(os.path.dirname(dest_filename), exist_ok=True)
 
-            copy_file(
-                src_filename,
-                dest_filename,
-                verbose=self.verbose,
-                dry_run=self.dry_run
-            )
+            if not self.dry_run:
+                copy_file(
+                    src_filename,
+                    dest_filename,
+                    verbose=self.verbose,
+                )
 
         # Appy any post-copy hooks
         for hook in get_hooks(Phase_BuildPost):
