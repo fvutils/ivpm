@@ -417,13 +417,15 @@ class PackageHandlerPython(PackageHandler):
                         packages_dir.replace("\\","/"), 
                         pkg.name))
                 else:
-                    # PyPi package
+                    # PyPi package — build PEP 508 specifier: name[extras]version
+                    extras = getattr(pkg, "extras", None)
+                    extras_str = "[%s]" % ",".join(extras) if extras else ""
                     if pkg.version is not None:
                         if pkg.version[0] in ['<','>','=']:
-                            fp.write("%s%s\n" % (pkg.name, pkg.version))
+                            fp.write("%s%s%s\n" % (pkg.name, extras_str, pkg.version))
                         else:
-                            fp.write("%s==%s\n" % (pkg.name, pkg.version))
+                            fp.write("%s%s==%s\n" % (pkg.name, extras_str, pkg.version))
                     else:
-                        fp.write("%s\n" % pkg.name)
+                        fp.write("%s%s\n" % (pkg.name, extras_str))
 
 

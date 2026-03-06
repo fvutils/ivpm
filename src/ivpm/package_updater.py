@@ -221,8 +221,9 @@ class PackageUpdater(object):
                 pkg.proj_info.target_dep_set = pkg.dep_set
                 pkg.proj_info.process_deps = pkg.process_deps
             
-            # Signal package complete
-            self.update_info.package_complete(pkg.name)
+            # Signal package complete, passing resolved version if available (e.g., gh-rls)
+            resolved_version = getattr(pkg, 'resolved_version', None)
+            self.update_info.package_complete(pkg.name, version=resolved_version)
             
             return (pkg, pkg.proj_info)
         except Exception as e:

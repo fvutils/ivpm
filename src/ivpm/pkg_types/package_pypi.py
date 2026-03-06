@@ -26,6 +26,7 @@ from ..package import Package
 class PackagePyPi(Package):
     version : str = None
     resolved_version : str = None  # actual installed version after pip install
+    extras : list = None  # PEP 508 extras, e.g. ["litellm"] -> package[litellm]
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
@@ -34,6 +35,13 @@ class PackagePyPi(Package):
         
         if "version" in opts.keys():
             self.version = opts["version"]
+
+        if "extras" in opts.keys():
+            raw = opts["extras"]
+            if isinstance(raw, list):
+                self.extras = [str(e) for e in raw]
+            else:
+                self.extras = [str(raw)]
 
     @staticmethod
     def create(name, opts, si) -> 'Package':

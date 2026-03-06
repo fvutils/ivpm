@@ -196,9 +196,10 @@ class PackageHttp(PackageFile):
 
     def _download_file(self, url, dest):
         r = httpx.get(url, follow_redirects=True)
+        if r.status_code < 200 or r.status_code >= 300:
+            raise Exception("Failed to download %s: HTTP %d" % (url, r.status_code))
         with open(dest, "wb") as f:
             f.write(r.content)
-        pass
             
     @staticmethod
     def create(name, opts, si) -> 'PackageHttp':

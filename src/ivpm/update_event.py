@@ -45,6 +45,7 @@ class UpdateEvent:
     duration: Optional[float] = None
     cache_hit: Optional[bool] = None
     error_message: Optional[str] = None
+    version: Optional[str] = None
     total_packages: int = 0
     cache_hits: int = 0
     cache_misses: int = 0

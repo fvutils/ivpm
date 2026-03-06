@@ -118,7 +118,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
             self.event_dispatcher.dispatch(event)
         _logger.debug("Package start: %s", name)
     
-    def package_complete(self, name: str):
+    def package_complete(self, name: str, version: str = None):
         """Signal that loading of a package has completed."""
         duration = None
         if self._current_package_start and self._current_package_name == name:
@@ -129,7 +129,8 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 event_type=UpdateEventType.PACKAGE_COMPLETE,
                 package_name=name,
                 duration=duration,
-                cache_hit=self._current_cache_hit
+                cache_hit=self._current_cache_hit,
+                version=version
             )
             self.event_dispatcher.dispatch(event)
         _logger.debug("Package complete: %s (%.2fs)", name, duration or 0)

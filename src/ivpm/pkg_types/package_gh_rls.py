@@ -145,6 +145,9 @@ class PackageGhRls(PackageHttp):
             for r in rls_info:
                 if r["prerelease"] and not self.prerelease:
                     continue
+                # Skip releases with no usable assets (no assets, or all with broken untagged URLs)
+                if not self.source and not self._filter_valid_assets(r.get("assets", [])): 
+                    continue
                 rls = r
                 break
             if rls is None:
@@ -502,7 +505,7 @@ class PackageGhRls(PackageHttp):
         if m:
             arch = m.group(1)
             # Normalize arch names
-            if arch in ("x86_64", "amd64"):
+            if arch in ("x86_64", "amd64", "x64"):
                 return "x86_64"
             elif arch in ("aarch_64", "aarch64", "arm64"):
                 return "aarch64"
@@ -619,7 +622,12 @@ class PackageGhRls(PackageHttp):
                 return True
         return False
 
+    def _filter_valid_assets(self, assets):
+        """Filter out assets with broken untagged URLs (draft artifacts that weren't re-published)."""
+        return [a for a in assets if "untagged-" not in a.get("browser_download_url", "")]
+
     def _choose_source_url(self, rls):
+        """Return (url, forced_ext) for the source archive of a release, or (None, None)."""
         # Prefer tarball over zipball
         tarball = rls.get("tarball_url")
         if tarball:

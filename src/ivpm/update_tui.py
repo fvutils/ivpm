@@ -42,6 +42,7 @@ class PackageStatus:
         self.start_time = time.time()
         self.duration: Optional[float] = None
         self.cache_hit: Optional[bool] = None
+        self.version: Optional[str] = None
         self.completed = False
         self.error: Optional[str] = None
 
@@ -137,8 +138,9 @@ class RichUpdateTUI(UpdateEventListener):
             elif status.completed:
                 marker = Text("✓", style="bold green")
                 cache_str = "C" if status.cache_hit else ""
+                version_str = f"@{status.version}" if status.version else ""
                 duration_str = f"{status.duration:.1f}s" if status.duration else ""
-                info = Text(f"{status.pkg_type} {status.pkg_src} {cache_str} {duration_str}".strip())
+                info = Text(f"{status.pkg_type} {status.pkg_src} {version_str} {cache_str} {duration_str}".strip())
             else:
                 # Use Rich's Spinner for in-progress packages
                 marker = Spinner("dots", style="bold cyan")
@@ -198,6 +200,7 @@ class RichUpdateTUI(UpdateEventListener):
                 status.completed = True
                 status.duration = event.duration
                 status.cache_hit = event.cache_hit
+                status.version = event.version
                 self.completed_packages.append(event.package_name)
                 self._update_display()
         
