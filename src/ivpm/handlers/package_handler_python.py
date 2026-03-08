@@ -30,6 +30,7 @@ from typing import Dict, List, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import note, fatal, get_venv_python
 from ..pkg_content_type import PythonTypeData
+from ..package import get_type_data
 
 from ..package import Package
 from .package_handler import PackageHandler
@@ -50,8 +51,8 @@ class PackageHandlerPython(PackageHandler):
         if pkg.src_type == "pypi":
             self.pypi_pkg_s.add(pkg.name)
             add = True
-        elif isinstance(pkg.type_data, PythonTypeData):
-            # Explicit type: python via 'with:' mechanism
+        elif get_type_data(pkg, PythonTypeData) is not None:
+            # Explicit type: python
             self.src_pkg_s.add(pkg.name)
             add = True
         elif pkg.pkg_type is not None and pkg.pkg_type == PackageHandlerPython.name:
@@ -416,13 +417,14 @@ class PackageHandlerPython(PackageHandler):
                     # Source package (git, dir, http, etc.)
                     # Determine editability: type_data takes priority, then default True
                     editable = True
-                    if isinstance(pkg.type_data, PythonTypeData) and pkg.type_data.editable is not None:
-                        editable = pkg.type_data.editable
+                    td = get_type_data(pkg, PythonTypeData)
+                    if td is not None and td.editable is not None:
+                        editable = td.editable
 
-                    # Extras from type_data (for source packages declared with type: python + with: extras:)
+                    # Extras from type_data
                     extras = None
-                    if isinstance(pkg.type_data, PythonTypeData):
-                        extras = pkg.type_data.extras
+                    if td is not None:
+                        extras = td.extras
                     extras_str = "[%s]" % ",".join(extras) if extras else ""
 
                     pkg_path = "%s/%s" % (packages_dir.replace("\\","/"), pkg.name)
@@ -433,8 +435,9 @@ class PackageHandlerPython(PackageHandler):
                 else:
                     # PyPi package — build PEP 508 specifier: name[extras]version
                     # Extras: prefer type_data if present, fall back to pkg.extras (PackagePyPi)
-                    if isinstance(pkg.type_data, PythonTypeData) and pkg.type_data.extras is not None:
-                        extras = pkg.type_data.extras
+                    td = get_type_data(pkg, PythonTypeData)
+                    if td is not None and td.extras is not None:
+                        extras = td.extras
                     else:
                         extras = getattr(pkg, "extras", None)
                     extras_str = "[%s]" % ",".join(extras) if extras else ""

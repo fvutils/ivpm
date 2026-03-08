@@ -125,56 +125,58 @@ class TestYamlTypeData(TestBase):
               type: python
         """)
         pkg = _first_pkg(proj)
-        self.assertIsInstance(pkg.type_data, PythonTypeData)
-        self.assertIsNone(pkg.type_data.extras)
-        self.assertIsNone(pkg.type_data.editable)
+        self.assertEqual(len(pkg.type_data), 1)
+        self.assertIsInstance(pkg.type_data[0], PythonTypeData)
+        self.assertIsNone(pkg.type_data[0].extras)
+        self.assertIsNone(pkg.type_data[0].editable)
 
     def test_type_python_editable_false(self):
         proj = _read_yaml(_HEADER + """
             - name: mypkg
               url: https://example.com/mypkg.git
-              type: python
-              with:
-                editable: false
+              type:
+                python:
+                  editable: false
         """)
         pkg = _first_pkg(proj)
-        self.assertIsInstance(pkg.type_data, PythonTypeData)
-        self.assertFalse(pkg.type_data.editable)
+        self.assertEqual(len(pkg.type_data), 1)
+        self.assertIsInstance(pkg.type_data[0], PythonTypeData)
+        self.assertFalse(pkg.type_data[0].editable)
 
     def test_type_python_editable_true(self):
         proj = _read_yaml(_HEADER + """
             - name: mypkg
               url: https://example.com/mypkg.git
-              type: python
-              with:
-                editable: true
+              type:
+                python:
+                  editable: true
         """)
         pkg = _first_pkg(proj)
-        self.assertTrue(pkg.type_data.editable)
+        self.assertTrue(pkg.type_data[0].editable)
 
     def test_type_python_extras_list(self):
         proj = _read_yaml(_HEADER + """
             - name: mypkg
               url: https://example.com/mypkg.git
-              type: python
-              with:
-                extras: [tests, docs]
+              type:
+                python:
+                  extras: [tests, docs]
         """)
         pkg = _first_pkg(proj)
-        self.assertEqual(pkg.type_data.extras, ["tests", "docs"])
+        self.assertEqual(pkg.type_data[0].extras, ["tests", "docs"])
 
     def test_type_python_extras_and_editable(self):
         proj = _read_yaml(_HEADER + """
             - name: mypkg
               url: https://example.com/mypkg.git
-              type: python
-              with:
-                extras: [litellm]
-                editable: false
+              type:
+                python:
+                  extras: [litellm]
+                  editable: false
         """)
         pkg = _first_pkg(proj)
-        self.assertEqual(pkg.type_data.extras, ["litellm"])
-        self.assertFalse(pkg.type_data.editable)
+        self.assertEqual(pkg.type_data[0].extras, ["litellm"])
+        self.assertFalse(pkg.type_data[0].editable)
 
     def test_type_raw_no_with(self):
         proj = _read_yaml(_HEADER + """
@@ -183,7 +185,8 @@ class TestYamlTypeData(TestBase):
               type: raw
         """)
         pkg = _first_pkg(proj)
-        self.assertIsInstance(pkg.type_data, RawTypeData)
+        self.assertEqual(len(pkg.type_data), 1)
+        self.assertIsInstance(pkg.type_data[0], RawTypeData)
 
     def test_no_type_no_type_data(self):
         proj = _read_yaml(_HEADER + """
@@ -191,7 +194,7 @@ class TestYamlTypeData(TestBase):
               url: https://example.com/mypkg.git
         """)
         pkg = _first_pkg(proj)
-        self.assertIsNone(pkg.type_data)
+        self.assertEqual(pkg.type_data, [])
 
     def test_with_without_type_raises(self):
         with self.assertRaises(Exception) as ctx:
@@ -217,9 +220,9 @@ class TestYamlTypeData(TestBase):
             _read_yaml(_HEADER + """
                 - name: mypkg
                   url: https://example.com/mypkg.git
-                  type: python
-                  with:
-                    bogus_param: true
+                  type:
+                    python:
+                      bogus_param: true
             """)
         self.assertIn("bogus_param", str(ctx.exception))
 
@@ -228,9 +231,9 @@ class TestYamlTypeData(TestBase):
             _read_yaml(_HEADER + """
                 - name: mypkg
                   url: https://example.com/data.tar.gz
-                  type: raw
-                  with:
-                    something: value
+                  type:
+                    raw:
+                      something: value
             """)
 
     def test_backward_compat_pkg_type_set(self):
@@ -243,3 +246,82 @@ class TestYamlTypeData(TestBase):
         pkg = _first_pkg(proj)
         # pkg_type should mirror the type: field for backward compat
         self.assertIsNotNone(pkg.pkg_type)
+
+    def test_type_list_multiple_types(self):
+        """A list of type strings produces multiple TypeData entries."""
+        proj = _read_yaml(_HEADER + """
+            - name: mypkg
+              url: https://example.com/mypkg.git
+              type:
+                - python
+                - raw
+        """)
+        pkg = _first_pkg(proj)
+        self.assertEqual(len(pkg.type_data), 2)
+        self.assertIsInstance(pkg.type_data[0], PythonTypeData)
+        self.assertIsInstance(pkg.type_data[1], RawTypeData)
+
+    def test_type_list_mixed_string_and_dict(self):
+        """A list mixing plain strings and dicts is parsed correctly."""
+        proj = _read_yaml(_HEADER + """
+            - name: mypkg
+              url: https://example.com/mypkg.git
+              type:
+                - python:
+                    editable: false
+                - raw
+        """)
+        pkg = _first_pkg(proj)
+        self.assertEqual(len(pkg.type_data), 2)
+        self.assertFalse(pkg.type_data[0].editable)
+        self.assertIsInstance(pkg.type_data[1], RawTypeData)
+
+    def test_type_name_recorded_on_type_data(self):
+        """TypeData.type_name is set to the type string that produced it."""
+        proj = _read_yaml(_HEADER + """
+            - name: mypkg
+              url: https://example.com/mypkg.git
+              type: python
+        """)
+        pkg = _first_pkg(proj)
+        self.assertEqual(pkg.type_data[0].type_name, "python")
+
+    def test_package_root_type_string(self):
+        """'type:' at the package root is parsed into ProjInfo.self_types."""
+        proj = _read_yaml("""
+package:
+    name: my_lib
+    type: python
+    dep-sets:
+        - name: default-dev
+          deps: []
+        """)
+        self.assertEqual(proj.self_types, [("python", {})])
+
+    def test_package_root_type_dict(self):
+        """'type:' dict form at the package root is parsed correctly."""
+        proj = _read_yaml("""
+package:
+    name: my_lib
+    type:
+        python:
+            editable: false
+    dep-sets:
+        - name: default-dev
+          deps: []
+        """)
+        self.assertEqual(proj.self_types, [("python", {"editable": False})])
+
+    def test_package_root_type_list(self):
+        """'type:' list form at the package root is parsed correctly."""
+        proj = _read_yaml("""
+package:
+    name: my_lib
+    type:
+        - python
+        - raw
+    dep-sets:
+        - name: default-dev
+          deps: []
+        """)
+        self.assertEqual(proj.self_types, [("python", {}), ("raw", {})])

@@ -23,7 +23,8 @@ from .utils import fatal, getlocstr
 @dc.dataclass
 class TypeData:
     """Base class for type-specific package data produced by PkgContentType.create_data()."""
-    pass
+    # Populated by PkgContentType.create_data() to record which type produced this data.
+    type_name: str = dc.field(default="", init=False)
 
 
 class PkgContentType:
@@ -86,6 +87,7 @@ class PythonContentType(PkgContentType):
             data.extras = [str(e) for e in raw] if isinstance(raw, list) else [str(raw)]
         if "editable" in with_opts:
             data.editable = bool(with_opts["editable"])
+        data.type_name = self.name
         return data
 
     def get_json_schema(self) -> dict:
@@ -128,4 +130,34 @@ class RawContentType(PkgContentType):
     def create_data(self, with_opts: dict, si) -> RawTypeData:
         if with_opts:
             fatal("type 'raw' does not accept any 'with:' parameters")
-        return RawTypeData()
+        data = RawTypeData()
+        data.type_name = self.name
+        return data
+
+
+# ---------------------------------------------------------------------------
+# YAML type-field parser
+# ---------------------------------------------------------------------------
+
+def parse_type_field(value) -> list:
+    """Normalise any supported 'type:' YAML value to List[Tuple[str, dict]].
+
+    Accepted forms:
+      str              →  [(value, {})]
+      {name: opts}     →  [(name, opts or {})]
+      [str | {n:o}, …] →  above rules applied per element
+    """
+    def _item(v):
+        if isinstance(v, str):
+            return [(v, {})]
+        if isinstance(v, dict):
+            return [(str(k), (opts if isinstance(opts := vv, dict) else {}))
+                    for k, vv in v.items()]
+        fatal("Unexpected value in 'type:' field: %r" % (v,))
+
+    if isinstance(value, list):
+        result = []
+        for elem in value:
+            result.extend(_item(elem))
+        return result
+    return _item(value)

@@ -212,6 +212,17 @@ class PackageUpdater(object):
         try:
             pkg.proj_info = pkg.update(self.update_info)
 
+            # Merge self-declared types from the dep's own ivpm.yaml into pkg.type_data.
+            # Caller-specified types take priority; self-declared ones are appended only
+            # if their type name is not already present.
+            if pkg.proj_info is not None and pkg.proj_info.self_types:
+                from .pkg_content_type_rgy import PkgContentTypeRgy
+                ct_rgy = PkgContentTypeRgy.inst()
+                caller_names = {td.type_name for td in pkg.type_data}
+                for type_name, opts in pkg.proj_info.self_types:
+                    if type_name not in caller_names and ct_rgy.has(type_name):
+                        pkg.type_data.append(ct_rgy.get(type_name).create_data(opts, None))
+
             # Notify the package handlers after the source is 
             # loaded so they can take further action if required 
             self.pkg_handler.process_pkg(pkg)

@@ -19,7 +19,7 @@
 #*     Author: mballance
 #*
 #****************************************************************************
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 from ivpm.package import Package
 
 class PackagesInfo():
@@ -30,6 +30,9 @@ class PackagesInfo():
     
     def __init__(self, name):
         self.name = name
+        # Name of a dep-set in the same file to inherit packages from.
+        # Populated during parsing; resolved (merged) before use.
+        self.uses : Optional[str] = None
         self.packages : Dict[str,Package] = {}
         
         # Map of package name to set of packages
@@ -63,6 +66,7 @@ class PackagesInfo():
         
     def copy(self) -> 'PackagesInfo':
         ret = PackagesInfo(self.name)
+        ret.uses     = self.uses
         ret.packages = self.packages.copy()
         ret.options  = self.options.copy()
         

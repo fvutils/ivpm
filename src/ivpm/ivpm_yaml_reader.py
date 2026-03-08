@@ -15,6 +15,7 @@ import yaml
 from .utils import fatal, getlocstr, warning
 from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
+from ivpm.pkg_content_type import parse_type_field
 
 
 class IvpmYamlReader(object):
@@ -49,6 +50,9 @@ class IvpmYamlReader(object):
             ret.version = pkg["version"]
         else:
             ret.version = None
+
+        if "type" in pkg.keys():
+            ret.self_types = parse_type_field(pkg["type"])
 
         # Specify where sub-packages are stored. Defaults to 'packages'        
         if "deps-dir" in pkg.keys():
@@ -105,16 +109,64 @@ class IvpmYamlReader(object):
             ds = PackagesInfo(ds_name)
             default_dep_set = None
 
+            if "uses" in ds_ent.keys():
+                ds.uses = str(ds_ent["uses"])
+
             if "default-dep-set" in ds_ent.keys():
                 default_dep_set = ds_ent["default-dep-set"]
 
-            
             deps = ds_ent["deps"]
             
             if not isinstance(deps, list):
                 raise Exception("deps is not a list")
             self.read_deps(ds, ds_ent["deps"], default_dep_set)
             info.set_dep_set(ds.name, ds)
+
+        self._resolve_dep_set_inheritance(info)
+
+    def _resolve_dep_set_inheritance(self, info: 'ProjInfo'):
+        """
+        Merge inherited packages for every dep-set that declares a 'uses' base.
+        The current dep-set's packages win on name collision.
+        Detects cycles and unknown base names.
+        """
+        dep_set_m = info.dep_set_m
+        resolved = set()
+
+        def resolve(name, visiting):
+            if name in resolved:
+                return
+            ds = dep_set_m[name]
+            if ds.uses is None:
+                resolved.add(name)
+                return
+            if name in visiting:
+                cycle = " -> ".join(list(visiting) + [name])
+                raise Exception(
+                    "Cyclic dep-set inheritance detected: %s" % cycle)
+            base_name = ds.uses
+            if base_name not in dep_set_m:
+                raise Exception(
+                    "dep-set '%s' references unknown base dep-set '%s'"
+                    % (name, base_name))
+            visiting.add(name)
+            resolve(base_name, visiting)
+            visiting.discard(name)
+
+            base_ds = dep_set_m[base_name]
+            # Start with base packages, then let current overwrite
+            merged_pkgs = base_ds.packages.copy()
+            merged_pkgs.update(ds.packages)
+            ds.packages = merged_pkgs
+
+            merged_opts = base_ds.options.copy()
+            merged_opts.update(ds.options)
+            ds.options = merged_opts
+
+            resolved.add(name)
+
+        for ds_name in list(dep_set_m.keys()):
+            resolve(ds_name, set())
         
 
     def read_deps(self, ret : PackagesInfo, deps, default_dep_set):
@@ -168,19 +220,21 @@ class IvpmYamlReader(object):
                 raise Exception("Package %s has unknown type %s" % (d["name"], src))
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
 
-            # Resolve content type and validate 'with:' parameters
+            # Resolve content type from 'type:' field (string, dict, or list form).
+            # 'with:' is no longer supported; options are now inline in the type dict.
             ct_rgy = PkgContentTypeRgy.inst()
+            if "with" in d.keys():
+                fatal("Package '%s': 'with:' is no longer supported; "
+                      "use inline options instead, e.g. type: { python: { editable: false } } @ %s" % (
+                          pkg.name, getlocstr(d["with"])))
             if "type" in d.keys():
-                type_name = str(d["type"])
-                if not ct_rgy.has(type_name):
-                    fatal("Package '%s': unknown type '%s' @ %s ; known types: %s" % (
-                        pkg.name, type_name, getlocstr(d["type"]),
-                        ", ".join(ct_rgy.names())))
-                with_opts = d["with"] if "with" in d.keys() else {}
-                pkg.type_data = ct_rgy.get(type_name).create_data(with_opts, si)
-            elif "with" in d.keys():
-                fatal("Package '%s': 'with:' is specified but 'type:' is not @ %s" % (
-                    pkg.name, getlocstr(d["with"])))
+                raw = parse_type_field(d["type"])
+                for type_name, opts in raw:
+                    if not ct_rgy.has(type_name):
+                        fatal("Package '%s': unknown type '%s' @ %s ; known types: %s" % (
+                            pkg.name, type_name, getlocstr(d["type"]),
+                            ", ".join(ct_rgy.names())))
+                    pkg.type_data.append(ct_rgy.get(type_name).create_data(opts, si))
 
             # Unless specified, load the same dep-set from sub-packages
             if pkg.dep_set is None:

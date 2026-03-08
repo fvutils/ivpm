@@ -94,6 +94,10 @@
 					"type": "string",
 					"title": "Dependency-set identifier. Common names include 'default' and 'default-dev'"
 				},
+				"uses": {
+					"type": "string",
+					"title": "Name of another dep-set in this file to use as a base. Non-overlapping packages are inherited; packages defined in this dep-set override those from the base."
+				},
 				"default-dep-set": {
 					"type": "string",
 					"title": "Default dep-set name for sub-packages to inherit if not explicitly specified"

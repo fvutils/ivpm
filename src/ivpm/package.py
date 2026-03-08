@@ -24,7 +24,7 @@ import logging
 import os
 import dataclasses as dc
 from enum import Enum, auto
-from typing import Dict, List, Set, Optional
+from typing import Dict, List, Set, Optional, Tuple
 from .project_ops_info import ProjectUpdateInfo
 from .utils import fatal, getlocstr
 
@@ -97,9 +97,12 @@ class Package(object):
     path : str = None
     pkg_type : PackageType = None
     src_type : str = None
-    # type_data holds validated, type-specific parameters from the 'with:' YAML key.
-    # Set by IvpmYamlReader when 'type:' is present; None when type is auto-detected.
-    type_data : Optional['TypeData'] = None
+    # type_data holds the list of validated TypeData objects produced from the 'type:' field.
+    # Set by IvpmYamlReader; empty list means no explicit type (auto-detection may still apply).
+    type_data : List['TypeData'] = dc.field(default_factory=list)
+    # self_types holds the raw (type_name, opts) pairs read from the package's own ivpm.yaml.
+    # Populated during dep resolution by package_updater; empty until then.
+    self_types : List[Tuple[str, dict]] = dc.field(default_factory=list)
 
     process_deps : bool = True
     setup_deps : Set[str] = dc.field(default_factory=set)
@@ -152,19 +155,24 @@ class Package(object):
                 fatal("Unknown value for 'deps': %s" % opts["deps"])
 
         # Set pkg_type from 'type:' for backward compatibility.
-        # The authoritative typed data is stored in type_data by IvpmYamlReader
-        # after calling PkgContentTypeRgy. We still set pkg_type here so that
-        # code that has not yet migrated to type_data continues to work.
+        # The authoritative typed data is stored in type_data by IvpmYamlReader.
         if "type" in opts.keys():
-            type_s = opts["type"]
-            if type_s in Spec2PackageType.keys():
-                self.pkg_type = Spec2PackageType[type_s]
-            # Unknown type strings are tolerated here; the YAML reader validates them
-            # via PkgContentTypeRgy and emits a proper error with source location.
+            from .pkg_content_type import parse_type_field
+            pairs = parse_type_field(opts["type"])
+            if pairs:
+                first_name = pairs[0][0]
+                if first_name in Spec2PackageType.keys():
+                    self.pkg_type = Spec2PackageType[first_name]
     
     @staticmethod
     def mk(name, opts, si) -> 'Package':
         raise NotImplementedError()
-    
 
+
+def get_type_data(pkg: 'Package', cls):
+    """Return the first TypeData entry in pkg.type_data that is an instance of cls, or None."""
+    for td in pkg.type_data:
+        if isinstance(td, cls):
+            return td
+    return None
 

@@ -23,6 +23,7 @@ import os
 import fnmatch
 import httpx
 import json
+import logging
 import re
 import platform
 import subprocess
@@ -33,6 +34,8 @@ from ..proj_info import ProjInfo
 from ..cache import Cache
 from ..utils import note
 from .package_http import PackageHttp
+
+_logger = logging.getLogger("ivpm.pkg_types.package_gh_rls")
 
 @dc.dataclass
 class PackageGhRls(PackageHttp):
@@ -159,14 +162,24 @@ class PackageGhRls(PackageHttp):
                 else:
                     raise Exception("Failed to find latest release (prerelease=%s)" % self.prerelease)
         else:
+            _logger.debug("%s: searching %d releases for version '%s'",
+                          self.name, len(rls_info), self.version)
             rls = self._select_release_by_version(rls_info)
             if rls is None:
+                _logger.debug("%s: version '%s' not found in releases, falling back to tags",
+                              self.name, self.version)
                 # Not found in releases — try tags
                 tags = self._fetch_tags()
                 rls = self._select_release_by_version(tags)
                 if rls is None:
                     raise Exception(f"No release or tag matches version spec '{self.version}'")
+                _logger.debug("%s: matched version '%s' via tag (no binary assets available)",
+                              self.name, self.version)
                 rls_info = tags
+            else:
+                _logger.debug("%s: matched version '%s' as release tag=%s prerelease=%s assets=%d",
+                              self.name, self.version, rls.get("tag_name",""),
+                              rls.get("prerelease"), len(rls.get("assets", [])))
 
         # Determine file to download
         file_url = None
@@ -332,6 +345,10 @@ class PackageGhRls(PackageHttp):
         return 0
 
     def _select_release_by_version(self, releases):
+        # When the user specifies an explicit version, prerelease status is irrelevant:
+        # there can only be one release with a given tag, whether it is marked prerelease
+        # or not.  Filtering it out would cause a silent fall-through to the tag list
+        # which has no binary assets, resulting in an unintended source download.
         spec = self.version.strip()
         m = re.match(r'(>=|<=|>|<)\s*v?(\d+(?:\.\d+)*)$', spec)
         if m:
@@ -339,8 +356,6 @@ class PackageGhRls(PackageHttp):
             tgt = self._parse_version_tuple(m.group(2))
             best = None
             for r in releases:
-                if r["prerelease"] and not self.prerelease:
-                    continue
                 rv = self._parse_version_tuple(r.get("tag_name",""))
                 if rv is None:
                     continue
@@ -352,6 +367,8 @@ class PackageGhRls(PackageHttp):
                 elif op == "<=": ok = c <= 0
                 if not ok:
                     continue
+                _logger.debug("Version range %s: candidate release %s (prerelease=%s)",
+                              spec, r.get("tag_name",""), r.get("prerelease"))
                 if op in (">", ">="):
                     best = r
                     break
@@ -365,18 +382,18 @@ class PackageGhRls(PackageHttp):
             return best
         # Exact match (allow optional leading v)
         for r in releases:
-            if r["prerelease"] and not self.prerelease:
-                continue
             tag = r.get("tag_name","")
             if tag == spec or tag == f"v{spec}" or spec == tag.lstrip('v'):
+                _logger.debug("Exact version match: found release %s (prerelease=%s)",
+                              tag, r.get("prerelease"))
                 return r
         tgt = self._parse_version_tuple(spec)
         if tgt:
             for r in releases:
-                if r["prerelease"] and not self.prerelease:
-                    continue
                 rv = self._parse_version_tuple(r.get("tag_name",""))
                 if rv == tgt:
+                    _logger.debug("Numeric version match: found release %s (prerelease=%s)",
+                                  r.get("tag_name",""), r.get("prerelease"))
                     return r
         return None
 

@@ -23,7 +23,7 @@ def _make_src_pkg(name, type_data=None):
     pkg = PackageGit.__new__(PackageGit)
     pkg.name = name
     pkg.url = "https://example.com/%s.git" % name
-    pkg.type_data = type_data
+    pkg.type_data = [type_data] if type_data is not None else []
     pkg.version = None
     pkg.extras = None
     pkg.branch = None
@@ -42,7 +42,7 @@ def _make_pypi_pkg(name, version=None, extras=None, type_data=None):
     pkg.name = name
     pkg.version = version
     pkg.extras = extras
-    pkg.type_data = type_data
+    pkg.type_data = [type_data] if type_data is not None else []
     pkg.pkg_type = "python"
     return pkg
 

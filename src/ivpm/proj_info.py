@@ -52,6 +52,8 @@ class ProjInfo():
         self.process_deps = True
         self.paths : Dict[str, Dict[str, List[str]]] = {}
         self.env_settings : List[EnvSpec] = []
+        # Raw (type_name, opts) pairs from 'package: { type: … }' in this project's ivpm.yaml.
+        self.self_types : list = []
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()

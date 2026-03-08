@@ -91,6 +91,91 @@ While you can use any names, IVPM recognizes these standard names:
     Development dependencies. Includes everything from ``default`` plus 
     development tools. This is no longer special - any name can be used.
 
+Dep-Set Inheritance with ``uses``
+----------------------------------
+
+The ``uses`` field lets a dep-set inherit all packages from another dep-set
+defined in the same ``ivpm.yaml``.  This avoids duplicating shared entries
+across multiple sets.
+
+**Merge rules**
+
+- Every package from the *base* dep-set is copied into the *child* dep-set.
+- If the same package name appears in both, the **child's definition wins**.
+- Inheritance is resolved at parse time, so there is no runtime overhead.
+- Chains of any depth are supported (``a`` uses ``b`` uses ``c`` …).
+- Cycles are detected and raise an error.
+- Definition order does not matter; the base may be defined after the child.
+
+**Basic example** — ``default-dev`` extends ``default``:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      default-dep-set: default-dev
+
+      dep-sets:
+        - name: default
+          deps:
+            - name: runtime-lib
+              url: https://github.com/org/runtime-lib.git
+
+        - name: default-dev
+          uses: default          # inherit runtime-lib from above
+          deps:
+            - name: pytest
+              src: pypi
+            - name: test-framework
+              url: https://github.com/org/test-framework.git
+
+Running ``ivpm update -d default-dev`` installs ``runtime-lib``, ``pytest``,
+and ``test-framework``.  Running ``ivpm update -d default`` installs only
+``runtime-lib``.
+
+**Overriding an inherited package** — pin a different version in the child:
+
+.. code-block:: yaml
+
+    dep-sets:
+      - name: default
+        deps:
+          - name: mylib
+            url: https://github.com/org/mylib.git
+            branch: v1.0
+
+      - name: default-dev
+        uses: default
+        deps:
+          - name: mylib
+            url: https://github.com/org/mylib.git
+            branch: dev   # overrides the v1.0 branch from 'default'
+          - name: pytest
+            src: pypi
+
+**Multi-level inheritance**:
+
+.. code-block:: yaml
+
+    dep-sets:
+      - name: base
+        deps:
+          - name: core-lib
+            src: pypi
+
+      - name: dev
+        uses: base
+        deps:
+          - name: pytest
+            src: pypi
+
+      - name: ci
+        uses: dev
+        deps:
+          - name: coverage
+            src: pypi
+          # inherits core-lib (from base via dev) and pytest (from dev)
+
 Using Dependency Sets
 =====================
 
