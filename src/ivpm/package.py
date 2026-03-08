@@ -24,7 +24,7 @@ import logging
 import os
 import dataclasses as dc
 from enum import Enum, auto
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Optional
 from .project_ops_info import ProjectUpdateInfo
 from .utils import fatal, getlocstr
 
@@ -97,6 +97,9 @@ class Package(object):
     path : str = None
     pkg_type : PackageType = None
     src_type : str = None
+    # type_data holds validated, type-specific parameters from the 'with:' YAML key.
+    # Set by IvpmYamlReader when 'type:' is present; None when type is auto-detected.
+    type_data : Optional['TypeData'] = None
 
     process_deps : bool = True
     setup_deps : Set[str] = dc.field(default_factory=set)
@@ -148,14 +151,16 @@ class Package(object):
             else:
                 fatal("Unknown value for 'deps': %s" % opts["deps"])
 
-        # Determine the package type (eg Python, Raw)
+        # Set pkg_type from 'type:' for backward compatibility.
+        # The authoritative typed data is stored in type_data by IvpmYamlReader
+        # after calling PkgContentTypeRgy. We still set pkg_type here so that
+        # code that has not yet migrated to type_data continues to work.
         if "type" in opts.keys():
             type_s = opts["type"]
-            if not type_s in Spec2PackageType.keys():
-                fatal("unknown package type %s @ %s ; Supported types 'raw', 'python'" % (
-                    type_s, getlocstr(opts["type"])))
-                    
-            self.pkg_type = Spec2PackageType[type_s]
+            if type_s in Spec2PackageType.keys():
+                self.pkg_type = Spec2PackageType[type_s]
+            # Unknown type strings are tolerated here; the YAML reader validates them
+            # via PkgContentTypeRgy and emits a proper error with source location.
     
     @staticmethod
     def mk(name, opts, si) -> 'Package':

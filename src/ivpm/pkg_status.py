@@ -31,7 +31,8 @@ class PkgVcsStatus:
     tag: Optional[str] = None       # exact tag at HEAD, else None
     commit: str = ""                # short HEAD hash (7 chars) or ""
     is_dirty: bool = False
-    modified: List[str] = dc.field(default_factory=list)  # porcelain lines
+    modified: List[str] = dc.field(default_factory=list)  # porcelain lines for tracked modifications
+    untracked: List[str] = dc.field(default_factory=list)  # porcelain lines for untracked files (??)
     ahead: Optional[int] = None     # commits ahead of upstream; None = unknown
     behind: Optional[int] = None    # commits behind upstream; None = unknown
     error: Optional[str] = None     # set if status could not be determined

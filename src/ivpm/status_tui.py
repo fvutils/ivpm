@@ -90,6 +90,10 @@ class RichStatusTUI:
                     dirty_count += 1
                     marker = Text("✎", style="bold cyan")
                     state = Text("modified", style="cyan")
+                elif s.untracked:
+                    dirty_count += 1
+                    marker = Text("✎", style="bold cyan")
+                    state = Text("untracked", style="cyan")
                 else:
                     marker = Text("✓", style="bold green")
                     state = Text("clean", style="green")
@@ -120,8 +124,13 @@ class RichStatusTUI:
             table.add_row(marker, Text(s.name), branch_text, commit_text, state, up_text)
 
             # Dirty file details — only with -v
-            if verbose >= 1 and s.vcs == "git" and s.modified:
+            if verbose >= 1 and s.vcs == "git":
                 for line in s.modified:
+                    table.add_row(
+                        Text(""), Text(""),
+                        Text("  " + line, style="dim"), Text(""), Text(""), Text(""),
+                    )
+                for line in s.untracked:
                     table.add_row(
                         Text(""), Text(""),
                         Text("  " + line, style="dim"), Text(""), Text(""), Text(""),
@@ -167,6 +176,10 @@ class TranscriptStatusTUI:
                     dirty_count += 1
                     marker = "✎"
                     state = "modified"
+                elif s.untracked:
+                    dirty_count += 1
+                    marker = "✎"
+                    state = "untracked"
                 else:
                     marker = "✓"
                     state = "clean"
@@ -174,11 +187,13 @@ class TranscriptStatusTUI:
                 upstream = _upstream_label(s)
                 branch = _branch_label(s)
                 commit = s.commit or "?"
-                print("  %s  %-30s  %-25s  %s  %-6s  upstream:%s" % (
+                print("  %s  %-30s  %-25s  %s  %-9s  upstream:%s" % (
                     marker, s.name, branch, commit, state, upstream))
 
-                if verbose >= 1 and s.modified:
+                if verbose >= 1:
                     for line in s.modified:
+                        print("       %s" % line)
+                    for line in s.untracked:
                         print("       %s" % line)
 
                 if s.error:

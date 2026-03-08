@@ -119,6 +119,7 @@ class IvpmYamlReader(object):
 
     def read_deps(self, ret : PackagesInfo, deps, default_dep_set):
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
+        from .pkg_content_type_rgy import PkgContentTypeRgy
         
         for d in deps:
             si = d.srcinfo
@@ -166,6 +167,20 @@ class IvpmYamlReader(object):
             if not pt_rgy.hasPkgType(src):
                 raise Exception("Package %s has unknown type %s" % (d["name"], src))
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
+
+            # Resolve content type and validate 'with:' parameters
+            ct_rgy = PkgContentTypeRgy.inst()
+            if "type" in d.keys():
+                type_name = str(d["type"])
+                if not ct_rgy.has(type_name):
+                    fatal("Package '%s': unknown type '%s' @ %s ; known types: %s" % (
+                        pkg.name, type_name, getlocstr(d["type"]),
+                        ", ".join(ct_rgy.names())))
+                with_opts = d["with"] if "with" in d.keys() else {}
+                pkg.type_data = ct_rgy.get(type_name).create_data(with_opts, si)
+            elif "with" in d.keys():
+                fatal("Package '%s': 'with:' is specified but 'type:' is not @ %s" % (
+                    pkg.name, getlocstr(d["with"])))
 
             # Unless specified, load the same dep-set from sub-packages
             if pkg.dep_set is None:

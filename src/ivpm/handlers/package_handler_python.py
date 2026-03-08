@@ -29,6 +29,7 @@ import sys
 from typing import Dict, List, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import note, fatal, get_venv_python
+from ..pkg_content_type import PythonTypeData
 
 from ..package import Package
 from .package_handler import PackageHandler
@@ -48,6 +49,10 @@ class PackageHandlerPython(PackageHandler):
         add = False
         if pkg.src_type == "pypi":
             self.pypi_pkg_s.add(pkg.name)
+            add = True
+        elif isinstance(pkg.type_data, PythonTypeData):
+            # Explicit type: python via 'with:' mechanism
+            self.src_pkg_s.add(pkg.name)
             add = True
         elif pkg.pkg_type is not None and pkg.pkg_type == PackageHandlerPython.name:
             self.src_pkg_s.add(pkg.name)
@@ -408,17 +413,30 @@ class PackageHandlerPython(PackageHandler):
             for pkg in python_pkgs:
                 
                 if hasattr(pkg, "url"):
-                    # Editable package
-                    # fp.write("-e file://%s/%s#egg=%s\n" % (
-                    #     packages_dir.replace("\\","/"), 
-                    #     pkg.name, 
-                    #     pkg.name))
-                    fp.write("-e %s/%s\n" % (
-                        packages_dir.replace("\\","/"), 
-                        pkg.name))
+                    # Source package (git, dir, http, etc.)
+                    # Determine editability: type_data takes priority, then default True
+                    editable = True
+                    if isinstance(pkg.type_data, PythonTypeData) and pkg.type_data.editable is not None:
+                        editable = pkg.type_data.editable
+
+                    # Extras from type_data (for source packages declared with type: python + with: extras:)
+                    extras = None
+                    if isinstance(pkg.type_data, PythonTypeData):
+                        extras = pkg.type_data.extras
+                    extras_str = "[%s]" % ",".join(extras) if extras else ""
+
+                    pkg_path = "%s/%s" % (packages_dir.replace("\\","/"), pkg.name)
+                    if editable:
+                        fp.write("-e %s%s\n" % (pkg_path, extras_str))
+                    else:
+                        fp.write("%s%s\n" % (pkg_path, extras_str))
                 else:
                     # PyPi package — build PEP 508 specifier: name[extras]version
-                    extras = getattr(pkg, "extras", None)
+                    # Extras: prefer type_data if present, fall back to pkg.extras (PackagePyPi)
+                    if isinstance(pkg.type_data, PythonTypeData) and pkg.type_data.extras is not None:
+                        extras = pkg.type_data.extras
+                    else:
+                        extras = getattr(pkg, "extras", None)
                     extras_str = "[%s]" % ",".join(extras) if extras else ""
                     if pkg.version is not None:
                         if pkg.version[0] in ['<','>','=']:

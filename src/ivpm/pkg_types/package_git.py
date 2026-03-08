@@ -366,7 +366,9 @@ class PackageGit(PackageURL):
 
         # Dirty / modified files
         _, porcelain = _git(["status", "--porcelain"])
-        modified = [line for line in porcelain.splitlines() if line.strip()]
+        all_lines = [line for line in porcelain.splitlines() if line.strip()]
+        untracked = [line for line in all_lines if line.startswith("??")]
+        modified = [line for line in all_lines if not line.startswith("??")]
         is_dirty = len(modified) > 0
 
         # Ahead / behind upstream (silenced if no upstream)
@@ -392,6 +394,7 @@ class PackageGit(PackageURL):
             commit=commit,
             is_dirty=is_dirty,
             modified=modified,
+            untracked=untracked,
             ahead=ahead,
             behind=behind,
         )

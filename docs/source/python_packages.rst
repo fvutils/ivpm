@@ -183,6 +183,78 @@ Binary Packages
 
     import requests  # Uses installed package
 
+Controlling Installation with ``with:``
+========================================
+
+When ``type: python`` is declared on a package entry, an optional ``with:``
+block lets you pass type-specific installation parameters.
+
+``editable`` — Non-editable Source Installs
+--------------------------------------------
+
+By default, source packages (git, dir) are installed in *editable* mode
+(``pip install -e``).  Set ``editable: false`` to install them as regular,
+non-editable packages instead.  This is useful for dependencies that are
+stable releases you don't intend to modify.
+
+.. code-block:: yaml
+
+    deps:
+      # Default: editable install
+      - name: my-lib
+        url: https://github.com/org/my-lib.git
+        type: python
+
+      # Non-editable install
+      - name: stable-lib
+        url: https://github.com/org/stable-lib.git
+        type: python
+        with:
+          editable: false
+
+``extras`` — PEP 508 Extras
+-----------------------------
+
+Use ``extras`` to request `PEP 508 optional dependency groups
+<https://peps.python.org/pep-0508/#extras>`_ when installing a source package.
+The value may be a single string or a list.
+
+.. code-block:: yaml
+
+    deps:
+      # Single extra
+      - name: my-lib
+        url: https://github.com/org/my-lib.git
+        type: python
+        with:
+          extras: tests
+
+      # Multiple extras
+      - name: my-lib
+        url: https://github.com/org/my-lib.git
+        type: python
+        with:
+          extras: [tests, docs]
+
+      # Non-editable with extras
+      - name: my-lib
+        url: https://github.com/org/my-lib.git
+        type: python
+        with:
+          extras: [tests]
+          editable: false
+
+.. note::
+
+   ``with:`` is only valid when ``type:`` is also specified on the same entry.
+   Unknown keys inside ``with:`` are reported as errors at YAML-read time,
+   before any packages are fetched.
+
+   For PyPI packages (``src: pypi``), extras can also be specified using the
+   top-level ``extras:`` field directly on the package entry — that form is
+   preserved for backward compatibility and is the concise form for the common
+   case.
+
 PyPI Package Configuration
 ==========================
 

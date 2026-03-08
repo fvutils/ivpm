@@ -237,6 +237,10 @@
 				"source": {
 					"type": "boolean",
 					"title": "For GitHub Releases: force fetching source archive (.tar.gz) instead of platform-specific binary. Default: false"
+				},
+				"with": {
+					"type": "object",
+					"title": "Type-specific parameters. Only valid when 'type' is also specified. Parameter names and values are validated at runtime by the content-type handler."
 				}
 			}
 		},
