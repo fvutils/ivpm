@@ -359,6 +359,8 @@ class PackageGhRls(PackageHttp):
                 rv = self._parse_version_tuple(r.get("tag_name",""))
                 if rv is None:
                     continue
+                if r.get("prerelease") and not self.prerelease:
+                    continue
                 c = self._cmp_versions(rv, tgt)
                 ok = False
                 if op == ">": ok = c > 0
