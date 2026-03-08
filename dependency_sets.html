@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#defining-dependency-sets">Defining Dependency Sets</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#basic-structure">Basic Structure</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#standard-names">Standard Names</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#dep-set-inheritance-with-uses">Dep-Set Inheritance with <code class="docutils literal notranslate"><span class="pre">uses</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#using-dependency-sets">Using Dependency Sets</a><ul>
@@ -207,6 +208,83 @@ less disk space.</p>
 development tools. This is no longer special - any name can be used.</p>
 </dd>
 </dl>
+</section>
+<section id="dep-set-inheritance-with-uses">
+<h3>Dep-Set Inheritance with <code class="docutils literal notranslate"><span class="pre">uses</span></code><a class="headerlink" href="#dep-set-inheritance-with-uses" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">uses</span></code> field lets a dep-set inherit all packages from another dep-set
+defined in the same <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.  This avoids duplicating shared entries
+across multiple sets.</p>
+<p><strong>Merge rules</strong></p>
+<ul class="simple">
+<li><p>Every package from the <em>base</em> dep-set is copied into the <em>child</em> dep-set.</p></li>
+<li><p>If the same package name appears in both, the <strong>child’s definition wins</strong>.</p></li>
+<li><p>Inheritance is resolved at parse time, so there is no runtime overhead.</p></li>
+<li><p>Chains of any depth are supported (<code class="docutils literal notranslate"><span class="pre">a</span></code> uses <code class="docutils literal notranslate"><span class="pre">b</span></code> uses <code class="docutils literal notranslate"><span class="pre">c</span></code> …).</p></li>
+<li><p>Cycles are detected and raise an error.</p></li>
+<li><p>Definition order does not matter; the base may be defined after the child.</p></li>
+</ul>
+<p><strong>Basic example</strong> — <code class="docutils literal notranslate"><span class="pre">default-dev</span></code> extends <code class="docutils literal notranslate"><span class="pre">default</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runtime-lib</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/runtime-lib.git</span>
+
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span><span class="w">          </span><span class="c1"># inherit runtime-lib from above</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test-framework</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/test-framework.git</span>
+</pre></div>
+</div>
+<p>Running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">default-dev</span></code> installs <code class="docutils literal notranslate"><span class="pre">runtime-lib</span></code>, <code class="docutils literal notranslate"><span class="pre">pytest</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">test-framework</span></code>.  Running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">default</span></code> installs only
+<code class="docutils literal notranslate"><span class="pre">runtime-lib</span></code>.</p>
+<p><strong>Overriding an inherited package</strong> — pin a different version in the child:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mylib</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/mylib.git</span>
+<span class="w">        </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">    </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mylib</span>
+<span class="w">        </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/mylib.git</span>
+<span class="w">        </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span><span class="w">   </span><span class="c1"># overrides the v1.0 branch from &#39;default&#39;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p><strong>Multi-level inheritance</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">base</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">core-lib</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<span class="w">    </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">base</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ci</span>
+<span class="w">    </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dev</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">coverage</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">      </span><span class="c1"># inherits core-lib (from base via dev) and pytest (from dev)</span>
+</pre></div>
+</div>
 </section>
 </section>
 <section id="using-dependency-sets">
