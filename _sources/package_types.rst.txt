@@ -366,6 +366,49 @@ Python packages are installed into the project's virtual environment.
     - name: requests
       src: pypi  # Automatically type: python
 
+**Type-specific parameters (** ``with:`` **):**
+
+When ``type: python`` is specified you can pass additional parameters under a
+``with:`` key to control how the package is installed:
+
+``editable`` *(boolean, default: true)*
+    Install the source package in editable mode (``pip install -e``).
+    Set to ``false`` to install as a regular (non-editable) package.
+
+``extras`` *(string or list of strings)*
+    `PEP 508 extras <https://peps.python.org/pep-0508/#extras>`_ to request
+    when installing (e.g. ``[tests]``, ``[litellm, openai]``).
+
+.. code-block:: yaml
+
+    # Non-editable install
+    - name: my-lib
+      url: https://github.com/org/my-lib.git
+      type: python
+      with:
+        editable: false
+
+    # Source package with extras
+    - name: my-lib
+      url: https://github.com/org/my-lib.git
+      type: python
+      with:
+        extras: [tests, docs]
+
+    # Non-editable with extras
+    - name: my-lib
+      url: https://github.com/org/my-lib.git
+      type: python
+      with:
+        extras: [tests]
+        editable: false
+
+.. note::
+
+   ``with:`` is only valid when ``type:`` is also specified on the same entry.
+   Unknown keys inside ``with:`` are a validation error.
+   Parameter validation happens at YAML-read time, before any packages are fetched.
+
 Raw (``raw``)
 -------------
 
@@ -392,6 +435,12 @@ Raw packages are placed in ``packages/<name>/`` but not processed further.
     - name: test-vectors
       url: https://example.com/vectors.tar.gz
       type: raw
+
+.. note::
+
+   ``type: raw`` accepts no ``with:`` parameters. This type is also useful to
+   suppress Python auto-detection on a package that happens to contain a
+   ``pyproject.toml`` but should not be pip-installed.
 
 Auto-Detection
 ==============

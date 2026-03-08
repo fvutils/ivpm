@@ -432,6 +432,46 @@ binaries or falls back to source.</p>
 <span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span><span class="w">  </span><span class="c1"># Automatically type: python</span>
 </pre></div>
 </div>
+<p><strong>Type-specific parameters (</strong> <code class="docutils literal notranslate"><span class="pre">with:</span></code> <strong>):</strong></p>
+<p>When <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">python</span></code> is specified you can pass additional parameters under a
+<code class="docutils literal notranslate"><span class="pre">with:</span></code> key to control how the package is installed:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">editable</span></code> <em>(boolean, default: true)</em></dt><dd><p>Install the source package in editable mode (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code>).
+Set to <code class="docutils literal notranslate"><span class="pre">false</span></code> to install as a regular (non-editable) package.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">extras</span></code> <em>(string or list of strings)</em></dt><dd><p><a class="reference external" href="https://peps.python.org/pep-0508/#extras">PEP 508 extras</a> to request
+when installing (e.g. <code class="docutils literal notranslate"><span class="pre">[tests]</span></code>, <code class="docutils literal notranslate"><span class="pre">[litellm,</span> <span class="pre">openai]</span></code>).</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Non-editable install</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">editable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+
+<span class="c1"># Source package with extras</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">docs</span><span class="p p-Indicator">]</span>
+
+<span class="c1"># Non-editable with extras</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">editable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">with:</span></code> is only valid when <code class="docutils literal notranslate"><span class="pre">type:</span></code> is also specified on the same entry.
+Unknown keys inside <code class="docutils literal notranslate"><span class="pre">with:</span></code> are a validation error.
+Parameter validation happens at YAML-read time, before any packages are fetched.</p>
+</div>
 </section>
 <section id="raw-raw">
 <h3>Raw (<code class="docutils literal notranslate"><span class="pre">raw</span></code>)<a class="headerlink" href="#raw-raw" title="Link to this heading"></a></h3>
@@ -455,6 +495,12 @@ binaries or falls back to source.</p>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/vectors.tar.gz</span>
 <span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">raw</span>
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">raw</span></code> accepts no <code class="docutils literal notranslate"><span class="pre">with:</span></code> parameters. This type is also useful to
+suppress Python auto-detection on a package that happens to contain a
+<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> but should not be pip-installed.</p>
 </div>
 </section>
 </section>

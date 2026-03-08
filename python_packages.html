@@ -64,6 +64,11 @@
 <li class="toctree-l3"><a class="reference internal" href="#binary-packages">Binary Packages</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#controlling-installation-with-with">Controlling Installation with <code class="docutils literal notranslate"><span class="pre">with:</span></code></a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#editable-non-editable-source-installs"><code class="docutils literal notranslate"><span class="pre">editable</span></code> — Non-editable Source Installs</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#extras-pep-508-extras"><code class="docutils literal notranslate"><span class="pre">extras</span></code> — PEP 508 Extras</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#pypi-package-configuration">PyPI Package Configuration</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#basic-pypi-packages">Basic PyPI Packages</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#version-specifiers">Version Specifiers</a></li>
@@ -286,6 +291,71 @@ non-Python dependencies.</p>
 <p><strong>Import behavior:</strong></p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>  <span class="c1"># Uses installed package</span>
 </pre></div>
+</div>
+</section>
+</section>
+<section id="controlling-installation-with-with">
+<h2>Controlling Installation with <code class="docutils literal notranslate"><span class="pre">with:</span></code><a class="headerlink" href="#controlling-installation-with-with" title="Link to this heading"></a></h2>
+<p>When <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">python</span></code> is declared on a package entry, an optional <code class="docutils literal notranslate"><span class="pre">with:</span></code>
+block lets you pass type-specific installation parameters.</p>
+<section id="editable-non-editable-source-installs">
+<h3><code class="docutils literal notranslate"><span class="pre">editable</span></code> — Non-editable Source Installs<a class="headerlink" href="#editable-non-editable-source-installs" title="Link to this heading"></a></h3>
+<p>By default, source packages (git, dir) are installed in <em>editable</em> mode
+(<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code>).  Set <code class="docutils literal notranslate"><span class="pre">editable:</span> <span class="pre">false</span></code> to install them as regular,
+non-editable packages instead.  This is useful for dependencies that are
+stable releases you don’t intend to modify.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Default: editable install</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+
+<span class="w">  </span><span class="c1"># Non-editable install</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stable-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/stable-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">editable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</section>
+<section id="extras-pep-508-extras">
+<h3><code class="docutils literal notranslate"><span class="pre">extras</span></code> — PEP 508 Extras<a class="headerlink" href="#extras-pep-508-extras" title="Link to this heading"></a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">extras</span></code> to request <a class="reference external" href="https://peps.python.org/pep-0508/#extras">PEP 508 optional dependency groups</a> when installing a source package.
+The value may be a single string or a list.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Single extra</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tests</span>
+
+<span class="w">  </span><span class="c1"># Multiple extras</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">docs</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="c1"># Non-editable with extras</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
+<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">editable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">with:</span></code> is only valid when <code class="docutils literal notranslate"><span class="pre">type:</span></code> is also specified on the same entry.
+Unknown keys inside <code class="docutils literal notranslate"><span class="pre">with:</span></code> are reported as errors at YAML-read time,
+before any packages are fetched.</p>
+<p>For PyPI packages (<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code>), extras can also be specified using the
+top-level <code class="docutils literal notranslate"><span class="pre">extras:</span></code> field directly on the package entry — that form is
+preserved for backward compatibility and is the concise form for the common
+case.</p>
 </div>
 </section>
 </section>
