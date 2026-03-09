@@ -1,0 +1,456 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Extending IVPM &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Troubleshooting" href="troubleshooting.html" />
+    <link rel="prev" title="Integrations" href="integrations.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Extending IVPM</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-packagehandler-base-class">The <code class="docutils literal notranslate"><span class="pre">PackageHandler</span></code> Base Class</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#class-level-metadata">Class-level Metadata</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#callbacks">Callbacks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#conditions">Conditions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#thread-safety">Thread Safety</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#progress-reporting">Progress Reporting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#fatal-errors">Fatal Errors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#registering-a-handler-via-entry-points">Registering a Handler via Entry Points</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-example">Complete Example</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#handler-ordering-and-the-extension-group">Handler Ordering and the Extension Group</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#testing-your-handler">Testing Your Handler</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Extending IVPM</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/extending_ivpm.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="extending-ivpm">
+<h1>Extending IVPM<a class="headerlink" href="#extending-ivpm" title="Link to this heading"></a></h1>
+<p>IVPM is designed to be extended with custom <strong>package handlers</strong>. A handler is a
+Python class that observes packages as they are loaded and performs actions — such
+as setting up a virtual environment, writing IDE integration files, or invoking a
+downstream tool. IVPM discovers handlers through Python <a class="reference external" href="https://packaging.python.org/en/latest/specifications/entry-points/">entry points</a>, so any
+installed package can contribute new handlers without modifying IVPM itself.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM handlers participate in two phases of every <code class="docutils literal notranslate"><span class="pre">update</span></code>/<code class="docutils literal notranslate"><span class="pre">clone</span></code> run:</p>
+<dl class="simple">
+<dt><strong>Leaf phase</strong></dt><dd><p>Called once per package, on a worker thread, as each package is fetched and
+made available on disk. Leaf callbacks run concurrently — one per fetched
+package — so they are well-suited to lightweight per-package detection tasks.</p>
+</dd>
+<dt><strong>Root phase</strong></dt><dd><p>Called once per run, on the main thread, after <em>all</em> packages have been
+fetched. Root callbacks see the full package list and are used for heavier
+work such as creating virtual environments or generating toolchain files.</p>
+</dd>
+</dl>
+<p>Both phases are optional — a handler may implement only the one(s) it needs.</p>
+</section>
+<section id="the-packagehandler-base-class">
+<h2>The <code class="docutils literal notranslate"><span class="pre">PackageHandler</span></code> Base Class<a class="headerlink" href="#the-packagehandler-base-class" title="Link to this heading"></a></h2>
+<p>All handlers extend <code class="docutils literal notranslate"><span class="pre">ivpm.handlers.PackageHandler</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dc</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span><span class="p">,</span> <span class="n">HandlerFatalError</span><span class="p">,</span> <span class="n">ALWAYS</span><span class="p">,</span> <span class="n">HasType</span>
+
+<span class="nd">@dc</span><span class="o">.</span><span class="n">dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyHandler</span><span class="p">(</span><span class="n">PackageHandler</span><span class="p">):</span>
+
+    <span class="c1"># --- Metadata (class-level, not instance attributes) ---</span>
+    <span class="n">name</span><span class="p">:</span>        <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;my-handler&quot;</span>
+    <span class="n">description</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;Does something useful&quot;</span>
+    <span class="n">phase</span><span class="p">:</span>       <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>  <span class="o">=</span> <span class="mi">0</span>       <span class="c1"># lower = earlier in root phase</span>
+
+    <span class="c1"># --- When to activate (see Conditions section below) ---</span>
+    <span class="n">leaf_when</span><span class="p">:</span>   <span class="n">ClassVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># None = always run as leaf</span>
+    <span class="n">root_when</span><span class="p">:</span>   <span class="n">ClassVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># None = always run as root</span>
+
+    <span class="c1"># --- Per-run state (cleared by reset()) ---</span>
+    <span class="n">_found_pkgs</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">dc</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Called automatically at the start of each run.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_found_pkgs</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="c1"># --- Leaf callback ---</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_leaf_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pkg</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">path</span> <span class="o">/</span> <span class="s2">&quot;my-marker.txt&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_found_pkgs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+
+    <span class="c1"># --- Root callback ---</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_root_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_found_pkgs</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Processing </span><span class="si">{</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="class-level-metadata">
+<h3>Class-level Metadata<a class="headerlink" href="#class-level-metadata" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">name</span></code></dt><dd><p>Short identifier for the handler, used in log messages and entry-point
+registration. Required.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">description</span></code></dt><dd><p>Human-readable description shown in verbose output.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">phase</span></code></dt><dd><p>Integer ordering key for the <strong>root</strong> phase. Handlers with lower phase
+numbers run first. Leaf phase ordering is determined by package fetch order,
+not by this value. Default: <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">leaf_when</span></code></dt><dd><p>A list of <strong>leaf conditions</strong> (see below), or <code class="docutils literal notranslate"><span class="pre">None</span></code> to always run as a
+leaf handler. Use <code class="docutils literal notranslate"><span class="pre">[]</span></code> (empty list) to opt out of leaf dispatch entirely.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">root_when</span></code></dt><dd><p>A list of <strong>root conditions</strong> (see below), or <code class="docutils literal notranslate"><span class="pre">None</span></code> to always run as a
+root handler. Use <code class="docutils literal notranslate"><span class="pre">[]</span></code> to opt out of root dispatch entirely.</p>
+</dd>
+</dl>
+</section>
+<section id="callbacks">
+<h3>Callbacks<a class="headerlink" href="#callbacks" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">reset()</span></code></dt><dd><p>Clear per-run accumulated state. Called automatically by
+<code class="docutils literal notranslate"><span class="pre">on_root_pre_load()</span></code> at the start of every run. Override this to reset
+any lists or counters that accumulate across leaf callbacks.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">on_leaf_pre_load(pkg,</span> <span class="pre">update_info)</span></code></dt><dd><p>Called before a package is fetched. Rarely needed; <code class="docutils literal notranslate"><span class="pre">on_leaf_post_load</span></code> is
+usually the right choice.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">on_leaf_post_load(pkg,</span> <span class="pre">update_info)</span></code></dt><dd><p>Called after a package is ready on disk. The package directory exists and can
+be inspected. Runs concurrently — always use <code class="docutils literal notranslate"><span class="pre">with</span> <span class="pre">self._lock:</span></code> when writing
+to shared handler state.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">on_root_pre_load(update_info)</span></code></dt><dd><p>Called before any packages start loading. Calls <code class="docutils literal notranslate"><span class="pre">reset()</span></code> automatically.
+Override this only if you need additional setup before leaf callbacks begin.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">on_root_post_load(update_info)</span></code></dt><dd><p>Called after all packages have been fetched. Runs on the main thread. This is
+where long-running work (venv creation, codegen, etc.) belongs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">get_lock_entries(deps_dir)</span> <span class="pre">-&gt;</span> <span class="pre">dict</span></code></dt><dd><p>Return extra top-level keys to merge into the project’s lock file. Called
+after <code class="docutils literal notranslate"><span class="pre">on_root_post_load()</span></code>. Default returns <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">build(build_info)</span></code></dt><dd><p>Called by <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">build</span></code>. Override to perform package build steps.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">add_options(subcommands)</span></code></dt><dd><p>Register handler-specific CLI flags. <code class="docutils literal notranslate"><span class="pre">subcommands</span></code> is a <code class="docutils literal notranslate"><span class="pre">dict</span></code> mapping
+subcommand name → argparse subparser. Called during CLI parser setup.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="conditions">
+<h2>Conditions<a class="headerlink" href="#conditions" title="Link to this heading"></a></h2>
+<p>Conditions control when a handler is active. They are plain callables stored in
+<code class="docutils literal notranslate"><span class="pre">leaf_when</span></code> / <code class="docutils literal notranslate"><span class="pre">root_when</span></code> class variables. IVPM provides three built-in
+conditions:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">ALWAYS</span><span class="p">,</span> <span class="n">HasType</span><span class="p">,</span> <span class="n">HasSourceType</span>
+</pre></div>
+</div>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">ALWAYS</span></code></dt><dd><p>Sentinel condition that always returns <code class="docutils literal notranslate"><span class="pre">True</span></code>. Useful as an explicit
+marker that a handler is intentionally unconditional.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">HasType(type_name)</span></code></dt><dd><p><strong>Root condition.</strong> Returns <code class="docutils literal notranslate"><span class="pre">True</span></code> if any loaded package has the given
+type, determined by either:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pkg.pkg_type</span></code> — set dynamically by a leaf handler</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pkg.type_data</span></code> — set from the <code class="docutils literal notranslate"><span class="pre">type:</span></code> field in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+</ul>
+<p>Example — only run the root phase when at least one Python package was
+detected:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">root_when</span> <span class="o">=</span> <span class="p">[</span><span class="n">HasType</span><span class="p">(</span><span class="s2">&quot;python&quot;</span><span class="p">)]</span>
+</pre></div>
+</div>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">HasSourceType(src_type)</span></code></dt><dd><p><strong>Dual-mode condition.</strong> When used in <code class="docutils literal notranslate"><span class="pre">leaf_when</span></code>, receives a single
+package and returns <code class="docutils literal notranslate"><span class="pre">True</span></code> if its source type matches. When used in
+<code class="docutils literal notranslate"><span class="pre">root_when</span></code>, receives the full package list and returns <code class="docutils literal notranslate"><span class="pre">True</span></code> if any
+package matches.</p>
+<p>Example — only inspect git-sourced packages:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">leaf_when</span> <span class="o">=</span> <span class="p">[</span><span class="n">HasSourceType</span><span class="p">(</span><span class="s2">&quot;git&quot;</span><span class="p">)]</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+<p>You may also write your own conditions as any callable:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">has_cmake</span><span class="p">(</span><span class="n">pkg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;True if the package contains a CMakeLists.txt.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">path</span> <span class="o">/</span> <span class="s2">&quot;CMakeLists.txt&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">exists</span><span class="p">()</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MyCMakeHandler</span><span class="p">(</span><span class="n">PackageHandler</span><span class="p">):</span>
+    <span class="n">leaf_when</span> <span class="o">=</span> <span class="p">[</span><span class="n">has_cmake</span><span class="p">]</span>
+    <span class="n">root_when</span> <span class="o">=</span> <span class="p">[</span><span class="n">HasType</span><span class="p">(</span><span class="s2">&quot;cmake&quot;</span><span class="p">)]</span>
+</pre></div>
+</div>
+<p>All conditions in a list are <strong>AND’d</strong> — all must be <code class="docutils literal notranslate"><span class="pre">True</span></code> for the handler to
+be active.</p>
+</section>
+<section id="thread-safety">
+<h2>Thread Safety<a class="headerlink" href="#thread-safety" title="Link to this heading"></a></h2>
+<p>Leaf callbacks run concurrently. The base class provides <code class="docutils literal notranslate"><span class="pre">self._lock</span></code>
+(a <code class="docutils literal notranslate"><span class="pre">threading.Lock</span></code>) for synchronising writes to accumulated state:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">on_leaf_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pkg</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_is_relevant</span><span class="p">(</span><span class="n">pkg</span><span class="p">):</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>          <span class="c1"># ← required when writing shared state</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_found_pkgs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Read-only access inside a single leaf callback does not require the lock.</p>
+</section>
+<section id="progress-reporting">
+<h2>Progress Reporting<a class="headerlink" href="#progress-reporting" title="Link to this heading"></a></h2>
+<p>Handlers can report progress to the TUI using <code class="docutils literal notranslate"><span class="pre">task_context()</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">on_root_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+    <span class="n">steps</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_found_pkgs</span><span class="p">)</span>
+    <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">task_context</span><span class="p">(</span><span class="n">update_info</span><span class="p">,</span> <span class="s2">&quot;my-handler-setup&quot;</span><span class="p">,</span> <span class="s2">&quot;Setting up MyTool&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">task</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">pkg</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">steps</span><span class="p">):</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">progress</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Processing </span><span class="si">{</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">step</span><span class="o">=</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">total</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">steps</span><span class="p">))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_process</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">task_context(info,</span> <span class="pre">task_id,</span> <span class="pre">task_name)</span></code></dt><dd><p>Context manager that emits <code class="docutils literal notranslate"><span class="pre">HANDLER_TASK_START</span></code> on entry,
+<code class="docutils literal notranslate"><span class="pre">HANDLER_TASK_END</span></code> on clean exit, and <code class="docutils literal notranslate"><span class="pre">HANDLER_TASK_ERROR</span></code> on exception
+(then re-raises). Returns a <code class="docutils literal notranslate"><span class="pre">TaskHandle</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">task.progress(message,</span> <span class="pre">step=None,</span> <span class="pre">total=None)</span></code></dt><dd><p>Emit a <code class="docutils literal notranslate"><span class="pre">HANDLER_TASK_PROGRESS</span></code> event. The TUI displays the most recent
+message and, when <code class="docutils literal notranslate"><span class="pre">step</span></code>/<code class="docutils literal notranslate"><span class="pre">total</span></code> are provided, a fraction like <code class="docutils literal notranslate"><span class="pre">2/5</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">task.task_context(task_id,</span> <span class="pre">task_name)</span></code></dt><dd><p>Create a <strong>nested</strong> child task displayed under the parent in the TUI.</p>
+</dd>
+</dl>
+<p>If no TUI is active (e.g. in non-interactive mode), <code class="docutils literal notranslate"><span class="pre">task_context()</span></code> and
+<code class="docutils literal notranslate"><span class="pre">task.progress()</span></code> are no-ops — it is always safe to call them.</p>
+</section>
+<section id="fatal-errors">
+<h2>Fatal Errors<a class="headerlink" href="#fatal-errors" title="Link to this heading"></a></h2>
+<p>To abort an entire update run from inside a leaf callback, raise
+<code class="docutils literal notranslate"><span class="pre">HandlerFatalError</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">HandlerFatalError</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">on_leaf_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pkg</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_check</span><span class="p">(</span><span class="n">pkg</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="n">HandlerFatalError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Required file missing in </span><span class="si">{</span><span class="n">pkg</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Non-fatal exceptions logged inside a leaf callback are caught and reported as
+warnings; the run continues with remaining packages.</p>
+</section>
+<section id="registering-a-handler-via-entry-points">
+<h2>Registering a Handler via Entry Points<a class="headerlink" href="#registering-a-handler-via-entry-points" title="Link to this heading"></a></h2>
+<p>IVPM discovers handlers through the <code class="docutils literal notranslate"><span class="pre">ivpm.handlers</span></code> entry-point group.
+Add the following to your <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[project.entry-points.</span><span class="s2">&quot;ivpm.handlers&quot;</span><span class="k">]</span>
+<span class="n">my-handler</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mypkg.my_handler:MyHandler&quot;</span>
+</pre></div>
+</div>
+<p>Or, if you use <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>:</p>
+<div class="highlight-ini notranslate"><div class="highlight"><pre><span></span><span class="k">[options.entry_points]</span>
+<span class="na">ivpm.handlers</span><span class="w"> </span><span class="o">=</span>
+<span class="w">    </span><span class="na">my-handler</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">mypkg.my_handler:MyHandler</span>
+</pre></div>
+</div>
+<p>Each value must point to a <strong>class</strong> that extends <code class="docutils literal notranslate"><span class="pre">PackageHandler</span></code>.
+IVPM instantiates the class once per update run.</p>
+<p>After installing your package (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code>), IVPM will automatically
+load <code class="docutils literal notranslate"><span class="pre">MyHandler</span></code> on every <code class="docutils literal notranslate"><span class="pre">update</span></code> or <code class="docutils literal notranslate"><span class="pre">clone</span></code> run.</p>
+</section>
+<section id="complete-example">
+<h2>Complete Example<a class="headerlink" href="#complete-example" title="Link to this heading"></a></h2>
+<p>The following example shows a handler that detects packages containing
+FuseSoC <code class="docutils literal notranslate"><span class="pre">.core</span></code> files and writes a consolidated library list:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># src/myext/fusesoc_handler.py</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dc</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span><span class="p">,</span> <span class="n">HasType</span>
+
+<span class="nd">@dc</span><span class="o">.</span><span class="n">dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FuseSocHandler</span><span class="p">(</span><span class="n">PackageHandler</span><span class="p">):</span>
+
+    <span class="n">name</span><span class="p">:</span>        <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;fusesoc&quot;</span>
+    <span class="n">description</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;Collect FuseSoC core libraries&quot;</span>
+    <span class="n">phase</span><span class="p">:</span>       <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>  <span class="o">=</span> <span class="mi">10</span>
+
+    <span class="c1"># Activate root phase only when FuseSoC packages were detected</span>
+    <span class="n">root_when</span><span class="p">:</span>   <span class="n">ClassVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span><span class="n">HasType</span><span class="p">(</span><span class="s2">&quot;fusesoc&quot;</span><span class="p">)]</span>
+
+    <span class="n">_lib_paths</span><span class="p">:</span> <span class="nb">list</span> <span class="o">=</span> <span class="n">dc</span><span class="o">.</span><span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">list</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="nb">repr</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">reset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_lib_paths</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_leaf_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">pkg</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+        <span class="n">cores</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">&quot;*.core&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">cores</span><span class="p">:</span>
+            <span class="n">pkg</span><span class="o">.</span><span class="n">pkg_type</span> <span class="o">=</span> <span class="s2">&quot;fusesoc&quot;</span>   <span class="c1"># marks package for HasType(&quot;fusesoc&quot;)</span>
+            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lock</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_lib_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">path</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_root_post_load</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">update_info</span><span class="p">):</span>
+        <span class="n">out</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">update_info</span><span class="o">.</span><span class="n">deps_dir</span><span class="p">)</span> <span class="o">/</span> <span class="s2">&quot;..&quot;</span> <span class="o">/</span> <span class="s2">&quot;fusesoc.conf&quot;</span>
+        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">task_context</span><span class="p">(</span><span class="n">update_info</span><span class="p">,</span> <span class="s2">&quot;fusesoc-write&quot;</span><span class="p">,</span> <span class="s2">&quot;Writing FuseSoC config&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">task</span><span class="p">:</span>
+            <span class="n">task</span><span class="o">.</span><span class="n">progress</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Writing </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_lib_paths</span><span class="p">)</span><span class="si">}</span><span class="s2"> library paths&quot;</span><span class="p">)</span>
+            <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="s2">&quot;w&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_lib_paths</span><span class="p">:</span>
+                    <span class="n">f</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;[cores]</span><span class="se">\n</span><span class="s2">location = </span><span class="si">{</span><span class="n">p</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Register it:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[project.entry-points.</span><span class="s2">&quot;ivpm.handlers&quot;</span><span class="k">]</span>
+<span class="n">fusesoc</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;myext.fusesoc_handler:FuseSocHandler&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="handler-ordering-and-the-extension-group">
+<h2>Handler Ordering and the Extension Group<a class="headerlink" href="#handler-ordering-and-the-extension-group" title="Link to this heading"></a></h2>
+<p>IVPM loads handlers in this order:</p>
+<ol class="arabic simple">
+<li><p>Built-in handlers (Python, Direnv, Skills) — all at phase <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
+<li><p>Extension handlers discovered via <code class="docutils literal notranslate"><span class="pre">ivpm.handlers</span></code> entry points, in
+installation order</p></li>
+</ol>
+<p>Within the root phase, handlers with the same phase number run in the order they
+were registered. Leaf callbacks always run concurrently with no guaranteed
+ordering.</p>
+<p>To run after all built-in handlers, use <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">10</span></code> or higher. To run before
+a built-in, use a negative phase (though this is rarely needed).</p>
+</section>
+<section id="testing-your-handler">
+<h2>Testing Your Handler<a class="headerlink" href="#testing-your-handler" title="Link to this heading"></a></h2>
+<p>The simplest way to test a handler in isolation is with the stubs already used
+by IVPM’s own test suite:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">threading</span><span class="o">,</span><span class="w"> </span><span class="nn">unittest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakeUpdateInfo</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">event_dispatcher</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">deps_dir</span> <span class="o">=</span> <span class="s2">&quot;/tmp/fake-deps&quot;</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">FakePkg</span><span class="p">:</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/tmp/pkg&quot;</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">pathlib</span><span class="o">.</span><span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pkg_type</span> <span class="o">=</span> <span class="kc">None</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">TestMyHandler</span><span class="p">(</span><span class="n">unittest</span><span class="o">.</span><span class="n">TestCase</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">test_detects_marker</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">h</span> <span class="o">=</span> <span class="n">MyHandler</span><span class="p">()</span>
+        <span class="n">pkg</span> <span class="o">=</span> <span class="n">FakePkg</span><span class="p">(</span><span class="s2">&quot;test-pkg&quot;</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="s2">&quot;/path/with/marker&quot;</span><span class="p">)</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">FakeUpdateInfo</span><span class="p">()</span>
+        <span class="n">h</span><span class="o">.</span><span class="n">on_leaf_post_load</span><span class="p">(</span><span class="n">pkg</span><span class="p">,</span> <span class="n">info</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">assertEqual</span><span class="p">(</span><span class="n">pkg</span><span class="o">.</span><span class="n">pkg_type</span><span class="p">,</span> <span class="s2">&quot;my-type&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="integrations.html" class="btn btn-neutral float-left" title="Integrations" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="troubleshooting.html" class="btn btn-neutral float-right" title="Troubleshooting" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
