@@ -23,6 +23,7 @@ Welcome to IVPM's documentation!
    workflows
    git_integration
    integrations
+   extending_ivpm
    troubleshooting
    reference
 

@@ -155,21 +155,27 @@ class ProjectOps(object):
             # Suppress subprocess output when using Rich TUI
             updater.update_info.suppress_output = suppress_output
 
+            # Build the handler update_info (with dispatcher wired in)
+            handler_update_info = ProjectUpdateInfo(
+                args, deps_dir,
+                project_name=proj_info.name,
+                force_py_install=force_py_install,
+                skip_venv=skip_venv,
+                suppress_output=suppress_output,
+                event_dispatcher=event_dispatcher,
+            )
+
+            # Root pre-load: let handlers initialise before any packages are fetched
+            pkg_handler.on_root_pre_load(handler_update_info)
+
             # Prevent an attempt to load the top-level project as a depedency
             updater.all_pkgs[proj_info.name] = None
             pkgs_info = updater.update(ds)
 
             _logger.debug("Setup-deps: %s", str(pkgs_info.setup_deps))
 
-            # Call the handlers to take care of project-level setup work
-            update_info = ProjectUpdateInfo(
-                args, deps_dir,
-                project_name=proj_info.name,
-                force_py_install=force_py_install, 
-                skip_venv=skip_venv,
-                suppress_output=suppress_output
-            )
-            pkg_handler.update(update_info)
+            # Root post-load: handlers do their main work (venv, pip install, envrc, etc.)
+            pkg_handler.on_root_post_load(handler_update_info)
 
             # Signal update complete
             updater.update_info.update_complete()

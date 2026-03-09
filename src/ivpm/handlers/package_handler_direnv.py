@@ -30,23 +30,29 @@ _logger = logging.getLogger("ivpm.handlers.package_handler_direnv")
 @dc.dataclass
 class PackageHandlerDirenv(PackageHandler):
     name = "direnv"
+    leaf_when = None
+    root_when = None
+    phase = 0
     # package name -> (Package, envrc filename)
     envrc_pkgs: Dict[str, tuple] = dc.field(default_factory=dict)
 
-    def process_pkg(self, pkg: Package):
+    def reset(self):
+        self.envrc_pkgs = {}
+
+    def on_leaf_post_load(self, pkg: Package, update_info):
         """Record packages that provide an export.envrc or .envrc file."""
         if not hasattr(pkg, "path") or pkg.path is None:
             return
-        # PyPI packages have no local directory
         if getattr(pkg, "src_type", None) == "pypi":
             return
         for candidate in ("export.envrc", ".envrc"):
             if os.path.isfile(os.path.join(pkg.path, candidate)):
-                self.envrc_pkgs[pkg.name] = (pkg, candidate)
+                with self._lock:
+                    self.envrc_pkgs[pkg.name] = (pkg, candidate)
                 _logger.debug("Package %s has %s", pkg.name, candidate)
                 break
 
-    def update(self, update_info: ProjectUpdateInfo):
+    def on_root_post_load(self, update_info: ProjectUpdateInfo):
         if not self.envrc_pkgs:
             _logger.debug("No packages with envrc files; skipping packages.envrc generation")
             return

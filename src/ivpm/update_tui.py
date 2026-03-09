@@ -32,6 +32,20 @@ from .update_event import UpdateEvent, UpdateEventListener, UpdateEventType
 _logger = logging.getLogger("ivpm.tui")
 
 
+class TaskStatus:
+    """Tracks status of a handler task during update."""
+
+    def __init__(self, task_id: str, task_name: str, parent_task_id: Optional[str] = None):
+        self.task_id = task_id
+        self.task_name = task_name
+        self.parent_task_id = parent_task_id
+        self.start_time = time.time()
+        self.duration: Optional[float] = None
+        self.message: Optional[str] = None
+        self.completed = False
+        self.error: Optional[str] = None
+
+
 class PackageStatus:
     """Tracks status of a package during update."""
     
@@ -70,6 +84,9 @@ class RichUpdateTUI(UpdateEventListener):
         self.cache_misses = 0
         self.cacheable_packages = 0
         self.editable_packages = 0
+        # Handler task tracking
+        self.tasks: Dict[str, TaskStatus] = {}
+        self.task_order: List[str] = []
     
     def _get_terminal_rows(self) -> int:
         """Get terminal height."""
@@ -147,7 +164,24 @@ class RichUpdateTUI(UpdateEventListener):
                 info = Text(f"{status.pkg_type} {status.pkg_src}")
             
             table.add_row(marker, Text(name), info)
-        
+
+        # Render handler tasks (appended after packages)
+        for task_id in self.task_order:
+            task = self.tasks[task_id]
+            indent = "  " if task.parent_task_id else ""
+            display_name = f"{indent}{task.task_name}"
+            if task.error:
+                marker = Text("✗", style="bold red")
+                info = Text(task.error or "", style="red")
+            elif task.completed:
+                marker = Text("✓", style="bold green")
+                duration_str = f"({task.duration:.1f}s)" if task.duration else ""
+                info = Text(f"{task.message or ''} {duration_str}".strip())
+            else:
+                marker = Spinner("dots", style="bold cyan")
+                info = Text(task.message or "")
+            table.add_row(marker, Text(display_name), info)
+
         return table
     
     def _update_display(self):
@@ -220,6 +254,37 @@ class RichUpdateTUI(UpdateEventListener):
             self.editable_packages = event.editable_packages
             self.stop()
             self._show_summary()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_START:
+            task = TaskStatus(event.task_id, event.task_name, event.parent_task_id)
+            self.tasks[event.task_id] = task
+            self.task_order.append(event.task_id)
+            self._update_display()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_PROGRESS:
+            if event.task_id in self.tasks:
+                task = self.tasks[event.task_id]
+                if event.task_step is not None and event.task_total is not None:
+                    task.message = f"{event.task_message} ({event.task_step}/{event.task_total})"
+                else:
+                    task.message = event.task_message
+                self._update_display()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_END:
+            if event.task_id in self.tasks:
+                task = self.tasks[event.task_id]
+                task.completed = True
+                task.duration = event.duration
+                self._update_display()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_ERROR:
+            if event.task_id in self.tasks:
+                task = self.tasks[event.task_id]
+                task.completed = True
+                task.error = event.task_message or "error"
+                task.duration = event.duration
+                self.errors.append((event.task_name, task.error))
+                self._update_display()
     
     def _show_summary(self):
         """Show a styled summary after update completes."""
@@ -311,6 +376,31 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 print("Errors encountered:")
                 for pkg_name, error in self.errors:
                     print(f"  {pkg_name}: {error}")
+            sys.stdout.flush()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_START:
+            indent = "  " if event.parent_task_id else ""
+            print(f"{indent}>> [{event.task_name}]")
+            sys.stdout.flush()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_PROGRESS:
+            indent = "  " if event.parent_task_id else ""
+            if event.task_step is not None and event.task_total is not None:
+                print(f"{indent}   {event.task_message} ({event.task_step}/{event.task_total})")
+            elif event.task_message:
+                print(f"{indent}   {event.task_message}")
+            sys.stdout.flush()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_END:
+            indent = "  " if event.parent_task_id else ""
+            duration_str = f" ({event.duration:.1f}s)" if event.duration else ""
+            print(f"{indent}<< [{event.task_name}]{duration_str}")
+            sys.stdout.flush()
+
+        elif event.event_type == UpdateEventType.HANDLER_TASK_ERROR:
+            indent = "  " if event.parent_task_id else ""
+            print(f"{indent}<< [{event.task_name}] ERROR: {event.task_message}")
+            self.errors.append((event.task_name, event.task_message or "error"))
             sys.stdout.flush()
 
 
