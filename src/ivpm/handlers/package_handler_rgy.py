@@ -19,7 +19,7 @@
 #*     Author: 
 #*
 #****************************************************************************
-import dataclasses as dc
+import sys
 import logging
 from .package_handler_list import PackageHandlerList
 from .package_handler_python import PackageHandlerPython
@@ -40,9 +40,32 @@ class PackageHandlerRgy(object):
         self.handlers.append(h)
 
     def _load(self):
+        # Register built-in handlers
         self.addHandler(PackageHandlerPython)
         self.addHandler(PackageHandlerDirenv)
         self.addHandler(PackageHandlerSkills)
+
+        # Discover third-party handlers via entry points
+        if sys.version_info < (3, 10):
+            from importlib_metadata import entry_points
+        else:
+            from importlib.metadata import entry_points
+
+        for ep in entry_points(group="ivpm.handlers"):
+            try:
+                cls = ep.load()
+                _logger.debug("Loaded handler '%s' from entry point", ep.name)
+                self.addHandler(cls)
+            except Exception as e:
+                _logger.warning("Failed to load handler '%s': %s", ep.name, e)
+
+    def add_handler_options(self, subcommands: dict):
+        """Call add_options() on each registered handler type. Pass as an options_ext item."""
+        for h_t in self.handlers:
+            try:
+                h_t().add_options(subcommands)
+            except Exception as e:
+                _logger.warning("Handler '%s' raised error in add_options: %s", h_t.name, e)
 
     def mkHandler(self):
         h = PackageHandlerList()

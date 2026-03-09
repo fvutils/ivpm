@@ -44,7 +44,7 @@ class ProjectOpsInfo(object):
 @dc.dataclass
 class ProjectBuildInfo(ProjectOpsInfo):
     debug : bool = False
-    pass
+    event_dispatcher: Optional['UpdateEventDispatcher'] = None
 
 @dc.dataclass
 class ProjectSyncInfo(ProjectOpsInfo):

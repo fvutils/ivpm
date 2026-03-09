@@ -279,6 +279,10 @@ def main(project_dir=None):
                 str(e)))
             raise e
 
+    # Load package handlers (must happen before get_parser so handlers can register CLI options)
+    from .handlers.package_handler_rgy import PackageHandlerRgy
+    options_ext.append(PackageHandlerRgy.inst().add_handler_options)
+
     parser = get_parser(parser_ext, options_ext)
     
     # Custom parsing to allow trailing workspace dir after options for 'clone'
