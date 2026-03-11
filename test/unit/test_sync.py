@@ -56,7 +56,7 @@ class TestSync(TestBase):
         with open(os.path.join(readonly_path, "README.md"), "w") as f:
             f.write("readonly")
         
-        # Make it read-only to simulate cache:false behavior
+        # Make it read-only to simulate cache:true behavior (symlinked/cached packages)
         for root, dirs, files in os.walk(readonly_path):
             for d in dirs:
                 os.chmod(os.path.join(root, d), stat.S_IRUSR | stat.S_IXUSR)
@@ -143,7 +143,35 @@ class TestSync(TestBase):
         # Sync should process this package
         self.ivpm_sync()
 
-if __name__ == '__main__':
+    def test_sync_cache_false_is_editable(self):
+        """Test that cache=false packages are editable (writable) and get synced"""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_sync_cache_false
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: vlsim
+                      url: https://github.com/fvutils/vlsim.git
+                      anonymous: true
+                      cache: false
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        # Verify package exists and is writable (editable)
+        pkg_path = os.path.join(self.testdir, "packages/vlsim")
+        self.assertTrue(os.path.isdir(pkg_path))
+        self.assertFalse(os.path.islink(pkg_path), 
+                        "cache=false package should not be a symlink")
+        mode = os.stat(pkg_path).st_mode
+        self.assertTrue(bool(mode & stat.S_IWUSR),
+                       "cache=false package should be writable (editable)")
+
+        # Sync should process this package (not skip it as read-only)
+        self.ivpm_sync()
+
+
     import unittest
     unittest.main()
 

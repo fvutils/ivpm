@@ -62,8 +62,8 @@ class PackageGit(PackageURL):
                 # For GitHub URLs, use GitHub API; for others, use git ls-remote
                 return self._update_with_cache(update_info, pkg_dir)
             elif self.cache is False:
-                # Explicitly no cache - clone without history and make read-only
-                return self._update_no_cache_readonly(update_info, pkg_dir)
+                # Explicitly no cache - editable clone, depth controlled by self.depth
+                return self._update_no_cache(update_info, pkg_dir)
             else:
                 # cache not specified - clone with full history
                 return self._update_full_clone(update_info, pkg_dir)
@@ -211,15 +211,12 @@ class PackageGit(PackageURL):
         
         return ProjInfo.mkFromProj(pkg_dir)
 
-    def _update_no_cache_readonly(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
-        """Clone without history and make read-only (cache=False)."""
-        note("loading package %s (no cache, read-only)" % self.name)
+    def _update_no_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
+        """Editable clone without shared cache (cache=False). Depth controlled by self.depth."""
+        note("loading package %s (no cache, editable)" % self.name)
         
-        self._clone_to_dir(update_info, pkg_dir, depth=1)
+        self._clone_to_dir(update_info, pkg_dir, depth=self.depth)
         self._capture_resolved_commit(pkg_dir)
-        
-        # Make read-only
-        self._make_readonly(pkg_dir)
         
         return ProjInfo.mkFromProj(pkg_dir)
 

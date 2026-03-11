@@ -318,7 +318,7 @@ class TestSyncOps(SyncTestBase):
         upstream = self._make_upstream("pkg_ro")
         pkg_dir = self._clone_pkg(upstream, "pkg_ro")
 
-        # Make the top-level directory read-only (simulates cache:false)
+        # Make the top-level directory read-only (simulates cache:true / symlinked packages)
         for root, dirs, files in os.walk(pkg_dir, topdown=False):
             for d in dirs:
                 os.chmod(os.path.join(root, d), stat.S_IRUSR | stat.S_IXUSR)

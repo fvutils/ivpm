@@ -276,8 +276,8 @@ class TestCacheGit(TestBase):
         mode = os.stat(test_file).st_mode
         self.assertFalse(mode & stat.S_IWUSR)
     
-    def test_git_no_cache_readonly(self):
-        """Test that cache=false makes files read-only without cache."""
+    def test_git_no_cache_editable(self):
+        """Test that cache=false produces an editable clone without using shared cache."""
         src_repo = os.path.join(self.testdir, 'src_repo')
         self._init_git_repo(src_repo, files={"test.txt": "test content"})
         
@@ -296,13 +296,53 @@ class TestCacheGit(TestBase):
         self.ivpm_update(skip_venv=True)
         
         pkg_dir = os.path.join(self.testdir, "packages", "test_pkg")
+        # Should be a real directory, not a symlink
         self.assertTrue(os.path.isdir(pkg_dir))
+        self.assertFalse(os.path.islink(pkg_dir))
         
-        # Verify files are read-only
+        # Verify files are writable (editable)
         test_file = os.path.join(pkg_dir, "test.txt")
         mode = os.stat(test_file).st_mode
-        self.assertFalse(mode & stat.S_IWUSR)
+        self.assertTrue(mode & stat.S_IWUSR)
         
+    def test_git_no_cache_with_depth(self):
+        """Test that cache=false with depth=1 produces a shallow editable clone."""
+        src_repo = os.path.join(self.testdir, 'src_repo')
+        self._init_git_repo(src_repo, files={"test.txt": "test content"})
+        
+        self.mkFile("ivpm.yaml", f"""
+        package:
+            name: cache_test
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: test_pkg
+                      url: file://{src_repo}
+                      src: git
+                      cache: false
+                      depth: 1
+        """)
+        
+        self.ivpm_update(skip_venv=True)
+        
+        pkg_dir = os.path.join(self.testdir, "packages", "test_pkg")
+        self.assertTrue(os.path.isdir(pkg_dir))
+        self.assertFalse(os.path.islink(pkg_dir))
+        self.assertTrue(os.path.isdir(os.path.join(pkg_dir, ".git")))
+        
+        # Verify files are writable (editable)
+        test_file = os.path.join(pkg_dir, "test.txt")
+        mode = os.stat(test_file).st_mode
+        self.assertTrue(mode & stat.S_IWUSR)
+        
+        # Verify it's a shallow clone (depth=1)
+        result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            capture_output=True, text=True, cwd=pkg_dir
+        )
+        if result.returncode == 0:
+            self.assertEqual(result.stdout.strip(), "1")
+
     def test_git_unspecified_cache_full_clone(self):
         """Test that cache unspecified does full clone with write access."""
         src_repo = os.path.join(self.testdir, 'src_repo')
