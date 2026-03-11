@@ -37,7 +37,7 @@ class PackageHandlerRgy(object):
         self.handlers.append(h)
 
     def _load(self):
-        # Discover handlers via entry points (built-ins are registered via pyproject.toml)
+        # Discover handlers via entry points (built-ins registered via pyproject.toml)
         if sys.version_info < (3, 10):
             from importlib_metadata import entry_points
         else:

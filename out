@@ -1,0 +1,27 @@
+	   .github/workflows/ci.yml
+	   docs/source/extending_ivpm.rst
+	   docs/source/package_types.rst
+	   docs/source/reference.rst
+	   pyproject.toml
+	   src/ivpm/__main__.py
+	   src/ivpm/handlers/package_handler.py
+	   src/ivpm/handlers/package_handler_direnv.py
+	   src/ivpm/handlers/package_handler_python.py
+	   src/ivpm/handlers/package_handler_rgy.py
+	   src/ivpm/handlers/package_handler_skills.py
+	   src/ivpm/pkg_content_type.py
+	   src/ivpm/pkg_types/package_dir.py
+	   src/ivpm/pkg_types/package_file.py
+	   src/ivpm/pkg_types/package_gh_rls.py
+	   src/ivpm/pkg_types/package_git.py
+	   src/ivpm/pkg_types/package_http.py
+	   src/ivpm/pkg_types/package_pypi.py
+	   src/ivpm/pkg_types/package_url.py
+	   src/ivpm/pkg_types/pkg_type_rgy.py
+	   src/ivpm/share/skill.md
+	   test/unit/data/setup/py_project/setup.py
+
+	src/ivpm/__version__.py
+	src/ivpm/show/
+	test/unit/test_show.py
+
