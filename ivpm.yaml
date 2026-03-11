@@ -16,6 +16,8 @@ package:
       src: pypi
     - name: requirements-parser
       src: pypi
+    - name: ptyprocess
+      src: pypi
 
   - name: default-dev
     deps:
@@ -32,6 +34,8 @@ package:
     - name: toposort 
       src: pypi
     - name: requirements-parser
+      src: pypi
+    - name: ptyprocess
       src: pypi
     - name: Sphinx
       src: pypi
