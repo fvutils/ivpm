@@ -7,3 +7,5 @@ packages/
 
 __pycache__/
 rundir/
+
+.venv/
