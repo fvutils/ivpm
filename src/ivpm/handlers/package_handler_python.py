@@ -40,10 +40,12 @@ _logger = logging.getLogger("ivpm.handlers.package_handler_python")
 
 @dc.dataclass
 class PackageHandlerPython(PackageHandler):
-    name:      ClassVar[str]            = "python"
-    leaf_when: ClassVar[Optional[List]] = None               # always inspect every package
-    root_when: ClassVar[Optional[List]] = [HasType("python")] # only run root when Python pkgs present
-    phase:     ClassVar[int]            = 0
+    name:               ClassVar[str]            = "python"
+    description:        ClassVar[str]            = "Installs Python packages into the managed virtual environment"
+    leaf_when:          ClassVar[Optional[List]] = None               # always inspect every package
+    root_when:          ClassVar[Optional[List]] = [HasType("python")] # only run root when Python pkgs present
+    phase:              ClassVar[int]            = 0
+    conditions_summary: ClassVar[str]            = "leaf: all packages; root: only when at least one Python package is present"
 
     pkgs_info  : Dict[str,Package] = dc.field(default_factory=dict)
     src_pkg_s  : Set[str] = dc.field(default_factory=set)
@@ -55,6 +57,28 @@ class PackageHandlerPython(PackageHandler):
         self.pkgs_info  = {}
         self.src_pkg_s  = set()
         self.pypi_pkg_s = set()
+
+    @classmethod
+    def handler_info(cls):
+        from ..show.info_types import HandlerInfo, ParamInfo
+        return HandlerInfo(
+            name=cls.name,
+            description=cls.description,
+            phase=cls.phase,
+            conditions=cls.conditions_summary,
+            params=[
+                ParamInfo("type: python", "Mark a package for Python installation (used in the 'type:' field of an ivpm.yaml dep entry)"),
+            ],
+            cli_options=[
+                "update: --py-uv         Use 'uv' instead of pip to manage the virtual environment",
+                "update: --py-pip         Force use of pip (overrides uv detection)",
+                "update: --skip-py-install  Skip Python package installation",
+                "update: --force-py-install  Force re-install of all Python packages",
+                "update: --py-prerls-packages  Allow pre-release packages",
+                "update: --py-system-site-packages  Inherit system site-packages in the venv",
+                "clone:  --py-uv / --py-pip / --py-system-site-packages  (same as update)",
+            ],
+        )
 
     def on_leaf_post_load(self, pkg: Package, update_info):
         add = False

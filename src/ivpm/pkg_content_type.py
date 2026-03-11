@@ -48,13 +48,48 @@ class PkgContentType:
         """
         raise NotImplementedError()
 
+    def content_type_info(self) -> 'ContentTypeInfo':
+        """Return a ContentTypeInfo describing this content type.
+
+        The default implementation returns a minimal info object with no
+        parameter documentation.  Subclasses should override to add params.
+        """
+        from .show.info_types import ContentTypeInfo
+        return ContentTypeInfo(name=self.name, description="")
+
     def get_json_schema(self) -> dict:
         """Return a JSON Schema dict describing the 'with:' block.
 
-        Used to generate / validate the ivpm.json schema.
-        Returns an empty object schema by default (no parameters accepted).
+        Derived from content_type_info() by default.  Subclasses that add
+        parameters should override content_type_info() instead; this method
+        will build the schema automatically from the ParamInfo list.
+        Falls back to an empty object schema if not overridden.
         """
-        return {"type": "object", "additionalProperties": False, "properties": {}}
+        from .show.info_types import ContentTypeInfo
+        info = self.content_type_info()
+        if not info.params:
+            return {"type": "object", "additionalProperties": False, "properties": {}}
+        props = {}
+        for p in info.params:
+            entry = {}
+            if p.type_hint == "bool":
+                entry["type"] = "boolean"
+            elif p.type_hint == "int":
+                entry["type"] = "integer"
+            else:
+                entry["type"] = "string"
+            if p.description:
+                entry["title"] = p.description
+            props[p.name] = entry
+        required = [p.name for p in info.params if p.required]
+        schema = {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": props,
+        }
+        if required:
+            schema["required"] = required
+        return schema
 
 
 # ---------------------------------------------------------------------------
@@ -89,6 +124,17 @@ class PythonContentType(PkgContentType):
             data.editable = bool(with_opts["editable"])
         data.type_name = self.name
         return data
+
+    def content_type_info(self):
+        from .show.info_types import ContentTypeInfo, ParamInfo
+        return ContentTypeInfo(
+            name="python",
+            description="Install package into the managed Python virtual environment",
+            params=[
+                ParamInfo("extras", "PEP 508 extras to install (e.g. [tests, docs])"),
+                ParamInfo("editable", "Install with -e (editable). Default: true for source packages", type_hint="bool"),
+            ],
+        )
 
     def get_json_schema(self) -> dict:
         return {
@@ -133,6 +179,13 @@ class RawContentType(PkgContentType):
         data = RawTypeData()
         data.type_name = self.name
         return data
+
+    def content_type_info(self):
+        from .show.info_types import ContentTypeInfo
+        return ContentTypeInfo(
+            name="raw",
+            description="Package is fetched but not further processed — no install step",
+        )
 
 
 # ---------------------------------------------------------------------------

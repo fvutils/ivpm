@@ -385,6 +385,83 @@ Return the IVPM share directory path.
 
 **Use case:** Integration with build systems needing IVPM files.
 
+show
+----
+
+Inspect registered package sources, content types, and handlers.
+
+**Synopsis:**
+
+.. code-block:: text
+
+    ivpm show [--json] [--no-rich] [--schema]
+    ivpm show source [--json] [--no-rich] [<name>]
+    ivpm show src    [--json] [--no-rich] [<name>]   # alias for source
+    ivpm show type   [--json] [--no-rich] [<name>]
+    ivpm show handler [--json] [--no-rich] [<name>]
+
+**Sub-commands:**
+
+``source`` / ``src`` *[name]*
+    List all registered package source types, or show full details for a
+    specific source (e.g. ``ivpm show source git``).
+
+``type`` *[name]*
+    List all registered content types (``python``, ``raw``), or show full
+    details for a specific type.
+
+``handler`` *[name]*
+    List all registered package handlers, or show full details for a specific
+    handler including activation conditions and CLI options.
+
+**Options:**
+
+``--json``
+    Emit JSON output instead of Rich/plain text. Useful for scripting.
+
+``--no-rich``
+    Emit plain text without terminal colours or tables.
+
+``--schema``
+    Emit a JSON Schema describing the complete registry (sources, types,
+    handlers). Does not require a sub-command.
+
+**Examples:**
+
+.. code-block:: bash
+
+    # Overview — show all registries at once
+    $ ivpm show --no-rich
+
+    # List registered source types
+    $ ivpm show source --no-rich
+    dir      Local directory — symlinked into packages/
+    git      Git repository — cloned into packages/
+    ...
+
+    # Detailed view for a specific source
+    $ ivpm show source git --no-rich
+    Source:      git
+    Description: Git repository — cloned into packages/
+    Parameters:
+      url     Repository URL (required)
+      branch  Branch to checkout
+      tag     Tag to checkout
+      ...
+
+    # List content types as JSON
+    $ ivpm show type --json
+
+    # Full detail for the Python handler
+    $ ivpm show handler python --no-rich
+
+    # Dump complete registry schema
+    $ ivpm show --schema
+
+**Use case:** Discover what sources, types, and handlers are active in the
+current environment — including any third-party extensions that have been
+installed. Useful when writing ``ivpm.yaml`` files or developing IVPM plugins.
+
 snapshot
 --------
 
@@ -590,6 +667,9 @@ Global Options
 ==============
 
 These options apply to all commands:
+
+``--version``, ``-V``
+    Print the IVPM version and exit.
 
 ``--log-level <level>``
     Set logging level: ``INFO``, ``DEBUG``, ``WARN``, ``NONE`` (default)

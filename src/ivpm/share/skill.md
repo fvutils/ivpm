@@ -176,6 +176,40 @@ my-project/
 - `IVPM_PACKAGES`: Automatically set to packages directory
 - `GITHUB_TOKEN`: For higher GitHub API rate limits
 
+## Introspecting Registered Extensions
+
+Use `ivpm show` to discover what package sources, content types, and handlers are
+available in the current IVPM installation (including any third-party plugins).
+
+```bash
+# Show all three categories at once
+ivpm show
+
+# List registered package sources (where packages come from)
+ivpm show source          # or: ivpm show src
+ivpm show source git      # detailed view of one source
+
+# List registered content types (what IVPM does with a package after fetching)
+ivpm show type
+ivpm show type python     # detailed view
+
+# List registered handlers (post-fetch processing hooks)
+ivpm show handler
+ivpm show handler python  # detailed view
+
+# Flags available on all show sub-commands:
+ivpm show source --json       # machine-readable JSON output
+ivpm show source --no-rich    # plain-text (no Rich formatting)
+
+# Generate a JSON Schema for ivpm.yaml (useful for IDE integrations):
+ivpm show --schema
+```
+
+The `--json` flag is especially useful for programmatic introspection:
+```bash
+ivpm show source --json | python3 -c "import sys,json; [print(s['name'], s['description']) for s in json.load(sys.stdin)]"
+```
+
 ## All Commands
 
 | Command | Description |
@@ -188,6 +222,7 @@ my-project/
 | `ivpm sync` | Sync Git packages with upstream |
 | `ivpm build` | Build Python packages with native extensions |
 | `ivpm cache` | Manage package cache |
+| `ivpm show` | Introspect registered sources, types, and handlers |
 | `ivpm snapshot` | Create self-contained project copy |
 | `ivpm share` | Get IVPM share directory path |
 | `ivpm pkg-info` | Query package paths/libraries |

@@ -26,6 +26,7 @@ from .cmds.cmd_share import CmdShare
 from .cmds.cmd_snapshot import CmdSnapshot
 from .cmds.cmd_status import CmdStatus
 from .cmds.cmd_sync import CmdSync
+from .show.cmd_show import CmdShow
 
 
 def get_share_dir():
@@ -237,6 +238,48 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     status_cmd.add_argument("--no-rich", action="store_true", default=False,
         help="Plain-text output without Rich formatting")
 
+    show_cmd = subparser.add_parser("show",
+        help="Introspect registered package sources, content types, and handlers")
+    show_cmd.add_argument("--schema", action="store_true", default=False,
+        help="Emit a JSON Schema for ivpm.yaml covering all registered sources and types")
+    show_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON instead of rich/text output")
+    show_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+    show_subparser = show_cmd.add_subparsers(dest="show_cmd")
+    show_subparser.required = False   # bare 'ivpm show' shows all categories
+
+    show_source_cmd = show_subparser.add_parser("source",
+        aliases=["src"],
+        help="List registered package sources (where packages come from)")
+    show_source_cmd.add_argument("name", nargs="?",
+        help="Show detailed info for this source (omit to list all)")
+    show_source_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_source_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output")
+
+    show_type_cmd = show_subparser.add_parser("type",
+        help="List registered content types (what IVPM does with a package after fetching)")
+    show_type_cmd.add_argument("name", nargs="?",
+        help="Show detailed info for this type (omit to list all)")
+    show_type_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_type_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output")
+
+    show_handler_cmd = show_subparser.add_parser("handler",
+        help="List registered package handlers (post-fetch processing hooks)")
+    show_handler_cmd.add_argument("name", nargs="?",
+        help="Show detailed info for this handler (omit to list all)")
+    show_handler_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_handler_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output")
+
+    show_cmd.set_defaults(func=CmdShow())
+    subcommands["show"] = show_cmd
+
     if parser_ext is not None:
         for ext in parser_ext:
             ext(subparser)
@@ -251,8 +294,13 @@ def main(project_dir=None):
     from .pkg_types.pkg_type_rgy import PkgTypeRgy
     import logging
 
+    # Handle --version / -V before the subcommand parser (which requires a subcommand)
+    if len(sys.argv) == 2 and sys.argv[1] in ("--version", "-V"):
+        from ivpm.__version__ import get_version
+        print(get_version())
+        return
+
     # First things first: load any extensions
-    import sys
     if sys.version_info < (3, 10):
         from importlib_metadata import entry_points
     else:

@@ -1,11 +1,11 @@
 
 [build-system]
-requires = ["setuptools>=64", "setuptools-scm>=8"]
+requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ivpm"
-version = "2.6.0"
+dynamic = ["version"]
 dependencies = [
     "httpx>=0.28.1,<1.0",
     "pyyaml",
@@ -19,6 +19,9 @@ authors = [
 ]
 description = "IVPM (IP and Verification Package Manager) is a project-internal package manager."
 license = {file = "LICENSE" }
+
+[tool.setuptools.dynamic]
+version = {attr = "ivpm.__version__._pkg_version"}
 
 [project.scripts]
 ivpm = "ivpm.__main__:main"

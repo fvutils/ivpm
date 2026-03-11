@@ -207,6 +207,20 @@ class PackageHttp(PackageFile):
         pkg.process_options(opts, si)
         return pkg
 
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="http",
+            description="HTTP/HTTPS archive — downloaded and unpacked into packages/",
+            params=[
+                ParamInfo("url", "HTTP or HTTPS URL of the archive (.tar.gz, .zip, .jar, etc.)", required=True, type_hint="url"),
+                ParamInfo("sha256", "Expected SHA-256 checksum of the downloaded file (hex string)"),
+                ParamInfo("unpack", "Unpack the archive (default: true except .jar)", type_hint="bool"),
+                ParamInfo("cache", "Cache this download (true=shared cache+symlink, false=no cache)", type_hint="bool"),
+            ],
+        )
+
 
 
 

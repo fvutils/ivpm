@@ -661,3 +661,24 @@ class PackageGhRls(PackageHttp):
         pkg = PackageGhRls(name)
         pkg.process_options(opts, si)
         return pkg
+
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="gh-rls",
+            description="GitHub Release — downloads a release asset (binary or source archive)",
+            params=[
+                ParamInfo("url", "GitHub repository URL (must contain github.com)", required=True, type_hint="url"),
+                ParamInfo("version", "Release version specifier, e.g. '>=1.0' or 'latest' (default: 'latest')"),
+                ParamInfo("file", "Glob pattern to select a specific release asset; defaults to platform-appropriate archive"),
+                ParamInfo("prerelease", "Include pre-release releases when resolving 'latest' (default: false)", type_hint="bool"),
+                ParamInfo("source", "Force download of source archive instead of binary asset (default: false)", type_hint="bool"),
+                ParamInfo("cache", "Cache this release (true=shared cache+symlink, false=no cache)", type_hint="bool"),
+            ],
+            notes=(
+                "IVPM queries the GitHub Releases API to find the matching release, then "
+                "selects a platform-appropriate asset automatically if 'file:' is not set.  "
+                "Set GITHUB_TOKEN to avoid API rate limits."
+            ),
+        )
