@@ -70,7 +70,7 @@ class PackageGit(PackageURL):
 
         return ProjInfo.mkFromProj(pkg_dir)
 
-    def _get_github_commit_hash(self, owner: str, repo: str, ref: str = None) -> str:
+    def _get_github_commit_hash(self, owner: str, repo: str, ref: str = None, update_info: ProjectUpdateInfo = None) -> str:
         """Get the commit hash for a GitHub repo using the API or git ls-remote.
         
         For general git URLs, uses git ls-remote to get the hash.
@@ -79,6 +79,7 @@ class PackageGit(PackageURL):
         
         if ref is None:
             ref = self.branch or self.tag or "HEAD"
+
         
         # Try GitHub API first if it's a GitHub URL
         if is_github_url(self.url):
@@ -93,17 +94,34 @@ class PackageGit(PackageURL):
                 pass
         
         # Fallback to git ls-remote for any git URL
-        return self._get_commit_hash_ls_remote(ref)
+        return self._get_commit_hash_ls_remote(ref, update_info)
     
-    def _get_commit_hash_ls_remote(self, ref: str = None) -> str:
-        """Get commit hash using git ls-remote."""
+    def _get_commit_hash_ls_remote(self, ref: str = None, update_info: ProjectUpdateInfo = None) -> str:
+        """Get commit hash using git ls-remote.
+
+        Tries the effective URL (SSH when not anonymous) first, then
+        falls back to the original HTTPS URL if that fails.
+        """
         if ref is None:
             ref = self.branch or self.tag or "HEAD"
-        
+
+        url = self._get_effective_url(update_info)
+        urls_to_try = [url]
+        if url != self.url:
+            urls_to_try.append(self.url)
+
+        for try_url in urls_to_try:
+            result = self._ls_remote(try_url, ref)
+            if result is not None:
+                return result
+        return None
+
+    def _ls_remote(self, url: str, ref: str) -> str:
+        """Run git ls-remote against a single URL/ref. Returns hash or None."""
         try:
             # Use git ls-remote to get the hash
             result = subprocess.run(
-                ["git", "ls-remote", self.url, ref],
+                ["git", "ls-remote", url, ref],
                 capture_output=True,
                 text=True,
                 timeout=30
@@ -115,7 +133,7 @@ class PackageGit(PackageURL):
             # Try refs/heads/ prefix for branches
             if not ref.startswith("refs/"):
                 result = subprocess.run(
-                    ["git", "ls-remote", self.url, f"refs/heads/{ref}"],
+                    ["git", "ls-remote", url, f"refs/heads/{ref}"],
                     capture_output=True,
                     text=True,
                     timeout=30
@@ -125,7 +143,7 @@ class PackageGit(PackageURL):
                 
                 # Try refs/tags/ prefix for tags
                 result = subprocess.run(
-                    ["git", "ls-remote", self.url, f"refs/tags/{ref}"],
+                    ["git", "ls-remote", url, f"refs/tags/{ref}"],
                     capture_output=True,
                     text=True,
                     timeout=30
@@ -142,15 +160,16 @@ class PackageGit(PackageURL):
         note("loading package %s with cache" % self.name)
         
         ref = self.branch or self.tag or "HEAD"
+
         
         # Get the commit hash - use GitHub API for GitHub URLs, git ls-remote otherwise
         commit_hash = None
         if is_github_url(self.url):
             owner, repo = parse_github_url(self.url)
-            commit_hash = self._get_github_commit_hash(owner, repo, ref)
+            commit_hash = self._get_github_commit_hash(owner, repo, ref, update_info)
         else:
             # Use git ls-remote for general git URLs
-            commit_hash = self._get_commit_hash_ls_remote(ref)
+            commit_hash = self._get_commit_hash_ls_remote(ref, update_info)
         
         if commit_hash is None:
             fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
@@ -227,6 +246,36 @@ class PackageGit(PackageURL):
         except Exception:
             pass
 
+
+    def _get_effective_url(self, update_info: ProjectUpdateInfo = None) -> str:
+        """Return the clone/ls-remote URL, converting to SSH when appropriate.
+
+        The decision is based solely on the ``anonymous`` flag:
+        * ``self.anonymous`` (per-package) takes priority.
+        * ``update_info.args.anonymous`` (global CLI flag) is the fallback.
+        * Default is non-anonymous (SSH).
+
+        ``file://`` URLs are never converted.
+        """
+        use_anonymous = False
+        if update_info is not None and update_info.args is not None and hasattr(update_info.args, "anonymous"):
+            use_anonymous = getattr(update_info.args, "anonymous")
+        if self.anonymous is not None:
+            use_anonymous = self.anonymous
+
+        if use_anonymous:
+            return self.url
+
+        delim_idx = self.url.find("://")
+        if delim_idx < 0:
+            return self.url
+        protocol = self.url[:delim_idx]
+        if protocol == "file":
+            return self.url
+
+        url = self.url[delim_idx+3:]
+        first_sl_idx = url.find("/")
+        return "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
         """Clone the repo to the specified directory."""
         cwd = os.getcwd()
@@ -247,32 +296,9 @@ class PackageGit(PackageURL):
         if self.branch is not None:
             git_cmd.extend(["-b", str(self.branch)])
 
-        # Modify the URL to use SSH/key-based clones
-        # unless anonymous cloning was requested
-        if update_info.args is not None and hasattr(update_info.args, "anonymous"):
-            use_anonymous = getattr(update_info.args, "anonymous")
-        else:
-            use_anonymous = False
-
-        if self.anonymous is not None:
-            use_anonymous = self.anonymous
-
-        if not use_anonymous:
-            _logger.debug("Using dev URL")
-            delim_idx = self.url.find("://")
-            protocol = self.url[:delim_idx]
-            if protocol != "file":
-                url = self.url[delim_idx+3:]
-                first_sl_idx = url.find('/')
-                url = "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
-                _logger.debug("Final URL: %s", url)
-                git_cmd.append(url)
-            else:
-                _logger.debug("Using original file-based URL")
-                git_cmd.append(self.url)
-        else:
-            _logger.debug("Using anonymous URL")
-            git_cmd.append(self.url)
+        url = self._get_effective_url(update_info)
+        _logger.debug("Clone URL: %s", url)
+        git_cmd.append(url)
 
         # Clone to the target directory name
         git_cmd.append(target_name)

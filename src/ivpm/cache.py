@@ -64,10 +64,14 @@ class Cache:
         return os.path.isdir(version_dir)
     
     def ensure_cache_dir(self, package_name: str) -> str:
-        """Ensure the package cache directory exists."""
+        """Ensure the package cache directory exists (with setgid)."""
         pkg_cache_dir = self.get_package_cache_dir(package_name)
         if not os.path.isdir(pkg_cache_dir):
-            os.makedirs(pkg_cache_dir)
+            os.makedirs(pkg_cache_dir, exist_ok=True)
+            try:
+                os.chmod(pkg_cache_dir, self._DIR_MODE)
+            except OSError:
+                pass
         return pkg_cache_dir
     
     def store_version(self, package_name: str, version: str, source_path: str) -> str:
@@ -84,13 +88,29 @@ class Cache:
         version_dir = self.get_version_cache_dir(package_name, version)
         
         if os.path.exists(version_dir):
-            # Already cached
+            # Already cached — clean up the source that is no longer needed
+            if os.path.exists(source_path):
+                shutil.rmtree(source_path)
             return version_dir
         
         self.ensure_cache_dir(package_name)
         
-        # Move the source to the cache
-        shutil.move(source_path, version_dir)
+        # Move to a temporary name first, then atomically rename.
+        # This prevents a race where two parallel workers both pass
+        # the existence check and try to populate the same directory.
+        staging_dir = version_dir + ".staging.%d" % os.getpid()
+        try:
+            shutil.move(source_path, staging_dir)
+            os.rename(staging_dir, version_dir)
+        except OSError:
+            # Another process won the race — clean up our staging copy
+            if os.path.exists(staging_dir):
+                shutil.rmtree(staging_dir)
+            if os.path.exists(source_path):
+                shutil.rmtree(source_path)
+            if os.path.exists(version_dir):
+                return version_dir
+            raise
         
         # Make all files read-only
         self._make_readonly(version_dir)
@@ -121,22 +141,44 @@ class Cache:
         note(f"Linked {package_name} from cache")
         return link_path
     
+    # Permission bits used for shared-cache directories.
+    # rwxrwsr-x: owner+group can read/write/traverse, setgid propagates
+    # group ownership to new entries, others can read/traverse.
+    _DIR_MODE = (
+        stat.S_IRWXU | stat.S_IRWXG | stat.S_ISGID |
+        stat.S_IROTH | stat.S_IXOTH
+    )  # 0o2775
+
     def _make_readonly(self, path: str):
-        """Make all files in a directory tree read-only."""
+        """Lock down a cached tree for shared use.
+
+        * **Files** — write bits are cleared so that no user can
+          accidentally edit shared content.
+        * **Directories** — set to ``rwxrwsr-x`` (2775) so that any
+          group member can traverse and *delete* entries during cache
+          cleanup.  The setgid bit ensures new entries inherit the
+          directory's group.
+
+        Silently skips entries that cannot be ``chmod``-ed (e.g. owned
+        by another user in a shared cache).
+        """
         for root, dirs, files in os.walk(path):
             for d in dirs:
-                dir_path = os.path.join(root, d)
-                # Remove write permission but keep execute for directories
-                mode = os.stat(dir_path).st_mode
-                os.chmod(dir_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+                try:
+                    os.chmod(os.path.join(root, d), self._DIR_MODE)
+                except OSError:
+                    pass
             for f in files:
-                file_path = os.path.join(root, f)
-                # Remove write permission
-                mode = os.stat(file_path).st_mode
-                os.chmod(file_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
-        # Also make the root directory read-only
-        mode = os.stat(path).st_mode
-        os.chmod(path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+                try:
+                    fp = os.path.join(root, f)
+                    mode = os.stat(fp).st_mode
+                    os.chmod(fp, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+                except OSError:
+                    pass
+        try:
+            os.chmod(path, self._DIR_MODE)
+        except OSError:
+            pass
     
     def get_cache_info(self) -> dict:
         """Get information about the cache.
@@ -231,18 +273,30 @@ class Cache:
         return removed
     
     def _make_writable(self, path: str):
-        """Make all files in a directory tree writable."""
+        """Restore write permission before ``shutil.rmtree``.
+
+        Directories in the cache are already writable (2775), so only
+        files need the write bit restored.  Skips entries that cannot
+        be modified (owned by another user).
+        """
         for root, dirs, files in os.walk(path, topdown=False):
             for f in files:
-                file_path = os.path.join(root, f)
-                mode = os.stat(file_path).st_mode
-                os.chmod(file_path, mode | stat.S_IWUSR)
+                try:
+                    fp = os.path.join(root, f)
+                    mode = os.stat(fp).st_mode
+                    os.chmod(fp, mode | stat.S_IWUSR)
+                except OSError:
+                    pass
             for d in dirs:
-                dir_path = os.path.join(root, d)
-                mode = os.stat(dir_path).st_mode
-                os.chmod(dir_path, mode | stat.S_IWUSR)
-        mode = os.stat(path).st_mode
-        os.chmod(path, mode | stat.S_IWUSR)
+                try:
+                    dp = os.path.join(root, d)
+                    os.chmod(dp, self._DIR_MODE)
+                except OSError:
+                    pass
+        try:
+            os.chmod(path, self._DIR_MODE)
+        except OSError:
+            pass
 
 
 def is_github_url(url: str) -> bool:

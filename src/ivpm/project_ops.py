@@ -154,6 +154,7 @@ class ProjectOps(object):
             
             # Suppress subprocess output when using Rich TUI
             updater.update_info.suppress_output = suppress_output
+            updater.update_info._tui_ref = tui
 
             # Build the handler update_info (with dispatcher wired in)
             handler_update_info = ProjectUpdateInfo(
@@ -164,6 +165,7 @@ class ProjectOps(object):
                 suppress_output=suppress_output,
                 event_dispatcher=event_dispatcher,
             )
+            handler_update_info._tui_ref = tui
 
             # Root pre-load: let handlers initialise before any packages are fetched
             pkg_handler.on_root_pre_load(handler_update_info)

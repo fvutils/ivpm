@@ -35,10 +35,11 @@ _logger = logging.getLogger("ivpm.tui")
 class TaskStatus:
     """Tracks status of a handler task during update."""
 
-    def __init__(self, task_id: str, task_name: str, parent_task_id: Optional[str] = None):
+    def __init__(self, task_id: str, task_name: str, parent_task_id: Optional[str] = None, package_name: Optional[str] = None):
         self.task_id = task_id
         self.task_name = task_name
         self.parent_task_id = parent_task_id
+        self.package_name = package_name
         self.start_time = time.time()
         self.duration: Optional[float] = None
         self.message: Optional[str] = None
@@ -59,6 +60,7 @@ class PackageStatus:
         self.version: Optional[str] = None
         self.completed = False
         self.error: Optional[str] = None
+        self.progress_message: Optional[str] = None
 
 
 class RichUpdateTUI(UpdateEventListener):
@@ -161,13 +163,19 @@ class RichUpdateTUI(UpdateEventListener):
             else:
                 # Use Rich's Spinner for in-progress packages
                 marker = Spinner("dots", style="bold cyan")
-                info = Text(f"{status.pkg_type} {status.pkg_src}")
+                if status.progress_message:
+                    info = Text(f"{status.pkg_type} · {status.progress_message}")
+                else:
+                    info = Text(f"{status.pkg_type} {status.pkg_src}")
             
             table.add_row(marker, Text(name), info)
 
-        # Render handler tasks (appended after packages)
+        # Render handler tasks (appended after packages).
+        # Skip tasks whose progress is already shown on a package row.
         for task_id in self.task_order:
             task = self.tasks[task_id]
+            if task.package_name and task.package_name in self.packages:
+                continue
             indent = "  " if task.parent_task_id else ""
             display_name = f"{indent}{task.task_name}"
             if task.error:
@@ -256,7 +264,7 @@ class RichUpdateTUI(UpdateEventListener):
             self._show_summary()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_START:
-            task = TaskStatus(event.task_id, event.task_name, event.parent_task_id)
+            task = TaskStatus(event.task_id, event.task_name, event.parent_task_id, event.package_name)
             self.tasks[event.task_id] = task
             self.task_order.append(event.task_id)
             self._update_display()
@@ -268,7 +276,11 @@ class RichUpdateTUI(UpdateEventListener):
                     task.message = f"{event.task_message} ({event.task_step}/{event.task_total})"
                 else:
                     task.message = event.task_message
-                self._update_display()
+            if event.package_name and event.package_name in self.packages:
+                pkg = self.packages[event.package_name]
+                if not pkg.completed:
+                    pkg.progress_message = event.task_message
+            self._update_display()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_END:
             if event.task_id in self.tasks:
@@ -286,6 +298,18 @@ class RichUpdateTUI(UpdateEventListener):
                 self.errors.append((event.task_name, task.error))
                 self._update_display()
     
+    def make_prompt_callback(self):
+        """Return a prompt_callback suitable for PtyRunner.
+    
+        Pauses the Rich Live display, prompts the user, and resumes.
+        """
+        from .tui_utils import handle_subprocess_prompt_rich
+        def _callback(context: str, label: str, secret: bool) -> str:
+            return handle_subprocess_prompt_rich(
+                self.live, self.console, context, label, secret
+            )
+        return _callback
+
     def _show_summary(self):
         """Show a styled summary after update completes."""
         from rich.panel import Panel
@@ -330,6 +354,11 @@ class TranscriptUpdateTUI(UpdateEventListener):
         self.verbose = verbose
         self.errors: List[tuple] = []
     
+    def make_prompt_callback(self):
+        """Return a prompt_callback for non-Rich mode."""
+        from .tui_utils import handle_subprocess_prompt_plain
+        return handle_subprocess_prompt_plain
+
     def on_event(self, event: UpdateEvent):
         """Handle an update event."""
         if event.event_type == UpdateEventType.VENV_START:
