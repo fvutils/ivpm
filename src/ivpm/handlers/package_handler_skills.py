@@ -54,10 +54,16 @@ def _parse_frontmatter(path: str) -> Optional[Dict[str, str]]:
 @dc.dataclass
 class PackageHandlerSkills(PackageHandler):
     name = "skills"
+    leaf_when = None
+    root_when = None
+    phase = 0
     # package name -> (Package, skill filename, skill name, description, extra fields)
     skill_pkgs: Dict[str, Tuple] = dc.field(default_factory=dict)
 
-    def process_pkg(self, pkg: Package):
+    def reset(self):
+        self.skill_pkgs = {}
+
+    def on_leaf_post_load(self, pkg: Package, update_info):
         """Record packages that provide a SKILLS.md or SKILL.md file."""
         if not hasattr(pkg, "path") or pkg.path is None:
             return
@@ -83,10 +89,11 @@ class PackageHandlerSkills(PackageHandler):
                     )
                     break
                 _logger.debug("Package %s has %s (skill: %s)", pkg.name, candidate, skill_name)
-                self.skill_pkgs[pkg.name] = (pkg, candidate, skill_name, description, fields)
+                with self._lock:
+                    self.skill_pkgs[pkg.name] = (pkg, candidate, skill_name, description, fields)
                 break
 
-    def update(self, update_info: ProjectUpdateInfo):
+    def on_root_post_load(self, update_info: ProjectUpdateInfo):
         if not self.skill_pkgs:
             _logger.debug("No packages with skill files; skipping SKILLS.md generation")
             return

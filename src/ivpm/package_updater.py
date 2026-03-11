@@ -210,6 +210,9 @@ class PackageUpdater(object):
         pkg.path = pkg_dir.replace("\\", "/")
 
         try:
+            # Notify handler before the package is fetched
+            self.pkg_handler.on_leaf_pre_load(pkg, self.update_info)
+
             pkg.proj_info = pkg.update(self.update_info)
 
             # Merge self-declared types from the dep's own ivpm.yaml into pkg.type_data.
@@ -223,10 +226,15 @@ class PackageUpdater(object):
                     if type_name not in caller_names and ct_rgy.has(type_name):
                         pkg.type_data.append(ct_rgy.get(type_name).create_data(opts, None))
 
-            # Notify the package handlers after the source is 
-            # loaded so they can take further action if required 
-            self.pkg_handler.process_pkg(pkg)
-            
+            # Notify the package handlers after the source is loaded
+            from .handlers.package_handler import HandlerFatalError
+            try:
+                self.pkg_handler.on_leaf_post_load(pkg, self.update_info)
+            except HandlerFatalError:
+                raise
+            except Exception as leaf_exc:
+                _logger.warning("Handler error for package %s: %s", pkg.name, leaf_exc)
+
             # Ensure that we use the requested dep-set
             if pkg.proj_info is not None:
                 pkg.proj_info.target_dep_set = pkg.dep_set

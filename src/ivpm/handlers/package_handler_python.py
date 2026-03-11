@@ -26,7 +26,7 @@ import toposort
 import os
 import shutil
 import sys
-from typing import Dict, List, Set
+from typing import ClassVar, Dict, List, Optional, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import note, fatal, get_venv_python
 from ..pkg_content_type import PythonTypeData
@@ -34,42 +34,57 @@ from ..package import get_type_data
 
 from ..package import Package
 from .package_handler import PackageHandler
+from .handler_conditions import HasType
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_python")
 
 @dc.dataclass
 class PackageHandlerPython(PackageHandler):
-    name="python"
+    name:      ClassVar[str]            = "python"
+    leaf_when: ClassVar[Optional[List]] = None               # always inspect every package
+    root_when: ClassVar[Optional[List]] = [HasType("python")] # only run root when Python pkgs present
+    phase:     ClassVar[int]            = 0
+
     pkgs_info  : Dict[str,Package] = dc.field(default_factory=dict)
     src_pkg_s  : Set[str] = dc.field(default_factory=set)
     pypi_pkg_s : Set[str] = dc.field(default_factory=set)
     use_uv : bool = False
     debug : bool = True
 
-    def process_pkg(self, pkg: Package):
+    def reset(self):
+        self.pkgs_info  = {}
+        self.src_pkg_s  = set()
+        self.pypi_pkg_s = set()
+
+    def on_leaf_post_load(self, pkg: Package, update_info):
         add = False
         if pkg.src_type == "pypi":
-            self.pypi_pkg_s.add(pkg.name)
+            with self._lock:
+                self.pypi_pkg_s.add(pkg.name)
             add = True
         elif get_type_data(pkg, PythonTypeData) is not None:
             # Explicit type: python
-            self.src_pkg_s.add(pkg.name)
+            with self._lock:
+                self.src_pkg_s.add(pkg.name)
             add = True
         elif pkg.pkg_type is not None and pkg.pkg_type == PackageHandlerPython.name:
-            self.src_pkg_s.add(pkg.name)
+            with self._lock:
+                self.src_pkg_s.add(pkg.name)
             add = True
         elif pkg.pkg_type is None and hasattr(pkg, "path"):
             # Check if there are known Python files
             for py in ("setup.py", "setup.cfg", "pyproject.toml"):
                 if os.path.isfile(os.path.join(pkg.path, py)):
                     add = True
-                    self.src_pkg_s.add(pkg.name)
-                    break            
+                    with self._lock:
+                        self.src_pkg_s.add(pkg.name)
+                    break
         if add:
             pkg.pkg_type = PackageHandlerPython.name
-            self.pkgs_info[pkg.name] = pkg
-    
-    def update(self, update_info : ProjectUpdateInfo):
+            with self._lock:
+                self.pkgs_info[pkg.name] = pkg
+
+    def on_root_post_load(self, update_info: ProjectUpdateInfo):
 
         if getattr(update_info.args, "py_uv", False):
             self.use_uv = True
@@ -236,15 +251,22 @@ class PackageHandlerPython(PackageHandler):
             env = os.environ.copy()
             env["PYTHONPATH"] = ps.join(sys.path)
 
-            note("Installing Python dependencies in %d phases" % len(python_requirements_paths))
+            n = len(python_requirements_paths)
+            note("Installing Python dependencies in %d phases" % n)
             suppress_output = getattr(update_info, 'suppress_output', False)
-            for reqfile in python_requirements_paths:
-                self._install_requirements(
-                    os.path.join(update_info.deps_dir, "python"),
-                    reqfile,
-                    getattr(update_info.args, "py_prerls_packages", False),
-                    self.use_uv,
-                    suppress_output=suppress_output)
+            with self.task_context(update_info, "python-install", "Installing Python packages") as task:
+                for i, reqfile in enumerate(python_requirements_paths, 1):
+                    task.progress(
+                        f"Installing package set {i}/{n}",
+                        step=i, total=n,
+                    )
+                    self._install_requirements(
+                        os.path.join(update_info.deps_dir, "python"),
+                        reqfile,
+                        getattr(update_info.args, "py_prerls_packages", False),
+                        self.use_uv,
+                        suppress_output=suppress_output,
+                        task=task)
 
     def get_lock_entries(self, deps_dir: str) -> dict:
         """Return pip-resolved package versions from the managed venv.
@@ -341,11 +363,20 @@ class PackageHandlerPython(PackageHandler):
                               requirements_file,
                               use_pre,
                               use_uv,
-                              suppress_output=False):
-        """Installs the requirements specified in a file"""
+                              suppress_output=False,
+                              task=None):
+        """Installs the requirements specified in a file.
 
-        # Setup output redirection
-        if suppress_output:
+        If *task* is provided, stdout/stderr are captured and parsed for
+        progress messages that are emitted via task.progress().
+        """
+
+        # When we have a task handle, always capture output for progress parsing.
+        # Otherwise fall back to suppress or inherit.
+        if task is not None:
+            stdout_arg = subprocess.PIPE
+            stderr_arg = subprocess.STDOUT
+        elif suppress_output:
             stdout_arg = subprocess.DEVNULL
             stderr_arg = subprocess.DEVNULL
         else:
@@ -360,6 +391,7 @@ class PackageHandlerPython(PackageHandler):
                 shutil.which("uv"),
                 "pip",
                 "install",
+                "--verbose",
                 # Ensure user-specified packages are used during build
                 # An isolated build installs its own release packages
                 "--no-build-isolation", 
@@ -370,9 +402,11 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
-
-            if result.returncode != 0:
+            returncode = self._run_with_progress(cmd, env=env,
+                                                  stdout_arg=stdout_arg,
+                                                  stderr_arg=stderr_arg,
+                                                  use_uv=True, task=task)
+            if returncode != 0:
                 raise Exception("Failed to install Python packages")
         else: # Use pip
             import sys
@@ -398,11 +432,82 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            status = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
-    
-            if status.returncode != 0:
+            returncode = self._run_with_progress(cmd, env=env,
+                                                  stdout_arg=stdout_arg,
+                                                  stderr_arg=stderr_arg,
+                                                  use_uv=False, task=task)
+
+            if returncode != 0:
                 fatal("failed to install Python packages")
             os.chdir(cwd)
+
+    def _run_with_progress(self, cmd, env, stdout_arg, stderr_arg, use_uv, task):
+        """Run cmd and return its exit code.
+
+        When stdout_arg is PIPE (i.e. task is not None), stream output
+        line by line and emit progress events via task.progress().
+        Otherwise call subprocess.run() directly.
+        """
+        if stdout_arg != subprocess.PIPE:
+            result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
+            return result.returncode
+
+        proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, text=True,
+                                errors="replace")
+        for raw_line in proc.stdout:
+            line = raw_line.rstrip()
+            msg = self._parse_installer_line(line, use_uv)
+            if msg and task is not None:
+                task.progress(msg)
+        proc.wait()
+        return proc.returncode
+
+    @staticmethod
+    def _parse_installer_line(line: str, use_uv: bool):
+        """Return a short human-readable status string from one line of uv/pip output, or None."""
+        stripped = line.strip()
+        if not stripped:
+            return None
+
+        if use_uv:
+            # "   Building pkgname @ file://..."  or  "      Built pkgname @ file://..."
+            for prefix in ("Building ", "Built "):
+                if stripped.startswith(prefix):
+                    rest = stripped[len(prefix):]
+                    name = rest.split(" @ ")[0].strip()
+                    return f"{prefix.strip()} {name}"
+            # "Resolved N packages in Xms", "Installed N packages in Xms",
+            # "Prepared N packages in Xs", "Uninstalled N package..."
+            for prefix in ("Resolved ", "Installed ", "Prepared ", "Uninstalled "):
+                if stripped.startswith(prefix):
+                    return stripped
+            # "Using Python X environment at: ..."
+            if stripped.startswith("Using Python"):
+                return stripped
+            # "DEBUG Selecting: pkg==version [compatible] (wheel.whl)"
+            # → "Selecting pkg==version"
+            if stripped.startswith("DEBUG Selecting: "):
+                rest = stripped[len("DEBUG Selecting: "):]
+                # "pkg==version [compatible] (...)" → "pkg==version"
+                pkg_ver = rest.split(" [")[0].split(" (")[0].strip()
+                return f"Selecting {pkg_ver}"
+        else:
+            # pip output
+            if stripped.startswith("Collecting "):
+                # "Collecting requests>=2.0" → "Collecting requests"
+                pkg = stripped[len("Collecting "):].split(" ")[0]
+                return f"Collecting {pkg}"
+            if stripped.startswith("Downloading "):
+                pkg = stripped[len("Downloading "):].split(" ")[0]
+                return f"Downloading {pkg}"
+            if stripped.startswith("Building wheel for "):
+                pkg = stripped[len("Building wheel for "):].split(" ")[0]
+                return f"Building {pkg}"
+            if stripped.startswith("Successfully installed "):
+                return stripped[:80]  # may be long; cap it
+
+        return None
 
 
     def _write_requirements_txt(self, 

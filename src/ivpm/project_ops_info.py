@@ -44,7 +44,7 @@ class ProjectOpsInfo(object):
 @dc.dataclass
 class ProjectBuildInfo(ProjectOpsInfo):
     debug : bool = False
-    pass
+    event_dispatcher: Optional['UpdateEventDispatcher'] = None
 
 @dc.dataclass
 class ProjectSyncInfo(ProjectOpsInfo):
@@ -77,10 +77,20 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     max_parallel: int = 0  # 0 means use available cores
     event_dispatcher: Optional[UpdateEventDispatcher] = None
     suppress_output: bool = False  # When True, suppress subprocess output (Rich TUI mode)
+    _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None
     _current_cache_hit: Optional[bool] = None
     
+    def get_prompt_callback(self):
+        """Return a prompt callback appropriate for the current TUI.
+    
+        Returns None if no TUI is configured or if running non-interactively.
+        """
+        if self._tui_ref is not None and hasattr(self._tui_ref, "make_prompt_callback"):
+            return self._tui_ref.make_prompt_callback()
+        return None
+
     def report_cache_hit(self):
         self.cache_hits += 1
         self._current_cache_hit = True
