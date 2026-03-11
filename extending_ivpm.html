@@ -71,6 +71,12 @@
 <li class="toctree-l2"><a class="reference internal" href="#registering-a-handler-via-entry-points">Registering a Handler via Entry Points</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#complete-example">Complete Example</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#handler-ordering-and-the-extension-group">Handler Ordering and the Extension Group</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#built-in-handlers">Built-in Handlers</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#python-handler-python">Python Handler (<code class="docutils literal notranslate"><span class="pre">python</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#direnv-handler-direnv">Direnv Handler (<code class="docutils literal notranslate"><span class="pre">direnv</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#skills-handler-skills">Skills Handler (<code class="docutils literal notranslate"><span class="pre">skills</span></code>)</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#testing-your-handler">Testing Your Handler</a></li>
 </ul>
 </li>
@@ -327,8 +333,10 @@ Add the following to your <code class="docutils literal notranslate"><span class
 </div>
 <p>Each value must point to a <strong>class</strong> that extends <code class="docutils literal notranslate"><span class="pre">PackageHandler</span></code>.
 IVPM instantiates the class once per update run.</p>
-<p>After installing your package (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code>), IVPM will automatically
-load <code class="docutils literal notranslate"><span class="pre">MyHandler</span></code> on every <code class="docutils literal notranslate"><span class="pre">update</span></code> or <code class="docutils literal notranslate"><span class="pre">clone</span></code> run.</p>
+<p>After installing your package (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">.</span></code>), run
+<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">handler</span></code> to confirm that IVPM discovered your handler correctly.
+IVPM will also automatically load <code class="docutils literal notranslate"><span class="pre">MyHandler</span></code> on every <code class="docutils literal notranslate"><span class="pre">update</span></code> or
+<code class="docutils literal notranslate"><span class="pre">clone</span></code> run.</p>
 </section>
 <section id="complete-example">
 <h2>Complete Example<a class="headerlink" href="#complete-example" title="Link to this heading"></a></h2>
@@ -391,6 +399,92 @@ were registered. Leaf callbacks always run concurrently with no guaranteed
 ordering.</p>
 <p>To run after all built-in handlers, use <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">10</span></code> or higher. To run before
 a built-in, use a negative phase (though this is rarely needed).</p>
+</section>
+<section id="built-in-handlers">
+<span id="builtin-handlers"></span><h2>Built-in Handlers<a class="headerlink" href="#built-in-handlers" title="Link to this heading"></a></h2>
+<p>IVPM ships three built-in handlers. They are registered via the
+<code class="docutils literal notranslate"><span class="pre">ivpm.handlers</span></code> entry-point group and run at <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">0</span></code> on every
+<code class="docutils literal notranslate"><span class="pre">update</span></code> and <code class="docutils literal notranslate"><span class="pre">clone</span></code> invocation.</p>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">handler</span></code> to see all registered handlers (built-in and
+third-party) with live documentation.  Use <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">handler</span> <span class="pre">python</span></code>
+for full per-handler detail including CLI options.</p>
+</div>
+<section id="python-handler-python">
+<span id="builtin-python-handler"></span><h3>Python Handler (<code class="docutils literal notranslate"><span class="pre">python</span></code>)<a class="headerlink" href="#python-handler-python" title="Link to this heading"></a></h3>
+<p>Manages the project-local Python virtual environment at <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code>.</p>
+<p><strong>Activation:</strong></p>
+<ul class="simple">
+<li><p><em>Leaf phase</em> — runs for every package; detects Python packages by checking
+for <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> (git/dir/file sources)
+or by <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code>.  Detected packages are tagged <code class="docutils literal notranslate"><span class="pre">pkg.pkg_type</span> <span class="pre">=</span> <span class="pre">&quot;python&quot;</span></code>.</p></li>
+<li><p><em>Root phase</em> — activated by <code class="docutils literal notranslate"><span class="pre">HasType(&quot;python&quot;)</span></code>, i.e. only runs when at
+least one Python package was detected.  Creates or updates the venv, then
+installs all detected packages.</p></li>
+</ul>
+<p><strong>``with:`` parameters</strong> (in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>)</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">editable</span></code> <em>(boolean, default: true)</em></dt><dd><p>Install source packages in editable mode (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span></code>).
+Set to <code class="docutils literal notranslate"><span class="pre">false</span></code> to install as a regular non-editable package.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">extras</span></code> <em>(string or list of strings)</em></dt><dd><p><a class="reference external" href="https://peps.python.org/pep-0508/#extras">PEP 508 extras</a> to request,
+e.g. <code class="docutils literal notranslate"><span class="pre">[tests,</span> <span class="pre">docs]</span></code>.</p>
+</dd>
+</dl>
+<p><strong>CLI options</strong> (accepted by both <code class="docutils literal notranslate"><span class="pre">update</span></code> and <code class="docutils literal notranslate"><span class="pre">clone</span></code>):</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--py-uv</span></code></dt><dd><p>Use <code class="docutils literal notranslate"><span class="pre">uv</span></code> instead of pip to manage the virtual environment.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-pip</span></code></dt><dd><p>Force use of pip (overrides uv auto-detection).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--skip-py-install</span></code></dt><dd><p>Skip Python package installation entirely (venv still created if absent).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--force-py-install</span></code></dt><dd><p>Force re-installation of all Python packages, ignoring the lock file.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-prerls-packages</span></code></dt><dd><p>Allow pre-release packages when resolving dependencies.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--py-system-site-packages</span></code></dt><dd><p>Create the venv with <code class="docutils literal notranslate"><span class="pre">--system-site-packages</span></code> so it inherits packages
+installed in the system Python.</p>
+</dd>
+</dl>
+</section>
+<section id="direnv-handler-direnv">
+<span id="builtin-direnv-handler"></span><h3>Direnv Handler (<code class="docutils literal notranslate"><span class="pre">direnv</span></code>)<a class="headerlink" href="#direnv-handler-direnv" title="Link to this heading"></a></h3>
+<p>Collects per-package environment files and assembles them into a single
+<code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> that can be sourced by
+<a class="reference external" href="https://direnv.net/">direnv</a>.</p>
+<p><strong>Activation:</strong></p>
+<ul class="simple">
+<li><p><em>Leaf phase</em> — always runs; looks for <code class="docutils literal notranslate"><span class="pre">.envrc</span></code> or <code class="docutils literal notranslate"><span class="pre">export.envrc</span></code> inside
+each package directory.</p></li>
+<li><p><em>Root phase</em> — always runs (even when no per-package files were found, so
+that <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> always exists and <code class="docutils literal notranslate"><span class="pre">direnv</span> <span class="pre">allow</span></code> is safe).</p></li>
+</ul>
+<p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> — a shell script that sources all
+discovered per-package <code class="docutils literal notranslate"><span class="pre">.envrc</span></code> / <code class="docutils literal notranslate"><span class="pre">export.envrc</span></code> files in dependency order.</p>
+<p><strong>No ``with:`` parameters and no CLI options.</strong></p>
+<p>To use this with direnv, add the following to your project-level <code class="docutils literal notranslate"><span class="pre">.envrc</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>source_env<span class="w"> </span>packages/packages.envrc
+</pre></div>
+</div>
+</section>
+<section id="skills-handler-skills">
+<span id="builtin-skills-handler"></span><h3>Skills Handler (<code class="docutils literal notranslate"><span class="pre">skills</span></code>)<a class="headerlink" href="#skills-handler-skills" title="Link to this heading"></a></h3>
+<p>Aggregates per-package <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> / <code class="docutils literal notranslate"><span class="pre">SKILLS.md</span></code> files into a single
+<code class="docutils literal notranslate"><span class="pre">packages/SKILLS.md</span></code> for use by AI coding agents.</p>
+<p><strong>Activation:</strong></p>
+<ul class="simple">
+<li><p><em>Leaf phase</em> — always runs; looks for <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> or <code class="docutils literal notranslate"><span class="pre">SKILLS.md</span></code> in each
+package root.</p></li>
+<li><p><em>Root phase</em> — always runs; concatenates all discovered skill files into one
+unified document.</p></li>
+</ul>
+<p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/SKILLS.md</span></code> — a combined skills reference.  AI agents
+(such as GitHub Copilot CLI) automatically discover this file when the
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory is on the workspace path.</p>
+<p><strong>No ``with:`` parameters and no CLI options.</strong></p>
+</section>
 </section>
 <section id="testing-your-handler">
 <h2>Testing Your Handler<a class="headerlink" href="#testing-your-handler" title="Link to this heading"></a></h2>

@@ -56,6 +56,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#http-url-http">HTTP/URL (<code class="docutils literal notranslate"><span class="pre">http</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#file-file">File (<code class="docutils literal notranslate"><span class="pre">file</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#directory-dir">Directory (<code class="docutils literal notranslate"><span class="pre">dir</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#url-url">URL (<code class="docutils literal notranslate"><span class="pre">url</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#github-releases-gh-rls">GitHub Releases (<code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>)</a></li>
 </ul>
 </li>
@@ -324,6 +325,30 @@
 </div>
 <p><strong>Use case:</strong> Develop multiple related projects simultaneously.</p>
 </section>
+<section id="url-url">
+<h3>URL (<code class="docutils literal notranslate"><span class="pre">url</span></code>)<a class="headerlink" href="#url-url" title="Link to this heading"></a></h3>
+<p>Generic URL source — the fetch method is resolved from the URL extension, just
+like <code class="docutils literal notranslate"><span class="pre">http</span></code>, but the <code class="docutils literal notranslate"><span class="pre">src</span></code> field can be omitted for URLs that IVPM cannot
+auto-detect as a specific type.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/releases/pkg-1.0.tar.gz</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">url</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (see <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a>)</p>
+</dd>
+</dl>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>In most cases IVPM auto-detects the source type from the URL, so <code class="docutils literal notranslate"><span class="pre">src:</span>
+<span class="pre">url</span></code> is rarely needed explicitly.  It is available as an explicit override
+when the URL extension is unusual but the content is a standard archive.</p>
+</div>
+</section>
 <section id="github-releases-gh-rls">
 <h3>GitHub Releases (<code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>)<a class="headerlink" href="#github-releases-gh-rls" title="Link to this heading"></a></h3>
 <p>Download assets from GitHub Releases. Automatically selects platform-specific
@@ -473,6 +498,14 @@ when installing (e.g. <code class="docutils literal notranslate"><span class="pr
 Unknown keys inside <code class="docutils literal notranslate"><span class="pre">with:</span></code> are a validation error.
 Parameter validation happens at YAML-read time, before any packages are fetched.</p>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When a package has <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">python</span></code> (explicitly or via auto-detection), the
+<strong>Python handler</strong> installs it into <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code> during the root
+phase of every <code class="docutils literal notranslate"><span class="pre">update</span></code> / <code class="docutils literal notranslate"><span class="pre">clone</span></code> run.  See <a class="reference internal" href="extending_ivpm.html#builtin-python-handler"><span class="std std-ref">Python Handler (python)</span></a>
+in <a class="reference internal" href="extending_ivpm.html"><span class="doc">Extending IVPM</span></a> for the full list of installation options and CLI
+flags such as <code class="docutils literal notranslate"><span class="pre">--py-uv</span></code> and <code class="docutils literal notranslate"><span class="pre">--force-py-install</span></code>.</p>
+</div>
 </section>
 <section id="raw-raw">
 <h3>Raw (<code class="docutils literal notranslate"><span class="pre">raw</span></code>)<a class="headerlink" href="#raw-raw" title="Link to this heading"></a></h3>
@@ -502,6 +535,13 @@ Parameter validation happens at YAML-read time, before any packages are fetched.
 <p><code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">raw</span></code> accepts no <code class="docutils literal notranslate"><span class="pre">with:</span></code> parameters. This type is also useful to
 suppress Python auto-detection on a package that happens to contain a
 <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> but should not be pip-installed.</p>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Packages with <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">raw</span></code> are intentionally not processed by any built-in
+handler — they are simply placed in <code class="docutils literal notranslate"><span class="pre">packages/&lt;name&gt;/</span></code> and left as-is.
+This is the right choice for IP cores, data files, and pre-built binaries
+that need no install step.</p>
 </div>
 </section>
 </section>
@@ -772,7 +812,14 @@ suppress Python auto-detection on a package that happens to contain a
 <li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Caching strategies</p></li>
 <li><p><a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> - Python-specific features</p></li>
 <li><p><a class="reference internal" href="github_releases.html"><span class="doc">GitHub Releases</span></a> - GitHub Releases details</p></li>
+<li><p><a class="reference internal" href="extending_ivpm.html"><span class="doc">Extending IVPM</span></a> - Built-in handler details and writing custom handlers</p></li>
 </ul>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">source</span></code> and <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">type</span></code> to list all registered
+sources and types with live documentation, including any installed by
+third-party plugins.</p>
+</div>
 </section>
 </section>
 
