@@ -75,3 +75,16 @@ class PackageDir(PackageURL):
         pkg.process_options(opts, si)
         print("pkg.name: %s" % pkg.name)
         return pkg
+
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="dir",
+            description="Local directory — symlinked (or copied on Windows) into packages/",
+            params=[
+                ParamInfo("url", "file:// URL pointing to the local directory", required=True, type_hint="url"),
+                ParamInfo("link", "Create a symlink instead of copying (default: true, ignored on Windows)", type_hint="bool"),
+            ],
+            notes="URL must start with file://.  Environment variables in the path are expanded.",
+        )

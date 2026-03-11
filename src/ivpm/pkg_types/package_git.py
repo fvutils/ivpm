@@ -631,3 +631,26 @@ class PackageGit(PackageURL):
         pkg.process_options(opts, si)
         return pkg
 
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="git",
+            description="Git repository — cloned into packages/",
+            params=[
+                ParamInfo("url", "Repository URL (https:// or git@...)", required=True, type_hint="url"),
+                ParamInfo("branch", "Branch to check out (default: repo default branch)"),
+                ParamInfo("tag", "Tag to pin to; disables sync for this package"),
+                ParamInfo("commit", "Specific commit SHA to check out"),
+                ParamInfo("depth", "Shallow-clone depth (integer)", type_hint="int"),
+                ParamInfo("cache", "Cache mode: true=shared cache+symlink, false=shallow read-only clone, omit=full editable clone", type_hint="bool"),
+                ParamInfo("anonymous", "Clone via HTTPS instead of SSH (overrides global --anonymous-git)", type_hint="bool"),
+            ],
+            notes=(
+                "When cache: true, IVPM resolves the HEAD commit hash, stores the repo in a "
+                "shared cache, and symlinks it read-only into packages/.  "
+                "When cache: false, a shallow clone is made directly in packages/ without caching.  "
+                "Omitting cache produces a full editable clone — the common case for co-developed deps."
+            ),
+        )
+

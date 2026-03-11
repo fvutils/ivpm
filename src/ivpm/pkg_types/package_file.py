@@ -133,3 +133,16 @@ class PackageFile(PackageURL):
         pkg.process_options(opts, si)
         return pkg
 
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="file",
+            description="Local or pre-fetched archive file (.tar.gz, .zip, .jar, etc.)",
+            params=[
+                ParamInfo("url", "Path or URL to the archive file", required=True, type_hint="url"),
+                ParamInfo("unpack", "Unpack the archive into the packages directory (default: true except .jar)", type_hint="bool"),
+                ParamInfo("cache", "Cache this package", type_hint="bool"),
+            ],
+        )
+

@@ -29,10 +29,23 @@ _logger = logging.getLogger("ivpm.handlers.package_handler_direnv")
 
 @dc.dataclass
 class PackageHandlerDirenv(PackageHandler):
-    name = "direnv"
-    leaf_when = None
-    root_when = None
-    phase = 0
+    name               = "direnv"
+    description        = "Collects .envrc / export.envrc files from packages and generates a combined packages.envrc"
+    leaf_when          = None
+    root_when          = None
+    phase              = 0
+    conditions_summary = "leaf: all non-PyPI packages with a .envrc or export.envrc file; root: only when at least one such package is present"
+
+    @classmethod
+    def handler_info(cls):
+        from ..show.info_types import HandlerInfo
+        return HandlerInfo(
+            name=cls.name,
+            description=cls.description,
+            phase=cls.phase,
+            conditions=cls.conditions_summary,
+            notes="Generates packages/packages.envrc that sources each package's envrc in topological order.",
+        )
     # package name -> (Package, envrc filename)
     envrc_pkgs: Dict[str, tuple] = dc.field(default_factory=dict)
 

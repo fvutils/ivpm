@@ -97,9 +97,10 @@ class TaskHandle:
 @dc.dataclass
 class PackageHandler(object):
     # --- Handler metadata (ClassVar — override in subclasses with plain assignment) ---
-    name:        ClassVar[Optional[str]] = None
-    description: ClassVar[Optional[str]] = None
-    phase:       ClassVar[int]  = 0
+    name:               ClassVar[Optional[str]] = None
+    description:        ClassVar[Optional[str]] = None
+    phase:              ClassVar[int]  = 0
+    conditions_summary: ClassVar[Optional[str]] = None  # human-readable activation conditions
 
     # leaf_when: list of callable(pkg: Package) -> bool, or None (always active as leaf)
     leaf_when:   ClassVar[Optional[List]] = None
@@ -109,6 +110,17 @@ class PackageHandler(object):
 
     # Per-instance thread lock — acquired during writes to accumulated state
     _lock: threading.Lock = dc.field(default_factory=threading.Lock, init=False, repr=False)
+
+    @classmethod
+    def handler_info(cls) -> 'HandlerInfo':
+        """Return self-description for 'ivpm show handler <name>'."""
+        from ..show.info_types import HandlerInfo
+        return HandlerInfo(
+            name=cls.name or "unknown",
+            description=cls.description or "",
+            phase=cls.phase,
+            conditions=cls.conditions_summary or "",
+        )
 
     # ------------------------------------------------------------------ #
     # Per-run state reset                                                  #

@@ -49,3 +49,17 @@ class PackagePyPi(Package):
         pkg.process_options(opts, si)
         return pkg
 
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="pypi",
+            description="Python Package Index (PyPI) — installed into the managed virtual environment",
+            params=[
+                ParamInfo("version", "PEP 440 version specifier (e.g. '>=1.20,<2')", default="(latest)"),
+                ParamInfo("extras", "PEP 508 extras to install (e.g. [litellm, openai])", type_hint="str"),
+            ],
+            notes="The package name is taken from the dep entry 'name:' field.  PyPI packages "
+                  "are not placed in packages/; they are installed directly into packages/python.",
+        )
+

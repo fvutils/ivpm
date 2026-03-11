@@ -275,8 +275,10 @@ Or, if you use ``setup.cfg``:
 Each value must point to a **class** that extends ``PackageHandler``.
 IVPM instantiates the class once per update run.
 
-After installing your package (``pip install -e .``), IVPM will automatically
-load ``MyHandler`` on every ``update`` or ``clone`` run.
+After installing your package (``pip install -e .``), run
+``ivpm show handler`` to confirm that IVPM discovered your handler correctly.
+IVPM will also automatically load ``MyHandler`` on every ``update`` or
+``clone`` run.
 
 
 Complete Example
@@ -347,6 +349,117 @@ ordering.
 
 To run after all built-in handlers, use ``phase = 10`` or higher. To run before
 a built-in, use a negative phase (though this is rarely needed).
+
+
+.. _builtin-handlers:
+
+Built-in Handlers
+=================
+
+IVPM ships three built-in handlers. They are registered via the
+``ivpm.handlers`` entry-point group and run at ``phase = 0`` on every
+``update`` and ``clone`` invocation.
+
+.. tip::
+
+   Run ``ivpm show handler`` to see all registered handlers (built-in and
+   third-party) with live documentation.  Use ``ivpm show handler python``
+   for full per-handler detail including CLI options.
+
+.. _builtin-python-handler:
+
+Python Handler (``python``)
+---------------------------
+
+Manages the project-local Python virtual environment at ``packages/python/``.
+
+**Activation:**
+
+- *Leaf phase* — runs for every package; detects Python packages by checking
+  for ``setup.py``, ``setup.cfg``, ``pyproject.toml`` (git/dir/file sources)
+  or by ``src: pypi``.  Detected packages are tagged ``pkg.pkg_type = "python"``.
+- *Root phase* — activated by ``HasType("python")``, i.e. only runs when at
+  least one Python package was detected.  Creates or updates the venv, then
+  installs all detected packages.
+
+**``with:`` parameters** (in ``ivpm.yaml``)
+
+``editable`` *(boolean, default: true)*
+    Install source packages in editable mode (``pip install -e``).
+    Set to ``false`` to install as a regular non-editable package.
+
+``extras`` *(string or list of strings)*
+    `PEP 508 extras <https://peps.python.org/pep-0508/#extras>`_ to request,
+    e.g. ``[tests, docs]``.
+
+**CLI options** (accepted by both ``update`` and ``clone``):
+
+``--py-uv``
+    Use ``uv`` instead of pip to manage the virtual environment.
+
+``--py-pip``
+    Force use of pip (overrides uv auto-detection).
+
+``--skip-py-install``
+    Skip Python package installation entirely (venv still created if absent).
+
+``--force-py-install``
+    Force re-installation of all Python packages, ignoring the lock file.
+
+``--py-prerls-packages``
+    Allow pre-release packages when resolving dependencies.
+
+``--py-system-site-packages``
+    Create the venv with ``--system-site-packages`` so it inherits packages
+    installed in the system Python.
+
+.. _builtin-direnv-handler:
+
+Direnv Handler (``direnv``)
+---------------------------
+
+Collects per-package environment files and assembles them into a single
+``packages/packages.envrc`` that can be sourced by
+`direnv <https://direnv.net/>`_.
+
+**Activation:**
+
+- *Leaf phase* — always runs; looks for ``.envrc`` or ``export.envrc`` inside
+  each package directory.
+- *Root phase* — always runs (even when no per-package files were found, so
+  that ``packages/packages.envrc`` always exists and ``direnv allow`` is safe).
+
+**Output:** ``packages/packages.envrc`` — a shell script that sources all
+discovered per-package ``.envrc`` / ``export.envrc`` files in dependency order.
+
+**No ``with:`` parameters and no CLI options.**
+
+To use this with direnv, add the following to your project-level ``.envrc``:
+
+.. code-block:: bash
+
+    source_env packages/packages.envrc
+
+.. _builtin-skills-handler:
+
+Skills Handler (``skills``)
+----------------------------
+
+Aggregates per-package ``SKILL.md`` / ``SKILLS.md`` files into a single
+``packages/SKILLS.md`` for use by AI coding agents.
+
+**Activation:**
+
+- *Leaf phase* — always runs; looks for ``SKILL.md`` or ``SKILLS.md`` in each
+  package root.
+- *Root phase* — always runs; concatenates all discovered skill files into one
+  unified document.
+
+**Output:** ``packages/SKILLS.md`` — a combined skills reference.  AI agents
+(such as GitHub Copilot CLI) automatically discover this file when the
+``packages/`` directory is on the workspace path.
+
+**No ``with:`` parameters and no CLI options.**
 
 
 Testing Your Handler

@@ -38,8 +38,20 @@ class PackageURL(Package):
             self.cache = bool(opts["cache"])
 
     @staticmethod
-    def create(name, opts, si) -> 'Package':
+    def create(name, opts, si) -> 'PackageURL':
         pkg = PackageURL(name)
         pkg.process_options(opts, si)
         return pkg
+
+    @classmethod
+    def source_info(cls):
+        from ..show.info_types import PkgSourceInfo, ParamInfo
+        return PkgSourceInfo(
+            name="url",
+            description="Generic URL (resolved by extension: .tar.gz, .zip, .jar, etc.)",
+            params=[
+                ParamInfo("url", "Package URL; source type inferred from file extension", required=True, type_hint="url"),
+                ParamInfo("cache", "Cache this package (true=shared cache+symlink, false=no cache, omit=editable)", type_hint="bool"),
+            ],
+        )
 

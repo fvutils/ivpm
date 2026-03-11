@@ -53,10 +53,26 @@ def _parse_frontmatter(path: str) -> Optional[Dict[str, str]]:
 
 @dc.dataclass
 class PackageHandlerSkills(PackageHandler):
-    name = "skills"
-    leaf_when = None
-    root_when = None
-    phase = 0
+    name               = "skills"
+    description        = "Collects SKILL.md / SKILLS.md files from packages and generates a combined SKILLS.md"
+    leaf_when          = None
+    root_when          = None
+    phase              = 0
+    conditions_summary = "leaf: all non-PyPI packages with a SKILL.md or SKILLS.md file; root: only when at least one such package is present"
+
+    @classmethod
+    def handler_info(cls):
+        from ..show.info_types import HandlerInfo
+        return HandlerInfo(
+            name=cls.name,
+            description=cls.description,
+            phase=cls.phase,
+            conditions=cls.conditions_summary,
+            notes=(
+                "Generates packages/SKILLS.md aggregating all package skill descriptions.  "
+                "Each skill file must contain YAML frontmatter with 'name:' and 'description:' fields."
+            ),
+        )
     # package name -> (Package, skill filename, skill name, description, extra fields)
     skill_pkgs: Dict[str, Tuple] = dc.field(default_factory=dict)
 

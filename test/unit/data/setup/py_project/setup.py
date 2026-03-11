@@ -29,9 +29,7 @@ setup_args = dict(
   license = "Apache 2.0",
   keywords = ["test"],
   url = "https://github.com/fvutils/ivpm",
-  setup_requires=[
-    'setuptools_scm',
-  ],
+  setup_requires=[],
   install_requires=[],
 )
 

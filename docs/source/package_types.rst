@@ -242,6 +242,33 @@ Use a local directory. Symlinked or copied into ``packages/``.
 
 **Use case:** Develop multiple related projects simultaneously.
 
+URL (``url``)
+-------------
+
+Generic URL source — the fetch method is resolved from the URL extension, just
+like ``http``, but the ``src`` field can be omitted for URLs that IVPM cannot
+auto-detect as a specific type.
+
+**Basic usage:**
+
+.. code-block:: yaml
+
+    deps:
+      - name: my-package
+        url: https://example.com/releases/pkg-1.0.tar.gz
+        src: url
+
+**Attributes:**
+
+``cache``
+    Enable caching (see :doc:`caching`)
+
+.. note::
+
+   In most cases IVPM auto-detects the source type from the URL, so ``src:
+   url`` is rarely needed explicitly.  It is available as an explicit override
+   when the URL extension is unusual but the content is a standard archive.
+
 GitHub Releases (``gh-rls``)
 -----------------------------
 
@@ -409,6 +436,14 @@ When ``type: python`` is specified you can pass additional parameters under a
    Unknown keys inside ``with:`` are a validation error.
    Parameter validation happens at YAML-read time, before any packages are fetched.
 
+.. note::
+
+   When a package has ``type: python`` (explicitly or via auto-detection), the
+   **Python handler** installs it into ``packages/python/`` during the root
+   phase of every ``update`` / ``clone`` run.  See :ref:`builtin-python-handler`
+   in :doc:`extending_ivpm` for the full list of installation options and CLI
+   flags such as ``--py-uv`` and ``--force-py-install``.
+
 Raw (``raw``)
 -------------
 
@@ -441,6 +476,13 @@ Raw packages are placed in ``packages/<name>/`` but not processed further.
    ``type: raw`` accepts no ``with:`` parameters. This type is also useful to
    suppress Python auto-detection on a package that happens to contain a
    ``pyproject.toml`` but should not be pip-installed.
+
+.. note::
+
+   Packages with ``type: raw`` are intentionally not processed by any built-in
+   handler — they are simply placed in ``packages/<name>/`` and left as-is.
+   This is the right choice for IP cores, data files, and pre-built binaries
+   that need no install step.
 
 Auto-Detection
 ==============
@@ -672,3 +714,10 @@ See Also
 - :doc:`caching` - Caching strategies
 - :doc:`python_packages` - Python-specific features
 - :doc:`github_releases` - GitHub Releases details
+- :doc:`extending_ivpm` - Built-in handler details and writing custom handlers
+
+.. tip::
+
+   Run ``ivpm show source`` and ``ivpm show type`` to list all registered
+   sources and types with live documentation, including any installed by
+   third-party plugins.

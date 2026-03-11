@@ -20,7 +20,7 @@
 #*
 #****************************************************************************
 import dataclasses as dc
-from typing import Dict, Tuple, Callable
+from typing import Dict, List, Tuple, Callable, Union
 from ..package import Package
 from .package_dir import PackageDir
 from .package_file import PackageFile
@@ -45,22 +45,43 @@ class PkgTypeRgy(object):
     def getSrcTypes(self):
         return self.src2fact_m.keys()
 
-    def register(self, src, f, description=""):
+    def register(self, src: str, f: Callable, info: Union[str, 'PkgSourceInfo'] = "", origin: str = "built-in"):
+        """Register a package source factory.
+
+        ``info`` may be a bare description string (backward-compatible) or a
+        ``PkgSourceInfo`` instance.  When a string is given it is auto-wrapped into a
+        minimal ``PkgSourceInfo`` with no parameter documentation.  ``origin`` is
+        recorded in the info object and shown by ``ivpm show source`` to indicate
+        whether the source is built-in or from a plugin entry point.
+        """
+        from ..show.info_types import PkgSourceInfo
         if src in self.src2fact_m.keys():
             raise Exception("Duplicate registration of src %s ; this type=%s ; original type=%s" % (
                             src,
                             str(f),
                             str(self.src2fact_m[src])))
-        self.src2fact_m[src] = (f, description)
+        if isinstance(info, str):
+            info = PkgSourceInfo(name=src, description=info, origin=origin)
+        else:
+            info.origin = origin
+        self.src2fact_m[src] = (f, info)
+
+    def getSourceInfo(self, src: str) -> 'PkgSourceInfo':
+        """Return the PkgSourceInfo for a registered source type."""
+        return self.src2fact_m[src][1]
+
+    def getAllSourceInfo(self) -> List['PkgSourceInfo']:
+        """Return PkgSourceInfo for all registered source types, in registration order."""
+        return [v[1] for v in self.src2fact_m.values()]
 
     def _load(self):
-        self.register("dir", PackageDir.create, "Directory")
-        self.register("file", PackageFile.create, "File")
-        self.register("http", PackageHttp.create, "Http")
-        self.register("git", PackageGit.create, "Git")
-        self.register("pypi", PackagePyPi.create, "PyPi")
-        self.register("url", PackageURL.create, "URL")
-        self.register("gh-rls", PackageGhRls.create, "Github Release")
+        self.register("dir",    PackageDir.create,   PackageDir.source_info())
+        self.register("file",   PackageFile.create,  PackageFile.source_info())
+        self.register("http",   PackageHttp.create,  PackageHttp.source_info())
+        self.register("git",    PackageGit.create,   PackageGit.source_info())
+        self.register("pypi",   PackagePyPi.create,  PackagePyPi.source_info())
+        self.register("url",    PackageURL.create,   PackageURL.source_info())
+        self.register("gh-rls", PackageGhRls.create, PackageGhRls.source_info())
 
     @classmethod
     def inst(cls):
