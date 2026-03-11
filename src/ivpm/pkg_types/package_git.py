@@ -182,7 +182,7 @@ class PackageGit(PackageURL):
         
         # If cache is not properly configured, fall back to full clone
         if not cache.is_enabled():
-            note("IVPM_CACHE not set - falling back to full clone for %s" % self.name)
+            update_info.report_cache_unconfigured()
             return self._update_full_clone(update_info, pkg_dir)
         
         # Check if this version is cached

@@ -106,7 +106,7 @@ class PackageHttp(PackageFile):
         
         # If cache is not properly configured, fall back to no cache
         if not cache.is_enabled():
-            note("IVPM_CACHE not set - falling back to no-cache mode for %s" % self.name)
+            update_info.report_cache_unconfigured()
             return self._update_no_cache_readonly(update_info, pkg_dir)
         
         # Check if this version is cached

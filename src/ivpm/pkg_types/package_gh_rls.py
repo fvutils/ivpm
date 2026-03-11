@@ -279,7 +279,7 @@ class PackageGhRls(PackageHttp):
             cache = Cache()
 
         if not cache.is_enabled():
-            note("IVPM_CACHE not set - falling back to no-cache mode for %s" % self.name)
+            update_info.report_cache_unconfigured()
             return self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
 
         if cache.has_version(self.name, version):

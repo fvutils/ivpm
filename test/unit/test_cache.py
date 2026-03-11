@@ -371,6 +371,100 @@ class TestCacheGit(TestBase):
         self.assertTrue(mode & stat.S_IWUSR)
 
 
+class TestCacheUnconfigured(TestBase):
+    """Test behavior when cache: true is set but IVPM_CACHE is not configured."""
+
+    def setUp(self):
+        super().setUp()
+        # Ensure IVPM_CACHE is NOT set for these tests
+        self._saved_cache = os.environ.pop("IVPM_CACHE", None)
+
+    def tearDown(self):
+        if self._saved_cache is not None:
+            os.environ["IVPM_CACHE"] = self._saved_cache
+        elif "IVPM_CACHE" in os.environ:
+            del os.environ["IVPM_CACHE"]
+        super().tearDown()
+
+    def _init_git_repo(self, path, files=None, branch='main'):
+        os.makedirs(path, exist_ok=True)
+        subprocess.check_call(["git", "init", "-b", branch], cwd=path)
+        subprocess.check_call(["git", "config", "user.email", "test@example.com"], cwd=path)
+        subprocess.check_call(["git", "config", "user.name", "Test"], cwd=path)
+        if files:
+            for rel, content in files.items():
+                full = os.path.join(path, rel)
+                if os.path.dirname(full):
+                    os.makedirs(os.path.dirname(full), exist_ok=True)
+                with open(full, 'w') as f:
+                    f.write(content)
+        if not os.path.exists(os.path.join(path, 'ivpm.yaml')):
+            with open(os.path.join(path, 'ivpm.yaml'), 'w') as f:
+                f.write('package:\n  name: sample\n  dep-sets:\n    - name: default-dev\n      deps: []\n')
+        subprocess.check_call(["git", "add", "-A"], cwd=path)
+        subprocess.check_call(["git", "commit", "-m", "init"], cwd=path)
+
+    def test_cache_true_without_ivpm_cache_shows_warning(self):
+        """When cache: true but IVPM_CACHE is unset, the summary warns the user."""
+        import io
+        from contextlib import redirect_stdout
+
+        src_repo = os.path.join(self.testdir, 'src_repo')
+        self._init_git_repo(src_repo, files={"test.txt": "content"})
+
+        self.mkFile("ivpm.yaml", f"""
+        package:
+            name: cache_unconfigured_test
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: test_pkg
+                      url: file://{src_repo}
+                      src: git
+                      cache: true
+        """)
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.ivpm_update(skip_venv=True)
+        output = buf.getvalue()
+
+        # Package should still be fetched (falls back to full clone)
+        pkg_dir = os.path.join(self.testdir, "packages", "test_pkg")
+        self.assertTrue(os.path.isdir(pkg_dir))
+
+        # Summary should contain the IVPM_CACHE warning
+        self.assertIn("IVPM_CACHE", output)
+        self.assertIn("cache: true", output)
+
+    def test_cache_true_without_ivpm_cache_still_fetches(self):
+        """When IVPM_CACHE is unset, cache: true packages fall back to a full clone."""
+        src_repo = os.path.join(self.testdir, 'src_repo')
+        self._init_git_repo(src_repo, files={"test.txt": "content"})
+
+        self.mkFile("ivpm.yaml", f"""
+        package:
+            name: cache_unconfigured_test
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: test_pkg
+                      url: file://{src_repo}
+                      src: git
+                      cache: true
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        pkg_dir = os.path.join(self.testdir, "packages", "test_pkg")
+        self.assertTrue(os.path.isdir(pkg_dir))
+        self.assertTrue(os.path.isdir(os.path.join(pkg_dir, ".git")))
+        # Falls back to full clone so it should be writable
+        mode = os.stat(pkg_dir).st_mode
+        self.assertTrue(mode & stat.S_IWUSR)
+
+
+
 class TestCacheHttp(TestBase):
     """Test HTTP URL caching."""
     

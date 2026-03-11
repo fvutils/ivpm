@@ -59,6 +59,7 @@ class UpdateEvent:
     cache_misses: int = 0
     cacheable_packages: int = 0
     editable_packages: int = 0
+    cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set
     # --- Handler task fields ---
     task_id: Optional[str] = None        # unique task id, e.g. "python"
     task_name: Optional[str] = None      # human label, e.g. "Python"

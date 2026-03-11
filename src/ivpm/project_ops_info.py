@@ -73,6 +73,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     cache_misses: int = 0
     total_packages: int = 0
     cacheable_packages: int = 0
+    cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set
     editable_packages: int = 0
     max_parallel: int = 0  # 0 means use available cores
     event_dispatcher: Optional[UpdateEventDispatcher] = None
@@ -90,6 +91,10 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         if self._tui_ref is not None and hasattr(self._tui_ref, "make_prompt_callback"):
             return self._tui_ref.make_prompt_callback()
         return None
+
+    def report_cache_unconfigured(self):
+        """Record that a package had cache=True but IVPM_CACHE was not set."""
+        self.cache_unconfigured_packages += 1
 
     def report_cache_hit(self):
         self.cache_hits += 1
@@ -169,7 +174,8 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 cache_hits=self.cache_hits,
                 cache_misses=self.cache_misses,
                 cacheable_packages=self.cacheable_packages,
-                editable_packages=self.editable_packages
+                editable_packages=self.editable_packages,
+                cache_unconfigured_packages=self.cache_unconfigured_packages
             )
             self.event_dispatcher.dispatch(event)
         _logger.debug("Update complete: %d packages", self.total_packages)

@@ -86,6 +86,7 @@ class RichUpdateTUI(UpdateEventListener):
         self.cache_misses = 0
         self.cacheable_packages = 0
         self.editable_packages = 0
+        self.cache_unconfigured_packages = 0
         # Handler task tracking
         self.tasks: Dict[str, TaskStatus] = {}
         self.task_order: List[str] = []
@@ -260,6 +261,7 @@ class RichUpdateTUI(UpdateEventListener):
             self.cache_misses = event.cache_misses
             self.cacheable_packages = event.cacheable_packages
             self.editable_packages = event.editable_packages
+            self.cache_unconfigured_packages = event.cache_unconfigured_packages
             self.stop()
             self._show_summary()
 
@@ -325,6 +327,15 @@ class RichUpdateTUI(UpdateEventListener):
             hit_rate = (self.cache_hits / self.cacheable_packages * 100) if self.cacheable_packages > 0 else 0
             lines.append(f"Hit rate: {hit_rate:.1f}%")
         
+        if self.cache_unconfigured_packages > 0:
+            n = self.cache_unconfigured_packages
+            lines.append("")
+            lines.append(Text(
+                f"⚠ {n} package(s) have cache: true but IVPM_CACHE is not set — fetched without caching.",
+                style="yellow"
+            ))
+            lines.append(Text("  Set the IVPM_CACHE environment variable to enable shared caching.", style="yellow"))
+        
         if self.errors:
             lines.append("")
             lines.append(Text("Errors:", style="bold red"))
@@ -333,7 +344,14 @@ class RichUpdateTUI(UpdateEventListener):
             lines.append("")
             lines.append(Text("Re-run with --log-level=DEBUG for more details", style="yellow"))
         
-        content = Text("\n".join(str(line) for line in lines))
+        content = Text()
+        for i, line in enumerate(lines):
+            if i > 0:
+                content.append("\n")
+            if isinstance(line, Text):
+                content.append_text(line)
+            else:
+                content.append(str(line))
         
         if self.errors:
             panel = Panel(content, title="Update Summary", border_style="red")
@@ -399,6 +417,12 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 print(f"  Cache misses: {event.cache_misses}")
                 hit_rate = (event.cache_hits / event.cacheable_packages * 100) if event.cacheable_packages > 0 else 0
                 print(f"  Hit rate: {hit_rate:.1f}%")
+            
+            if event.cache_unconfigured_packages > 0:
+                n = event.cache_unconfigured_packages
+                print("")
+                print(f"  ⚠ {n} package(s) have cache: true but IVPM_CACHE is not set — fetched without caching.")
+                print(f"    Set the IVPM_CACHE environment variable to enable shared caching.")
             
             if self.errors:
                 print("")
