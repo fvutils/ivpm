@@ -34,6 +34,18 @@ def get_share_dir():
     ivpm_dir = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(ivpm_dir, "share")
 
+
+def _finalize_subparser_help(subparser, hidden_commands=()):
+    hidden = set(hidden_commands)
+    subparser._choices_actions = sorted(
+        [
+            action for action in subparser._choices_actions
+            if getattr(action, "dest", None) not in hidden
+        ],
+        key=lambda action: action.dest)
+    subparser.metavar = "{%s}" % ",".join(
+        action.dest for action in subparser._choices_actions)
+
 def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
     subcommands : Dict[str, object] = {}
@@ -107,6 +119,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Cache directory (default: $IVPM_CACHE)")
     cache_clean_cmd.add_argument("-d", "--days", dest="days", type=int, default=7,
         help="Remove entries older than this many days (default: 7)")
+
+    _finalize_subparser_help(cache_subparser)
 
     cache_cmd.set_defaults(func=CmdCache())
     subcommands["cache"] = cache_cmd
@@ -199,15 +213,15 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     subcommands["init"] = init_cmd
     
     git_status_cmd = subparser.add_parser("git-status",
-        help="Runs git status on any git packages (Note: deprecated. use 'status' instead)")
+        help=argparse.SUPPRESS)
     git_status_cmd.set_defaults(func=CmdGitStatus())
     git_status_cmd.add_argument("-p", "-project-dir", dest="project_dir")
     
     git_update_cmd = subparser.add_parser("git-update",
-        help="Updates any git packages (Note: deprecated. use 'sync' instead)")
+        help=argparse.SUPPRESS)
     git_update_cmd.set_defaults(func=CmdGitUpdate())
     git_update_cmd.add_argument("-p", "-project-dir", dest="project_dir")
-    
+
     snapshot_cmd = subparser.add_parser("snapshot",
         help="Creates a snapshot of required packages")
     snapshot_cmd.set_defaults(func=CmdSnapshot())
@@ -277,6 +291,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_handler_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
         help="Plain-text output")
 
+    _finalize_subparser_help(show_subparser)
+
     show_cmd.set_defaults(func=CmdShow())
     subcommands["show"] = show_cmd
 
@@ -287,6 +303,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     if options_ext is not None:
         for ext in options_ext:
             ext(subcommands)
+
+    _finalize_subparser_help(subparser, ("git-status", "git-update"))
 
     return parser
 
