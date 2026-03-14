@@ -100,5 +100,87 @@ class TestGhRlsVersion(unittest.TestCase):
         sel = pkg._select_release_by_version(releases)
         self.assertIsNone(sel)
 
+    # --- Semver prefix (partial version) matching ---
+
+    def test_partial_major_minor_picks_newest_patch(self):
+        """v5.3 should match v5.3.4 (newest) over v5.3.3."""
+        releases = [
+            {"tag_name": "v5.4.0", "prerelease": False},
+            {"tag_name": "v5.3.4", "prerelease": False},
+            {"tag_name": "v5.3.3", "prerelease": False},
+            {"tag_name": "v5.3.0", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("v5.3")
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["tag_name"], "v5.3.4")
+
+    def test_partial_major_minor_without_v_prefix(self):
+        """5.3 (no leading v) should also match v5.3.4."""
+        releases = [
+            {"tag_name": "v5.3.4", "prerelease": False},
+            {"tag_name": "v5.3.3", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("5.3")
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["tag_name"], "v5.3.4")
+
+    def test_partial_major_only_picks_newest(self):
+        """5 should match the newest v5.x.y release."""
+        releases = [
+            {"tag_name": "v6.0.0", "prerelease": False},
+            {"tag_name": "v5.3.4", "prerelease": False},
+            {"tag_name": "v5.2.1", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("5")
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["tag_name"], "v5.3.4")
+
+    def test_partial_prerelease_excluded(self):
+        """Partial spec should skip prerelease entries when prerelease=False."""
+        releases = [
+            {"tag_name": "v5.3.5-rc1", "prerelease": True},
+            {"tag_name": "v5.3.4", "prerelease": False},
+            {"tag_name": "v5.3.3", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("v5.3", prerelease=False)
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["tag_name"], "v5.3.4")
+
+    def test_partial_prerelease_included(self):
+        """Partial spec should include prerelease entries when prerelease=True."""
+        releases = [
+            {"tag_name": "v5.3.5-rc1", "prerelease": True},
+            {"tag_name": "v5.3.4", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("v5.3", prerelease=True)
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["tag_name"], "v5.3.5-rc1")
+
+    def test_leading_zeros_rejected(self):
+        """Semver does not allow leading zeros: 05.3 should not match v5.3.4."""
+        releases = [
+            {"tag_name": "v5.3.4", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("05.3")
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNone(sel)
+
+    def test_full_three_part_spec_still_exact(self):
+        """A full 3-part spec (5.3.4) should match exactly v5.3.4, not v5.3.5."""
+        releases = [
+            {"tag_name": "v5.3.5", "prerelease": False},
+            {"tag_name": "v5.3.4", "prerelease": False},
+            {"tag_name": "v5.3.3", "prerelease": False},
+        ]
+        pkg = self.mk_pkg("5.3.4")
+        sel = pkg._select_release_by_version(releases)
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["tag_name"], "v5.3.4")
+
 if __name__ == "__main__":
     unittest.main()

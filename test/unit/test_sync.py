@@ -172,6 +172,7 @@ class TestSync(TestBase):
         self.ivpm_sync()
 
 
+if __name__ == "__main__":
     import unittest
     unittest.main()
 

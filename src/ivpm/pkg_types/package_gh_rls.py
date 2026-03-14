@@ -37,6 +37,20 @@ from .package_http import PackageHttp
 
 _logger = logging.getLogger("ivpm.pkg_types.package_gh_rls")
 
+# Semver-compatible version regex (per semver.org), with optional leading 'v' and
+# support for partial versions (major-only or major.minor) used as specifiers.
+_SEMVER_RE = re.compile(
+    r'^v?(?P<major>0|[1-9]\d*)'
+    r'(?:\.(?P<minor>0|[1-9]\d*)'
+    r'(?:\.(?P<patch>0|[1-9]\d*)'
+    r'(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?'
+    r'(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?'
+    r')?)?$'
+)
+
+# Semver component (no leading zeros) for use in range-spec regex
+_SEMVER_COMP = r'(?:0|[1-9]\d*)'
+
 @dc.dataclass
 class PackageGhRls(PackageHttp):
     version : str = "latest"
@@ -330,10 +344,22 @@ class PackageGhRls(PackageHttp):
         os.unlink(download_dst)
 
     def _parse_version_tuple(self, v):
-        m = re.match(r'v?(\d+(?:\.\d+)*)', v or '')
+        """Parse a version string using the semver regex.
+
+        Returns a tuple of the available numeric components (major, minor, patch),
+        or None if the string does not match the semver format.  Partial versions
+        (major-only or major.minor) are accepted so they can be used as prefix
+        specifiers in version matching.
+        """
+        m = _SEMVER_RE.match(v or '')
         if not m:
             return None
-        return tuple(int(p) for p in m.group(1).split('.'))
+        parts = [int(m.group('major'))]
+        if m.group('minor') is not None:
+            parts.append(int(m.group('minor')))
+            if m.group('patch') is not None:
+                parts.append(int(m.group('patch')))
+        return tuple(parts)
 
     def _cmp_versions(self, a, b):
         la = len(a); lb = len(b)
@@ -350,7 +376,10 @@ class PackageGhRls(PackageHttp):
         # or not.  Filtering it out would cause a silent fall-through to the tag list
         # which has no binary assets, resulting in an unintended source download.
         spec = self.version.strip()
-        m = re.match(r'(>=|<=|>|<)\s*v?(\d+(?:\.\d+)*)$', spec)
+        m = re.match(
+            r'(>=|<=|>|<)\s*v?(' + _SEMVER_COMP + r'(?:\.' + _SEMVER_COMP + r'(?:\.' + _SEMVER_COMP + r')?)?)$',
+            spec
+        )
         if m:
             op = m.group(1)
             tgt = self._parse_version_tuple(m.group(2))
@@ -391,11 +420,17 @@ class PackageGhRls(PackageHttp):
                 return r
         tgt = self._parse_version_tuple(spec)
         if tgt:
+            tgt_len = len(tgt)
+            # GitHub releases are returned newest-first; take the first that matches
+            # the spec as a semver prefix (e.g. "5.3" matches "5.3.4", "5.3.3", …
+            # and returns the newest one).
             for r in releases:
-                rv = self._parse_version_tuple(r.get("tag_name",""))
-                if rv == tgt:
-                    _logger.debug("Numeric version match: found release %s (prerelease=%s)",
-                                  r.get("tag_name",""), r.get("prerelease"))
+                if r.get("prerelease") and not self.prerelease:
+                    continue
+                rv = self._parse_version_tuple(r.get("tag_name", ""))
+                if rv is not None and len(rv) >= tgt_len and rv[:tgt_len] == tgt:
+                    _logger.debug("Semver prefix match: spec=%s matched release %s (prerelease=%s)",
+                                  spec, r.get("tag_name", ""), r.get("prerelease"))
                     return r
         return None
 
