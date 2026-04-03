@@ -20,7 +20,6 @@
 #*
 #****************************************************************************
 import os
-import sys
 import shutil
 import tarfile
 from zipfile import ZipFile
@@ -61,47 +60,33 @@ class PackageFile(PackageURL):
             raise Exception("Unsupported src_type: %s" % self.src_type)
 
     def _install_tgz(self, pkg_src, pkg_path):
-        cwd = os.getcwd()
-        try:
-            os.chdir(os.path.dirname(pkg_path))
-        
-            tf = tarfile.open(pkg_src)
+        pkg_path = os.path.abspath(pkg_path)
+        tf = tarfile.open(pkg_src)
 
-            for fi in tf:
-                if fi.name.find("/") != -1:
-                    # Strip the first path component from the name
-                    first_slash = fi.name.find("/")
-                    fi.name = fi.name[first_slash+1:]
-                    
-                    # For symbolic links, also strip the first path component from linkname
-                    if fi.issym() or fi.islnk():
-                        if fi.linkname.find("/") != -1:
-                            first_slash_link = fi.linkname.find("/")
-                            fi.linkname = fi.linkname[first_slash_link+1:]
-                    
-                    tf.extract(fi, path=os.path.basename(pkg_path))
-            tf.close()
-        finally:
-            os.chdir(cwd)
+        for fi in tf:
+            if fi.name.find("/") != -1:
+                # Strip the first path component from the name
+                first_slash = fi.name.find("/")
+                fi.name = fi.name[first_slash+1:]
+
+                # For symbolic links, also strip the first path component from linkname
+                if fi.issym() or fi.islnk():
+                    if fi.linkname.find("/") != -1:
+                        first_slash_link = fi.linkname.find("/")
+                        fi.linkname = fi.linkname[first_slash_link+1:]
+
+                tf.extract(fi, path=pkg_path)
+        tf.close()
 
     def _install_zip(self, pkg_src, pkg_path):
-            # Convert to absolute paths before changing directory
-            pkg_src = os.path.abspath(pkg_src)
-            pkg_path = os.path.abspath(pkg_path)
-            
-            # Remove destination if it already exists to avoid conflicts
-            if os.path.exists(pkg_path):
-                import shutil
-                shutil.rmtree(pkg_path)
-            
-            cwd = os.getcwd()
-            try:
-                os.chdir(os.path.dirname(pkg_path))
-                sys.stdout.flush()
-                with ZipFile(pkg_src, 'r') as zipObj:
-                    zipObj.extractall(os.path.basename(pkg_path))
-            finally:
-                os.chdir(cwd)        
+        pkg_src = os.path.abspath(pkg_src)
+        pkg_path = os.path.abspath(pkg_path)
+
+        if os.path.exists(pkg_path):
+            shutil.rmtree(pkg_path)
+
+        with ZipFile(pkg_src, 'r') as zipObj:
+            zipObj.extractall(pkg_path)
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
