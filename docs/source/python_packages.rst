@@ -12,17 +12,12 @@ project-local virtual environment.
 Virtual Environment Creation
 =============================
 
-IVPM automatically creates a project-local Python virtual environment in 
-``packages/python/`` when you run ``ivpm update``.
+IVPM creates a project-local Python virtual environment in ``packages/python/``
+**on demand**: it is only created when at least one dependency (direct or
+transitive) is a Python package.  Projects that contain no Python packages
+never create a virtual environment, keeping the workspace lean.
 
-Automatic Creation
-------------------
-
-.. code-block:: bash
-
-    $ ivpm update
-
-Creates::
+When a venv is created it is placed at::
 
     packages/
     └── python/
@@ -48,6 +43,16 @@ Python extensions that cannot be installed via pip), pass
 
     $ ivpm update --py-system-site-packages
     $ ivpm clone https://github.com/org/project --py-system-site-packages
+
+Alternatively, set it permanently in ``ivpm.yaml`` (see
+`Configuring the Python Handler`_ below).
+
+.. note::
+
+   IVPM automatically installs itself (``ivpm``) into the virtual environment
+   so that sub-packages can call IVPM's own CLI.  If you list ``ivpm`` as an
+   explicit dependency, the explicit version spec is used and no duplicate is
+   added.
 
 Package Manager Selection
 --------------------------
@@ -96,6 +101,78 @@ Use this to re-install all Python packages, useful after:
 - Updating dependencies in ``ivpm.yaml``
 - Corrupted virtual environment
 - Switching between dev/release dependency sets
+
+Configuring the Python Handler
+================================
+
+A project can permanently configure the Python handler by adding a ``with.python``
+section inside ``package:`` in ``ivpm.yaml``.  Settings here are applied on every
+``ivpm update`` run, saving you from repeating CLI flags.
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+
+      with:
+        python:
+          venv: uv                    # uv | pip | true (auto) | false (skip)
+          system-site-packages: false # inherit system packages (default: false)
+          pre-release: false          # allow pre-release packages (default: false)
+
+      dep-sets:
+        - name: default-dev
+          deps:
+            - name: numpy
+              src: pypi
+
+``venv`` key
+-------------
+
+Controls **whether and how** the virtual environment is created.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 85
+
+   * - Value
+     - Behaviour
+   * - ``true`` (or omitted)
+     - Auto-detect: use ``uv`` when available, otherwise ``pip``.
+   * - ``uv``
+     - Always use ``uv`` (error if not installed).
+   * - ``pip``
+     - Always use ``pip``.
+   * - ``false``
+     - **Skip** venv creation and all Python package installation entirely,
+       even if Python packages are present in the dep-set.
+
+**Priority** (highest wins):
+
+1. CLI ``--skip-py-install``
+2. CLI ``--skip-venv``
+3. ``venv: false`` in ``with.python``
+4. CLI ``--py-uv`` / ``--py-pip``
+5. ``venv: uv`` / ``venv: pip`` in ``with.python``
+6. Built-in default (auto-detect)
+
+.. note::
+
+   ``venv: false`` in yaml cannot be overridden by ``--py-uv`` or ``--py-pip``.
+   Use ``--skip-py-install`` (CLI only) for a one-shot override.
+
+``system-site-packages`` key
+------------------------------
+
+When ``true``, the created venv can see packages installed in the base Python
+(i.e. ``venv --system-site-packages``).  Equivalent to the CLI flag
+``--py-system-site-packages``.  The CLI flag takes precedence over this setting.
+
+``pre-release`` key
+--------------------
+
+When ``true``, the pip/uv install passes ``--pre`` to allow pre-release package
+versions.  Equivalent to the CLI flag ``--py-prerls-packages``.
 
 Editable vs Binary Packages
 ============================
@@ -183,11 +260,18 @@ Binary Packages
 
     import requests  # Uses installed package
 
-Controlling Installation with ``with:``
-========================================
+Controlling Package-Level Options with ``type:``
+=================================================
 
-When ``type: python`` is declared on a package entry, an optional ``with:``
-block lets you pass type-specific installation parameters.
+When a source package needs non-default installation behaviour, use the inline
+``type:`` dict form to pass options alongside the type name.
+
+.. note::
+
+   The old ``with:`` key at the *dependency entry* level is **no longer
+   supported**.  Use the ``type: { python: { ... } }`` inline form instead.
+   The ``with:`` key is still valid at the **package** level for handler
+   configuration (see `Configuring the Python Handler`_).
 
 ``editable`` — Non-editable Source Installs
 --------------------------------------------
@@ -208,9 +292,7 @@ stable releases you don't intend to modify.
       # Non-editable install
       - name: stable-lib
         url: https://github.com/org/stable-lib.git
-        type: python
-        with:
-          editable: false
+        type: { python: { editable: false } }
 
 ``extras`` — PEP 508 Extras
 -----------------------------
@@ -225,30 +307,19 @@ The value may be a single string or a list.
       # Single extra
       - name: my-lib
         url: https://github.com/org/my-lib.git
-        type: python
-        with:
-          extras: tests
+        type: { python: { extras: tests } }
 
       # Multiple extras
       - name: my-lib
         url: https://github.com/org/my-lib.git
-        type: python
-        with:
-          extras: [tests, docs]
+        type: { python: { extras: [tests, docs] } }
 
       # Non-editable with extras
       - name: my-lib
         url: https://github.com/org/my-lib.git
-        type: python
-        with:
-          extras: [tests]
-          editable: false
+        type: { python: { extras: [tests], editable: false } }
 
 .. note::
-
-   ``with:`` is only valid when ``type:`` is also specified on the same entry.
-   Unknown keys inside ``with:`` are reported as errors at YAML-read time,
-   before any packages are fetched.
 
    For PyPI packages (``src: pypi``), extras can also be specified using the
    top-level ``extras:`` field directly on the package entry — that form is
@@ -316,7 +387,17 @@ To include pre-release versions (alpha, beta, rc):
 
     $ ivpm update --py-prerls-packages
 
-Or in ``ivpm.yaml``, specify the pre-release version explicitly:
+Or set it project-wide in ``ivpm.yaml``:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      with:
+        python:
+          pre-release: true
+
+Or specify the pre-release version explicitly in the dep:
 
 .. code-block:: yaml
 

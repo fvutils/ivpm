@@ -22,6 +22,7 @@ import shutil
 import dataclasses as dc
 from typing import Optional
 from .msg import note
+from .site_config import get_site_config
 
 
 @dc.dataclass
@@ -44,7 +45,12 @@ class Cache:
         if cache_dir is not None:
             self.cache_dir = cache_dir
         else:
-            self.cache_dir = os.environ.get("IVPM_CACHE")
+            env_val = os.environ.get("IVPM_CACHE")
+            if env_val is not None:
+                self.cache_dir = env_val
+            else:
+                default = get_site_config().get_default_cache_dir()
+                self.cache_dir = default if default else None
     
     def is_enabled(self) -> bool:
         """Check if the cache is properly configured and enabled."""

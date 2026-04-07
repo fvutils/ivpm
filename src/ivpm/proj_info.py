@@ -20,12 +20,42 @@
 #*
 #****************************************************************************
 import os
+import dataclasses as dc
 from enum import Enum, auto
 from ivpm.packages_info import PackagesInfo
 from .ivpm_yaml_reader import IvpmYamlReader
 from .msg import error, fatal, note
-from typing import Dict, List
+from typing import Dict, List, Optional
 from .env_spec import EnvSpec
+
+
+class VenvMode(str, Enum):
+    """Controls how (or whether) the python handler creates a virtual environment."""
+    SKIP = "false"  # do not create a venv / skip all Python installation
+    AUTO = "true"   # create venv, auto-detect tool (uv if available, else pip)
+    UV   = "uv"     # create venv, force uv
+    PIP  = "pip"    # create venv, force pip
+
+    @staticmethod
+    def parse(value) -> 'VenvMode':
+        """Parse a yaml value (bool or str) into a VenvMode."""
+        if isinstance(value, bool):
+            return VenvMode.AUTO if value else VenvMode.SKIP
+        s = str(value).strip().lower()
+        for member in VenvMode:
+            if member.value == s:
+                return member
+        valid = ", ".join(m.value for m in VenvMode)
+        raise ValueError("Invalid venv value %r — expected one of: %s" % (value, valid))
+
+
+@dc.dataclass
+class PythonConfig:
+    """Configuration for the python handler, parsed from ``package.with.python:``."""
+    venv: VenvMode = VenvMode.AUTO
+    system_site_packages: bool = False
+    pre_release: bool = False
+
 
 class ProjInfo():
     """Holds information read about a project from its IVPM file"""
@@ -54,6 +84,8 @@ class ProjInfo():
         self.env_settings : List[EnvSpec] = []
         # Raw (type_name, opts) pairs from 'package: { type: … }' in this project's ivpm.yaml.
         self.self_types : list = []
+        # Configuration for the python handler from 'package.with.python:'.
+        self.python_config : PythonConfig = PythonConfig()
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()

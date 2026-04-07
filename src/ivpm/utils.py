@@ -10,6 +10,7 @@ import shutil
 import subprocess
 from typing import List
 from ivpm.msg import note, fatal, warning
+from ivpm.site_config import get_site_config
 from pathlib import Path
 
 _logger = logging.getLogger("ivpm.utils")
@@ -79,6 +80,8 @@ def get_venv_python(python_dir):
 def setup_venv(python_dir, uv_pip="auto", suppress_output=False, system_site_packages=False):
     note("creating Python virtual environment")
 
+    ivpm_install_args = get_site_config().get_ivpm_install_args()
+
     if uv_pip == "auto":
         # Determine if we should use pip or 'uv'
         if shutil.which("uv") is not None:
@@ -128,7 +131,7 @@ def setup_venv(python_dir, uv_pip="auto", suppress_output=False, system_site_pac
             shutil.which("uv"),
             "pip",
             "install",
-            "ivpm",
+            *ivpm_install_args,
             "setuptools",
             "wheel"
         ]
@@ -168,13 +171,13 @@ def setup_venv(python_dir, uv_pip="auto", suppress_output=False, system_site_pac
                 stderr=stderr_arg
             )
             subprocess.run(
-                [ivpm_python, "-m", "pip", "install", "--upgrade", "ivpm", "setuptools", "wheel"],
+                [ivpm_python, "-m", "pip", "install", "--upgrade", *ivpm_install_args, "setuptools", "wheel"],
                 stdout=stdout_arg,
                 stderr=stderr_arg
             )
         else:
             os.system(ivpm_python + " -m pip install --upgrade pip")
-            os.system(ivpm_python + " -m pip install --upgrade ivpm setuptools wheel")
+            os.system(ivpm_python + " -m pip install --upgrade " + " ".join(ivpm_install_args) + " setuptools wheel")
 
     
     return ivpm_python

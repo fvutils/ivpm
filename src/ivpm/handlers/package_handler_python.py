@@ -28,11 +28,11 @@ import shutil
 import sys
 from typing import ClassVar, Dict, List, Optional, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
-from ..utils import note, fatal, get_venv_python
+from ..utils import note, fatal, get_venv_python, setup_venv
 from ..pkg_content_type import PythonTypeData
 from ..package import get_type_data
 
-from ..package import Package
+from ..package import Package, SourceType
 from .package_handler import PackageHandler
 from .handler_conditions import HasType
 
@@ -108,26 +108,98 @@ class PackageHandlerPython(PackageHandler):
             with self._lock:
                 self.pkgs_info[pkg.name] = pkg
 
+    def _resolve_venv_mode(self, update_info: ProjectUpdateInfo):
+        """Determine effective VenvMode from CLI flags, skip_venv, and yaml config.
+
+        Priority (highest first):
+          1. CLI --skip-py-install (py_skip_install)     → SKIP
+          2. update_info.skip_venv                       → SKIP
+          3. yaml with.python.venv == false              → SKIP (cannot be overridden by tool flags)
+          4. CLI --py-uv                                 → UV
+          5. CLI --py-pip                                → PIP
+          6. yaml with.python.venv (uv / pip / true)    → as specified
+          7. Default                                     → AUTO
+        """
+        from ..proj_info import VenvMode
+
+        if getattr(update_info.args, "py_skip_install", False):
+            return VenvMode.SKIP
+        if update_info.skip_venv:
+            return VenvMode.SKIP
+        # YAML SKIP wins over tool-selection CLI flags
+        if (update_info.python_config is not None and
+                update_info.python_config.venv == VenvMode.SKIP):
+            return VenvMode.SKIP
+        # Tool-selection CLI flags override yaml tool preference
+        if getattr(update_info.args, "py_uv", False):
+            return VenvMode.UV
+        if getattr(update_info.args, "py_pip", False):
+            return VenvMode.PIP
+        if update_info.python_config is not None:
+            return update_info.python_config.venv
+        return VenvMode.AUTO
+
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
+        from ..proj_info import VenvMode
+
+        # --- Inject ivpm unconditionally (unless explicitly specified) ---
+        if "ivpm" not in self.pypi_pkg_s:
+            _logger.info("Will install IVPM from PyPi")
+            from ..pkg_types.package_pypi import PackagePyPi
+            ivpm_pkg = PackagePyPi("ivpm")
+            ivpm_pkg.src_type = SourceType.PyPi
+            self.pypi_pkg_s.add("ivpm")
+            self.pkgs_info["ivpm"] = ivpm_pkg
+
+        venv_mode = self._resolve_venv_mode(update_info)
+
+        if venv_mode == VenvMode.SKIP:
+            note("Skipping Python package installation")
+            return
+
+        python_dir = os.path.join(update_info.deps_dir, "python")
+
+        # --- Create venv if it doesn't exist yet ---
+        if not os.path.isdir(python_dir):
+            system_site_packages = False
+            if update_info.python_config is not None:
+                system_site_packages = update_info.python_config.system_site_packages
+            # CLI flag overrides yaml
+            if getattr(update_info.args, "py_system_site_packages", False):
+                system_site_packages = True
+
+            # Map VenvMode → uv_pip argument for setup_venv
+            if venv_mode == VenvMode.UV:
+                uv_pip = "uv"
+            elif venv_mode == VenvMode.PIP:
+                uv_pip = "pip"
+            else:
+                uv_pip = "auto"
+
+            suppress_output = getattr(update_info, 'suppress_output', False)
+            with self.task_context(update_info, "venv-create", "Creating Python virtual environment") as task:
+                try:
+                    setup_venv(
+                        python_dir,
+                        uv_pip=uv_pip,
+                        suppress_output=suppress_output,
+                        system_site_packages=system_site_packages,
+                    )
+                except Exception as e:
+                    raise
+        else:
+            note("python virtual environment already exists")
 
         if getattr(update_info.args, "py_uv", False):
             self.use_uv = True
         elif getattr(update_info.args, "py_pip", False):
             self.use_uv = False
         else:
-            # Auto-probe
             if shutil.which("uv") is not None:
                 self.use_uv = True
 
-        # First, check to see if we've already installed 
-        # Python packages, and whether we should repeat
-        if getattr(update_info.args, "py_skip_install", False):
-            note("Skipping Python package installation")
-            return
-        elif update_info.skip_venv:
-            note("Skipping Python package installation (no venv)")
-            return
-        elif os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
+        # Check whether packages were already installed
+        if os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
             if update_info.force_py_install:
                 note("Forcing re-install of Python packages")
             else:
@@ -426,12 +498,13 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            returncode = self._run_with_progress(cmd, env=env,
+            returncode, captured_lines = self._run_with_progress(cmd, env=env,
                                                   stdout_arg=stdout_arg,
                                                   stderr_arg=stderr_arg,
                                                   use_uv=True, task=task)
             if returncode != 0:
-                raise Exception("Failed to install Python packages")
+                detail = _format_installer_error(captured_lines)
+                raise Exception("Failed to install Python packages" + detail)
         else: # Use pip
             import sys
             import platform
@@ -456,36 +529,40 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            returncode = self._run_with_progress(cmd, env=env,
+            returncode, captured_lines = self._run_with_progress(cmd, env=env,
                                                   stdout_arg=stdout_arg,
                                                   stderr_arg=stderr_arg,
                                                   use_uv=False, task=task)
 
             if returncode != 0:
-                fatal("failed to install Python packages")
+                detail = _format_installer_error(captured_lines)
+                fatal("failed to install Python packages" + detail)
             os.chdir(cwd)
 
     def _run_with_progress(self, cmd, env, stdout_arg, stderr_arg, use_uv, task):
-        """Run cmd and return its exit code.
+        """Run cmd and return (exit_code, captured_lines).
 
         When stdout_arg is PIPE (i.e. task is not None), stream output
         line by line and emit progress events via task.progress().
-        Otherwise call subprocess.run() directly.
+        All captured lines are returned so the caller can surface them on error.
+        Otherwise call subprocess.run() directly and return an empty line list.
         """
         if stdout_arg != subprocess.PIPE:
             result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
-            return result.returncode
+            return result.returncode, []
 
+        captured_lines = []
         proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, text=True,
                                 errors="replace")
         for raw_line in proc.stdout:
             line = raw_line.rstrip()
+            captured_lines.append(line)
             msg = self._parse_installer_line(line, use_uv)
             if msg and task is not None:
                 task.progress(msg)
         proc.wait()
-        return proc.returncode
+        return proc.returncode, captured_lines
 
     @staticmethod
     def _parse_installer_line(line: str, use_uv: bool):
@@ -577,5 +654,15 @@ class PackageHandlerPython(PackageHandler):
                             fp.write("%s%s==%s\n" % (pkg.name, extras_str, pkg.version))
                     else:
                         fp.write("%s%s\n" % (pkg.name, extras_str))
+
+
+def _format_installer_error(captured_lines: list, tail: int = 20) -> str:
+    """Return a newline-prefixed string with the last *tail* lines of installer
+    output, or an empty string when nothing was captured (non-PIPE mode)."""
+    if not captured_lines:
+        return ""
+    relevant = [l for l in captured_lines if l.strip()]
+    snippet = relevant[-tail:] if len(relevant) > tail else relevant
+    return "\n" + "\n".join(snippet)
 
 

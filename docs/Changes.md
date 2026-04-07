@@ -1,4 +1,9 @@
 
+# 2.7.0
+- Change cache to default to 'on'
+- Only create Python venv if Python packages are present
+- Provide a hook to control site-specific ivpm install and cachec location
+
 # 2.6.0
 - Add direnv support: IVPM now generates a `packages.envrc` file at the
   project root after `update`. It contains `source_env` entries for every

@@ -54,6 +54,9 @@ class IvpmYamlReader(object):
         if "type" in pkg.keys():
             ret.self_types = parse_type_field(pkg["type"])
 
+        if "with" in pkg.keys():
+            self._read_with_section(ret, pkg["with"], name)
+
         # Specify where sub-packages are stored. Defaults to 'packages'        
         if "deps-dir" in pkg.keys():
             ret.deps_dir = pkg["deps-dir"]
@@ -92,6 +95,35 @@ class IvpmYamlReader(object):
                     evar)
             
         return ret
+
+    def _read_with_section(self, info: 'ProjInfo', with_data: dict, name: str):
+        """Parse the package-level ``with:`` map into handler configurations."""
+        from .proj_info import VenvMode, PythonConfig
+
+        _KNOWN_WITH_KEYS = {"python"}
+
+        for key in with_data.keys():
+            if key not in _KNOWN_WITH_KEYS:
+                from .utils import fatal
+                fatal("Unknown key '%s' in package.with in %s; known keys: %s" % (
+                    key, name, ", ".join(sorted(_KNOWN_WITH_KEYS))))
+
+        if "python" in with_data.keys():
+            py_data = with_data["python"]
+            if py_data is None:
+                py_data = {}
+            cfg = PythonConfig()
+            if "venv" in py_data:
+                try:
+                    cfg.venv = VenvMode.parse(py_data["venv"])
+                except ValueError as e:
+                    from .utils import fatal
+                    fatal(str(e) + " in %s" % name)
+            if "system-site-packages" in py_data:
+                cfg.system_site_packages = bool(py_data["system-site-packages"])
+            if "pre-release" in py_data:
+                cfg.pre_release = bool(py_data["pre-release"])
+            info.python_config = cfg
 
     def read_dep_sets(self, info : 'ProjInfo', dep_sets):
         if not isinstance(dep_sets, list):
@@ -185,7 +217,7 @@ class IvpmYamlReader(object):
             if d["name"] in ret.keys():
                 pkg1 = ret[d["name"]]
                 fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (
-                    d["name"], getlocstr(pkg), getlocstr(pkg1)))
+                    d["name"], getlocstr(d), getlocstr(pkg1)))
 
             url = d["url"] if "url" in d.keys() else None
 
@@ -197,11 +229,13 @@ class IvpmYamlReader(object):
             src = "<unknown>"
             if "src" in d.keys():
                 src = d["src"]
+            elif "pypi" in d.keys() and d["pypi"]:
+                src = "pypi"
             else:
                 # Auto-probing the package based on the URL. The user can always
                 # specify the source explicitly
                 if url is None:
-                    fatal("no src specified for package %s and no URL specified" % pkg.name)
+                    fatal("no src specified for package %s and no URL specified" % d["name"])
 
                 if url.endswith(".git"):
                     src = "git"                

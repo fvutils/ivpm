@@ -19,6 +19,8 @@ package:
             - name: leaf_proj1
               url: file://${DATA_DIR}/leaf_proj1
               src: dir
+            - name: pyyaml
+              pypi: true
 """
 
 

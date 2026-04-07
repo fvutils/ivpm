@@ -24,13 +24,13 @@ import os
 import json
 import dataclasses as dc
 from typing import Tuple, List, Optional
-from .package import Package, SourceType
+from .package import Package
 from .package_updater import PackageUpdater
 from .handlers.package_handler_rgy import PackageHandlerRgy
 from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from .update_event import UpdateEventDispatcher
 from .update_tui import create_update_tui, RichUpdateTUI
-from .utils import fatal, note, get_venv_python, setup_venv, warning
+from .utils import fatal, note, warning
 from .package_lock import write_lock, check_lock_changes
 
 _logger = logging.getLogger("ivpm.project_ops")
@@ -50,7 +50,6 @@ class ProjectOps(object):
                refresh_all : bool = False,
                force : bool = False):
         from .update_event import UpdateEvent, UpdateEventType
-        import time
         
         proj_info, deps_dir, dep_set = self._init(dep_set)
 
@@ -70,48 +69,6 @@ class ProjectOps(object):
             tui.start()
  
         try:
-            # Ensure that we have a python virtual environment setup
-            if not skip_venv:
-                if not os.path.isdir(os.path.join(deps_dir, "python")):
-                    uv_pip = "auto"
-                    if hasattr(args, "py_uv") and args.py_uv:
-                        uv_pip = "uv"
-                    elif hasattr(args, "py_pip") and args.py_pip:
-                        uv_pip = "pip"
-                    system_site_packages = (
-                        hasattr(args, "py_system_site_packages") and
-                        bool(args.py_system_site_packages)
-                    )
-                    
-                    # Signal venv creation start
-                    venv_start_time = time.time()
-                    event_dispatcher.dispatch(UpdateEvent(
-                        event_type=UpdateEventType.VENV_START
-                    ))
-                    
-                    try:
-                        ivpm_python = setup_venv(
-                            os.path.join(deps_dir, "python"), 
-                            uv_pip=uv_pip,
-                            suppress_output=suppress_output,
-                            system_site_packages=system_site_packages
-                        )
-                        # Signal venv creation complete
-                        event_dispatcher.dispatch(UpdateEvent(
-                            event_type=UpdateEventType.VENV_COMPLETE,
-                            duration=time.time() - venv_start_time
-                        ))
-                    except Exception as e:
-                        # Signal venv creation error
-                        event_dispatcher.dispatch(UpdateEvent(
-                            event_type=UpdateEventType.VENV_ERROR,
-                            error_message=str(e)
-                        ))
-                        raise
-                else:
-                    note("python virtual environment already exists")
-                    ivpm_python = get_venv_python(os.path.join(deps_dir, "python"))
-                
             _logger.info("Processing root package %s", proj_info.name)
 
             if self.debug:
@@ -128,14 +85,6 @@ class ProjectOps(object):
                 ds = lock_reader.build_packages_info()
             else:
                 ds = self._getDepSet(proj_info, dep_set)
-
-                # If the root dependency set doesn't specify a source
-                # for IVPM, auto-load it from PyPi
-                if "ivpm" not in ds.packages.keys():
-                    _logger.info("Will install IVPM from PyPi")
-                    ivpm = Package("ivpm")
-                    ivpm.src_type = SourceType.PyPi
-                    ds.packages["ivpm"] = ivpm
 
                 # Change detection: compare current specs against existing lock
                 if not refresh_all and not force:
@@ -164,6 +113,7 @@ class ProjectOps(object):
                 skip_venv=skip_venv,
                 suppress_output=suppress_output,
                 event_dispatcher=event_dispatcher,
+                python_config=proj_info.python_config,
             )
             handler_update_info._tui_ref = tui
 

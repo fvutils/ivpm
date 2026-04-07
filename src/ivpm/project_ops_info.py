@@ -78,6 +78,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     max_parallel: int = 0  # 0 means use available cores
     event_dispatcher: Optional[UpdateEventDispatcher] = None
     suppress_output: bool = False  # When True, suppress subprocess output (Rich TUI mode)
+    python_config: Optional[object] = None  # PythonConfig from root ivpm.yaml
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None
