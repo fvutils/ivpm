@@ -54,9 +54,14 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Python Package Management</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#virtual-environment-creation">Virtual Environment Creation</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#automatic-creation">Automatic Creation</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#package-manager-selection">Package Manager Selection</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#managing-installation">Managing Installation</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#configuring-the-python-handler">Configuring the Python Handler</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#venv-key"><code class="docutils literal notranslate"><span class="pre">venv</span></code> key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#system-site-packages-key"><code class="docutils literal notranslate"><span class="pre">system-site-packages</span></code> key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pre-release-key"><code class="docutils literal notranslate"><span class="pre">pre-release</span></code> key</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#editable-vs-binary-packages">Editable vs Binary Packages</a><ul>
@@ -64,7 +69,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#binary-packages">Binary Packages</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#controlling-installation-with-with">Controlling Installation with <code class="docutils literal notranslate"><span class="pre">with:</span></code></a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#controlling-package-level-options-with-type">Controlling Package-Level Options with <code class="docutils literal notranslate"><span class="pre">type:</span></code></a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#editable-non-editable-source-installs"><code class="docutils literal notranslate"><span class="pre">editable</span></code> — Non-editable Source Installs</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#extras-pep-508-extras"><code class="docutils literal notranslate"><span class="pre">extras</span></code> — PEP 508 Extras</a></li>
 </ul>
@@ -154,14 +159,11 @@ project-local virtual environment.</p>
 </section>
 <section id="virtual-environment-creation">
 <h2>Virtual Environment Creation<a class="headerlink" href="#virtual-environment-creation" title="Link to this heading"></a></h2>
-<p>IVPM automatically creates a project-local Python virtual environment in
-<code class="docutils literal notranslate"><span class="pre">packages/python/</span></code> when you run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>.</p>
-<section id="automatic-creation">
-<h3>Automatic Creation<a class="headerlink" href="#automatic-creation" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
-</pre></div>
-</div>
-<p>Creates:</p>
+<p>IVPM creates a project-local Python virtual environment in <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code>
+<strong>on demand</strong>: it is only created when at least one dependency (direct or
+transitive) is a Python package.  Projects that contain no Python packages
+never create a virtual environment, keeping the workspace lean.</p>
+<p>When a venv is created it is placed at:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span>packages/
 └── python/
     ├── bin/
@@ -185,7 +187,15 @@ Python extensions that cannot be installed via pip), pass
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>--py-system-site-packages
 </pre></div>
 </div>
-</section>
+<p>Alternatively, set it permanently in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> (see
+<a class="reference internal" href="#configuring-the-python-handler">Configuring the Python Handler</a> below).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>IVPM automatically installs itself (<code class="docutils literal notranslate"><span class="pre">ivpm</span></code>) into the virtual environment
+so that sub-packages can call IVPM’s own CLI.  If you list <code class="docutils literal notranslate"><span class="pre">ivpm</span></code> as an
+explicit dependency, the explicit version spec is used and no duplicate is
+added.</p>
+</div>
 <section id="package-manager-selection">
 <h3>Package Manager Selection<a class="headerlink" href="#package-manager-selection" title="Link to this heading"></a></h3>
 <p>IVPM supports two Python package managers:</p>
@@ -224,6 +234,83 @@ non-Python dependencies.</p>
 <li><p>Corrupted virtual environment</p></li>
 <li><p>Switching between dev/release dependency sets</p></li>
 </ul>
+</section>
+</section>
+<section id="configuring-the-python-handler">
+<h2>Configuring the Python Handler<a class="headerlink" href="#configuring-the-python-handler" title="Link to this heading"></a></h2>
+<p>A project can permanently configure the Python handler by adding a <code class="docutils literal notranslate"><span class="pre">with.python</span></code>
+section inside <code class="docutils literal notranslate"><span class="pre">package:</span></code> in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.  Settings here are applied on every
+<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> run, saving you from repeating CLI flags.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">venv</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv</span><span class="w">                    </span><span class="c1"># uv | pip | true (auto) | false (skip)</span>
+<span class="w">      </span><span class="nt">system-site-packages</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w"> </span><span class="c1"># inherit system packages (default: false)</span>
+<span class="w">      </span><span class="nt">pre-release</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">          </span><span class="c1"># allow pre-release packages (default: false)</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">numpy</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<section id="venv-key">
+<h3><code class="docutils literal notranslate"><span class="pre">venv</span></code> key<a class="headerlink" href="#venv-key" title="Link to this heading"></a></h3>
+<p>Controls <strong>whether and how</strong> the virtual environment is created.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 15.0%" />
+<col style="width: 85.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Behaviour</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">true</span></code> (or omitted)</p></td>
+<td><p>Auto-detect: use <code class="docutils literal notranslate"><span class="pre">uv</span></code> when available, otherwise <code class="docutils literal notranslate"><span class="pre">pip</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">uv</span></code></p></td>
+<td><p>Always use <code class="docutils literal notranslate"><span class="pre">uv</span></code> (error if not installed).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pip</span></code></p></td>
+<td><p>Always use <code class="docutils literal notranslate"><span class="pre">pip</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
+<td><p><strong>Skip</strong> venv creation and all Python package installation entirely,
+even if Python packages are present in the dep-set.</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Priority</strong> (highest wins):</p>
+<ol class="arabic simple">
+<li><p>CLI <code class="docutils literal notranslate"><span class="pre">--skip-py-install</span></code></p></li>
+<li><p>CLI <code class="docutils literal notranslate"><span class="pre">--skip-venv</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">venv:</span> <span class="pre">false</span></code> in <code class="docutils literal notranslate"><span class="pre">with.python</span></code></p></li>
+<li><p>CLI <code class="docutils literal notranslate"><span class="pre">--py-uv</span></code> / <code class="docutils literal notranslate"><span class="pre">--py-pip</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">venv:</span> <span class="pre">uv</span></code> / <code class="docutils literal notranslate"><span class="pre">venv:</span> <span class="pre">pip</span></code> in <code class="docutils literal notranslate"><span class="pre">with.python</span></code></p></li>
+<li><p>Built-in default (auto-detect)</p></li>
+</ol>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">venv:</span> <span class="pre">false</span></code> in yaml cannot be overridden by <code class="docutils literal notranslate"><span class="pre">--py-uv</span></code> or <code class="docutils literal notranslate"><span class="pre">--py-pip</span></code>.
+Use <code class="docutils literal notranslate"><span class="pre">--skip-py-install</span></code> (CLI only) for a one-shot override.</p>
+</div>
+</section>
+<section id="system-site-packages-key">
+<h3><code class="docutils literal notranslate"><span class="pre">system-site-packages</span></code> key<a class="headerlink" href="#system-site-packages-key" title="Link to this heading"></a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">true</span></code>, the created venv can see packages installed in the base Python
+(i.e. <code class="docutils literal notranslate"><span class="pre">venv</span> <span class="pre">--system-site-packages</span></code>).  Equivalent to the CLI flag
+<code class="docutils literal notranslate"><span class="pre">--py-system-site-packages</span></code>.  The CLI flag takes precedence over this setting.</p>
+</section>
+<section id="pre-release-key">
+<h3><code class="docutils literal notranslate"><span class="pre">pre-release</span></code> key<a class="headerlink" href="#pre-release-key" title="Link to this heading"></a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">true</span></code>, the pip/uv install passes <code class="docutils literal notranslate"><span class="pre">--pre</span></code> to allow pre-release package
+versions.  Equivalent to the CLI flag <code class="docutils literal notranslate"><span class="pre">--py-prerls-packages</span></code>.</p>
 </section>
 </section>
 <section id="editable-vs-binary-packages">
@@ -295,10 +382,17 @@ non-Python dependencies.</p>
 </div>
 </section>
 </section>
-<section id="controlling-installation-with-with">
-<h2>Controlling Installation with <code class="docutils literal notranslate"><span class="pre">with:</span></code><a class="headerlink" href="#controlling-installation-with-with" title="Link to this heading"></a></h2>
-<p>When <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">python</span></code> is declared on a package entry, an optional <code class="docutils literal notranslate"><span class="pre">with:</span></code>
-block lets you pass type-specific installation parameters.</p>
+<section id="controlling-package-level-options-with-type">
+<h2>Controlling Package-Level Options with <code class="docutils literal notranslate"><span class="pre">type:</span></code><a class="headerlink" href="#controlling-package-level-options-with-type" title="Link to this heading"></a></h2>
+<p>When a source package needs non-default installation behaviour, use the inline
+<code class="docutils literal notranslate"><span class="pre">type:</span></code> dict form to pass options alongside the type name.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The old <code class="docutils literal notranslate"><span class="pre">with:</span></code> key at the <em>dependency entry</em> level is <strong>no longer
+supported</strong>.  Use the <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">{</span> <span class="pre">python:</span> <span class="pre">{</span> <span class="pre">...</span> <span class="pre">}</span> <span class="pre">}</span></code> inline form instead.
+The <code class="docutils literal notranslate"><span class="pre">with:</span></code> key is still valid at the <strong>package</strong> level for handler
+configuration (see <a class="reference internal" href="#configuring-the-python-handler">Configuring the Python Handler</a>).</p>
+</div>
 <section id="editable-non-editable-source-installs">
 <h3><code class="docutils literal notranslate"><span class="pre">editable</span></code> — Non-editable Source Installs<a class="headerlink" href="#editable-non-editable-source-installs" title="Link to this heading"></a></h3>
 <p>By default, source packages (git, dir) are installed in <em>editable</em> mode
@@ -314,9 +408,7 @@ stable releases you don’t intend to modify.</p>
 <span class="w">  </span><span class="c1"># Non-editable install</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stable-lib</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/stable-lib.git</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
-<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">editable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> python</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> editable</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </pre></div>
 </div>
 </section>
@@ -328,31 +420,21 @@ The value may be a single string or a list.</p>
 <span class="w">  </span><span class="c1"># Single extra</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
-<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tests</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> python</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> extras</span><span class="p">:</span><span class="w"> </span><span class="nv">tests</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 
 <span class="w">  </span><span class="c1"># Multiple extras</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
-<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">docs</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> python</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">docs</span><span class="p p-Indicator">]</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 
 <span class="w">  </span><span class="c1"># Non-editable with extras</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">python</span>
-<span class="w">    </span><span class="nt">with</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">editable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> python</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> extras</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">tests</span><span class="p p-Indicator">],</span><span class="nt"> editable</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
 </pre></div>
 </div>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p><code class="docutils literal notranslate"><span class="pre">with:</span></code> is only valid when <code class="docutils literal notranslate"><span class="pre">type:</span></code> is also specified on the same entry.
-Unknown keys inside <code class="docutils literal notranslate"><span class="pre">with:</span></code> are reported as errors at YAML-read time,
-before any packages are fetched.</p>
 <p>For PyPI packages (<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code>), extras can also be specified using the
 top-level <code class="docutils literal notranslate"><span class="pre">extras:</span></code> field directly on the package entry — that form is
 preserved for backward compatibility and is the concise form for the common
@@ -427,7 +509,15 @@ case.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--py-prerls-packages
 </pre></div>
 </div>
-<p>Or in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, specify the pre-release version explicitly:</p>
+<p>Or set it project-wide in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">pre-release</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p>Or specify the pre-release version explicitly in the dep:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package</span>
 <span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
