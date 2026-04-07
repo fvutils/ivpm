@@ -4,57 +4,117 @@ Introduction
 
 What is IVPM?
 ==============
-IVPM (short for IP and Verification Package Manager) is a 
-lightweight project-local package manager. It excels at 
-managing projects where dependencies are co-developed with
-the project. 
+
+IVPM (IP and Verification Package Manager) is a lightweight, project-local
+package manager.  It fetches dependencies into a ``packages/`` directory
+inside your project, processes them through a :doc:`handler pipeline
+<handlers>`, and optionally manages a Python virtual environment.  Each
+project is fully self-contained -- there is no global state shared between
+projects.
 
 .. image:: imgs/ivpm_system.png
 
-Let's look at a simple example. A System-on-Chip 
-(SoC) design targeting an FPGA or an ASIC is composed of
-multiple IPs written in a hardware-description language (HDL)
-like Verilog. These IPs must be present in order to 
-simulate the SoC for verification or synthesize the SoC
-to an FPGA or ASIC implementation. In order to run 
-functional verification on the SoC, Bus Functional
-Models (BFMs) are used by the testbench to interact
-with the design. If the project dependencies are 
-open source or developed in-house, it is often 
-necessary to either propose fixes or enhancements to the
-original developers.
+Key Capabilities
+=================
 
-- IVPM manages a project-local package repository 
-  where project dependencies are stored. 
+- **Project-local dependency management** -- all dependencies live inside
+  the project.  No system-wide installation, no version conflicts between
+  projects.
 
-- IVPM manages package sub-dependencies. When one
-  package depends on another, IVPM ensures all 
-  required packages are fetched.
+- **Recursive sub-dependency resolution** -- when a dependency has its own
+  ``ivpm.yaml``, IVPM resolves its dependencies automatically.  Dependency
+  sets let you control which sub-dependencies are loaded (e.g., dev vs
+  release).
 
-- IPVM allows packages to express their 'development'
-  and 'release' dependencies separately. This means that
-  adding a design IP to your project will only bring what 
-  is needed to **use** that IP into the package repository,
-  and not all the verification libraries used to verify that IP.
+- **Python virtual environment management** -- the built-in Python handler
+  creates a project-local venv and installs packages via pip or uv.
+  Source packages are installed in editable mode for co-development.
 
-- IVPM provides first-class support for Python packages,
-  enabling them to be installed as binary packages or 
-  developed inside editable packages.
+- **Git integration** -- ``ivpm status`` and ``ivpm sync`` let you track
+  changes, update from upstream, and work with editable Git dependencies.
 
-- IVPM provides Git integration, with commands to quickly
-  assess the status of editable projects and update 
-  project source from it's upstream repository.
+- **Caching and reproducibility** -- cached packages are shared across
+  projects via symlinks.  A lock file records exact resolved versions for
+  deterministic reproduction.
 
-- IVPM enables 'snapshotting' project dependencies to 
-  create a project that contains all its required 
-  dependencies.
+- **Extensible handler pipeline** -- handlers process and aggregate
+  information from fetched packages.  IVPM ships handlers for Python,
+  direnv, and AI agent skills.  Third-party handlers can be added via
+  Python entry points.
 
-- IVPM provides build/release utilities for C/C++ packages
-  that provide a Python interface
+Where IVPM Fits
+================
 
-- IVPM provides features for discovering source and library paths
-  across Python and non-Python packages. This support is 
-  currently focused on the needs of managing FuseSoC libraries.
+Unlike pip or conda, IVPM is not a Python-only tool.  It manages
+*heterogeneous* dependency trees that mix Python packages with non-Python
+assets such as HDL source, data files, pre-built binaries, and
+configuration.  Unlike Nix or Bazel, IVPM is lightweight -- a single YAML
+file and one command (``ivpm update``) are all you need.
 
+IVPM excels in the **co-development** scenario: when your project's
+dependencies are repositories you also contribute to.  Source dependencies
+are checked out with full Git history, installed in editable mode, and
+manageable via ``ivpm status`` and ``ivpm sync``.
 
+Example Domains
+================
 
+IVPM originated in hardware verification -- managing SoC designs composed
+of Verilog IPs, Bus Functional Models, and Python test frameworks -- but it
+is domain-neutral.  Any project that needs a self-contained, reproducible
+set of mixed dependencies benefits from IVPM.
+
+**Hardware verification project:**
+
+.. code-block:: yaml
+
+    package:
+      name: soc-verification
+      default-dep-set: default-dev
+
+      dep-sets:
+        - name: default
+          deps:
+            - name: cpu-core
+              url: https://github.com/org/cpu.git
+              tag: v1.0
+
+        - name: default-dev
+          uses: default
+          deps:
+            - name: cocotb
+              src: pypi
+            - name: bus-models
+              url: https://github.com/org/bus-models.git
+
+**Pure Python project:**
+
+.. code-block:: yaml
+
+    package:
+      name: data-pipeline
+      default-dep-set: default-dev
+
+      dep-sets:
+        - name: default
+          deps:
+            - name: pandas
+              src: pypi
+            - name: numpy
+              src: pypi
+
+        - name: default-dev
+          uses: default
+          deps:
+            - name: pytest
+              src: pypi
+
+Both projects share the same structure: an ``ivpm.yaml`` file, a
+``packages/`` directory, and the same ``ivpm update`` / ``ivpm activate``
+workflow.
+
+Next Steps
+===========
+
+- :doc:`getting_started` -- Install IVPM and set up your first project
+- :doc:`core_concepts` -- Understand the update pipeline and mental model

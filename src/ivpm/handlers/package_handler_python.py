@@ -34,7 +34,7 @@ from ..package import get_type_data
 
 from ..package import Package, SourceType
 from .package_handler import PackageHandler
-from .handler_conditions import HasType
+# HasType no longer used in root_when (handler self-gates via on_root_post_load)
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_python")
 
@@ -43,9 +43,9 @@ class PackageHandlerPython(PackageHandler):
     name:               ClassVar[str]            = "python"
     description:        ClassVar[str]            = "Installs Python packages into the managed virtual environment"
     leaf_when:          ClassVar[Optional[List]] = None               # always inspect every package
-    root_when:          ClassVar[Optional[List]] = [HasType("python")] # only run root when Python pkgs present
+    root_when:          ClassVar[Optional[List]] = None               # always run root; early-exit below handles no-python projects
     phase:              ClassVar[int]            = 0
-    conditions_summary: ClassVar[str]            = "leaf: all packages; root: only when at least one Python package is present"
+    conditions_summary: ClassVar[str]            = "leaf: all packages; root: always (skips if no Python packages and no python config)"
 
     pkgs_info  : Dict[str,Package] = dc.field(default_factory=dict)
     src_pkg_s  : Set[str] = dc.field(default_factory=set)
@@ -142,14 +142,24 @@ class PackageHandlerPython(PackageHandler):
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         from ..proj_info import VenvMode
 
-        # --- Inject ivpm unconditionally (unless explicitly specified) ---
+        # If no Python packages were detected and the project does not
+        # explicitly configure ``with.python``, there is nothing to do.
+        has_python_pkgs = bool(self.pypi_pkg_s or self.src_pkg_s or self.pkgs_info)
+        has_python_config = (
+            update_info.python_config is not None
+            and update_info.python_config.venv != VenvMode.SKIP
+        )
+        if not has_python_pkgs and not has_python_config:
+            return
+
+        # --- Determine how to install ivpm into the venv ---
+        # Query the site config for the install spec (e.g. ["ivpm"] for
+        # PyPI, or ["/path/to/ivpm_amd-2.2.4.whl"] for a local wheel).
+        # Store the raw args for injection into the requirements file.
         if "ivpm" not in self.pypi_pkg_s:
-            _logger.info("Will install IVPM from PyPi")
-            from ..pkg_types.package_pypi import PackagePyPi
-            ivpm_pkg = PackagePyPi("ivpm")
-            ivpm_pkg.src_type = SourceType.PyPi
-            self.pypi_pkg_s.add("ivpm")
-            self.pkgs_info["ivpm"] = ivpm_pkg
+            from ..site_config import get_site_config
+            self._ivpm_install_args = get_site_config().get_ivpm_install_args()
+            _logger.info("IVPM install spec from site config: %s", self._ivpm_install_args)
 
         venv_mode = self._resolve_venv_mode(update_info)
 
@@ -292,6 +302,17 @@ class PackageHandlerPython(PackageHandler):
                 update_info.deps_dir,
                 setup_deps_pkgs, 
                 requirements_path)
+            python_requirements_paths.append(requirements_path)
+
+        # Inject ivpm install args from site config as a requirements file.
+        # This may be ["ivpm"] (PyPI) or ["/path/to/wheel.whl"] (local).
+        if hasattr(self, '_ivpm_install_args') and self._ivpm_install_args:
+            requirements_path = os.path.join(
+                update_info.deps_dir, "python_pkgs_%d.txt" % (
+                len(python_requirements_paths)+1))
+            with open(requirements_path, "w") as fp:
+                for arg in self._ivpm_install_args:
+                    fp.write("%s\n" % arg)
             python_requirements_paths.append(requirements_path)
 
         # Next, create a requirements file for all

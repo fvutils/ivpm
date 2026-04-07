@@ -13,6 +13,7 @@ Welcome to IVPM's documentation!
    introduction
    getting_started
    core_concepts
+   handlers
    dependency_sets
    package_types
    caching

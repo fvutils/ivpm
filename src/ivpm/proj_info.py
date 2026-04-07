@@ -85,7 +85,8 @@ class ProjInfo():
         # Raw (type_name, opts) pairs from 'package: { type: … }' in this project's ivpm.yaml.
         self.self_types : list = []
         # Configuration for the python handler from 'package.with.python:'.
-        self.python_config : PythonConfig = PythonConfig()
+        # None means the project did not declare ``with.python`` at all.
+        self.python_config : Optional[PythonConfig] = None
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()

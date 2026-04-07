@@ -516,66 +516,6 @@ Example 3: Team Development Setup
             - name: REPORT_DIR
               value: "${IVPM_PROJECT}/reports"
 
-Troubleshooting
-===============
-
-Environment Variable Not Set
------------------------------
-
-**Problem:** Variable not available after ``ivpm activate``
-
-**Check:**
-
-1. Is ``env-sets`` defined in ``ivpm.yaml``?
-2. Did you run ``ivpm update`` after changing ``ivpm.yaml``?
-3. Are you using ``ivpm activate``?
-
-**Solution:**
-
-.. code-block:: bash
-
-    $ cat ivpm.yaml  # Verify env-sets
-    $ ivpm update
-    $ ivpm activate -c "env | grep MY_VAR"
-
-Variable Expansion Not Working
--------------------------------
-
-**Problem:** ``${VAR}`` appears literally instead of being expanded
-
-**Common causes:**
-
-1. Variable referenced before it's defined
-2. Typo in variable name
-3. Variable not in environment when IVPM runs
-
-**Solution:**
-
-.. code-block:: yaml
-
-    env:
-      # Define base variables first
-      - name: BASE_DIR
-        value: "/opt/project"
-      
-      # Then reference them
-      - name: LIB_DIR
-        value: "${BASE_DIR}/lib"
-
-Path-prepend Not Working
--------------------------
-
-**Problem:** New paths not appearing at start of PATH
-
-**Check order:**
-
-.. code-block:: bash
-
-    $ ivpm activate -c "echo \$PATH" | tr ':' '\n'
-
-If your paths aren't first, check if something else is modifying PATH 
-after IVPM (e.g., in ``.bashrc``).
-
 Best Practices
 ==============
 
@@ -592,3 +532,5 @@ See Also
 
 - :doc:`getting_started` - Basic project setup
 - :doc:`core_concepts` - Understanding IVPM's model
+- :doc:`troubleshooting` - Solutions to common problems
+- :doc:`handlers` - How handlers process packages
