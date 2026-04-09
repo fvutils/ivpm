@@ -119,7 +119,7 @@ package:
         )
 
     def test_unknown_with_handler_lists_valid_keys(self):
-        """Error for unknown with key must list valid keys."""
+        """Error for unknown with key must list registry-derived valid keys."""
         _assert_fatal(self,
             """
 package:
@@ -130,8 +130,27 @@ package:
     - name: default
       deps: []
 """,
-            "python",   # the one valid handler
+            "python",   # always registered via entry points
         )
+
+    def test_registered_handler_key_accepted(self):
+        """A key matching a registered handler name must be accepted and stored in handler_configs."""
+        from ivpm.handlers.package_handler_rgy import PackageHandlerRgy
+        rgy = PackageHandlerRgy.inst()
+        handler_names = {h.name for h in rgy.handlers if h.name and h.name != "python"}
+        if not handler_names:
+            self.skipTest("No non-python handlers registered")
+        key = next(iter(sorted(handler_names)))
+        info = _parse("""
+package:
+  name: mypkg
+  with:
+    {key}: {{}}
+  dep-sets:
+    - name: default
+      deps: []
+""".format(key=key))
+        self.assertIn(key, info.handler_configs)
 
     def test_close_match_for_with_handler(self):
         """A typo in the with handler name should trigger a close-match suggestion."""

@@ -129,14 +129,19 @@ class IvpmYamlReader(object):
     def _read_with_section(self, info: 'ProjInfo', with_data: dict, name: str):
         """Parse the package-level ``with:`` map into handler configurations."""
         from .proj_info import VenvMode, PythonConfig
+        from .handlers.package_handler_rgy import PackageHandlerRgy
 
-        _KNOWN_WITH_KEYS = {"python"}
+        # Build the set of valid keys dynamically from the handler registry so
+        # that plugin handlers (e.g. direnv, cbwa) are accepted without
+        # hardcoding their names here.
+        rgy = PackageHandlerRgy.inst()
+        known_with_keys = {h.name for h in rgy.handlers if h.name}
 
         for key in with_data.keys():
-            if key not in _KNOWN_WITH_KEYS:
-                hint = _suggest(key, _KNOWN_WITH_KEYS)
+            if key not in known_with_keys:
+                hint = _suggest(key, known_with_keys)
                 fatal("Unknown key '%s' in package.with in %s.%s Valid keys: %s" % (
-                    key, name, hint, ", ".join(sorted(_KNOWN_WITH_KEYS))))
+                    key, name, hint, ", ".join(sorted(known_with_keys))))
 
         if "python" in with_data.keys():
             py_data = with_data["python"]
@@ -163,6 +168,12 @@ class IvpmYamlReader(object):
             if "pre-release" in py_data:
                 cfg.pre_release = bool(py_data["pre-release"])
             info.python_config = cfg
+
+        # Store config for non-python registered handlers so they can
+        # retrieve their settings via ProjectUpdateInfo.handler_configs.
+        for key, value in with_data.items():
+            if key != "python":
+                info.handler_configs[key] = value
 
     def read_dep_sets(self, info : 'ProjInfo', dep_sets):
         if not isinstance(dep_sets, list):
@@ -363,7 +374,6 @@ class IvpmYamlReader(object):
             raise Exception(
                 "No variable-directive setting (value, path, path-append, path-prepend) specified")
         info.env_settings.append(EnvSpec(evar["name"], val, act))
-
 
 
 

@@ -79,6 +79,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     event_dispatcher: Optional[UpdateEventDispatcher] = None
     suppress_output: bool = False  # When True, suppress subprocess output (Rich TUI mode)
     python_config: Optional[object] = None  # PythonConfig from root ivpm.yaml
+    handler_configs: dict = dc.field(default_factory=dict)  # Extra with: keys for plugin handlers
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None
@@ -196,5 +197,4 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 _logger.info("  Cache misses: %d", self.cache_misses)
                 hit_rate = (self.cache_hits / self.cacheable_packages * 100) if self.cacheable_packages > 0 else 0
                 _logger.info("  Hit rate: %.1f%%", hit_rate)
-
 
