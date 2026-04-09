@@ -3,6 +3,7 @@ Created on Jun 8, 2021
 
 @author: mballance
 '''
+import difflib
 import os
 import yaml_srcinfo_loader
 from typing import Dict, List
@@ -16,6 +17,25 @@ from .utils import fatal, getlocstr, warning
 from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
 from ivpm.pkg_content_type import parse_type_field
+
+# Valid keys at the ``package:`` level in ivpm.yaml.
+_KNOWN_PACKAGE_KEYS = {
+    "name", "version", "type", "with",
+    "deps-dir", "default-dep-set",
+    "dep-sets", "setup-deps",
+    "paths", "env", "env-sets",
+    # old-style keys – detected and rejected with a friendlier message
+    "deps", "dev-deps",
+}
+
+# Valid keys inside ``package.with.python:``.
+_KNOWN_PYTHON_WITH_KEYS = {"venv", "system-site-packages", "pre-release"}
+
+
+def _suggest(unknown: str, valid) -> str:
+    """Return a hint string when *unknown* is close to a known key, or ''."""
+    matches = difflib.get_close_matches(unknown, valid, n=1, cutoff=0.6)
+    return (" Did you mean '%s'?" % matches[0]) if matches else ""
 
 
 class IvpmYamlReader(object):
@@ -42,9 +62,19 @@ class IvpmYamlReader(object):
         
         if "name" not in pkg.keys():
             raise Exception("Missing 'name' key in YAML file %s" % name)
-        
-        
+
+        for key in pkg.keys():
+            if key not in _KNOWN_PACKAGE_KEYS:
+                hint = _suggest(key, _KNOWN_PACKAGE_KEYS)
+                fatal(
+                    "Unknown tag '%s' at package level in %s.%s"
+                    " Valid tags: %s" % (
+                        key, name, hint,
+                        ", ".join(sorted(_KNOWN_PACKAGE_KEYS))))
+
         ret.name = pkg["name"]
+
+
         
         if "version" in pkg.keys():
             ret.version = pkg["version"]
@@ -104,20 +134,29 @@ class IvpmYamlReader(object):
 
         for key in with_data.keys():
             if key not in _KNOWN_WITH_KEYS:
-                from .utils import fatal
-                fatal("Unknown key '%s' in package.with in %s; known keys: %s" % (
-                    key, name, ", ".join(sorted(_KNOWN_WITH_KEYS))))
+                hint = _suggest(key, _KNOWN_WITH_KEYS)
+                fatal("Unknown key '%s' in package.with in %s.%s Valid keys: %s" % (
+                    key, name, hint, ", ".join(sorted(_KNOWN_WITH_KEYS))))
 
         if "python" in with_data.keys():
             py_data = with_data["python"]
             if py_data is None:
                 py_data = {}
             cfg = PythonConfig()
+
+            for key in py_data.keys():
+                if key not in _KNOWN_PYTHON_WITH_KEYS:
+                    hint = _suggest(key, _KNOWN_PYTHON_WITH_KEYS)
+                    fatal(
+                        "Unknown key '%s' in package.with.python in %s.%s"
+                        " Valid keys: %s" % (
+                            key, name, hint,
+                            ", ".join(sorted(_KNOWN_PYTHON_WITH_KEYS))))
+
             if "venv" in py_data:
                 try:
                     cfg.venv = VenvMode.parse(py_data["venv"])
                 except ValueError as e:
-                    from .utils import fatal
                     fatal(str(e) + " in %s" % name)
             if "system-site-packages" in py_data:
                 cfg.system_site_packages = bool(py_data["system-site-packages"])

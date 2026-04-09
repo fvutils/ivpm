@@ -27,8 +27,7 @@ class TestPythonConfigYaml(TestBase):
         return IvpmYamlReader().read(fp, "test_yaml")
 
     def test_default_python_config(self):
-        """A project without with.python gets default PythonConfig."""
-        from ivpm.proj_info import VenvMode
+        """A project without with.python leaves python_config as None."""
         proj = self._load_proj("""
 package:
     name: test_pkg
@@ -36,9 +35,7 @@ package:
         - name: default-dev
           deps: []
 """)
-        self.assertEqual(proj.python_config.venv, VenvMode.AUTO)
-        self.assertFalse(proj.python_config.system_site_packages)
-        self.assertFalse(proj.python_config.pre_release)
+        self.assertIsNone(proj.python_config)
 
     def test_venv_false(self):
         from ivpm.proj_info import VenvMode
