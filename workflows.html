@@ -47,6 +47,7 @@
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
@@ -117,26 +118,12 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#troubleshooting-common-issues">Troubleshooting Common Issues</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#package-already-loaded-but-not-visible">“Package Already Loaded” But Not Visible</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#dependency-version-conflicts">Dependency Version Conflicts</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#git-package-won-t-sync">Git Package Won’t Sync</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#python-package-not-importable">Python Package Not Importable</a></li>
-</ul>
-</li>
-<li class="toctree-l2"><a class="reference internal" href="#reproducible-workspaces">Reproducible Workspaces</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#archiving-a-workspace-for-reproduction">Archiving a Workspace for Reproduction</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#reproducing-an-archived-workspace">Reproducing an Archived Workspace</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ci-workflow-with-lock-file">CI Workflow with Lock File</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#refreshing-all-packages">Refreshing All Packages</a></li>
-</ul>
-</li>
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
-<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Extending IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
@@ -821,116 +808,16 @@ $<span class="w"> </span>ivpm<span class="w"> </span>update
 <li><p><strong>Use .gitignore</strong> - Never commit <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory</p></li>
 </ol>
 </section>
-<section id="troubleshooting-common-issues">
-<h2>Troubleshooting Common Issues<a class="headerlink" href="#troubleshooting-common-issues" title="Link to this heading"></a></h2>
-<section id="package-already-loaded-but-not-visible">
-<h3>“Package Already Loaded” But Not Visible<a class="headerlink" href="#package-already-loaded-but-not-visible" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/problem-package
-$<span class="w"> </span>ivpm<span class="w"> </span>update
-</pre></div>
-</div>
-</section>
-<section id="dependency-version-conflicts">
-<h3>Dependency Version Conflicts<a class="headerlink" href="#dependency-version-conflicts" title="Link to this heading"></a></h3>
-<p>Check what’s installed:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
-</pre></div>
-</div>
-<p>Adjust version requirements in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
-</section>
-<section id="git-package-won-t-sync">
-<h3>Git Package Won’t Sync<a class="headerlink" href="#git-package-won-t-sync" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/problem-package
-$<span class="w"> </span>git<span class="w"> </span>status<span class="w">  </span><span class="c1"># Check for uncommitted changes</span>
-$<span class="w"> </span>git<span class="w"> </span>stash<span class="w">   </span><span class="c1"># Save local changes</span>
-$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>sync
-</pre></div>
-</div>
-</section>
-<section id="python-package-not-importable">
-<h3>Python Package Not Importable<a class="headerlink" href="#python-package-not-importable" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--force-py-install
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span><span class="w">  </span><span class="c1"># Verify it&#39;s installed</span>
-</pre></div>
-</div>
-</section>
-</section>
-<section id="reproducible-workspaces">
-<h2>Reproducible Workspaces<a class="headerlink" href="#reproducible-workspaces" title="Link to this heading"></a></h2>
-<p>Every <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> and <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> run automatically writes
-<code class="docutils literal notranslate"><span class="pre">packages/package-lock.json</span></code> recording the exact resolved identity of every
-fetched package (git commit hashes, release tags, pip versions, HTTP ETags).
-See <a class="reference internal" href="package_lock.html"><span class="doc">Package Lock File</span></a> for full details.</p>
-<section id="archiving-a-workspace-for-reproduction">
-<h3>Archiving a Workspace for Reproduction<a class="headerlink" href="#archiving-a-workspace-for-reproduction" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Fetch/update normally</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>update
-
-<span class="c1"># Archive the lock file (packages/ is typically .gitignore&#39;d)</span>
-$<span class="w"> </span>cp<span class="w"> </span>packages/package-lock.json<span class="w"> </span>./ivpm.lock
-$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>ivpm.lock
-$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Lock dependency versions&quot;</span>
-</pre></div>
-</div>
-</section>
-<section id="reproducing-an-archived-workspace">
-<h3>Reproducing an Archived Workspace<a class="headerlink" href="#reproducing-an-archived-workspace" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># On any machine (or in CI)</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--lock-file<span class="w"> </span>./ivpm.lock
-</pre></div>
-</div>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> package specs are <strong>not read</strong> — the lock file is the sole
-source of truth.</p></li>
-<li><p>Every package is fetched at its pinned version (commit hash, release tag, etc.).</p></li>
-<li><p>The IVPM package cache is consulted first; already-cached versions are
-reused without a network call.</p></li>
-</ul>
-</section>
-<section id="ci-workflow-with-lock-file">
-<h3>CI Workflow with Lock File<a class="headerlink" href="#ci-workflow-with-lock-file" title="Link to this heading"></a></h3>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Reproducible CI</span>
-
-<span class="nt">on</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">push</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">pull_request</span><span class="p p-Indicator">]</span>
-
-<span class="nt">jobs</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">test</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
-<span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v3</span>
-
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Install IVPM</span>
-<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pip install ivpm</span>
-
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Reproduce locked workspace</span>
-<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm update --lock-file ./ivpm.lock</span>
-
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run tests</span>
-<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest&quot;</span>
-</pre></div>
-</div>
-</section>
-<section id="refreshing-all-packages">
-<h3>Refreshing All Packages<a class="headerlink" href="#refreshing-all-packages" title="Link to this heading"></a></h3>
-<p>When you want to pull upstream changes without editing <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Re-fetch everything; update lock file with new resolved versions</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--refresh-all
-
-<span class="c1"># Archive updated lock</span>
-$<span class="w"> </span>cp<span class="w"> </span>packages/package-lock.json<span class="w"> </span>./ivpm.lock
-</pre></div>
-</div>
-</section>
-</section>
 <section id="see-also">
 <h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Initial setup and basic workflows</p></li>
+<li><p><a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> - How handlers process packages</p></li>
 <li><p><a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> - Git-specific commands and workflows</p></li>
 <li><p><a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> - Python package management</p></li>
 <li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Using cache for better performance</p></li>
 <li><p><a class="reference internal" href="package_lock.html"><span class="doc">Package Lock File</span></a> - Package lock file and reproducible workspaces</p></li>
+<li><p><a class="reference internal" href="troubleshooting.html"><span class="doc">Troubleshooting</span></a> - Solutions to common problems</p></li>
 </ul>
 </section>
 </section>

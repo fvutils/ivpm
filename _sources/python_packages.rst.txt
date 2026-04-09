@@ -9,6 +9,14 @@ IVPM provides first-class support for Python packages, managing both source
 packages (editable installs) and binary packages (from PyPI) within a 
 project-local virtual environment.
 
+.. note::
+
+   The Python handler performs the work described on this page.  For
+   handler-level details (activation conditions, phase ordering, how it
+   fits into the update pipeline), see :ref:`handler-python` in
+   :doc:`handlers`.
+
+
 Virtual Environment Creation
 =============================
 
@@ -735,117 +743,6 @@ Example 3: Native Extensions with Build
     $ ivpm build --debug
     $ ivpm activate -c "gdb python"
 
-Troubleshooting
-===============
-
-Package Not Importable
------------------------
-
-**Problem:** ``ModuleNotFoundError`` when importing
-
-**Check:**
-
-1. Is the package in the active dependency set?
-
-   .. code-block:: bash
-
-       $ cat ivpm.yaml  # Check dep-sets
-
-2. Was ``ivpm update`` run?
-
-   .. code-block:: bash
-
-       $ ivpm update
-
-3. Is the virtual environment activated?
-
-   .. code-block:: bash
-
-       $ ivpm activate -c "python -c 'import package'"
-
-4. List installed packages:
-
-   .. code-block:: bash
-
-       $ ivpm activate -c "pip list"
-
-Editable Install Not Working
------------------------------
-
-**Problem:** Changes to source package not reflected
-
-**Check:**
-
-1. Is it installed in editable mode?
-
-   .. code-block:: bash
-
-       $ ivpm activate -c "pip list"
-       # Look for -e /path/to/package
-
-2. Check the egg-link:
-
-   .. code-block:: bash
-
-       $ cat packages/python/lib/python3.*/site-packages/package.egg-link
-
-**Solution:** Reinstall:
-
-.. code-block:: bash
-
-    $ ivpm update --force-py-install
-
-Build Failures
---------------
-
-**Problem:** Native extension build fails
-
-**Common causes:**
-
-1. Missing build dependencies (compiler, headers)
-2. Missing setup-deps
-3. Wrong order of installation
-
-**Solutions:**
-
-.. code-block:: bash
-
-    # Install system dependencies (Ubuntu/Debian)
-    $ sudo apt-get install build-essential python3-dev
-    
-    # Add setup-deps to ivpm.yaml
-    $ vim ivpm.yaml  # Add setuptools, wheel, cython
-    
-    # Rebuild
-    $ ivpm update --force-py-install
-    $ ivpm build
-
-Version Conflicts
------------------
-
-**Problem:** Package version conflict errors
-
-**Check versions:**
-
-.. code-block:: bash
-
-    $ ivpm activate -c "pip list"
-
-**Solution:** Adjust version specs in ``ivpm.yaml``:
-
-.. code-block:: yaml
-
-    deps:
-      # Too restrictive
-      - name: package-a
-        src: pypi
-        version: "==1.0.0"
-      
-      # Better
-      - name: package-a
-        src: pypi
-        version: ">=1.0.0,<2.0"
-
 Best Practices
 ==============
 
@@ -861,6 +758,8 @@ Best Practices
 See Also
 ========
 
+- :doc:`handlers` - Python handler details and other built-in handlers
 - :doc:`getting_started` - Basic Python package setup
 - :doc:`dependency_sets` - Organizing Python and non-Python deps
 - :doc:`package_types` - PyPI package configuration
+- :doc:`troubleshooting` - Solutions to Python package problems

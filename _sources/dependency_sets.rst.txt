@@ -2,53 +2,10 @@
 Dependency Sets
 ################
 
-What are Dependency Sets?
-==========================
-
-**Dependency sets** are named collections of package dependencies. They allow you to 
-define different dependency profiles for different scenarios, such as development 
-vs. release, or different build targets.
-
-Why Use Dependency Sets?
-=========================
-
-Separate Concerns
------------------
-
-Development and release often need different dependencies:
-
-**Development needs:**
-
-- Testing frameworks (pytest, unittest)
-- Debugging tools
-- Documentation generators
-- Linters and formatters
-- Build tools
-
-**Release needs:**
-
-- Only runtime dependencies
-- Minimal footprint
-- No development tools
-
-**Example:** A verification IP might depend on UVM libraries at runtime, but also 
-need waveform viewers and coverage tools during development.
-
-Multiple Build Targets
------------------------
-
-Different configurations may need different dependencies:
-
-- FPGA vs ASIC builds
-- Simulation vs synthesis
-- Different test suites
-- Platform-specific dependencies
-
-Faster Updates
---------------
-
-By selecting only the dependencies you need, ``ivpm update`` runs faster and uses 
-less disk space.
+Dependency sets are named collections of package dependencies that let you
+maintain different profiles for different scenarios -- development vs release,
+different build targets, or different feature sets.  For a conceptual
+overview, see :doc:`core_concepts`.
 
 Defining Dependency Sets
 =========================
@@ -456,44 +413,10 @@ Best Practices
 5. **Control sub-dependencies** - use ``dep-set`` override to avoid pulling excess deps
 6. **Test both profiles** - ensure ``default`` works without dev tools
 
-Troubleshooting
-===============
-
-Missing Dependency Set
-----------------------
-
-**Error:** ``Dep-set <name> is not present in project <project>``
-
-**Solution:** Check that:
-
-1. The dep-set is defined in the project's ``ivpm.yaml``
-2. The name matches exactly (case-sensitive)
-3. If using ``dep-set`` override, the target package has that set
-
-Package Not Loading
--------------------
-
-**Issue:** Expected package not appearing in ``packages/``
-
-**Check:**
-
-1. Is it in the active dependency set?
-2. Run ``ivpm update -d <set-name>`` with the correct set
-3. Check if ``deps: skip`` is set on any dependencies
-
-Wrong Dependencies Loaded
--------------------------
-
-**Issue:** Getting development tools when you wanted release deps
-
-**Solution:**
-
-1. Check ``default-dep-set`` in root ``ivpm.yaml``
-2. Explicitly specify: ``ivpm update -d default``
-3. Check ``default-dep-set`` in each dependency set
-
 See Also
 ========
 
-- :doc:`core_concepts` - Understanding IVPM's model
+- :doc:`core_concepts` - Understanding the update pipeline
 - :doc:`package_types` - Complete dependency attribute reference
+- :doc:`handlers` - How handlers process packages
+- :doc:`troubleshooting` - Solutions to dependency set problems

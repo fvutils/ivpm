@@ -696,6 +696,32 @@ Test Cache
     $ ivpm cache info --verbose
     $ ls -la $IVPM_CACHE
 
+
+Dependency Set Issues
+---------------------
+
+Missing Dependency Set
+~~~~~~~~~~~~~~~~~~~~~~~
+
+**Error:** ``Dep-set <name> is not present in project <project>``
+
+**Solution:** Check that:
+
+1. The dep-set is defined in the project's ``ivpm.yaml``
+2. The name matches exactly (case-sensitive)
+3. If using ``dep-set`` override, the target package has that set
+
+Wrong Dependencies Loaded
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue:** Getting development tools when you wanted release deps
+
+**Solutions:**
+
+1. Check ``default-dep-set`` in root ``ivpm.yaml``
+2. Explicitly specify: ``ivpm update -d default``
+3. Check ``default-dep-set`` in each dependency set
+
 Common Error Messages
 =====================
 
@@ -828,5 +854,6 @@ See Also
 ========
 
 - :doc:`getting_started` - Basic usage
+- :doc:`handlers` - Handler documentation
 - :doc:`workflows` - Common workflows
 - :doc:`reference` - Command reference

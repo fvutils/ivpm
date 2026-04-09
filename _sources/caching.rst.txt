@@ -476,99 +476,6 @@ Use no cache attribute when:
 ✅ Making commits to the package
 ✅ Branching or rebasing
 
-Troubleshooting
-===============
-
-Cache Not Working
------------------
-
-**Problem:** Packages not being cached
-
-**Check:**
-
-1. Is ``IVPM_CACHE`` set?
-
-   .. code-block:: bash
-
-       echo $IVPM_CACHE
-
-2. Does the cache directory exist?
-
-   .. code-block:: bash
-
-       ls -la $IVPM_CACHE
-
-3. Is ``cache: true`` in your ``ivpm.yaml``?
-
-4. Check IVPM output for cache hit/miss messages
-
-**Solution:** If not set, initialize:
-
-.. code-block:: bash
-
-   export IVPM_CACHE=~/.cache/ivpm
-   ivpm cache init $IVPM_CACHE
-   ivpm update  # Re-run to use cache
-
-Broken Symlinks
----------------
-
-**Problem:** Symlinks in ``packages/`` pointing to non-existent cache entries
-
-**Cause:** Cache was cleaned or manually deleted
-
-**Solution:**
-
-.. code-block:: bash
-
-   # Remove broken symlinks
-   find packages/ -type l ! -exec test -e {} \; -delete
-   
-   # Re-run update to recreate
-   ivpm update
-
-Permission Denied (Shared Cache)
----------------------------------
-
-**Problem:** Cannot write to shared cache
-
-**Check permissions:**
-
-.. code-block:: bash
-
-   ls -la /shared/ivpm-cache
-
-**Solution:**
-
-.. code-block:: bash
-
-   # Add yourself to the group
-   sudo usermod -a -G devteam $USER
-   
-   # Re-login or newgrp
-   newgrp devteam
-   
-   # Verify permissions
-   ls -la /shared/ivpm-cache
-
-Cache Growing Too Large
-------------------------
-
-**Problem:** Cache directory taking too much space
-
-**Solutions:**
-
-.. code-block:: bash
-
-   # View cache size
-   ivpm cache info
-   
-   # Clean old entries
-   ivpm cache clean --days 30
-   
-   # Manual cleanup (advanced)
-   du -sh $IVPM_CACHE/*/ | sort -h
-
 Performance Tips
 ================
 
@@ -630,4 +537,5 @@ See Also
 
 - :doc:`package_types` - Understanding cache attribute on different package types
 - :doc:`getting_started` - Basic cache setup
-
+- :doc:`troubleshooting` - Solutions to common problems
+- :doc:`handlers` - How handlers process packages

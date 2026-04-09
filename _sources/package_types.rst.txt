@@ -440,8 +440,7 @@ When ``type: python`` is specified you can pass additional parameters under a
 
    When a package has ``type: python`` (explicitly or via auto-detection), the
    **Python handler** installs it into ``packages/python/`` during the root
-   phase of every ``update`` / ``clone`` run.  See :ref:`builtin-python-handler`
-   in :doc:`extending_ivpm` for the full list of installation options and CLI
+   phase of every ``update`` / ``clone`` run.  See :ref:`handler-python` in :doc:`handlers` for the full list of installation options and CLI
    flags such as ``--py-uv`` and ``--force-py-install``.
 
 Raw (``raw``)
@@ -714,7 +713,8 @@ See Also
 - :doc:`caching` - Caching strategies
 - :doc:`python_packages` - Python-specific features
 - :doc:`github_releases` - GitHub Releases details
-- :doc:`extending_ivpm` - Built-in handler details and writing custom handlers
+- :doc:`handlers` - How handlers process packages (Python, Direnv, Skills)
+- :doc:`extending_ivpm` - Writing custom handlers
 
 .. tip::
 

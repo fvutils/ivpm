@@ -47,6 +47,7 @@
 <li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
@@ -89,16 +90,6 @@
 <li class="toctree-l3"><a class="reference internal" href="#example-8-mixed-binaries-and-source">Example 8: Mixed Binaries and Source</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#no-suitable-binary-found">No Suitable Binary Found</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#glibc-version-too-new">glibc Version Too New</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#os-specific-package-not-found">OS-Specific Package Not Found</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#cannot-determine-linux-distribution">Cannot Determine Linux Distribution</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#no-release-found">No Release Found</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#rate-limiting-github-api">Rate Limiting (GitHub API)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#asset-naming-issues">Asset Naming Issues</a></li>
-</ul>
-</li>
 <li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#advanced-configuration">Advanced Configuration</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#forcing-source-archives">Forcing Source Archives</a></li>
@@ -113,7 +104,7 @@
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
-<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Extending IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
@@ -689,177 +680,6 @@ pre-built binaries aren’t compatible with your system.</p>
 </div>
 </section>
 </section>
-<section id="troubleshooting">
-<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
-<section id="no-suitable-binary-found">
-<h3>No Suitable Binary Found<a class="headerlink" href="#no-suitable-binary-found" title="Link to this heading"></a></h3>
-<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">suitable</span> <span class="pre">&lt;platform&gt;</span> <span class="pre">binary</span> <span class="pre">found</span></code></p>
-<p><strong>Causes:</strong></p>
-<ol class="arabic simple">
-<li><p>Release doesn’t have a binary for your platform</p></li>
-<li><p>Asset naming doesn’t match IVPM’s detection</p></li>
-<li><p>Your glibc is too old (Linux)</p></li>
-</ol>
-<p><strong>Solutions:</strong></p>
-<ol class="arabic">
-<li><p><strong>Check available assets:</strong></p>
-<p>Visit the GitHub release page and see what’s available.</p>
-</li>
-<li><p><strong>Use source fallback:</strong></p>
-<p>If IVPM can’t find a binary, it should fall back to source. If this fails,
-check if <code class="docutils literal notranslate"><span class="pre">tarball_url</span></code> or <code class="docutils literal notranslate"><span class="pre">zipball_url</span></code> exists.</p>
-</li>
-<li><p><strong>Build from source:</strong></p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Switch to Git source</span>
-<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
-<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool.git</span>
-<span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0.0</span>
-</pre></div>
-</div>
-</li>
-</ol>
-</section>
-<section id="glibc-version-too-new">
-<h3>glibc Version Too New<a class="headerlink" href="#glibc-version-too-new" title="Link to this heading"></a></h3>
-<p><strong>Error:</strong> Binary requires newer glibc</p>
-<p><strong>Check your glibc:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ldd<span class="w"> </span>--version
-ldd<span class="w"> </span><span class="o">(</span>GNU<span class="w"> </span>libc<span class="o">)</span><span class="w"> </span><span class="m">2</span>.31
-</pre></div>
-</div>
-<p><strong>Solution:</strong></p>
-<ol class="arabic simple">
-<li><p>Upgrade your system</p></li>
-<li><p>Use older release</p></li>
-<li><p>Build from source</p></li>
-</ol>
-</section>
-<section id="os-specific-package-not-found">
-<h3>OS-Specific Package Not Found<a class="headerlink" href="#os-specific-package-not-found" title="Link to this heading"></a></h3>
-<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">OS-specific</span> <span class="pre">package</span> <span class="pre">found</span> <span class="pre">for</span> <span class="pre">ubuntu-24.04-x86_64</span></code></p>
-<p><strong>Causes:</strong></p>
-<ol class="arabic simple">
-<li><p>Your Linux distribution/version doesn’t have a prebuilt binary</p></li>
-<li><p>Package maintainer only builds for specific distributions</p></li>
-<li><p>Your architecture (aarch64, x86_64) isn’t supported</p></li>
-</ol>
-<p><strong>Solutions:</strong></p>
-<ol class="arabic">
-<li><p><strong>Use source mode:</strong></p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
-<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
-<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
-<span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Download source instead</span>
-</pre></div>
-</div>
-</li>
-<li><p><strong>Check available distributions:</strong></p>
-<p>The error message lists available OS-specific packages. Consider using
-a supported distribution or asking the maintainer to add support.</p>
-</li>
-<li><p><strong>Try a compatible version:</strong></p>
-<p>Sometimes binaries from similar distributions work (e.g., Ubuntu 22.04
-binary might work on Ubuntu 24.04). However, IVPM enforces exact matches
-to prevent compatibility issues.</p>
-</li>
-</ol>
-</section>
-<section id="cannot-determine-linux-distribution">
-<h3>Cannot Determine Linux Distribution<a class="headerlink" href="#cannot-determine-linux-distribution" title="Link to this heading"></a></h3>
-<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">OS-specific</span> <span class="pre">packages</span> <span class="pre">found</span> <span class="pre">but</span> <span class="pre">unable</span> <span class="pre">to</span> <span class="pre">determine</span> <span class="pre">Linux</span> <span class="pre">distribution</span></code></p>
-<p><strong>Cause:</strong> IVPM couldn’t read <code class="docutils literal notranslate"><span class="pre">/etc/os-release</span></code> or it’s missing distribution info</p>
-<p><strong>Check your system:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>/etc/os-release
-<span class="nv">NAME</span><span class="o">=</span><span class="s2">&quot;Ubuntu&quot;</span>
-<span class="nv">VERSION_ID</span><span class="o">=</span><span class="s2">&quot;24.04&quot;</span>
-...
-</pre></div>
-</div>
-<p><strong>Solutions:</strong></p>
-<ol class="arabic">
-<li><p><strong>Use source mode:</strong></p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
-<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
-<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
-<span class="w">  </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-</pre></div>
-</div>
-</li>
-<li><p><strong>Ensure /etc/os-release exists:</strong></p>
-<p>Most modern Linux distributions include this file. If missing, you may
-be on a very old or custom system.</p>
-</li>
-</ol>
-</section>
-<section id="no-release-found">
-<h3>No Release Found<a class="headerlink" href="#no-release-found" title="Link to this heading"></a></h3>
-<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">Failed</span> <span class="pre">to</span> <span class="pre">find</span> <span class="pre">latest</span> <span class="pre">release</span></code> or <code class="docutils literal notranslate"><span class="pre">No</span> <span class="pre">release</span> <span class="pre">matches</span> <span class="pre">version</span> <span class="pre">spec</span></code></p>
-<p><strong>Causes:</strong></p>
-<ol class="arabic simple">
-<li><p>Repository has no releases</p></li>
-<li><p>All releases are pre-releases (and <code class="docutils literal notranslate"><span class="pre">prerelease:</span> <span class="pre">false</span></code>)</p></li>
-<li><p>Version spec doesn’t match any release</p></li>
-</ol>
-<p><strong>Solutions:</strong></p>
-<ol class="arabic">
-<li><p><strong>Check releases exist:</strong></p>
-<p>Visit <code class="docutils literal notranslate"><span class="pre">https://github.com/org/repo/releases</span></code></p>
-</li>
-<li><p><strong>Enable prereleases:</strong></p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tool</span>
-<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/tool</span>
-<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gh-rls</span>
-<span class="w">  </span><span class="nt">prerelease</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-</pre></div>
-</div>
-</li>
-<li><p><strong>Adjust version spec:</strong></p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Too specific</span>
-<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span>
-
-<span class="c1"># More flexible</span>
-<span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&gt;=1.0&quot;</span>
-</pre></div>
-</div>
-</li>
-</ol>
-</section>
-<section id="rate-limiting-github-api">
-<h3>Rate Limiting (GitHub API)<a class="headerlink" href="#rate-limiting-github-api" title="Link to this heading"></a></h3>
-<p><strong>Error:</strong> <code class="docutils literal notranslate"><span class="pre">HTTP</span> <span class="pre">403</span></code> or rate limit message</p>
-<p><strong>Cause:</strong> GitHub API rate limits (60 requests/hour for unauthenticated)</p>
-<p><strong>Solution:</strong></p>
-<p>Set <code class="docutils literal notranslate"><span class="pre">GITHUB_TOKEN</span></code> environment variable:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">GITHUB_TOKEN</span><span class="o">=</span>ghp_your_token_here
-ivpm<span class="w"> </span>update
-</pre></div>
-</div>
-<p>Get a token from: <a class="reference external" href="https://github.com/settings/tokens">https://github.com/settings/tokens</a></p>
-</section>
-<section id="asset-naming-issues">
-<h3>Asset Naming Issues<a class="headerlink" href="#asset-naming-issues" title="Link to this heading"></a></h3>
-<p><strong>Problem:</strong> IVPM doesn’t detect your platform’s binary</p>
-<p><strong>Cause:</strong> Asset naming doesn’t match IVPM’s patterns</p>
-<p><strong>Example release assets:</strong></p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-linux64.tar.gz</span></code> ← Not detected (needs more specific pattern)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-linux-x86_64.tar.gz</span></code> ← Detected (generic Linux)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-manylinux_2_17_x86_64.tar.gz</span></code> ← Detected (manylinux)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0-macosx.tar.gz</span></code> ← Detected (has “mac”)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">tool-1.0.tar.gz</span></code> ← Used as fallback source</p></li>
-</ul>
-<p><strong>Supported naming patterns:</strong></p>
-<ul class="simple">
-<li><p><strong>Linux OS-specific:</strong> <code class="docutils literal notranslate"><span class="pre">ubuntu-22.04-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">debian-11-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">fedora-39-arch</span></code></p></li>
-<li><p><strong>Linux manylinux:</strong> <code class="docutils literal notranslate"><span class="pre">manylinux_X_Y_arch</span></code>, <code class="docutils literal notranslate"><span class="pre">manylinux2014_arch</span></code></p></li>
-<li><p><strong>Linux generic:</strong> <code class="docutils literal notranslate"><span class="pre">linux-arch</span></code>, <code class="docutils literal notranslate"><span class="pre">linux_arch</span></code></p></li>
-<li><p><strong>macOS:</strong> <code class="docutils literal notranslate"><span class="pre">macos</span></code>, <code class="docutils literal notranslate"><span class="pre">darwin</span></code>, <code class="docutils literal notranslate"><span class="pre">osx</span></code> with optional <code class="docutils literal notranslate"><span class="pre">x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">arm64</span></code>, <code class="docutils literal notranslate"><span class="pre">aarch64</span></code></p></li>
-<li><p><strong>Windows:</strong> <code class="docutils literal notranslate"><span class="pre">windows</span></code>, <code class="docutils literal notranslate"><span class="pre">win64</span></code>, <code class="docutils literal notranslate"><span class="pre">win32</span></code>, <code class="docutils literal notranslate"><span class="pre">win</span></code> with optional <code class="docutils literal notranslate"><span class="pre">x86_64</span></code>, <code class="docutils literal notranslate"><span class="pre">amd64</span></code></p></li>
-</ul>
-<p><strong>Workaround:</strong></p>
-<p>Contact package maintainer to use standard naming patterns listed above.</p>
-</section>
-</section>
 <section id="best-practices">
 <h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
 <ol class="arabic simple">
@@ -928,6 +748,8 @@ instead of platform-specific binaries.</p>
 <li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - All source type options</p></li>
 <li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Caching GitHub Release binaries</p></li>
 <li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic dependency setup</p></li>
+<li><p><a class="reference internal" href="troubleshooting.html"><span class="doc">Troubleshooting</span></a> - Solutions to common problems</p></li>
+<li><p><a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> - How handlers process packages</p></li>
 </ul>
 </section>
 </section>

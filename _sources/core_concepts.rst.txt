@@ -2,308 +2,180 @@
 Core Concepts
 ##############
 
-Understanding IVPM's Core Model
-================================
+This page explains the mental model behind IVPM.  Understanding these
+concepts makes the rest of the documentation easier to navigate.
 
-IVPM uses a project-local approach to package management. Unlike system-wide 
-package managers, IVPM stores all dependencies within each project, making 
-projects self-contained and portable.
+Project-Local Management
+========================
 
-.. image:: imgs/ivpm_system.excalidraw.svg
-   :alt: IVPM System Architecture
-
-Project Structure
-=================
+IVPM stores all dependencies inside each project, making projects
+self-contained and portable.  There is no global package database and no
+shared state between projects.
 
 A typical IVPM-enabled project has this structure::
 
     my-project/
     ├── ivpm.yaml                 # Package configuration
     ├── packages/                 # Dependencies directory
-    │   ├── python/              # Python virtual environment
+    │   ├── python/              # Python virtual environment (if needed)
     │   ├── dependency-1/        # Source package (editable)
     │   ├── dependency-2/        # Cached package (symlink, read-only)
     │   └── ...
     ├── src/                     # Your project source
     └── ...
 
-Key Concepts
-============
+The ``packages/`` directory is created by ``ivpm update`` and is typically
+listed in ``.gitignore``.  Deleting it and re-running ``ivpm update``
+recreates the entire environment from scratch.
 
-Packages
---------
 
-A **package** is a unit of software that your project depends on. Packages can be:
+The Update Pipeline
+===================
 
-- **Source packages**: Git repositories, local directories
-- **Binary packages**: Pre-built archives, PyPI packages
-- **Data packages**: Configuration, test data, IP cores
+When you run ``ivpm update``, IVPM executes a three-stage pipeline:
+
+.. code-block:: text
+
+    ┌───────────────────────────────────────────────────────┐
+    │ Stage 1: Resolution                                   │
+    │   Read ivpm.yaml, select dependency set,              │
+    │   resolve sub-dependencies recursively                │
+    └──────────────────────┬────────────────────────────────┘
+                           │
+    ┌──────────────────────▼────────────────────────────────┐
+    │ Stage 2: Fetch                                        │
+    │   Fetch each package by source type                   │
+    │   (git, pypi, http, gh-rls, dir, file)                │
+    │                                                       │
+    │   As each package lands on disk, leaf handlers         │
+    │   inspect it concurrently                             │
+    └──────────────────────┬────────────────────────────────┘
+                           │
+    ┌──────────────────────▼────────────────────────────────┐
+    │ Stage 3: Process                                      │
+    │   Root handlers run sequentially (by phase number)    │
+    │     - Python handler: create venv, install packages   │
+    │     - Direnv handler: write packages.envrc            │
+    │     - Skills handler: write SKILLS.md                 │
+    │                                                       │
+    │   Lock file written (packages/package-lock.json)      │
+    └───────────────────────────────────────────────────────┘
+
+**Stage 1 -- Resolution:**
+IVPM reads ``ivpm.yaml``, selects the active dependency set (via ``-d`` flag
+or ``default-dep-set``), and walks sub-package ``ivpm.yaml`` files
+recursively to build a complete dependency graph.
+
+**Stage 2 -- Fetch:**
+Each package is fetched according to its *source type* -- ``git`` clones a
+repository, ``pypi`` downloads from PyPI, ``http`` fetches an archive, and
+so on.  Fetches run in parallel.  As each package becomes available on disk,
+registered :doc:`handlers <handlers>` run their **leaf callbacks**
+concurrently to detect and classify the package.
+
+**Stage 3 -- Process:**
+After all packages are fetched, handlers run their **root callbacks** on the
+main thread.  The Python handler creates a virtual environment and installs
+Python packages.  Other handlers generate configuration files.  Finally,
+the lock file is written.
+
+For details on the handler mechanism, see :doc:`handlers`.
+
+
+Source Types and Content Types
+==============================
 
 Every package has two key attributes:
 
-1. **Source Type**: How to fetch the package (git, pypi, http, etc.)
-2. **Package Type**: What the package contains (python, raw)
+**Source type** -- how to fetch the package:
 
-Dependencies
-------------
+- ``git`` -- clone a Git repository
+- ``pypi`` -- install from the Python Package Index
+- ``http`` -- download an archive via HTTP/HTTPS
+- ``gh-rls`` -- download from a GitHub Release
+- ``dir`` -- symlink a local directory
+- ``file`` -- use a local archive file
 
-**Dependencies** are the packages your project needs. IVPM automatically:
+**Content type** -- what the package contains and how to process it:
 
-- Fetches missing dependencies
-- Resolves sub-dependencies recursively
-- Orders installation based on setup requirements
-- Handles both development and release dependency profiles
+- ``python`` -- a Python package (installed into the venv by the Python handler)
+- ``raw`` -- data, HDL, or other files (placed in ``packages/`` with no further processing)
+
+These attributes are independent: a ``git`` source can contain a ``python``
+package or a ``raw`` package.  IVPM auto-detects both in most cases.
+
+For complete attribute reference and auto-detection rules, see
+:doc:`package_types`.
+
 
 Dependency Sets
----------------
+===============
 
-**Dependency sets** are named collections of dependencies. They allow you to:
+**Dependency sets** are named collections of dependencies that let you
+maintain different profiles for different scenarios:
 
-- Separate development dependencies from release dependencies
-- Create different profiles for different build targets
-- Control which sub-dependencies get loaded
-
-Common dependency set names:
-
-- ``default`` - Runtime/release dependencies
-- ``default-dev`` - Development dependencies (includes tools, test frameworks)
-- Custom names - Any profile you define
-
-Example::
+.. code-block:: yaml
 
     package:
       name: my-project
       default-dep-set: default-dev
-      
+
       dep-sets:
-        - name: default
+        - name: default           # Release: runtime dependencies only
           deps:
             - name: core-lib
               url: https://github.com/org/core-lib.git
-        
-        - name: default-dev
+
+        - name: default-dev       # Development: adds test tools
+          uses: default
           deps:
-            - name: core-lib
-              url: https://github.com/org/core-lib.git
             - name: pytest
               src: pypi
-            - name: test-data
-              url: https://github.com/org/test-data.git
 
-Recursive Dependency Resolution
-================================
+Common uses: separating dev from release dependencies, creating different
+build-target profiles, and controlling which sub-dependencies get loaded.
 
-IVPM automatically resolves dependencies recursively:
+For complete dependency set documentation, see :doc:`dependency_sets`.
 
-1. Load root project's ``ivpm.yaml``
-2. Select the active dependency set
-3. For each dependency:
-   
-   a. Fetch the package source
-   b. If the package has ``ivpm.yaml``, resolve its dependencies
-   c. Continue recursively for all sub-dependencies
 
-4. Build a complete dependency graph
-5. Install packages in the correct order
+Recursive Sub-Dependencies
+==========================
 
-.. code-block:: text
+When a fetched package has its own ``ivpm.yaml``, IVPM resolves its
+dependencies recursively.  By default, sub-packages inherit the parent's
+dependency set name.  You can override this per-package:
 
-    Root Project (default-dev)
-        ↓
-    ├─ Package A (inherits default-dev)
-    │   ├─ Sub-package A1
-    │   └─ Sub-package A2
-    ├─ Package B (uses custom dep-set)
-    │   └─ Sub-package B1
-    └─ Package C (no sub-dependencies)
-
-Package Types vs Source Types
-==============================
-
-Understanding the distinction between **package type** and **source type** is crucial:
-
-Source Type: How to Fetch
---------------------------
-
-The **source type** determines how IVPM obtains the package:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 60 20
-
-   * - Source Type
-     - Description
-     - Example
-   * - ``git``
-     - Clone from Git repository
-     - GitHub, GitLab
-   * - ``pypi``
-     - Install from Python Package Index
-     - ``requests``, ``numpy``
-   * - ``http``
-     - Download archive via HTTP/HTTPS
-     - ``.tar.gz``, ``.zip``
-   * - ``file``
-     - Local file
-     - ``file:///path/to/archive.tar.gz``
-   * - ``dir``
-     - Local directory
-     - ``file:///path/to/source``
-   * - ``gh-rls``
-     - GitHub Release asset
-     - Platform-specific binaries
-
-Package Type: What It Contains
--------------------------------
-
-The **package type** determines how IVPM processes the package:
-
-.. list-table::
-   :header-rows: 1
-   :widths: 20 60 20
-
-   * - Package Type
-     - Description
-     - Install Behavior
-   * - ``python``
-     - Python package
-     - Install into venv (editable or binary)
-   * - ``raw``
-     - Data/non-Python files
-     - Place in packages/ directory only
-
-Auto-Detection
---------------
-
-IVPM automatically detects both types in most cases:
-
-**Source Type Detection:**
-
-- URLs ending in ``.git`` → ``git``
-- URLs starting with ``http://`` or ``https://`` → ``http``
-- URLs starting with ``file://`` → ``file`` or ``dir``
-- No URL specified → ``pypi``
-
-**Package Type Detection:**
-
-- Has ``setup.py``, ``setup.cfg``, or ``pyproject.toml`` → ``python``
-- Explicitly ``src: pypi`` → ``python``
-- Otherwise → ``raw``
-
-You can explicitly specify types when auto-detection isn't sufficient::
+.. code-block:: yaml
 
     deps:
-      - name: my-package
-        url: https://example.com/pkg.tar.gz
-        src: http          # Explicitly specify source type
-        type: python       # Explicitly specify package type
+      - name: library-a
+        url: https://github.com/org/library-a.git
+        dep-set: default   # Use release deps even when parent uses default-dev
 
-Project-Local Management
-========================
+This prevents a third-party library's development tools from being pulled
+into your project.
 
-All IVPM operations are project-local:
 
-**Dependencies Directory**
+Lock File and Reproducibility
+==============================
 
-Dependencies are stored in ``packages/`` (configurable via ``deps-dir``)::
-
-    packages/
-    ├── python/           # Virtual environment
-    │   ├── bin/
-    │   ├── lib/
-    │   └── ...
-    ├── package-a/        # Source dependency
-    ├── package-b/        # Source dependency
-    └── package-c/        # Link to cache
-
-**Python Virtual Environment**
-
-IVPM creates a project-local Python virtual environment::
-
-    packages/python/
-    ├── bin/
-    │   ├── python       # Project-specific Python
-    │   └── pip
-    └── lib/
-        └── python3.x/
-            └── site-packages/
-
-**Benefits:**
-
-- No system-wide state
-- Each project is isolated
-- Easy to delete and recreate
-- Portable across machines
-- Multiple projects can coexist
-
-Working with IVPM
-=================
-
-Typical Workflow
-----------------
-
-1. **Clone a project**::
-
-    ivpm clone https://github.com/org/project.git
-
-2. **Update dependencies** (done automatically by clone)::
-
-    ivpm update
-
-3. **Activate environment**::
-
-    ivpm activate
-    # Or for one command:
-    ivpm activate -c "pytest"
-
-4. **Work on code**, make changes
-
-5. **Check status** of Git dependencies::
-
-    ivpm status
-
-6. **Sync** Git dependencies with upstream::
-
-    ivpm sync
-
-Dependency Set Selection
--------------------------
-
-Choose which dependency set to use:
-
-**Via command line:**
+Every ``ivpm update`` writes ``packages/package-lock.json``, recording the
+exact resolved identity of every fetched package (git commit hashes, release
+tags, pip versions, HTTP ETags).  This file enables exact workspace
+reproduction:
 
 .. code-block:: bash
 
-    # Use development dependencies
-    ivpm update -d default-dev
-    
-    # Use release dependencies
-    ivpm update -d default
+    # Reproduce an archived workspace
+    $ ivpm update --lock-file ./ivpm.lock
 
-**Via ivpm.yaml:**
+For full details, see :doc:`package_lock`.
 
-.. code-block:: yaml
-
-    package:
-      name: my-project
-      default-dep-set: default-dev  # Used if no -d specified
-
-**Via sub-package override:**
-
-.. code-block:: yaml
-
-    deps:
-      - name: sub-package
-        url: https://github.com/org/sub.git
-        dep-set: production  # This package uses 'production' dep-set
 
 Next Steps
 ==========
 
-Now that you understand the core concepts:
-
-- Learn about :doc:`dependency_sets` in detail
-- Understand :doc:`package_types` and all available options
-- Explore :doc:`caching` for faster updates
-- See :doc:`python_packages` for Python-specific features
+- :doc:`handlers` -- How handlers process packages (Python, Direnv, Skills)
+- :doc:`getting_started` -- Install IVPM and set up your first project
+- :doc:`dependency_sets` -- Dependency set patterns and inheritance
+- :doc:`package_types` -- All source types, content types, and attributes
