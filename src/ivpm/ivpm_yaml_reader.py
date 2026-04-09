@@ -104,9 +104,9 @@ class IvpmYamlReader(object):
 
         for key in with_data.keys():
             if key not in _KNOWN_WITH_KEYS:
-                from .utils import fatal
-                fatal("Unknown key '%s' in package.with in %s; known keys: %s" % (
-                    key, name, ", ".join(sorted(_KNOWN_WITH_KEYS))))
+                # Store handler-specific config for later consumption
+                # by registered handlers (e.g. cbwa, direnv).
+                info.handler_configs[key] = with_data[key]
 
         if "python" in with_data.keys():
             py_data = with_data["python"]
@@ -324,7 +324,6 @@ class IvpmYamlReader(object):
             raise Exception(
                 "No variable-directive setting (value, path, path-append, path-prepend) specified")
         info.env_settings.append(EnvSpec(evar["name"], val, act))
-
 
 
 

@@ -115,6 +115,7 @@ class ProjectOps(object):
                 event_dispatcher=event_dispatcher,
                 python_config=proj_info.python_config,
             )
+            handler_update_info.handler_configs = proj_info.handler_configs
             handler_update_info._tui_ref = tui
 
             # Root pre-load: let handlers initialise before any packages are fetched
@@ -366,5 +367,4 @@ class ProjectOps(object):
             ds = proj_info.dep_set_m[dep_set]
         
         return ds
-
 

@@ -87,6 +87,10 @@ class ProjInfo():
         # Configuration for the python handler from 'package.with.python:'.
         # None means the project did not declare ``with.python`` at all.
         self.python_config : Optional[PythonConfig] = None
+        # Generic handler configuration from 'package.with.<key>:' entries
+        # that are not handled by the core reader.  Keyed by the with-key
+        # name (e.g. "cbwa"), value is the raw dict/value from YAML.
+        self.handler_configs : Dict[str, object] = {}
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()
