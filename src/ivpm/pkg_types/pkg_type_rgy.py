@@ -56,6 +56,8 @@ class PkgTypeRgy(object):
         """
         from ..show.info_types import PkgSourceInfo
         if src in self.src2fact_m.keys():
+            if self.src2fact_m[src][0] is f:
+                return # identical duplicate
             raise Exception("Duplicate registration of src %s ; this type=%s ; original type=%s" % (
                             src,
                             str(f),
