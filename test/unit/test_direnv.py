@@ -46,8 +46,8 @@ class TestDirenv(TestBase):
         self.assertFalse(os.path.isfile(envrc_path),
                          "packages.envrc should NOT be generated when no envrc files exist")
 
-    def test_dotenvrc_used_when_no_export(self):
-        """A package with only .envrc (no export.envrc) is included via .envrc."""
+    def test_dotenvrc_ignored_without_explicit_config(self):
+        """A package with only .envrc (no export.envrc, no explicit config) is NOT collected."""
         self.mkFile("ivpm.yaml", """
         package:
             name: test_direnv_dotenvrc
@@ -62,10 +62,30 @@ class TestDirenv(TestBase):
         self.ivpm_update(skip_venv=True)
 
         envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
-        self.assertTrue(os.path.isfile(envrc_path))
+        self.assertFalse(os.path.isfile(envrc_path),
+                         "packages.envrc should NOT be generated when .envrc has no explicit config")
+
+    def test_explicit_envrc_config(self):
+        """A package that declares with.direnv.envrc publishes that file."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_direnv_explicit
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: envrc_leaf3
+                      url: file://${DATA_DIR}/envrc_leaf3
+                      src: dir
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
+        self.assertTrue(os.path.isfile(envrc_path),
+                        "packages.envrc should be generated when package opts in via explicit config")
         with open(envrc_path) as f:
             content = f.read()
-        self.assertIn("source_env ./envrc_leaf2/.envrc", content)
+        self.assertIn("source_env ./envrc_leaf3/.envrc", content)
 
     def test_dependency_order(self):
         """Leaf packages appear before dependents in packages.envrc."""
@@ -89,17 +109,17 @@ class TestDirenv(TestBase):
 
         # All three packages should appear
         self.assertIn("envrc_leaf1/export.envrc", content)
-        self.assertIn("envrc_leaf2/.envrc", content)
+        self.assertIn("envrc_leaf3/.envrc", content)
         self.assertIn("envrc_nonleaf/export.envrc", content)
 
         # Leaves must appear before the non-leaf that depends on them
         idx_leaf1 = content.index("envrc_leaf1")
-        idx_leaf2 = content.index("envrc_leaf2")
+        idx_leaf3 = content.index("envrc_leaf3")
         idx_nonleaf = content.index("envrc_nonleaf")
         self.assertLess(idx_leaf1, idx_nonleaf,
                         "envrc_leaf1 should appear before envrc_nonleaf")
-        self.assertLess(idx_leaf2, idx_nonleaf,
-                        "envrc_leaf2 should appear before envrc_nonleaf")
+        self.assertLess(idx_leaf3, idx_nonleaf,
+                        "envrc_leaf3 should appear before envrc_nonleaf")
 
     def test_export_envrc_preferred_over_dotenvrc(self):
         """export.envrc is preferred when a package has both files."""

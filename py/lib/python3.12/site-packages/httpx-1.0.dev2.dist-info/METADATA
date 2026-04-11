@@ -1,0 +1,18 @@
+Metadata-Version: 2.4
+Name: httpx
+Version: 1.0.dev2
+Summary: HTTP, for Python.
+Author-email: Tom Christie <tom@tomchristie.com>
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
+Classifier: Topic :: Internet :: WWW/HTTP
+Requires-Python: >=3.10
+Requires-Dist: h11==0.*
+Requires-Dist: truststore==0.10

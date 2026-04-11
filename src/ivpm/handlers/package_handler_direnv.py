@@ -30,11 +30,11 @@ _logger = logging.getLogger("ivpm.handlers.package_handler_direnv")
 @dc.dataclass
 class PackageHandlerDirenv(PackageHandler):
     name               = "direnv"
-    description        = "Collects .envrc / export.envrc files from packages and generates a combined packages.envrc"
+    description        = "Collects envrc files from packages and generates a combined packages.envrc"
     leaf_when          = None
     root_when          = None
     phase              = 0
-    conditions_summary = "leaf: all non-PyPI packages with a .envrc or export.envrc file; root: only when at least one such package is present"
+    conditions_summary = "leaf: non-PyPI packages with export.envrc, or with direnv.envrc specified in package.with; root: only when at least one such package is present"
 
     @classmethod
     def handler_info(cls):
@@ -44,7 +44,11 @@ class PackageHandlerDirenv(PackageHandler):
             description=cls.description,
             phase=cls.phase,
             conditions=cls.conditions_summary,
-            notes="Generates packages/packages.envrc that sources each package's envrc in topological order.",
+            notes=(
+                "Generates packages/packages.envrc that sources each package's envrc in topological order. "
+                "By default, only export.envrc is collected. A package can publish any envrc file by "
+                "specifying package: { with: { direnv: { envrc: <relpath> } } } in its ivpm.yaml."
+            ),
         )
     # package name -> (Package, envrc filename)
     envrc_pkgs: Dict[str, tuple] = dc.field(default_factory=dict)
@@ -53,17 +57,44 @@ class PackageHandlerDirenv(PackageHandler):
         self.envrc_pkgs = {}
 
     def on_leaf_post_load(self, pkg: Package, update_info):
-        """Record packages that provide an export.envrc or .envrc file."""
+        """Record packages that publish an envrc file.
+
+        The envrc file is chosen as follows:
+        1. If the package's own ivpm.yaml specifies
+           ``package: { with: { direnv: { envrc: <relpath> } } }``, that path
+           is used (relative to the package root).
+        2. Otherwise, only ``export.envrc`` is looked for automatically.
+           A bare ``.envrc`` is intentionally not collected unless the package
+           explicitly opts in via the config above.
+        """
         if not hasattr(pkg, "path") or pkg.path is None:
             return
         if getattr(pkg, "src_type", None) == "pypi":
             return
-        for candidate in ("export.envrc", ".envrc"):
+
+        # Check whether the package's own ivpm.yaml declares an explicit envrc.
+        explicit_envrc = None
+        if pkg.proj_info is not None:
+            direnv_cfg = pkg.proj_info.handler_configs.get("direnv")
+            if isinstance(direnv_cfg, dict):
+                explicit_envrc = direnv_cfg.get("envrc")
+
+        if explicit_envrc is not None:
+            candidate = explicit_envrc
             if os.path.isfile(os.path.join(pkg.path, candidate)):
                 with self._lock:
                     self.envrc_pkgs[pkg.name] = (pkg, candidate)
-                _logger.debug("Package %s has %s", pkg.name, candidate)
-                break
+                _logger.debug("Package %s exports %s (explicit)", pkg.name, candidate)
+            else:
+                _logger.warning(
+                    "Package %s specifies direnv.envrc=%s but file not found",
+                    pkg.name, candidate)
+        else:
+            # Default: only auto-collect export.envrc
+            if os.path.isfile(os.path.join(pkg.path, "export.envrc")):
+                with self._lock:
+                    self.envrc_pkgs[pkg.name] = (pkg, "export.envrc")
+                _logger.debug("Package %s has export.envrc", pkg.name)
 
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         if not self.envrc_pkgs:

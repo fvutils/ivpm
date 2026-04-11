@@ -1,0 +1,858 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git Integration &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Integrations" href="integrations.html" />
+    <link rel="prev" title="Development Workflows" href="workflows.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Git Integration</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#clone-options">Clone Options</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#ssh-vs-https">SSH vs HTTPS</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#anonymous-https-cloning">Anonymous (HTTPS) Cloning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#url-formats">URL Formats</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#version-selection">Version Selection</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#branch-selection">Branch Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tag-selection">Tag Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#commit-selection">Commit Selection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#default-behavior">Default Behavior</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#clone-depth">Clone Depth</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#shallow-clones">Shallow Clones</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#full-history">Full History</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#when-to-use-each">When to Use Each</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#git-submodules">Git Submodules</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#automatic-support">Automatic Support</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#no-configuration-needed">No Configuration Needed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#nested-submodules">Nested Submodules</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#status-command">Status Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#checking-package-status">Checking Package Status</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#what-it-shows">What It Shows</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#use-cases">Use Cases</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#status-for-specific-package">Status for Specific Package</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#sync-command">Sync Command</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#synchronizing-with-upstream">Synchronizing with Upstream</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#handling-conflicts">Handling Conflicts</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#selective-sync">Selective Sync</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#safe-sync-strategy">Safe Sync Strategy</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#when-not-to-sync">When NOT to Sync</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-git-workflows">Complete Git Workflows</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#workflow-1-contributing-to-a-dependency">Workflow 1: Contributing to a Dependency</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#workflow-2-testing-upstream-changes">Workflow 2: Testing Upstream Changes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#workflow-3-bisecting-a-bug">Workflow 3: Bisecting a Bug</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#workflow-4-pinning-after-testing">Workflow 4: Pinning After Testing</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#integration-with-git-hooks">Integration with Git Hooks</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#pre-commit-hook">Pre-commit Hook</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#post-merge-hook">Post-merge Hook</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#advanced-patterns">Advanced Patterns</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#multiple-remotes">Multiple Remotes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#working-with-forks">Working with Forks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#sparse-checkout">Sparse Checkout</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#detached-head-state">Detached HEAD State</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#merge-conflicts-during-sync">Merge Conflicts During Sync</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#cannot-push-changes">Cannot Push Changes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#submodule-issues">Submodule Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Git Integration</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/git_integration.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="git-integration">
+<h1>Git Integration<a class="headerlink" href="#git-integration" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM provides deep integration with Git for managing source dependencies.
+This includes cloning repositories, tracking changes, and synchronizing with
+upstream sources.</p>
+</section>
+<section id="clone-options">
+<h2>Clone Options<a class="headerlink" href="#clone-options" title="Link to this heading"></a></h2>
+<section id="ssh-vs-https">
+<h3>SSH vs HTTPS<a class="headerlink" href="#ssh-vs-https" title="Link to this heading"></a></h3>
+<p>By default, IVPM converts HTTPS URLs to SSH format for authenticated access:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="c1"># Actually clones as: git@github.com:org/my-lib.git</span>
+</pre></div>
+</div>
+<p><strong>Why SSH?</strong></p>
+<ul class="simple">
+<li><p>No password prompts</p></li>
+<li><p>Uses your SSH key</p></li>
+<li><p>Better for frequent operations</p></li>
+<li><p>Standard for development</p></li>
+</ul>
+</section>
+<section id="anonymous-https-cloning">
+<h3>Anonymous (HTTPS) Cloning<a class="headerlink" href="#anonymous-https-cloning" title="Link to this heading"></a></h3>
+<p>Force HTTPS cloning (no SSH key required):</p>
+<p><strong>Per-package:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Command-line:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-a<span class="w"> </span>https://github.com/org/project.git
+</pre></div>
+</div>
+<p><strong>Use cases:</strong></p>
+<ul class="simple">
+<li><p>CI/CD without SSH keys</p></li>
+<li><p>Public repositories</p></li>
+<li><p>One-time checkouts</p></li>
+<li><p>Read-only access</p></li>
+</ul>
+</section>
+<section id="url-formats">
+<h3>URL Formats<a class="headerlink" href="#url-formats" title="Link to this heading"></a></h3>
+<p>IVPM supports multiple Git URL formats:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># HTTPS (converted to SSH by default)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib1</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib1.git</span>
+
+<span class="c1"># SSH (used directly)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib2</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git@github.com:org/lib2.git</span>
+
+<span class="c1"># File protocol (local)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib3</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///path/to/repo.git</span>
+
+<span class="c1"># Git protocol</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib4</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git://github.com/org/lib4.git</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="version-selection">
+<h2>Version Selection<a class="headerlink" href="#version-selection" title="Link to this heading"></a></h2>
+<section id="branch-selection">
+<h3>Branch Selection<a class="headerlink" href="#branch-selection" title="Link to this heading"></a></h3>
+<p>Clone a specific branch:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">develop</span>
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ul class="simple">
+<li><p>Checks out the specified branch</p></li>
+<li><p>Tracks the remote branch</p></li>
+<li><p>Can be updated with <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code></p></li>
+</ul>
+<p><strong>Command-line (clone):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git<span class="w"> </span>-b<span class="w"> </span>feature/new
+</pre></div>
+</div>
+<p>If the branch exists remotely, it tracks it. If not, creates a new local branch.</p>
+</section>
+<section id="tag-selection">
+<h3>Tag Selection<a class="headerlink" href="#tag-selection" title="Link to this heading"></a></h3>
+<p>Clone a specific release tag:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">tag</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.2.0</span>
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ul class="simple">
+<li><p>Checks out the specified tag</p></li>
+<li><p>Detached HEAD state</p></li>
+<li><p>Immutable (won’t change with sync)</p></li>
+</ul>
+<p><strong>Use case:</strong> Production deployments, reproducible builds</p>
+</section>
+<section id="commit-selection">
+<h3>Commit Selection<a class="headerlink" href="#commit-selection" title="Link to this heading"></a></h3>
+<p>Clone to a specific commit:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">commit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">abc123def456</span>
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ul class="simple">
+<li><p>Checks out exact commit</p></li>
+<li><p>Detached HEAD state</p></li>
+<li><p>Maximum reproducibility</p></li>
+</ul>
+<p><strong>Use case:</strong> Pinning exact versions for critical dependencies</p>
+</section>
+<section id="default-behavior">
+<h3>Default Behavior<a class="headerlink" href="#default-behavior" title="Link to this heading"></a></h3>
+<p>No branch/tag/commit specified:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+</pre></div>
+</div>
+<p>Clones the repository’s default branch (usually <code class="docutils literal notranslate"><span class="pre">main</span></code> or <code class="docutils literal notranslate"><span class="pre">master</span></code>).</p>
+</section>
+</section>
+<section id="clone-depth">
+<h2>Clone Depth<a class="headerlink" href="#clone-depth" title="Link to this heading"></a></h2>
+<section id="shallow-clones">
+<h3>Shallow Clones<a class="headerlink" href="#shallow-clones" title="Link to this heading"></a></h3>
+<p>Limit history depth for faster cloning:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">large-repo</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/large-repo.git</span>
+<span class="w">    </span><span class="nt">depth</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</pre></div>
+</div>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Faster clone</p></li>
+<li><p>Less disk space</p></li>
+<li><p>Reduced bandwidth</p></li>
+</ul>
+<p><strong>Limitations:</strong></p>
+<ul class="simple">
+<li><p>Limited history</p></li>
+<li><p>Cannot easily switch branches</p></li>
+<li><p>Some Git operations restricted</p></li>
+</ul>
+<p><strong>Depth values:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code> - Only latest commit</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">10</span></code> - Last 10 commits</p></li>
+<li><p>Unspecified - Full history (default)</p></li>
+</ul>
+</section>
+<section id="full-history">
+<h3>Full History<a class="headerlink" href="#full-history" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="c1"># No depth specified = full history</span>
+</pre></div>
+</div>
+<p><strong>Benefits:</strong></p>
+<ul class="simple">
+<li><p>Complete history</p></li>
+<li><p>Full Git functionality</p></li>
+<li><p>Easy branch switching</p></li>
+<li><p>Better for development</p></li>
+</ul>
+<p><strong>Use when:</strong></p>
+<ul class="simple">
+<li><p>Actively developing the package</p></li>
+<li><p>Need to browse history</p></li>
+<li><p>Switching between branches/tags</p></li>
+</ul>
+</section>
+<section id="when-to-use-each">
+<h3>When to Use Each<a class="headerlink" href="#when-to-use-each" title="Link to this heading"></a></h3>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 35.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Scenario</p></th>
+<th class="head"><p>Recommendation</p></th>
+<th class="head"><p>Reason</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Active development</p></td>
+<td><p>Full history</p></td>
+<td><p>Need Git features</p></td>
+</tr>
+<tr class="row-odd"><td><p>Cached dependency</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code></p></td>
+<td><p>Speed, space</p></td>
+</tr>
+<tr class="row-even"><td><p>Read-only use</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code></p></td>
+<td><p>Speed, space</p></td>
+</tr>
+<tr class="row-odd"><td><p>Production deploy</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code> + tag</p></td>
+<td><p>Minimal, reproducible</p></td>
+</tr>
+<tr class="row-even"><td><p>CI/CD</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code></p></td>
+<td><p>Speed</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+<section id="git-submodules">
+<h2>Git Submodules<a class="headerlink" href="#git-submodules" title="Link to this heading"></a></h2>
+<section id="automatic-support">
+<h3>Automatic Support<a class="headerlink" href="#automatic-support" title="Link to this heading"></a></h3>
+<p>IVPM automatically initializes submodules when <code class="docutils literal notranslate"><span class="pre">.gitmodules</span></code> is present:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">repo-with-submodules</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/repo.git</span>
+</pre></div>
+</div>
+<p><strong>What happens:</strong></p>
+<ol class="arabic simple">
+<li><p>Clone main repository</p></li>
+<li><p>Detect <code class="docutils literal notranslate"><span class="pre">.gitmodules</span></code></p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">submodule</span> <span class="pre">update</span> <span class="pre">--init</span> <span class="pre">--recursive</span></code></p></li>
+<li><p>All submodules ready to use</p></li>
+</ol>
+</section>
+<section id="no-configuration-needed">
+<h3>No Configuration Needed<a class="headerlink" href="#no-configuration-needed" title="Link to this heading"></a></h3>
+<p>Submodule initialization is automatic - no special configuration required.</p>
+</section>
+<section id="nested-submodules">
+<h3>Nested Submodules<a class="headerlink" href="#nested-submodules" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">--recursive</span></code> flag handles nested submodules automatically.</p>
+<p>Example Structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>repo/
+├── .gitmodules
+├── submodule1/
+│   └── .gitmodules
+│       └── nested-submodule/
+└── submodule2/
+</pre></div>
+</div>
+<p>All levels initialized automatically.</p>
+</section>
+</section>
+<section id="status-command">
+<h2>Status Command<a class="headerlink" href="#status-command" title="Link to this heading"></a></h2>
+<section id="checking-package-status">
+<h3>Checking Package Status<a class="headerlink" href="#checking-package-status" title="Link to this heading"></a></h3>
+<p>View the status of all Git dependencies:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status
+</pre></div>
+</div>
+<p><strong>Output example:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Package: my-library
+  Path: packages/my-library
+  Branch: main
+  Status: Clean
+  Remote: origin/main
+  Ahead: 0, Behind: 0
+
+Package: test-utils
+  Path: packages/test-utils
+  Branch: develop
+  Status: Modified
+  Modified files:
+    M  src/utils.py
+    ?? new_file.py
+  Remote: origin/develop
+  Ahead: 2, Behind: 1
+</pre></div>
+</div>
+</section>
+<section id="what-it-shows">
+<h3>What It Shows<a class="headerlink" href="#what-it-shows" title="Link to this heading"></a></h3>
+<p>For each Git package:</p>
+<ul class="simple">
+<li><p><strong>Package name</strong></p></li>
+<li><p><strong>Local path</strong></p></li>
+<li><p><strong>Current branch</strong></p></li>
+<li><p><strong>Status</strong>: Clean, Modified, Staged, Ahead/Behind</p></li>
+<li><p><strong>Modified files</strong> (if any)</p></li>
+<li><p><strong>Untracked files</strong> (if any)</p></li>
+<li><p><strong>Commits ahead/behind remote</strong></p></li>
+</ul>
+</section>
+<section id="use-cases">
+<h3>Use Cases<a class="headerlink" href="#use-cases" title="Link to this heading"></a></h3>
+<p><strong>Before committing:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">  </span><span class="c1"># Check for uncommitted changes</span>
+</pre></div>
+</div>
+<p><strong>After pulling:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">  </span><span class="c1"># Check dependency status</span>
+</pre></div>
+</div>
+<p><strong>Daily standup:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">  </span><span class="c1"># Review what you&#39;re working on</span>
+</pre></div>
+</div>
+</section>
+<section id="status-for-specific-package">
+<h3>Status for Specific Package<a class="headerlink" href="#status-for-specific-package" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>status
+</pre></div>
+</div>
+</section>
+</section>
+<section id="sync-command">
+<h2>Sync Command<a class="headerlink" href="#sync-command" title="Link to this heading"></a></h2>
+<section id="synchronizing-with-upstream">
+<h3>Synchronizing with Upstream<a class="headerlink" href="#synchronizing-with-upstream" title="Link to this heading"></a></h3>
+<p>Update all Git packages from their remote origins:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>sync
+</pre></div>
+</div>
+<p><strong>What it does:</strong></p>
+<p>For each Git package on a branch:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">fetch</span> <span class="pre">origin</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">merge</span> <span class="pre">origin/&lt;branch&gt;</span></code></p></li>
+</ol>
+<p><strong>Packages NOT synced:</strong></p>
+<ul class="simple">
+<li><p>Packages on tags (immutable)</p></li>
+<li><p>Packages on specific commits (immutable)</p></li>
+<li><p>Packages with uncommitted changes (safety)</p></li>
+</ul>
+</section>
+<section id="handling-conflicts">
+<h3>Handling Conflicts<a class="headerlink" href="#handling-conflicts" title="Link to this heading"></a></h3>
+<p>If <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> encounters merge conflicts:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>sync
+<span class="c1"># Error in packages/my-library</span>
+
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>status
+<span class="c1"># Resolve conflicts manually</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>resolved-file.py
+$<span class="w"> </span>git<span class="w"> </span>commit
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>sync<span class="w">  </span><span class="c1"># Continue with remaining packages</span>
+</pre></div>
+</div>
+</section>
+<section id="selective-sync">
+<h3>Selective Sync<a class="headerlink" href="#selective-sync" title="Link to this heading"></a></h3>
+<p>Sync specific packages manually:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/specific-package
+$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="safe-sync-strategy">
+<h3>Safe Sync Strategy<a class="headerlink" href="#safe-sync-strategy" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check status first</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>status
+
+<span class="c1"># Stash local changes if needed</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>stash
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+
+<span class="c1"># Sync</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>sync
+
+<span class="c1"># Restore changes</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>stash<span class="w"> </span>pop
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="when-not-to-sync">
+<h3>When NOT to Sync<a class="headerlink" href="#when-not-to-sync" title="Link to this heading"></a></h3>
+<p>Don’t sync if:</p>
+<ul class="simple">
+<li><p>You have uncommitted changes you want to keep</p></li>
+<li><p>You’re working on a feature branch</p></li>
+<li><p>You’ve pinned to a specific commit/tag</p></li>
+<li><p>You’re testing local modifications</p></li>
+</ul>
+</section>
+</section>
+<section id="complete-git-workflows">
+<h2>Complete Git Workflows<a class="headerlink" href="#complete-git-workflows" title="Link to this heading"></a></h2>
+<section id="workflow-1-contributing-to-a-dependency">
+<h3>Workflow 1: Contributing to a Dependency<a class="headerlink" href="#workflow-1-contributing-to-a-dependency" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Create feature branch</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/dependency
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>fix/issue-123
+
+<span class="c1"># 2. Make changes</span>
+$<span class="w"> </span>vim<span class="w"> </span>src/file.py
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>src/file.py
+$<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Fix issue 123&quot;</span>
+
+<span class="c1"># 3. Push to fork</span>
+$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>myfork<span class="w"> </span>git@github.com:me/dependency.git
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>myfork<span class="w"> </span>fix/issue-123
+
+<span class="c1"># 4. Create pull request on GitHub</span>
+
+<span class="c1"># 5. After merge, switch back</span>
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>main
+$<span class="w"> </span>git<span class="w"> </span>pull
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="workflow-2-testing-upstream-changes">
+<h3>Workflow 2: Testing Upstream Changes<a class="headerlink" href="#workflow-2-testing-upstream-changes" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Check current status</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>status
+
+<span class="c1"># 2. Fetch latest</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>fetch<span class="w"> </span>origin
+
+<span class="c1"># 3. Check what&#39;s new</span>
+$<span class="w"> </span>git<span class="w"> </span>log<span class="w"> </span>HEAD..origin/main
+
+<span class="c1"># 4. Test changes</span>
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>origin/main<span class="w">  </span><span class="c1"># Detached HEAD</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+
+<span class="c1"># 5. If good, merge</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>main
+$<span class="w"> </span>git<span class="w"> </span>merge<span class="w"> </span>origin/main
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="workflow-3-bisecting-a-bug">
+<h3>Workflow 3: Bisecting a Bug<a class="headerlink" href="#workflow-3-bisecting-a-bug" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start bisect in dependency</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/buggy-lib
+$<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </span>start
+$<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </span>bad<span class="w">  </span><span class="c1"># Current version is bad</span>
+$<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </span>good<span class="w"> </span>v1.0.0<span class="w">  </span><span class="c1"># Known good version</span>
+
+<span class="c1"># Test each commit</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/buggy-lib
+$<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </span>good<span class="w">  </span><span class="c1"># or &#39;bad&#39;</span>
+
+<span class="c1"># Repeat until found</span>
+
+<span class="c1"># Done</span>
+$<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </span>reset
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="workflow-4-pinning-after-testing">
+<h3>Workflow 4: Pinning After Testing<a class="headerlink" href="#workflow-4-pinning-after-testing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Test current state</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+
+<span class="c1"># 2. Get current commit</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>rev-parse<span class="w"> </span>HEAD
+abc123def456...
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+
+<span class="c1"># 3. Pin in ivpm.yaml</span>
+<span class="c1"># - name: my-library</span>
+<span class="c1">#   url: https://github.com/org/my-library.git</span>
+<span class="c1">#   commit: abc123def456</span>
+
+<span class="c1"># 4. Verify</span>
+$<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/my-library
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="integration-with-git-hooks">
+<h2>Integration with Git Hooks<a class="headerlink" href="#integration-with-git-hooks" title="Link to this heading"></a></h2>
+<section id="pre-commit-hook">
+<h3>Pre-commit Hook<a class="headerlink" href="#pre-commit-hook" title="Link to this heading"></a></h3>
+<p>Check package status before committing:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># .git/hooks/pre-commit</span>
+<span class="c1">#!/bin/bash</span>
+
+<span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Checking IVPM package status...&quot;</span>
+<span class="k">if</span><span class="w"> </span>ivpm<span class="w"> </span>status<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s2">&quot;Modified\|Untracked&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;Warning: Uncommitted changes in dependencies&quot;</span>
+<span class="w">    </span>ivpm<span class="w"> </span>status<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-A<span class="w"> </span><span class="m">10</span><span class="w"> </span><span class="s2">&quot;Modified\|Untracked&quot;</span>
+<span class="w">    </span><span class="nb">read</span><span class="w"> </span>-p<span class="w"> </span><span class="s2">&quot;Continue anyway? (y/n) &quot;</span><span class="w"> </span>-n<span class="w"> </span><span class="m">1</span><span class="w"> </span>-r
+<span class="w">    </span><span class="nb">echo</span>
+<span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="o">[[</span><span class="w"> </span>!<span class="w"> </span><span class="nv">$REPLY</span><span class="w"> </span><span class="o">=</span>~<span class="w"> </span>^<span class="o">[</span>Yy<span class="o">]</span>$<span class="w"> </span><span class="o">]]</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">        </span><span class="nb">exit</span><span class="w"> </span><span class="m">1</span>
+<span class="w">    </span><span class="k">fi</span>
+<span class="k">fi</span>
+</pre></div>
+</div>
+</section>
+<section id="post-merge-hook">
+<h3>Post-merge Hook<a class="headerlink" href="#post-merge-hook" title="Link to this heading"></a></h3>
+<p>Update dependencies after merge:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># .git/hooks/post-merge</span>
+<span class="c1">#!/bin/bash</span>
+
+<span class="k">if</span><span class="w"> </span>git<span class="w"> </span>diff-tree<span class="w"> </span>--name-only<span class="w"> </span>HEAD@<span class="o">{</span><span class="m">1</span><span class="o">}</span><span class="w"> </span>HEAD<span class="w"> </span><span class="p">|</span><span class="w"> </span>grep<span class="w"> </span>-q<span class="w"> </span><span class="s2">&quot;ivpm.yaml&quot;</span><span class="p">;</span><span class="w"> </span><span class="k">then</span>
+<span class="w">    </span><span class="nb">echo</span><span class="w"> </span><span class="s2">&quot;ivpm.yaml changed, running ivpm update...&quot;</span>
+<span class="w">    </span>ivpm<span class="w"> </span>update
+<span class="k">fi</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="advanced-patterns">
+<h2>Advanced Patterns<a class="headerlink" href="#advanced-patterns" title="Link to this heading"></a></h2>
+<section id="multiple-remotes">
+<h3>Multiple Remotes<a class="headerlink" href="#multiple-remotes" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+
+<span class="c1"># Add upstream remote</span>
+$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>upstream<span class="w"> </span>https://github.com/org/my-library.git
+
+<span class="c1"># Fetch from upstream</span>
+$<span class="w"> </span>git<span class="w"> </span>fetch<span class="w"> </span>upstream
+
+<span class="c1"># Merge upstream changes</span>
+$<span class="w"> </span>git<span class="w"> </span>merge<span class="w"> </span>upstream/main
+
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="working-with-forks">
+<h3>Working with Forks<a class="headerlink" href="#working-with-forks" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use your fork</span>
+<span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-library</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/myuser/my-library.git</span>
+<span class="w">    </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-feature</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+
+<span class="c1"># Add original as upstream</span>
+$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>upstream<span class="w"> </span>https://github.com/org/my-library.git
+$<span class="w"> </span>git<span class="w"> </span>fetch<span class="w"> </span>upstream
+
+<span class="c1"># Keep fork updated</span>
+$<span class="w"> </span>git<span class="w"> </span>merge<span class="w"> </span>upstream/main
+$<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>main
+</pre></div>
+</div>
+</section>
+<section id="sparse-checkout">
+<h3>Sparse Checkout<a class="headerlink" href="#sparse-checkout" title="Link to this heading"></a></h3>
+<p>For very large repositories, use sparse checkout:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/huge-repo
+$<span class="w"> </span>git<span class="w"> </span>sparse-checkout<span class="w"> </span>init<span class="w"> </span>--cone
+$<span class="w"> </span>git<span class="w"> </span>sparse-checkout<span class="w"> </span><span class="nb">set</span><span class="w"> </span>path/to/needed/files
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Use branches for development</strong> - Not tags or commits</p></li>
+<li><p><strong>Commit before sync</strong> - Don’t lose local changes</p></li>
+<li><p><strong>Regular status checks</strong> - Know what’s modified</p></li>
+<li><p><strong>Document pin decisions</strong> - Comment why you pinned a commit</p></li>
+<li><p><strong>Use tags for releases</strong> - Immutable, semantic</p></li>
+<li><p><strong>Shallow clones for cache</strong> - Speed up cached dependencies</p></li>
+<li><p><strong>Full history for dev</strong> - Better debugging and history</p></li>
+<li><p><strong>Check before updating</strong> - <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code> first</p></li>
+<li><p><strong>Stash when needed</strong> - <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">stash</span></code> for temporary changes</p></li>
+<li><p><strong>Use .gitignore</strong> - Never commit <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory</p></li>
+</ol>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="detached-head-state">
+<h3>Detached HEAD State<a class="headerlink" href="#detached-head-state" title="Link to this heading"></a></h3>
+<p><strong>Symptom:</strong> Git says “detached HEAD”</p>
+<p><strong>Cause:</strong> Checked out a tag or commit</p>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>main<span class="w">  </span><span class="c1"># Or any branch</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="merge-conflicts-during-sync">
+<h3>Merge Conflicts During Sync<a class="headerlink" href="#merge-conflicts-during-sync" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/conflicted-package
+$<span class="w"> </span>git<span class="w"> </span>status
+$<span class="w"> </span><span class="c1"># Resolve conflicts in files</span>
+$<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>resolved-files
+$<span class="w"> </span>git<span class="w"> </span>commit
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="cannot-push-changes">
+<h3>Cannot Push Changes<a class="headerlink" href="#cannot-push-changes" title="Link to this heading"></a></h3>
+<p><strong>Symptom:</strong> Permission denied when pushing</p>
+<p><strong>Check:</strong></p>
+<ol class="arabic simple">
+<li><p>Is remote URL correct?</p></li>
+<li><p>Do you have write access?</p></li>
+<li><p>Is SSH key configured?</p></li>
+</ol>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
+$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>-v<span class="w">  </span><span class="c1"># Check URL</span>
+$<span class="w"> </span>git<span class="w"> </span>remote<span class="w"> </span>set-url<span class="w"> </span>origin<span class="w"> </span>git@github.com:me/my-library.git
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+<section id="submodule-issues">
+<h3>Submodule Issues<a class="headerlink" href="#submodule-issues" title="Link to this heading"></a></h3>
+<p><strong>Symptom:</strong> Submodules not initialized</p>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/repo-with-submodules
+$<span class="w"> </span>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
+</pre></div>
+</div>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> - Complete development workflows</p></li>
+<li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - Git package configuration</p></li>
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic Git operations</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="workflows.html" class="btn btn-neutral float-left" title="Development Workflows" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="integrations.html" class="btn btn-neutral float-right" title="Integrations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

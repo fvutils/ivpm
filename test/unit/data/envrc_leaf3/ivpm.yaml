@@ -1,0 +1,12 @@
+package:
+  name: envrc_leaf3
+
+  with:
+    direnv:
+      envrc: .envrc
+
+  dep-sets:
+    - name: default-dev
+      deps: []
+    - name: default
+      deps: []

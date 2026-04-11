@@ -1,0 +1,20 @@
+	   docs/source/index.rst
+	   pyproject.toml
+	   src/ivpm/__main__.py
+	   src/ivpm/handlers/__init__.py
+	   src/ivpm/handlers/package_handler.py
+	   src/ivpm/handlers/package_handler_direnv.py
+	   src/ivpm/handlers/package_handler_list.py
+	   src/ivpm/handlers/package_handler_python.py
+	   src/ivpm/handlers/package_handler_rgy.py
+	   src/ivpm/handlers/package_handler_skills.py
+	   src/ivpm/package_updater.py
+	   src/ivpm/project_ops.py
+	   src/ivpm/project_ops_info.py
+	   src/ivpm/update_event.py
+	   src/ivpm/update_tui.py
+
+	docs/source/extending_ivpm.rst
+	src/ivpm/handlers/handler_conditions.py
+	test/unit/test_handler_model.py
+

@@ -1,0 +1,699 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Environment &amp; Paths &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Development Workflows" href="workflows.html" />
+    <link rel="prev" title="GitHub Releases" href="github_releases.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Environment &amp; Paths</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#environment-sets">Environment Sets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#variable-actions">Variable Actions</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#value">value</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#path">path</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#path-append">path-append</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#path-prepend">path-prepend</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#variable-expansion">Variable Expansion</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-environment-example">Complete Environment Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-environment-sets">Using Environment Sets</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#project-paths">Project Paths</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#path-organization">Path Organization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#basic-structure">Basic Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#common-path-categories">Common Path Categories</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#complete-paths-example">Complete Paths Example</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#using-path-information">Using Path Information</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#practical-examples">Practical Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-1-simulation-environment">Example 1: Simulation Environment</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-multi-language-project">Example 2: Multi-Language Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-3-team-development-setup">Example 3: Team Development Setup</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#environment-variable-not-set">Environment Variable Not Set</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#variable-expansion-not-working">Variable Expansion Not Working</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#path-prepend-not-working">Path-prepend Not Working</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Environment &amp; Paths</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/environment_paths.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="environment-paths">
+<h1>Environment &amp; Paths<a class="headerlink" href="#environment-paths" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM provides two mechanisms for managing project-specific configuration:</p>
+<ol class="arabic simple">
+<li><p><strong>Environment Variables</strong> - Set, modify, and export shell variables</p></li>
+<li><p><strong>Project Paths</strong> - Organize and export file paths by category</p></li>
+</ol>
+<p>Both features help tools discover project resources and configuration.</p>
+</section>
+<section id="environment-variables">
+<h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
+<section id="environment-sets">
+<h3>Environment Sets<a class="headerlink" href="#environment-sets" title="Link to this heading"></a></h3>
+<p>Define environment variables in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> using <strong>env-sets</strong>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+
+<span class="w">  </span><span class="nt">env-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MY_VAR</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;hello</span><span class="nv"> </span><span class="s">world&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PROJECT_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}&quot;</span>
+</pre></div>
+</div>
+<p><strong>Built-in Variables:</strong></p>
+<p>IVPM provides these variables automatically:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">IVPM_PROJECT</span></code> - Path to project root directory</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">IVPM_PACKAGES</span></code> - Path to packages directory</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">IVPM_HOME</span></code> - Path to packages directory (deprecated alias)</p></li>
+</ul>
+</section>
+<section id="variable-actions">
+<h3>Variable Actions<a class="headerlink" href="#variable-actions" title="Link to this heading"></a></h3>
+<p>IVPM supports four actions for setting environment variables:</p>
+<section id="value">
+<h4>value<a class="headerlink" href="#value" title="Link to this heading"></a></h4>
+<p>Set a variable to a literal value:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BUILD_TYPE</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;debug&quot;</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MAX_JOBS</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4&quot;</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">BUILD_TYPE</span><span class="o">=</span><span class="s2">&quot;debug&quot;</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">MAX_JOBS</span><span class="o">=</span><span class="s2">&quot;4&quot;</span>
+</pre></div>
+</div>
+<p><strong>With lists</strong> (space-separated):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CFLAGS</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-O2&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-Wall&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-Werror&quot;</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">CFLAGS</span><span class="o">=</span><span class="s2">&quot;-O2 -Wall -Werror&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="path">
+<h4>path<a class="headerlink" href="#path" title="Link to this heading"></a></h4>
+<p>Set a variable as a path (colon-separated):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LD_LIBRARY_PATH</span>
+<span class="w">    </span><span class="nt">path</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/lib1/lib&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/lib2/lib&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;/usr/local/lib&quot;</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">LD_LIBRARY_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/lib1/lib:</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/lib2/lib:/usr/local/lib&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="path-append">
+<h4>path-append<a class="headerlink" href="#path-append" title="Link to this heading"></a></h4>
+<p>Append to an existing path variable:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PATH</span>
+<span class="w">    </span><span class="nt">path-append</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/bin&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/tools/bin&quot;</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># If PATH already exists</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">PATH</span><span class="si">}</span><span class="s2">:</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/bin:</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/tools/bin&quot;</span>
+
+<span class="c1"># If PATH doesn&#39;t exist</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/bin:</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/tools/bin&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="path-prepend">
+<h4>path-prepend<a class="headerlink" href="#path-prepend" title="Link to this heading"></a></h4>
+<p>Prepend to an existing path variable:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PYTHONPATH</span>
+<span class="w">    </span><span class="nt">path-prepend</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/src&quot;</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/mylib/src&quot;</span>
+</pre></div>
+</div>
+<p><strong>Result:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># If PYTHONPATH already exists</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">IVPM_PROJECT</span><span class="si">}</span><span class="s2">/src:</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/mylib/src:</span><span class="si">${</span><span class="nv">PYTHONPATH</span><span class="si">}</span><span class="s2">&quot;</span>
+
+<span class="c1"># If PYTHONPATH doesn&#39;t exist</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">IVPM_PROJECT</span><span class="si">}</span><span class="s2">/src:</span><span class="si">${</span><span class="nv">IVPM_PACKAGES</span><span class="si">}</span><span class="s2">/mylib/src&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="variable-expansion">
+<h3>Variable Expansion<a class="headerlink" href="#variable-expansion" title="Link to this heading"></a></h3>
+<p>IVPM expands variables referenced with <code class="docutils literal notranslate"><span class="pre">${VAR}</span></code> syntax:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Use built-in IVPM variables</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PROJECT_SRC</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/src&quot;</span>
+
+<span class="w">  </span><span class="c1"># Reference previously-set variables</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIB_PATH</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${PROJECT_SRC}/lib&quot;</span>
+
+<span class="w">  </span><span class="c1"># Reference system environment</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">USER_HOME</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${HOME}&quot;</span>
+</pre></div>
+</div>
+<p><strong>Order matters:</strong> Variables are processed in order, so you can reference
+earlier variables in later ones.</p>
+</section>
+<section id="complete-environment-example">
+<h3>Complete Environment Example<a class="headerlink" href="#complete-environment-example" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">verification-project</span>
+
+<span class="w">  </span><span class="nt">env-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Set project paths</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PROJECT_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">RTL_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${PROJECT_ROOT}/rtl&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TB_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${PROJECT_ROOT}/testbench&quot;</span>
+
+<span class="w">        </span><span class="c1"># Configure build</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BUILD_TYPE</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;release&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CFLAGS</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-O2&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-Wall&quot;</span>
+
+<span class="w">        </span><span class="c1"># Add tools to PATH</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PATH</span>
+<span class="w">          </span><span class="nt">path-prepend</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/tools/bin&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${PROJECT_ROOT}/scripts&quot;</span>
+
+<span class="w">        </span><span class="c1"># Set library paths</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LD_LIBRARY_PATH</span>
+<span class="w">          </span><span class="nt">path</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/lib64&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/lib&quot;</span>
+
+<span class="w">        </span><span class="c1"># Configure Python</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PYTHONPATH</span>
+<span class="w">          </span><span class="nt">path-prepend</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/src&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="using-environment-sets">
+<h3>Using Environment Sets<a class="headerlink" href="#using-environment-sets" title="Link to this heading"></a></h3>
+<p>Environment variables are automatically applied when using <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$PROJECT_ROOT</span>
+/home/user/projects/myproject
+
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="nv">$PATH</span>
+/home/user/projects/myproject/packages/tools/bin:/home/user/projects/myproject/scripts:...
+</pre></div>
+</div>
+<p>Or for a single command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo \$PROJECT_ROOT&quot;</span>
+/home/user/projects/myproject
+</pre></div>
+</div>
+</section>
+</section>
+<section id="project-paths">
+<h2>Project Paths<a class="headerlink" href="#project-paths" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">paths</span></code> section organizes project file paths by category for tools
+to discover.</p>
+<section id="path-organization">
+<h3>Path Organization<a class="headerlink" href="#path-organization" title="Link to this heading"></a></h3>
+<p>Paths are organized by:</p>
+<ol class="arabic simple">
+<li><p><strong>Kind</strong> - High-level category (e.g., <code class="docutils literal notranslate"><span class="pre">rtl</span></code>, <code class="docutils literal notranslate"><span class="pre">dv</span></code>, <code class="docutils literal notranslate"><span class="pre">docs</span></code>)</p></li>
+<li><p><strong>Type</strong> - Specific type within kind (e.g., <code class="docutils literal notranslate"><span class="pre">vlog</span></code>, <code class="docutils literal notranslate"><span class="pre">sv</span></code>, <code class="docutils literal notranslate"><span class="pre">vhdl</span></code>)</p></li>
+</ol>
+</section>
+<section id="basic-structure">
+<h3>Basic Structure<a class="headerlink" href="#basic-structure" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soc-design</span>
+
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">rtl</span><span class="p">:</span><span class="w">                    </span><span class="c1"># Kind: RTL source</span>
+<span class="w">      </span><span class="nt">vlog</span><span class="p">:</span><span class="w">                 </span><span class="c1"># Type: Verilog</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/common</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/peripherals</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span><span class="w">                   </span><span class="c1"># Type: SystemVerilog</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/cpu</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/bus</span>
+
+<span class="w">    </span><span class="nt">dv</span><span class="p">:</span><span class="w">                     </span><span class="c1"># Kind: Design verification</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span><span class="w">                   </span><span class="c1"># Type: SystemVerilog</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/agents</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/sequences</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span><span class="w">               </span><span class="c1"># Type: Python</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/models</span>
+</pre></div>
+</div>
+<p><strong>Paths are relative to the project root</strong> (directory containing <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>).</p>
+</section>
+<section id="common-path-categories">
+<h3>Common Path Categories<a class="headerlink" href="#common-path-categories" title="Link to this heading"></a></h3>
+<p><strong>rtl</strong> - RTL source files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">vlog</span></code> - Verilog files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sv</span></code> - SystemVerilog files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">vhdl</span></code> - VHDL files</p></li>
+</ul>
+<p><strong>dv</strong> - Design verification:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">sv</span></code> - SystemVerilog testbench</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">python</span></code> - Python testbench</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">c</span></code> - C/C++ models</p></li>
+</ul>
+<p><strong>docs</strong> - Documentation:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">rst</span></code> - ReStructuredText</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">md</span></code> - Markdown</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pdf</span></code> - PDF files</p></li>
+</ul>
+<p><strong>data</strong> - Data files:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">testdata</span></code> - Test vectors</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">config</span></code> - Configuration files</p></li>
+</ul>
+</section>
+<section id="complete-paths-example">
+<h3>Complete Paths Example<a class="headerlink" href="#complete-paths-example" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uart-ip</span>
+
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># RTL source files</span>
+<span class="w">    </span><span class="nt">rtl</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/uart_core</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/uart_tx</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/uart_rx</span>
+<span class="w">      </span><span class="nt">vlog</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/uart_apb_if</span>
+
+<span class="w">    </span><span class="c1"># Verification</span>
+<span class="w">    </span><span class="nt">dv</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/uart_agent</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/uart_monitor</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/sequences</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/models</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/tests</span>
+
+<span class="w">    </span><span class="c1"># Documentation</span>
+<span class="w">    </span><span class="nt">docs</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">rst</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/source</span>
+<span class="w">      </span><span class="nt">md</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/guides</span>
+
+<span class="w">    </span><span class="c1"># IP-XACT or other metadata</span>
+<span class="w">    </span><span class="nt">metadata</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">ipxact</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ip-xact/uart.xml</span>
+
+<span class="w">    </span><span class="c1"># Scripts</span>
+<span class="w">    </span><span class="nt">scripts</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scripts/build</span>
+<span class="w">      </span><span class="nt">shell</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scripts/sim</span>
+</pre></div>
+</div>
+</section>
+<section id="using-path-information">
+<h3>Using Path Information<a class="headerlink" href="#using-path-information" title="Link to this heading"></a></h3>
+<p>Tools can query path information via the <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">pkg-info</span></code> command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Get all RTL SystemVerilog paths</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>pkg-info<span class="w"> </span>paths<span class="w"> </span>-k<span class="w"> </span>rtl<span class="w"> </span>--type<span class="w"> </span>sv<span class="w"> </span>my-package
+
+<span class="c1"># Get all verification paths</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>pkg-info<span class="w"> </span>paths<span class="w"> </span>-k<span class="w"> </span>dv<span class="w"> </span>my-package
+</pre></div>
+</div>
+<p>This enables tools like FuseSoC, simulators, and build systems to
+discover source files automatically.</p>
+</section>
+</section>
+<section id="practical-examples">
+<h2>Practical Examples<a class="headerlink" href="#practical-examples" title="Link to this heading"></a></h2>
+<section id="example-1-simulation-environment">
+<h3>Example 1: Simulation Environment<a class="headerlink" href="#example-1-simulation-environment" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cpu-verification</span>
+
+<span class="w">  </span><span class="nt">env-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Simulation variables</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SIM_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">WORK_DIR</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${SIM_ROOT}/work&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LOG_DIR</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${SIM_ROOT}/logs&quot;</span>
+
+<span class="w">        </span><span class="c1"># Simulator paths</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PATH</span>
+<span class="w">          </span><span class="nt">path-prepend</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/verilator/bin&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/gtkwave/bin&quot;</span>
+
+<span class="w">        </span><span class="c1"># Library paths for compiled libraries</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LD_LIBRARY_PATH</span>
+<span class="w">          </span><span class="nt">path</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/lib&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${SIM_ROOT}/build/lib&quot;</span>
+
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">rtl</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/core</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/cache</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/mmu</span>
+<span class="w">    </span><span class="nt">dv</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/top</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/agents</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tb/tests</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>activate
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span><span class="nv">$WORK_DIR</span>
+<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>make<span class="w"> </span>sim
+</pre></div>
+</div>
+</section>
+<section id="example-2-multi-language-project">
+<h3>Example 2: Multi-Language Project<a class="headerlink" href="#example-2-multi-language-project" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mixed-project</span>
+
+<span class="w">  </span><span class="nt">env-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Project structure</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">HDL_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/hdl&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">SW_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/software&quot;</span>
+
+<span class="w">        </span><span class="c1"># Compilation flags</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">VLOG_FLAGS</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;+incdir+${HDL_ROOT}/include&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-timescale=1ns/1ps&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CFLAGS</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-I${SW_ROOT}/include&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;-Wall&quot;</span>
+
+<span class="w">        </span><span class="c1"># Tool configuration</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PYTHONPATH</span>
+<span class="w">          </span><span class="nt">path-prepend</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${SW_ROOT}/python&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/scripts&quot;</span>
+
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">rtl</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">vlog</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hdl/rtl</span>
+<span class="w">      </span><span class="nt">sv</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hdl/interfaces</span>
+
+<span class="w">    </span><span class="nt">sw</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">c</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">software/drivers</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">software/firmware</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">software/python</span>
+</pre></div>
+</div>
+</section>
+<section id="example-3-team-development-setup">
+<h3>Example 3: Team Development Setup<a class="headerlink" href="#example-3-team-development-setup" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">team-project</span>
+
+<span class="w">  </span><span class="nt">env-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Project info</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PROJECT_NAME</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;TeamProject&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PROJECT_VERSION</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span>
+
+<span class="w">        </span><span class="c1"># Shared tools (from packages/)</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TOOL_ROOT</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PACKAGES}/tools&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PATH</span>
+<span class="w">          </span><span class="nt">path-prepend</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${TOOL_ROOT}/bin&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/scripts&quot;</span>
+
+<span class="w">        </span><span class="c1"># License servers</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LM_LICENSE_FILE</span>
+<span class="w">          </span><span class="nt">path</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;27000@license-server-1&quot;</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&quot;27001@license-server-2&quot;</span>
+
+<span class="w">        </span><span class="c1"># Output directories</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BUILD_DIR</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/build&quot;</span>
+
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">REPORT_DIR</span>
+<span class="w">          </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${IVPM_PROJECT}/reports&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="environment-variable-not-set">
+<h3>Environment Variable Not Set<a class="headerlink" href="#environment-variable-not-set" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> Variable not available after <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code></p>
+<p><strong>Check:</strong></p>
+<ol class="arabic simple">
+<li><p>Is <code class="docutils literal notranslate"><span class="pre">env-sets</span></code> defined in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>?</p></li>
+<li><p>Did you run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> after changing <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>?</p></li>
+<li><p>Are you using <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code>?</p></li>
+</ol>
+<p><strong>Solution:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Verify env-sets</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;env | grep MY_VAR&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="variable-expansion-not-working">
+<h3>Variable Expansion Not Working<a class="headerlink" href="#variable-expansion-not-working" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">${VAR}</span></code> appears literally instead of being expanded</p>
+<p><strong>Common causes:</strong></p>
+<ol class="arabic simple">
+<li><p>Variable referenced before it’s defined</p></li>
+<li><p>Typo in variable name</p></li>
+<li><p>Variable not in environment when IVPM runs</p></li>
+</ol>
+<p><strong>Solution:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">env</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Define base variables first</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">BASE_DIR</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/opt/project&quot;</span>
+
+<span class="w">  </span><span class="c1"># Then reference them</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">LIB_DIR</span>
+<span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;${BASE_DIR}/lib&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="path-prepend-not-working">
+<h3>Path-prepend Not Working<a class="headerlink" href="#path-prepend-not-working" title="Link to this heading"></a></h3>
+<p><strong>Problem:</strong> New paths not appearing at start of PATH</p>
+<p><strong>Check order:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo \$PATH&quot;</span><span class="w"> </span><span class="p">|</span><span class="w"> </span>tr<span class="w"> </span><span class="s1">&#39;:&#39;</span><span class="w"> </span><span class="s1">&#39;\n&#39;</span>
+</pre></div>
+</div>
+<p>If your paths aren’t first, check if something else is modifying PATH
+after IVPM (e.g., in <code class="docutils literal notranslate"><span class="pre">.bashrc</span></code>).</p>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Use built-in variables</strong> (<code class="docutils literal notranslate"><span class="pre">IVPM_PROJECT</span></code>, <code class="docutils literal notranslate"><span class="pre">IVPM_PACKAGES</span></code>) for portability</p></li>
+<li><p><strong>Define variables in order</strong> - reference order matters for expansion</p></li>
+<li><p><strong>Use path-prepend for tools</strong> - Ensure project tools override system tools</p></li>
+<li><p><strong>Document custom variables</strong> - Help team members understand the setup</p></li>
+<li><p><strong>Keep paths relative</strong> - Use <code class="docutils literal notranslate"><span class="pre">${IVPM_PROJECT}</span></code> for portability</p></li>
+<li><p><strong>Group related variables</strong> - Organize by purpose (build, test, docs)</p></li>
+<li><p><strong>Test after changes</strong> - Always verify with <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span> <span class="pre">-c</span> <span class="pre">&quot;env&quot;</span></code></p></li>
+</ol>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic project setup</p></li>
+<li><p><a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> - Understanding IVPM’s model</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="github_releases.html" class="btn btn-neutral float-left" title="GitHub Releases" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="workflows.html" class="btn btn-neutral float-right" title="Development Workflows" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
