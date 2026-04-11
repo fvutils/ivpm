@@ -10,3 +10,4 @@ rundir/
 
 .venv/
 build/
+tmp/
