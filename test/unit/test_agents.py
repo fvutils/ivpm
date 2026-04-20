@@ -12,7 +12,7 @@ class TestAgents(TestBase):
     # ------------------------------------------------------------------ #
 
     def test_agents_dir_created(self):
-        """Single dep with root SKILLS.md → .agents/skills/<pkg> symlink created."""
+        """Single dep with root SKILL.md → .agents/skills/<pkg> symlink created."""
         self.mkFile("ivpm.yaml", """
         package:
             name: test_agents_basic
@@ -49,7 +49,7 @@ class TestAgents(TestBase):
                          "Symlink target should be relative, got: %s" % target)
 
     def test_skill_md_fallback(self):
-        """Dep has only SKILL.md (not SKILLS.md) → still picked up."""
+        """Dep has SKILL.md at root → picked up by auto-probe."""
         self.mkFile("ivpm.yaml", """
         package:
             name: test_agents_fallback

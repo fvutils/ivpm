@@ -66,12 +66,11 @@ def _symlinks_supported(dest_parent: str) -> bool:
 
 
 def _copy_skill_dir(src_dir: str, dest_dir: str):
-    """Fallback copy: SKILL.md / SKILLS.md plus companion directories."""
+    """Fallback copy: SKILL.md plus companion directories."""
     os.makedirs(dest_dir, exist_ok=True)
-    for fname in ("SKILL.md", "SKILLS.md"):
-        src = os.path.join(src_dir, fname)
-        if os.path.isfile(src):
-            shutil.copy2(src, os.path.join(dest_dir, fname))
+    src = os.path.join(src_dir, "SKILL.md")
+    if os.path.isfile(src):
+        shutil.copy2(src, os.path.join(dest_dir, "SKILL.md"))
     for companion in ("scripts", "references", "assets"):
         src = os.path.join(src_dir, companion)
         if os.path.isdir(src):
@@ -141,12 +140,10 @@ class PackageHandlerAgents(PackageHandler):
         else:
             # Priority 3: auto-probe
             found = []
-            for candidate in ("SKILLS.md", "SKILL.md"):
-                skill_file = os.path.join(pkg.path, candidate)
-                if os.path.isfile(skill_file):
-                    if self._validate_frontmatter(skill_file, pkg.name):
-                        found.append(pkg.path)
-                    break
+            skill_file = os.path.join(pkg.path, "SKILL.md")
+            if os.path.isfile(skill_file):
+                if self._validate_frontmatter(skill_file, pkg.name):
+                    found.append(pkg.path)
 
         if found:
             with self._lock:
