@@ -87,6 +87,14 @@ class PackageHandlerList(PackageHandler):
             result.update(h.get_lock_entries(deps_dir))
         return result
 
+    def get_state_entries(self) -> dict:
+        result = {}
+        for h in self.handlers:
+            entries = h.get_state_entries()
+            if entries and h.name:
+                result[h.name] = entries
+        return result
+
     # ------------------------------------------------------------------ #
     # Condition helpers                                                    #
     # ------------------------------------------------------------------ #

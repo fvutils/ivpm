@@ -166,6 +166,13 @@ class PackageHandler(object):
         """
         return {}
 
+    def get_state_entries(self) -> dict:
+        """Return handler-specific state to persist in ivpm.json['handlers'][name].
+
+        Called after on_root_post_load() completes. Default returns {}.
+        """
+        return {}
+
     def build(self, build_info: ProjectBuildInfo):
         pass
 

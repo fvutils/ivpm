@@ -108,6 +108,7 @@ class ProjectOps(object):
             # Build the handler update_info (with dispatcher wired in)
             handler_update_info = ProjectUpdateInfo(
                 args, deps_dir,
+                project_dir=self.root_dir,
                 project_name=proj_info.name,
                 force_py_install=force_py_install,
                 skip_venv=skip_venv,
@@ -117,6 +118,17 @@ class ProjectOps(object):
             )
             handler_update_info.handler_configs = proj_info.handler_configs
             handler_update_info._tui_ref = tui
+
+            # Load previous handler state from ivpm.json (for stale-entry cleanup)
+            _ivpm_json_path = os.path.join(deps_dir, "ivpm.json")
+            _prev_ivpm = {}
+            if os.path.isfile(_ivpm_json_path):
+                try:
+                    with open(_ivpm_json_path) as _fp:
+                        _prev_ivpm = json.load(_fp)
+                except Exception:
+                    pass
+            handler_update_info.handler_state = _prev_ivpm.get("handlers", {})
 
             # Root pre-load: let handlers initialise before any packages are fetched
             pkg_handler.on_root_pre_load(handler_update_info)
@@ -137,9 +149,11 @@ class ProjectOps(object):
             handler_contributions = pkg_handler.get_lock_entries(deps_dir)
             write_lock(deps_dir, updater.all_pkgs, handler_contributions)
 
-            # Finally, write out some meta-data
-            ivpm_json = {}
-            ivpm_json["dep-set"] = dep_set
+            # Write ivpm.json with dep-set and handler state
+            ivpm_json = {"dep-set": dep_set}
+            state_contributions = pkg_handler.get_state_entries()
+            if state_contributions:
+                ivpm_json["handlers"] = state_contributions
             with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
                 json.dump(ivpm_json, fp)
         finally:

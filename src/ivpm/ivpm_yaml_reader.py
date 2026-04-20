@@ -295,13 +295,20 @@ class IvpmYamlReader(object):
                     src = "file"
                 else:
                     pt_rgy = PkgTypeRgy.inst()
-                    raise Exception("Cannot determine source type from url %s. Please specify src as one of %s" % (
-                        url, ", ".join(pt_rgy.getSrcTypes())))
+                    raise Exception(
+                        "Package '%s': cannot determine source type from url '%s' @ %s\n"
+                        "  Please specify 'src' as one of: %s" % (
+                            d["name"], url, getlocstr(d),
+                            ", ".join(pt_rgy.getSrcTypes())))
 
             pt_rgy = PkgTypeRgy.inst()
             
             if not pt_rgy.hasPkgType(src):
-                raise Exception("Package %s has unknown type %s" % (d["name"], src))
+                raise Exception(
+                    "Package '%s': unknown source type '%s' @ %s\n"
+                    "  Known types: %s" % (
+                        d["name"], src, getlocstr(d),
+                        ", ".join(pt_rgy.getSrcTypes())))
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
 
             # Resolve content type from 'type:' field (string, dict, or list form).
@@ -319,6 +326,10 @@ class IvpmYamlReader(object):
                             pkg.name, type_name, getlocstr(d["type"]),
                             ", ".join(ct_rgy.names())))
                     pkg.type_data.append(ct_rgy.get(type_name).create_data(opts, si))
+
+            # Capture per-dep agents config (skill-path override / non-IVPM dep declaration)
+            if "agents" in d.keys():
+                pkg.agents_config = dict(d["agents"])
 
             # Unless specified, load the same dep-set from sub-packages
             if pkg.dep_set is None:

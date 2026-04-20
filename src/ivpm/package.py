@@ -103,6 +103,8 @@ class Package(object):
     # self_types holds the raw (type_name, opts) pairs read from the package's own ivpm.yaml.
     # Populated during dep resolution by package_updater; empty until then.
     self_types : List[Tuple[str, dict]] = dc.field(default_factory=list)
+    # agents_config holds the 'agents:' dict from the dep entry (consumer-specified override).
+    agents_config : Optional[dict] = None
 
     process_deps : bool = True
     setup_deps : Set[str] = dc.field(default_factory=set)

@@ -141,10 +141,10 @@ class TestShowHandlerInfo(unittest.TestCase):
         self.assertEqual(info.name, "direnv")
         self.assertTrue(info.description)
 
-    def test_skills_handler_info(self):
-        from ivpm.handlers.package_handler_skills import PackageHandlerSkills
-        info = PackageHandlerSkills.handler_info()
-        self.assertEqual(info.name, "skills")
+    def test_agents_handler_info(self):
+        from ivpm.handlers.package_handler_agents import PackageHandlerAgents
+        info = PackageHandlerAgents.handler_info()
+        self.assertEqual(info.name, "agents")
         self.assertTrue(info.description)
 
 

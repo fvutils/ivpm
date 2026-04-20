@@ -1,0 +1,10 @@
+package:
+    name: agents_multi_skill
+    with:
+        agents:
+            skills:
+                - SKILL.md
+                - subdir/SKILL.md
+    dep-sets:
+        - name: default-dev
+          deps: []

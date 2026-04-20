@@ -27,6 +27,7 @@ import dataclasses as dc
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo
+from ..utils import getlocstr
 
 @dc.dataclass
 class PackageFile(PackageURL):
@@ -57,7 +58,14 @@ class PackageFile(PackageURL):
         elif self.src_type in (".jar", ".zip"):
             self._install_zip(pkg_src, pkg_path)
         else:
-            raise Exception("Unsupported src_type: %s" % self.src_type)
+            hint = ""
+            if self.url and ("github.com" in self.url or self.url.endswith(".git") or "/" in self.url.rstrip("/")):
+                hint = "\n  Hint: if this is a git repository, add 'src: git' to the package entry."
+            raise Exception(
+                "Package '%s': unsupported archive type '%s' (url: %s) @ %s\n"
+                "  Supported types: .tar.gz, .tar.xz, .tar.bz2, .jar, .zip%s" % (
+                    self.name, self.src_type if self.src_type else "<none detected>",
+                    self.url, getlocstr(self), hint))
 
     def _install_tgz(self, pkg_src, pkg_path):
         pkg_path = os.path.abspath(pkg_path)

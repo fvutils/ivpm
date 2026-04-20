@@ -80,6 +80,8 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     suppress_output: bool = False  # When True, suppress subprocess output (Rich TUI mode)
     python_config: Optional[object] = None  # PythonConfig from root ivpm.yaml
     handler_configs: dict = dc.field(default_factory=dict)  # Extra with: keys for plugin handlers
+    project_dir: Optional[str] = None   # Project root (one level above deps_dir)
+    handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None

@@ -32,5 +32,5 @@ ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*']
 [project.entry-points."ivpm.handlers"]
 python = "ivpm.handlers.package_handler_python:PackageHandlerPython"
 direnv = "ivpm.handlers.package_handler_direnv:PackageHandlerDirenv"
-skills = "ivpm.handlers.package_handler_skills:PackageHandlerSkills"
+agents = "ivpm.handlers.package_handler_agents:PackageHandlerAgents"
 
