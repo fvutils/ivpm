@@ -55,7 +55,7 @@ When you run ``ivpm update``, IVPM executes these stages:
         |
         v
     3. Process -------- root handlers run in phase order
-        |                  phase 0: python, direnv, skills (built-in)
+        |                  phase 0: python, direnv, agents (built-in)
         |                  phase N: any third-party handlers
         |
         v
@@ -205,25 +205,24 @@ Runs when at least one package with an envrc file was found.  Steps:
     source_env packages/packages.envrc
 
 
-.. _handler-skills:
+.. _handler-agents:
 
-Skills Handler (``skills``)
------------------------------
+Agents Handler (``agents``)
+----------------------------
 
-Aggregates per-package skill files into a single ``packages/SKILLS.md`` for
-AI coding agents.
+Creates symlinks (or copies) to per-package skill files for AI coding agents.
 
 **Purpose**
 
-Packages can provide ``SKILL.md`` or ``SKILLS.md`` files that describe
-capabilities or instructions for AI agents.  The skills handler collects
-these and produces a unified reference document.
+Packages can provide skill files (``SKILL.md``) that describe capabilities or
+instructions for AI agents.  The agents handler discovers these skill files and
+creates organized symlinks in ``.agents/skills/`` and optionally ``.claude/skills/``
+for use by AI tools.
 
-**Leaf phase**
+**Skill File Format**
 
-Runs for every non-PyPI package.  Checks for ``SKILLS.md`` or ``SKILL.md``
-in the package root.  Each skill file must contain YAML frontmatter with at
-least ``name:`` and ``description:`` fields:
+Each skill file must contain YAML frontmatter with at least ``name:`` and
+``description:`` fields:
 
 .. code-block:: markdown
 
@@ -234,19 +233,112 @@ least ``name:`` and ``description:`` fields:
 
     Body of the skill document...
 
-Optional frontmatter fields: ``license``, ``compatibility``,
-``allowed-tools``.
+Optional frontmatter fields: ``license``, ``compatibility``, ``allowed-tools``.
 
 Packages with missing or malformed frontmatter are skipped with a warning.
 
+**Leaf phase**
+
+Runs for every non-PyPI package.  Discovers skill files using one of three methods
+(in priority order):
+
+1. **Consumer-specified paths** (highest priority)
+   
+   The importing project specifies skill paths in the dep entry:
+   
+   .. code-block:: yaml
+   
+       deps:
+         - name: my-package
+           url: https://github.com/org/my-package.git
+           agents:
+             skills:
+               - skills/**/SKILL.md
+               - docs/SKILL.md
+
+2. **Package-declared paths**
+   
+   The package itself specifies skill paths in its ``ivpm.yaml``:
+   
+   .. code-block:: yaml
+   
+       handlers:
+         agents:
+           skills:
+             - skills/**/SKILL.md
+             - docs/SKILL.md
+
+3. **Auto-probe** (lowest priority, fallback)
+   
+   No explicit paths declared — automatically checks for ``SKILL.md`` in the
+   package root.  If found and valid, it is used.
+
+Skill paths support glob patterns (e.g., ``skills/**/SKILL.md``) and are
+evaluated relative to the package directory.
+
 **Root phase**
 
-Runs when at least one valid skill file was found.  Concatenates all skill
-descriptions into ``packages/SKILLS.md`` with a generated frontmatter header.
+Runs when at least one valid skill file was found.  Steps:
 
-**Configuration:** None.  No ``with:`` parameters, no CLI options.
+1. Create ``.agents/skills/`` directory
+2. Create ``.claude/skills/`` directory if ``claude: true`` OR if ``.claude/``
+   already exists
+3. For each skill, create a relative symlink (or copy as fallback) with the
+   package name as the link name
+4. If a package has multiple skills, name them as ``<package>-1``, ``<package>-2``, etc.
+5. Remove stale entries from previous runs
 
-**Output:** ``packages/SKILLS.md``
+**Configuration (``ivpm.yaml``)**
+
+Project-level settings under ``package.with.agents``:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      with:
+        agents:
+          claude: true          # Create .claude/skills/ in addition to .agents/skills/
+
+Per-package skill paths via handler config:
+
+.. code-block:: yaml
+
+    handlers:
+      agents:
+        skills:
+          - skills/**/SKILL.md
+          - docs/SKILL.md
+
+Or via consumer dep-entry:
+
+.. code-block:: yaml
+
+    deps:
+      - name: my-lib
+        url: https://github.com/org/my-lib.git
+        agents:
+          skills:
+            - skills/SKILL.md
+
+**CLI options:** None.  Configuration is via ``ivpm.yaml``.
+
+**Symlink behavior**
+
+- **Symlink support**: Creates relative symlinks from ``.agents/skills/`` to skill
+  directories within the package.
+- **Fallback**: On platforms without symlink support, falls back to copying the
+  ``SKILL.md`` file and any companion directories (``scripts/``, ``references/``,
+  ``assets/``).
+- **`.claude` directory**: Always populates if ``claude: true``. Also populates
+  automatically if ``.claude/`` directory already exists (useful for projects
+  that have manually created it).
+- **Stale cleanup**: Removes entries from previous runs before writing new ones.
+
+**Output:**
+
+- ``.agents/skills/<package>`` — symlink(s) to skill directories
+- ``.claude/skills/<package>`` — same, if ``claude: true`` or if ``.claude/`` exists
 
 
 Handler Summary
@@ -271,11 +363,11 @@ Handler Summary
      - ``.envrc`` / ``export.envrc``
      - Writes combined envrc
      - ``packages/packages.envrc``
-   * - ``skills``
-     - AI agent skill aggregation
-     - ``SKILL.md`` / ``SKILLS.md``
-     - Writes combined skills doc
-     - ``packages/SKILLS.md``
+   * - ``agents``
+     - Skill file discovery and symlinking
+     - ``SKILL.md`` (auto or declared)
+     - Creates symlinks to skills
+     - ``.agents/skills/``, ``.claude/skills/``
 
 
 Discovering Handlers

@@ -155,8 +155,9 @@ class PackageHandlerAgents(PackageHandler):
         do_claude = bool(agents_cfg.get("claude", False))
 
         targets = [os.path.join(project_dir, ".agents", "skills")]
-        if do_claude:
-            targets.append(os.path.join(project_dir, ".claude", "skills"))
+        claude_skills_dir = os.path.join(project_dir, ".claude", "skills")
+        if do_claude or os.path.exists(os.path.join(project_dir, ".claude")):
+            targets.append(claude_skills_dir)
 
         # Remove entries created by the previous run before writing new ones
         self._remove_managed(project_dir, self._prev_state)
