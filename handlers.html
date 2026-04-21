@@ -53,7 +53,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#built-in-handlers">Built-in Handlers</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#python-handler-python">Python Handler (<code class="docutils literal notranslate"><span class="pre">python</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#direnv-handler-direnv">Direnv Handler (<code class="docutils literal notranslate"><span class="pre">direnv</span></code>)</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#skills-handler-skills">Skills Handler (<code class="docutils literal notranslate"><span class="pre">skills</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#agents-handler-agents">Agents Handler (<code class="docutils literal notranslate"><span class="pre">agents</span></code>)</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#handler-summary">Handler Summary</a></li>
@@ -144,7 +144,7 @@ without modifying IVPM itself.</p>
     |
     v
 3. Process -------- root handlers run in phase order
-    |                  phase 0: python, direnv, skills (built-in)
+    |                  phase 0: python, direnv, agents (built-in)
     |                  phase N: any third-party handlers
     |
     v
@@ -261,18 +261,17 @@ root phase.</p>
 </pre></div>
 </div>
 </section>
-<section id="skills-handler-skills">
-<span id="handler-skills"></span><h3>Skills Handler (<code class="docutils literal notranslate"><span class="pre">skills</span></code>)<a class="headerlink" href="#skills-handler-skills" title="Link to this heading"></a></h3>
-<p>Aggregates per-package skill files into a single <code class="docutils literal notranslate"><span class="pre">packages/SKILLS.md</span></code> for
-AI coding agents.</p>
+<section id="agents-handler-agents">
+<span id="handler-agents"></span><h3>Agents Handler (<code class="docutils literal notranslate"><span class="pre">agents</span></code>)<a class="headerlink" href="#agents-handler-agents" title="Link to this heading"></a></h3>
+<p>Creates symlinks (or copies) to per-package skill files for AI coding agents.</p>
 <p><strong>Purpose</strong></p>
-<p>Packages can provide <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> or <code class="docutils literal notranslate"><span class="pre">SKILLS.md</span></code> files that describe
-capabilities or instructions for AI agents.  The skills handler collects
-these and produces a unified reference document.</p>
-<p><strong>Leaf phase</strong></p>
-<p>Runs for every non-PyPI package.  Checks for <code class="docutils literal notranslate"><span class="pre">SKILLS.md</span></code> or <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code>
-in the package root.  Each skill file must contain YAML frontmatter with at
-least <code class="docutils literal notranslate"><span class="pre">name:</span></code> and <code class="docutils literal notranslate"><span class="pre">description:</span></code> fields:</p>
+<p>Packages can provide skill files (<code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code>) that describe capabilities or
+instructions for AI agents.  The agents handler discovers these skill files and
+creates organized symlinks in <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> and optionally <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>
+for use by AI tools.</p>
+<p><strong>Skill File Format</strong></p>
+<p>Each skill file must contain YAML frontmatter with at least <code class="docutils literal notranslate"><span class="pre">name:</span></code> and
+<code class="docutils literal notranslate"><span class="pre">description:</span></code> fields:</p>
 <div class="highlight-markdown notranslate"><div class="highlight"><pre><span></span>---
 name: my-skill
 <span class="gu">description: One-line description of what this skill does.</span>
@@ -281,14 +280,96 @@ name: my-skill
 Body of the skill document...
 </pre></div>
 </div>
-<p>Optional frontmatter fields: <code class="docutils literal notranslate"><span class="pre">license</span></code>, <code class="docutils literal notranslate"><span class="pre">compatibility</span></code>,
-<code class="docutils literal notranslate"><span class="pre">allowed-tools</span></code>.</p>
+<p>Optional frontmatter fields: <code class="docutils literal notranslate"><span class="pre">license</span></code>, <code class="docutils literal notranslate"><span class="pre">compatibility</span></code>, <code class="docutils literal notranslate"><span class="pre">allowed-tools</span></code>.</p>
 <p>Packages with missing or malformed frontmatter are skipped with a warning.</p>
+<p><strong>Leaf phase</strong></p>
+<p>Runs for every non-PyPI package.  Discovers skill files using one of three methods
+(in priority order):</p>
+<ol class="arabic">
+<li><p><strong>Consumer-specified paths</strong> (highest priority)</p>
+<p>The importing project specifies skill paths in the dep entry:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-package.git</span>
+<span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">skills</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Package-declared paths</strong></p>
+<p>The package itself specifies skill paths in its <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">handlers</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">skills</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Auto-probe</strong> (lowest priority, fallback)</p>
+<p>No explicit paths declared — automatically checks for <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> in the
+package root.  If found and valid, it is used.</p>
+</li>
+</ol>
+<p>Skill paths support glob patterns (e.g., <code class="docutils literal notranslate"><span class="pre">skills/**/SKILL.md</span></code>) and are
+evaluated relative to the package directory.</p>
 <p><strong>Root phase</strong></p>
-<p>Runs when at least one valid skill file was found.  Concatenates all skill
-descriptions into <code class="docutils literal notranslate"><span class="pre">packages/SKILLS.md</span></code> with a generated frontmatter header.</p>
-<p><strong>Configuration:</strong> None.  No <code class="docutils literal notranslate"><span class="pre">with:</span></code> parameters, no CLI options.</p>
-<p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/SKILLS.md</span></code></p>
+<p>Runs when at least one valid skill file was found.  Steps:</p>
+<ol class="arabic simple">
+<li><p>Create <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> directory</p></li>
+<li><p>Create <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> directory if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> OR if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>
+already exists</p></li>
+<li><p>For each skill, create a relative symlink (or copy as fallback) with the
+package name as the link name</p></li>
+<li><p>If a package has multiple skills, name them as <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-1</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-2</span></code>, etc.</p></li>
+<li><p>Remove stale entries from previous runs</p></li>
+</ol>
+<p><strong>Configuration (``ivpm.yaml``)</strong></p>
+<p>Project-level settings under <code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">claude</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># Create .claude/skills/ in addition to .agents/skills/</span>
+</pre></div>
+</div>
+<p>Per-package skill paths via handler config:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">handlers</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">skills</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
+</pre></div>
+</div>
+<p>Or via consumer dep-entry:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">skills</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/SKILL.md</span>
+</pre></div>
+</div>
+<p><strong>CLI options:</strong> None.  Configuration is via <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
+<p><strong>Symlink behavior</strong></p>
+<ul class="simple">
+<li><p><strong>Symlink support</strong>: Creates relative symlinks from <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> to skill
+directories within the package.</p></li>
+<li><p><strong>Fallback</strong>: On platforms without symlink support, falls back to copying the
+<code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> file and any companion directories (<code class="docutils literal notranslate"><span class="pre">scripts/</span></code>, <code class="docutils literal notranslate"><span class="pre">references/</span></code>,
+<code class="docutils literal notranslate"><span class="pre">assets/</span></code>).</p></li>
+<li><p><strong>`.claude` directory</strong>: Always populates if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code>. Also populates
+automatically if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> directory already exists (useful for projects
+that have manually created it).</p></li>
+<li><p><strong>Stale cleanup</strong>: Removes entries from previous runs before writing new ones.</p></li>
+</ul>
+<p><strong>Output:</strong></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/&lt;package&gt;</span></code> — symlink(s) to skill directories</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.claude/skills/&lt;package&gt;</span></code> — same, if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> or if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> exists</p></li>
+</ul>
 </section>
 </section>
 <section id="handler-summary">
@@ -322,11 +403,11 @@ descriptions into <code class="docutils literal notranslate"><span class="pre">p
 <td><p>Writes combined envrc</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">skills</span></code></p></td>
-<td><p>AI agent skill aggregation</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> / <code class="docutils literal notranslate"><span class="pre">SKILLS.md</span></code></p></td>
-<td><p>Writes combined skills doc</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">packages/SKILLS.md</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">agents</span></code></p></td>
+<td><p>Skill file discovery and symlinking</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> (auto or declared)</p></td>
+<td><p>Creates symlinks to skills</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code></p></td>
 </tr>
 </tbody>
 </table>
