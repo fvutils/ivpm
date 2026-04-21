@@ -299,12 +299,15 @@ Body of the skill document...
 </div>
 </li>
 <li><p><strong>Package-declared paths</strong></p>
-<p>The package itself specifies skill paths in its <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">handlers</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">agents</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">skills</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
+<p>The package itself specifies skill paths in its <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> under
+<code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-package</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">skills</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
 </pre></div>
 </div>
 </li>
@@ -321,9 +324,13 @@ evaluated relative to the package directory.</p>
 <li><p>Create <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> directory</p></li>
 <li><p>Create <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> directory if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> OR if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>
 already exists</p></li>
-<li><p>For each skill, create a relative symlink (or copy as fallback) with the
-package name as the link name</p></li>
-<li><p>If a package has multiple skills, name them as <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-1</span></code>, <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-2</span></code>, etc.</p></li>
+<li><p>For each skill, create a relative symlink (or copy as fallback) with a
+human-readable name derived from its source directory</p></li>
+<li><p>Dependency skills are named as <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-&lt;dir&gt;</span></code> (or just <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;</span></code> for a
+package-root <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code>); conflicting names expand to include parent
+directories, such as <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-&lt;parent&gt;-&lt;dir&gt;</span></code></p></li>
+<li><p>Root-project skills are named as <code class="docutils literal notranslate"><span class="pre">&lt;dir&gt;</span></code>; conflicting names expand to include
+parent directories, such as <code class="docutils literal notranslate"><span class="pre">&lt;parent&gt;-&lt;dir&gt;</span></code></p></li>
 <li><p>Remove stale entries from previous runs</p></li>
 </ol>
 <p><strong>Configuration (``ivpm.yaml``)</strong></p>
@@ -335,12 +342,14 @@ package name as the link name</p></li>
 <span class="w">      </span><span class="nt">claude</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># Create .claude/skills/ in addition to .agents/skills/</span>
 </pre></div>
 </div>
-<p>Per-package skill paths via handler config:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">handlers</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">agents</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">skills</span><span class="p">:</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
-<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
+<p>Package-declared skill paths under <code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">skills</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">skills/**/SKILL.md</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docs/SKILL.md</span>
 </pre></div>
 </div>
 <p>Or via consumer dep-entry:</p>

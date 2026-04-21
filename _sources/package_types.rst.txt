@@ -713,7 +713,7 @@ See Also
 - :doc:`caching` - Caching strategies
 - :doc:`python_packages` - Python-specific features
 - :doc:`github_releases` - GitHub Releases details
-- :doc:`handlers` - How handlers process packages (Python, Direnv, Skills)
+- :doc:`handlers` - How handlers process packages (Python, Direnv, Agents)
 - :doc:`extending_ivpm` - Writing custom handlers
 
 .. tip::

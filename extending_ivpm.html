@@ -112,7 +112,7 @@ as setting up a virtual environment, writing IDE integration files, or invoking 
 downstream tool. IVPM discovers handlers through Python <a class="reference external" href="https://packaging.python.org/en/latest/specifications/entry-points/">entry points</a>, so any
 installed package can contribute new handlers without modifying IVPM itself.</p>
 <p>For an overview of what handlers are, how they fit into the update pipeline,
-and documentation of the three built-in handlers (Python, Direnv, Skills),
+and documentation of the three built-in handlers (Python, Direnv, Agents),
 see <a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a>.</p>
 <section id="overview">
 <h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
@@ -389,7 +389,7 @@ FuseSoC <code class="docutils literal notranslate"><span class="pre">.core</span
 <h2>Handler Ordering<a class="headerlink" href="#handler-ordering" title="Link to this heading"></a></h2>
 <p>IVPM loads handlers in this order:</p>
 <ol class="arabic simple">
-<li><p>Built-in handlers (Python, Direnv, Skills) – all at phase <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
+<li><p>Built-in handlers (Python, Direnv, Agents) – all at phase <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
 <li><p>Extension handlers discovered via <code class="docutils literal notranslate"><span class="pre">ivpm.handlers</span></code> entry points, in
 installation order</p></li>
 </ol>

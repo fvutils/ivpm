@@ -56,7 +56,7 @@ When you run ``ivpm update``, IVPM executes a three-stage pipeline:
     │   Root handlers run sequentially (by phase number)    │
     │     - Python handler: create venv, install packages   │
     │     - Direnv handler: write packages.envrc            │
-    │     - Skills handler: write SKILLS.md                 │
+    │     - Agents handler: populate .agents/skills         │
     │                                                       │
     │   Lock file written (packages/package-lock.json)      │
     └───────────────────────────────────────────────────────┘
@@ -175,7 +175,7 @@ For full details, see :doc:`package_lock`.
 Next Steps
 ==========
 
-- :doc:`handlers` -- How handlers process packages (Python, Direnv, Skills)
+- :doc:`handlers` -- How handlers process packages (Python, Direnv, Agents)
 - :doc:`getting_started` -- Install IVPM and set up your first project
 - :doc:`dependency_sets` -- Dependency set patterns and inheritance
 - :doc:`package_types` -- All source types, content types, and attributes
