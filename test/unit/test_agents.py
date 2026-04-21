@@ -196,6 +196,58 @@ class TestAgents(TestBase):
         self.assertTrue(os.path.exists(os.path.join(skills_dir, "agents_leaf1")))
         self.assertTrue(os.path.exists(os.path.join(skills_dir, "agents_leaf2")))
 
+    def test_root_project_skill_md_fallback(self):
+        """Root project SKILL.md → .agents/skills/<project-dir> symlink created."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_root_skill
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("SKILL.md", """---
+name: root-skill
+description: Root project skill
+---
+Body
+""")
+        self.ivpm_update(skip_venv=True)
+
+        link = os.path.join(self.testdir, ".agents", "skills", os.path.basename(self.testdir))
+        self.assertTrue(os.path.exists(link), "Root project skill link should exist")
+
+    def test_root_project_conflicting_dir_names(self):
+        """Conflicting root-project skill dir names use parent segments."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_root_conflicts
+            with:
+                agents:
+                    skills:
+                        - agents/review/SKILL.md
+                        - tutorials/review/SKILL.md
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("agents/review/SKILL.md", """---
+name: agents-review
+description: Review skill under agents
+---
+Body
+""")
+        self.mkFile("tutorials/review/SKILL.md", """---
+name: tutorials-review
+description: Review skill under tutorials
+---
+Body
+""")
+        self.ivpm_update(skip_venv=True)
+
+        skills_dir = os.path.join(self.testdir, ".agents", "skills")
+        self.assertTrue(os.path.exists(os.path.join(skills_dir, "agents-review")))
+        self.assertTrue(os.path.exists(os.path.join(skills_dir, "tutorials-review")))
+
     # ------------------------------------------------------------------ #
     # Stale entry cleanup                                                  #
     # ------------------------------------------------------------------ #
@@ -258,9 +310,9 @@ class TestAgents(TestBase):
         self.ivpm_update(skip_venv=True)
 
         skills_dir = os.path.join(self.testdir, ".agents", "skills")
-        # Two skill paths → links named agents_multi_skill-1 and agents_multi_skill-2
-        link1 = os.path.join(skills_dir, "agents_multi_skill-1")
-        link2 = os.path.join(skills_dir, "agents_multi_skill-2")
+        # Two skill paths → links named from their directories
+        link1 = os.path.join(skills_dir, "agents_multi_skill")
+        link2 = os.path.join(skills_dir, "agents_multi_skill-subdir")
         self.assertTrue(os.path.exists(link1), "First declared skill path should be linked")
         self.assertTrue(os.path.exists(link2), "Second declared skill path should be linked")
 
@@ -279,10 +331,9 @@ class TestAgents(TestBase):
         self.ivpm_update(skip_venv=True)
 
         skills_dir = os.path.join(self.testdir, ".agents", "skills")
-        # With explicit paths, there should be no plain 'agents_multi_skill' link
-        plain_link = os.path.join(skills_dir, "agents_multi_skill")
-        self.assertFalse(os.path.exists(plain_link),
-                         "Plain link should not exist when explicit paths are declared")
+        expected = {"agents_multi_skill", "agents_multi_skill-subdir"}
+        self.assertEqual(expected, set(os.listdir(skills_dir)),
+                         "Only explicitly declared skill paths should be linked")
 
     # ------------------------------------------------------------------ #
     # Consumer dep-entry agents: override (priority 1)                    #
@@ -356,8 +407,8 @@ class TestAgents(TestBase):
         self.ivpm_update(skip_venv=True)
 
         skills_dir = os.path.join(self.testdir, ".agents", "skills")
-        link1 = os.path.join(skills_dir, "agents_glob_tree-1")
-        link2 = os.path.join(skills_dir, "agents_glob_tree-2")
+        link1 = os.path.join(skills_dir, "agents_glob_tree-alpha")
+        link2 = os.path.join(skills_dir, "agents_glob_tree-beta")
         self.assertTrue(os.path.exists(link1), "First glob match should be linked")
         self.assertTrue(os.path.exists(link2), "Second glob match should be linked")
 

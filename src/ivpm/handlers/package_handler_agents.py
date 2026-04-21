@@ -22,7 +22,7 @@ import logging
 import os
 import re
 import shutil
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
@@ -77,6 +77,14 @@ def _copy_skill_dir(src_dir: str, dest_dir: str):
             shutil.copytree(src, os.path.join(dest_dir, companion), dirs_exist_ok=True)
 
 
+@dc.dataclass(frozen=True)
+class SkillEntry(object):
+    kind: str
+    owner_name: str
+    root_dir: str
+    skill_dir: str
+
+
 @dc.dataclass
 class PackageHandlerAgents(PackageHandler):
     name               = "agents"
@@ -106,12 +114,14 @@ class PackageHandlerAgents(PackageHandler):
             ),
         )
 
-    # pkg_name -> list of absolute paths to skill *directories*
-    skill_dirs: Dict[str, List[str]] = dc.field(default_factory=dict)
+    # All discovered skills, with enough context to derive human-readable link names
+    skill_entries: List[SkillEntry] = dc.field(default_factory=list)
+    _managed_names: List[str] = dc.field(default_factory=list, init=False, repr=False)
     _prev_state: dict = dc.field(default_factory=dict, init=False, repr=False)
 
     def reset(self):
-        self.skill_dirs = {}
+        self.skill_entries = []
+        self._managed_names = []
 
     def on_root_pre_load(self, update_info: ProjectUpdateInfo):
         self.reset()
@@ -126,17 +136,7 @@ class PackageHandlerAgents(PackageHandler):
         patterns = self._get_skill_patterns(pkg)
 
         if patterns is not None:
-            found = []
-            for pattern in patterns:
-                matches = sorted(_glob.glob(pattern, root_dir=pkg.path, recursive=True))
-                if not matches:
-                    _logger.warning(
-                        "Package %s: skill pattern '%s' matched no files", pkg.name, pattern)
-                    continue
-                for match in matches:
-                    skill_file = os.path.join(pkg.path, match)
-                    if self._validate_frontmatter(skill_file, pkg.name):
-                        found.append(os.path.dirname(skill_file))
+            found = self._resolve_skill_dirs(pkg.name, pkg.path, patterns)
         else:
             # Priority 3: auto-probe
             found = []
@@ -146,8 +146,12 @@ class PackageHandlerAgents(PackageHandler):
                     found.append(pkg.path)
 
         if found:
+            entries = [
+                SkillEntry("dependency", pkg.name, pkg.path, skill_dir)
+                for skill_dir in found
+            ]
             with self._lock:
-                self.skill_dirs[pkg.name] = found
+                self.skill_entries.extend(entries)
 
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         project_dir = update_info.project_dir or os.path.dirname(update_info.deps_dir)
@@ -162,7 +166,9 @@ class PackageHandlerAgents(PackageHandler):
         # Remove entries created by the previous run before writing new ones
         self._remove_managed(project_dir, self._prev_state)
 
-        if not self.skill_dirs:
+        self.skill_entries.extend(self._discover_project_skills(update_info, project_dir))
+
+        if not self.skill_entries:
             return
 
         for tgt in targets:
@@ -170,33 +176,29 @@ class PackageHandlerAgents(PackageHandler):
 
         use_symlinks = _symlinks_supported(targets[0])
         deps_dir_norm = os.path.normpath(update_info.deps_dir)
+        assigned = self._assign_dest_names(self.skill_entries)
+        self._managed_names = [dest_name for dest_name, _ in assigned]
 
-        for pkg_name, dirs in sorted(self.skill_dirs.items()):
-            for idx, skill_dir in enumerate(dirs, start=1):
-                dest_name = pkg_name if len(dirs) == 1 else "%s-%d" % (pkg_name, idx)
-                for tgt in targets:
-                    dest = os.path.join(tgt, dest_name)
-                    if use_symlinks:
-                        rel_target = os.path.relpath(skill_dir, tgt)
-                        self._ensure_symlink(dest, rel_target, skill_dir, deps_dir_norm)
-                    else:
-                        self._ensure_copy(dest, skill_dir)
+        for dest_name, entry in assigned:
+            for tgt in targets:
+                dest = os.path.join(tgt, dest_name)
+                if use_symlinks:
+                    rel_target = os.path.relpath(entry.skill_dir, tgt)
+                    self._ensure_symlink(dest, rel_target, entry.skill_dir, deps_dir_norm)
+                else:
+                    self._ensure_copy(dest, entry.skill_dir)
 
-        total = sum(len(v) for v in self.skill_dirs.values())
+        total = len(assigned)
         from ..utils import note
         note("Populated .agents/skills/ with %d skill(s) (%s)" % (
             total, "symlinks" if use_symlinks else "copies"))
 
     def get_state_entries(self) -> dict:
         """Persist created entry names so the next run can clean them up."""
-        if not self.skill_dirs:
+        if not self._managed_names:
             return {}
-        names = []
-        for pkg_name, dirs in sorted(self.skill_dirs.items()):
-            for idx in range(1, len(dirs) + 1):
-                names.append(pkg_name if len(dirs) == 1 else "%s-%d" % (pkg_name, idx))
         # Store same names for both targets; _remove_managed checks what exists
-        return {"agents_skills": names, "claude_skills": names}
+        return {"agents_skills": self._managed_names, "claude_skills": self._managed_names}
 
     # ------------------------------------------------------------------ #
 
@@ -226,6 +228,140 @@ class PackageHandlerAgents(PackageHandler):
         cfg = info.handler_configs.get("agents", {}) or {}
         skills_list = cfg.get("skills", None)
         return [str(p) for p in skills_list] if skills_list is not None else None
+
+    def _discover_project_skills(self, update_info: ProjectUpdateInfo, project_dir: str) -> List[SkillEntry]:
+        project_name = update_info.project_name or os.path.basename(os.path.normpath(project_dir))
+        agents_cfg = update_info.handler_configs.get("agents", {}) or {}
+        patterns = agents_cfg.get("skills", None)
+
+        if patterns is not None:
+            found = self._resolve_skill_dirs(
+                project_name,
+                project_dir,
+                [str(p) for p in patterns])
+        else:
+            found = []
+            skill_file = os.path.join(project_dir, "SKILL.md")
+            if os.path.isfile(skill_file) and self._validate_frontmatter(skill_file, project_name):
+                found.append(project_dir)
+
+        return [SkillEntry("project", project_name, project_dir, skill_dir) for skill_dir in found]
+
+    def _resolve_skill_dirs(self, owner_name: str, root_dir: str, patterns: List[str]) -> List[str]:
+        found = []
+        seen = set()
+
+        for pattern in patterns:
+            matches = sorted(_glob.glob(pattern, root_dir=root_dir, recursive=True))
+            if not matches:
+                _logger.warning(
+                    "Package %s: skill pattern '%s' matched no files", owner_name, pattern)
+                continue
+            for match in matches:
+                skill_file = os.path.join(root_dir, match)
+                skill_dir = os.path.dirname(skill_file)
+                if not self._validate_frontmatter(skill_file, owner_name):
+                    continue
+                if skill_dir in seen:
+                    continue
+                found.append(skill_dir)
+                seen.add(skill_dir)
+
+        return found
+
+    def _assign_dest_names(self, entries: List[SkillEntry]) -> List[Tuple[str, SkillEntry]]:
+        ordered = sorted(entries, key=lambda e: self._entry_sort_key(e))
+        levels = [0 for _ in ordered]
+        candidates = [self._name_candidates(e) for e in ordered]
+
+        while True:
+            collisions = self._find_name_collisions(candidates, levels)
+            if not collisions:
+                break
+
+            advanced = False
+            for idxs in collisions.values():
+                for idx in idxs:
+                    if levels[idx] + 1 < len(candidates[idx]):
+                        levels[idx] += 1
+                        advanced = True
+            if not advanced:
+                break
+
+        assigned = []
+        used = set()
+        for idx, entry in enumerate(ordered):
+            base_name = candidates[idx][levels[idx]]
+            dest_name = base_name
+            suffix = 2
+            while dest_name in used:
+                dest_name = "%s-%d" % (base_name, suffix)
+                suffix += 1
+            used.add(dest_name)
+            assigned.append((dest_name, entry))
+
+        assigned.sort(key=lambda item: item[0])
+        return assigned
+
+    @staticmethod
+    def _find_name_collisions(candidates: List[List[str]], levels: List[int]) -> Dict[str, List[int]]:
+        names = {}
+        for idx, opts in enumerate(candidates):
+            name = opts[levels[idx]]
+            names.setdefault(name, []).append(idx)
+        return {name: idxs for name, idxs in names.items() if len(idxs) > 1}
+
+    @staticmethod
+    def _entry_sort_key(entry: SkillEntry):
+        return (entry.kind, entry.owner_name, entry.skill_dir)
+
+    def _name_candidates(self, entry: SkillEntry) -> List[str]:
+        parts = self._relative_dir_parts(entry.root_dir, entry.skill_dir)
+
+        if entry.kind == "dependency":
+            return self._dependency_name_candidates(entry.owner_name, entry.root_dir, parts)
+        else:
+            return self._project_name_candidates(entry.root_dir, parts)
+
+    @staticmethod
+    def _relative_dir_parts(root_dir: str, skill_dir: str) -> List[str]:
+        rel_dir = os.path.relpath(skill_dir, root_dir)
+        if rel_dir == ".":
+            return []
+        return [part for part in rel_dir.split(os.sep) if part]
+
+    @staticmethod
+    def _dependency_name_candidates(pkg_name: str, root_dir: str, rel_parts: List[str]) -> List[str]:
+        if not rel_parts:
+            return [pkg_name]
+
+        dir_name = rel_parts[-1]
+        parent_parts = rel_parts[:-1]
+        candidates = ["-".join([pkg_name, dir_name])]
+
+        for depth in range(1, len(parent_parts) + 1):
+            prefix = parent_parts[-depth:]
+            candidates.append("-".join([pkg_name] + prefix + [dir_name]))
+
+        return candidates
+
+    @staticmethod
+    def _project_name_candidates(root_dir: str, rel_parts: List[str]) -> List[str]:
+        if rel_parts:
+            dir_name = rel_parts[-1]
+            parent_parts = rel_parts[:-1]
+        else:
+            dir_name = os.path.basename(os.path.normpath(root_dir))
+            parent = os.path.basename(os.path.dirname(os.path.normpath(root_dir)))
+            parent_parts = [parent] if parent else []
+
+        candidates = [dir_name]
+
+        for depth in range(1, len(parent_parts) + 1):
+            prefix = parent_parts[-depth:]
+            candidates.append("-".join(prefix + [dir_name]))
+
+        return candidates
 
     def _validate_frontmatter(self, path: str, pkg_name: str) -> bool:
         fields = _parse_frontmatter(path)

@@ -214,7 +214,7 @@ Next Steps
 Now that you have the basics:
 
 - :doc:`core_concepts` -- Understand the update pipeline and mental model
-- :doc:`handlers` -- How handlers process packages (Python, Direnv, Skills)
+- :doc:`handlers` -- How handlers process packages (Python, Direnv, Agents)
 - :doc:`dependency_sets` -- Organize dependencies by profile
 - :doc:`package_types` -- All dependency attributes and source types
 - :doc:`workflows` -- Common development workflows

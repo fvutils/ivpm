@@ -258,15 +258,18 @@ Runs for every non-PyPI package.  Discovers skill files using one of three metho
 
 2. **Package-declared paths**
    
-   The package itself specifies skill paths in its ``ivpm.yaml``:
+   The package itself specifies skill paths in its ``ivpm.yaml`` under
+   ``package.with.agents``:
    
    .. code-block:: yaml
    
-       handlers:
-         agents:
-           skills:
-             - skills/**/SKILL.md
-             - docs/SKILL.md
+       package:
+         name: my-package
+         with:
+           agents:
+             skills:
+               - skills/**/SKILL.md
+               - docs/SKILL.md
 
 3. **Auto-probe** (lowest priority, fallback)
    
@@ -283,10 +286,14 @@ Runs when at least one valid skill file was found.  Steps:
 1. Create ``.agents/skills/`` directory
 2. Create ``.claude/skills/`` directory if ``claude: true`` OR if ``.claude/``
    already exists
-3. For each skill, create a relative symlink (or copy as fallback) with the
-   package name as the link name
-4. If a package has multiple skills, name them as ``<package>-1``, ``<package>-2``, etc.
-5. Remove stale entries from previous runs
+3. For each skill, create a relative symlink (or copy as fallback) with a
+   human-readable name derived from its source directory
+4. Dependency skills are named as ``<package>-<dir>`` (or just ``<package>`` for a
+   package-root ``SKILL.md``); conflicting names expand to include parent
+   directories, such as ``<package>-<parent>-<dir>``
+5. Root-project skills are named as ``<dir>``; conflicting names expand to include
+   parent directories, such as ``<parent>-<dir>``
+6. Remove stale entries from previous runs
 
 **Configuration (``ivpm.yaml``)**
 
@@ -300,15 +307,17 @@ Project-level settings under ``package.with.agents``:
         agents:
           claude: true          # Create .claude/skills/ in addition to .agents/skills/
 
-Per-package skill paths via handler config:
+Package-declared skill paths under ``package.with.agents``:
 
 .. code-block:: yaml
 
-    handlers:
-      agents:
-        skills:
-          - skills/**/SKILL.md
-          - docs/SKILL.md
+    package:
+      name: my-lib
+      with:
+        agents:
+          skills:
+            - skills/**/SKILL.md
+            - docs/SKILL.md
 
 Or via consumer dep-entry:
 

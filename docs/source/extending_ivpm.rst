@@ -9,7 +9,7 @@ downstream tool. IVPM discovers handlers through Python `entry points`_, so any
 installed package can contribute new handlers without modifying IVPM itself.
 
 For an overview of what handlers are, how they fit into the update pipeline,
-and documentation of the three built-in handlers (Python, Direnv, Skills),
+and documentation of the three built-in handlers (Python, Direnv, Agents),
 see :doc:`handlers`.
 
 .. _entry points: https://packaging.python.org/en/latest/specifications/entry-points/
@@ -343,7 +343,7 @@ Handler Ordering
 
 IVPM loads handlers in this order:
 
-1. Built-in handlers (Python, Direnv, Skills) -- all at phase ``0``
+1. Built-in handlers (Python, Direnv, Agents) -- all at phase ``0``
 2. Extension handlers discovered via ``ivpm.handlers`` entry points, in
    installation order
 
