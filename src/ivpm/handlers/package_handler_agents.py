@@ -168,6 +168,7 @@ class PackageHandlerAgents(PackageHandler):
             os.makedirs(tgt, exist_ok=True)
 
         use_symlinks = _symlinks_supported(targets[0])
+        deps_dir_norm = os.path.normpath(update_info.deps_dir)
 
         for pkg_name, dirs in sorted(self.skill_dirs.items()):
             for idx, skill_dir in enumerate(dirs, start=1):
@@ -176,9 +177,9 @@ class PackageHandlerAgents(PackageHandler):
                     dest = os.path.join(tgt, dest_name)
                     if use_symlinks:
                         rel_target = os.path.relpath(skill_dir, tgt)
-                        os.symlink(rel_target, dest)
+                        self._ensure_symlink(dest, rel_target, skill_dir, deps_dir_norm)
                     else:
-                        _copy_skill_dir(skill_dir, dest)
+                        self._ensure_copy(dest, skill_dir)
 
         total = sum(len(v) for v in self.skill_dirs.values())
         from ..utils import note
@@ -238,6 +239,40 @@ class PackageHandlerAgents(PackageHandler):
                 pkg_name, path)
             return False
         return True
+
+    def _ensure_symlink(self, dest: str, rel_target: str, skill_dir: str, deps_dir_norm: str):
+        """Create or replace symlink at dest, handling existing entries gracefully."""
+        if os.path.islink(dest):
+            # Resolve stored target to absolute path
+            stored_target = os.readlink(dest)
+            stored_abs = os.path.normpath(os.path.join(os.path.dirname(dest), stored_target))
+            expected_abs = os.path.normpath(skill_dir)
+
+            if stored_abs == expected_abs:
+                return  # Already correct, silently leave it
+
+            # Check if it points into deps_dir
+            if stored_abs.startswith(deps_dir_norm + os.sep):
+                os.unlink(dest)
+                os.symlink(rel_target, dest)
+            else:
+                _logger.warning(
+                    "Symlink %s points outside deps_dir to %s; leaving as-is",
+                    dest, stored_abs)
+        elif os.path.exists(dest):
+            _logger.warning(
+                "Cannot create symlink %s; path exists and is not a symlink",
+                dest)
+        else:
+            os.symlink(rel_target, dest)
+
+    def _ensure_copy(self, dest: str, skill_dir: str):
+        """Create or replace copy at dest, handling existing entries gracefully."""
+        if os.path.exists(dest):
+            _logger.warning(
+                "Skill copy %s already exists; skipping", dest)
+        else:
+            _copy_skill_dir(skill_dir, dest)
 
     @staticmethod
     def _remove_managed(project_dir: str, prev_state: dict):

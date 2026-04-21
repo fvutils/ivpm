@@ -410,6 +410,164 @@ class TestAgents(TestBase):
         self.assertTrue(os.path.isdir(os.path.join(dest, "scripts")))
         self.assertTrue(os.path.isdir(os.path.join(dest, "assets")))
 
+    # ------------------------------------------------------------------ #
+    # Symlink idempotency and error handling                               #
+    # ------------------------------------------------------------------ #
+
+    def test_existing_correct_symlink_left_alone(self):
+        """If symlink exists and points to correct target → silently leave it."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_idempotent
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        # First run
+        self.ivpm_update(skip_venv=True)
+
+        link = os.path.join(self.testdir, ".agents", "skills", "agents_leaf1")
+        self.assertTrue(os.path.islink(link))
+        original_target = os.readlink(link)
+
+        # Second run (same configuration)
+        self.ivpm_update(skip_venv=True)
+
+        # Link should still exist and point to same target
+        self.assertTrue(os.path.islink(link))
+        self.assertEqual(os.readlink(link), original_target)
+
+    def test_symlink_to_wrong_deps_target_replaced(self):
+        """Symlink points to different target within deps_dir → replace it."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_replace
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        link = os.path.join(self.testdir, ".agents", "skills", "agents_leaf1")
+        self.assertTrue(os.path.islink(link))
+
+        # Manually create a wrong symlink to a different location
+        wrong_target = os.path.join(self.testdir, "some_other_location")
+        os.makedirs(wrong_target, exist_ok=True)
+        os.unlink(link)
+        os.symlink(os.path.relpath(wrong_target, os.path.dirname(link)), link)
+
+        # Second run should fix it
+        self.ivpm_update(skip_venv=True)
+
+        # Link should now point to the correct location
+        self.assertTrue(os.path.islink(link))
+        resolved = os.path.normpath(os.path.join(os.path.dirname(link), os.readlink(link)))
+        deps_leaf = os.path.join(self.testdir, "packages/agents_leaf1")
+        self.assertEqual(resolved, deps_leaf)
+
+    def test_symlink_outside_deps_dir_warned_and_left(self):
+        """Symlink points outside deps_dir → warn and leave as-is."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_external_link
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+
+        # Create a symlink outside deps_dir before first run
+        skills_dir = os.path.join(self.testdir, ".agents", "skills")
+        os.makedirs(skills_dir, exist_ok=True)
+        external_target = os.path.join(self.testdir, "external")
+        os.makedirs(external_target, exist_ok=True)
+        link = os.path.join(skills_dir, "agents_leaf1")
+        os.symlink(os.path.relpath(external_target, skills_dir), link)
+
+        # Run update and check warning is logged
+        with self.assertLogs("ivpm.handlers.package_handler_agents", level=logging.WARNING) as cm:
+            self.ivpm_update(skip_venv=True)
+
+        self.assertTrue(any("points outside deps_dir" in msg for msg in cm.output))
+
+        # Link should still point to external location
+        self.assertTrue(os.path.islink(link))
+        resolved = os.path.normpath(os.path.join(os.path.dirname(link), os.readlink(link)))
+        self.assertEqual(resolved, external_target)
+
+    def test_non_symlink_file_at_dest_warned_and_skipped(self):
+        """Regular file exists at dest → warn and skip."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_file_conflict
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+
+        # Create a regular file where the symlink should go
+        skills_dir = os.path.join(self.testdir, ".agents", "skills")
+        os.makedirs(skills_dir, exist_ok=True)
+        file_path = os.path.join(skills_dir, "agents_leaf1")
+        with open(file_path, "w") as f:
+            f.write("existing file")
+
+        # Run update and check warning is logged
+        with self.assertLogs("ivpm.handlers.package_handler_agents", level=logging.WARNING) as cm:
+            self.ivpm_update(skip_venv=True)
+
+        self.assertTrue(any("not a symlink" in msg for msg in cm.output))
+
+        # File should still exist
+        self.assertTrue(os.path.isfile(file_path))
+        with open(file_path) as f:
+            self.assertEqual(f.read(), "existing file")
+
+    def test_existing_copy_skipped_with_warning(self):
+        """Copy fallback: existing directory → warn and skip."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_copy_exists
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_with_assets
+                      url: file://${DATA_DIR}/agents_with_assets
+                      src: dir
+        """)
+
+        # Create existing directory where copy should go
+        dest_dir = os.path.join(self.testdir, ".agents", "skills", "agents_with_assets")
+        os.makedirs(dest_dir, exist_ok=True)
+        marker_file = os.path.join(dest_dir, "marker.txt")
+        with open(marker_file, "w") as f:
+            f.write("existing content")
+
+        # Run update with copy fallback
+        with patch("ivpm.handlers.package_handler_agents._symlinks_supported",
+                   return_value=False):
+            with self.assertLogs("ivpm.handlers.package_handler_agents", level=logging.WARNING) as cm:
+                self.ivpm_update(skip_venv=True)
+
+        self.assertTrue(any("already exists" in msg for msg in cm.output))
+
+        # Original directory should remain unchanged
+        self.assertTrue(os.path.isfile(marker_file))
+        with open(marker_file) as f:
+            self.assertEqual(f.read(), "existing content")
+
 
 if __name__ == "__main__":
     unittest.main()
