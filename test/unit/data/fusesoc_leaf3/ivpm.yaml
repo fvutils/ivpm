@@ -1,0 +1,11 @@
+package:
+  name: fusesoc_leaf3
+  with:
+    fusesoc:
+      cores:
+        - cores/
+  dep-sets:
+    - name: default
+      deps: []
+    - name: default-dev
+      deps: []

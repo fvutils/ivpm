@@ -1,0 +1,5 @@
+CAPI=2:
+  name: ::wb_intercon:1.0
+  filesets:
+    rtl:
+      files: [wb_intercon.v]

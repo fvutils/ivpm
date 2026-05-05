@@ -1,0 +1,5 @@
+CAPI=2:
+  name: ::extra_core:2.0
+  filesets:
+    rtl:
+      files: [extra.v]

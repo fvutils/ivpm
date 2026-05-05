@@ -1,0 +1,7 @@
+package:
+  name: fusesoc_leaf1
+  dep-sets:
+    - name: default
+      deps: []
+    - name: default-dev
+      deps: []

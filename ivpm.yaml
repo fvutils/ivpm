@@ -18,6 +18,10 @@ package:
       src: pypi
     - name: ptyprocess
       src: pypi
+    - name: fusesoc
+      url: http://github.com/olofk/fusesoc.git
+    - name: pytest
+      src: pypi
 
   - name: default-dev
     deps:

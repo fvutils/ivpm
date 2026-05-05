@@ -29,8 +29,14 @@ ivpm = "ivpm.__main__:main"
 [tool.setuptools.package-data]
 ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*']
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]
+
 [project.entry-points."ivpm.handlers"]
 python = "ivpm.handlers.package_handler_python:PackageHandlerPython"
 direnv = "ivpm.handlers.package_handler_direnv:PackageHandlerDirenv"
 agents = "ivpm.handlers.package_handler_agents:PackageHandlerAgents"
+fusesoc = "ivpm.handlers.package_handler_fusesoc:PackageHandlerFuseSoC"
 

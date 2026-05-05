@@ -1,0 +1,7 @@
+package:
+  name: fusesoc_no_cores
+  dep-sets:
+    - name: default
+      deps: []
+    - name: default-dev
+      deps: []

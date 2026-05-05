@@ -1,0 +1,11 @@
+package:
+  name: fusesoc_missing_core
+  with:
+    fusesoc:
+      cores:
+        - nonexistent_dir/
+  dep-sets:
+    - name: default
+      deps: []
+    - name: default-dev
+      deps: []

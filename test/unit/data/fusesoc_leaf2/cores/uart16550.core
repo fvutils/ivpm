@@ -1,0 +1,5 @@
+CAPI=2:
+  name: ::uart16550:1.5
+  filesets:
+    rtl:
+      files: [uart16550.v]

@@ -1,0 +1,5 @@
+CAPI=2:
+  name: ::uart:1.0
+  filesets:
+    rtl:
+      files: [uart.v]

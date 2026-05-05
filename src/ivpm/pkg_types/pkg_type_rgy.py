@@ -29,6 +29,7 @@ from .package_gh_rls import PackageGhRls
 from .package_git import PackageGit
 from .package_pypi import PackagePyPi
 from .package_url import PackageURL
+from .package_fusesoc import PackageFuseSoC
 
 @dc.dataclass
 class PkgTypeRgy(object):
@@ -84,6 +85,7 @@ class PkgTypeRgy(object):
         self.register("pypi",   PackagePyPi.create,  PackagePyPi.source_info())
         self.register("url",    PackageURL.create,   PackageURL.source_info())
         self.register("gh-rls", PackageGhRls.create, PackageGhRls.source_info())
+        self.register("fusesoc", PackageFuseSoC.create, PackageFuseSoC.source_info())
 
     @classmethod
     def inst(cls):
