@@ -7,6 +7,7 @@ cd ex2-custom
 ivpm update
 . packages/packages.envrc
 fusesoc core list
+fusesoc run --target sim ::uart16550:1.5.5
 ```
 
 ## What This Example Shows
@@ -25,15 +26,33 @@ deps:
   - name: fusesoc
     src: pypi                    # Install FuseSoC from PyPI into managed venv
   
-  - name: verilator
-    src: gh-rls                  # Pre-built Verilator binary
-    url: https://github.com/edapack/verilator-bin
+  - name: iverilog
+    src: gh-rls                  # Pre-built Icarus Verilog binary
+    url: https://github.com/edapack/iverilog-bin
   
   - name: uart16550
     url: https://github.com/olofk/uart16550.git  # Plain git clone
 ```
 
 No `with:` clause is needed. IVPM's FuseSoC handler is always active and automatically scans all cloned packages for `.core` files, adding them to `FUSESOC_CORES`.
+
+### Core Customization
+
+The `uart16550.core` file in `packages/uart16550/` has been extended with a `sim` target that was not present in the upstream repository. This demonstrates how you can customize cloned packages for your project:
+
+```yaml
+targets:
+  sim:
+    default_tool: icarus
+    filesets: [rtl]
+    toplevel: uart_top
+    tools:
+      icarus:
+        iverilog_options:
+          - -g2012
+```
+
+This is an example of the flexibility IVPM provides — fetched packages are full working copies that you can customize before running FuseSoC.
 
 ### Using Your Own Custom Project
 
@@ -49,7 +68,7 @@ Replace `uart16550` with any git repo that contains `.core` files:
 When you run `ivpm update`, IVPM:
 
 1. **Creates Python venv** with FuseSoC installed
-2. **Fetches Verilator** binary
+2. **Fetches Icarus Verilog** (iverilog) binary
 3. **Clones the uart16550 repository** (or your custom project) into `packages/`
 4. **Scans for .core files** in all packages:
    - Checks for valid CAPI=2 markers (avoids false positives like core dumps)
@@ -71,12 +90,12 @@ After `ivpm update && . packages/packages.envrc`:
 
 - **Inspect a core**:
   ```bash
-  fusesoc core show ::uart16550:1.0
+  fusesoc core show ::uart16550:1.5.5
   ```
 
 - **Validate cores**:
   ```bash
-  fusesoc lint ::uart16550:1.0
+  fusesoc lint ::uart16550:1.5.5
   ```
 
 - **Check discovered core directories**:
@@ -84,10 +103,15 @@ After `ivpm update && . packages/packages.envrc`:
   cat packages/fusesoc-cores.txt
   ```
 
+- **Run simulation** (uses the `sim` target defined in `packages/uart16550/uart16550.core`):
+  ```bash
+  fusesoc run --target sim ::uart16550:1.5.5
+  ```
+
 - **Modify IP and re-run FuseSoC commands**:
   ```bash
   # Edit files in packages/uart16550/
-  fusesoc run ::uart16550:1.0 --target=sim
+  fusesoc run --target sim ::uart16550:1.5.5
   ```
 
 - **Add more packages**:

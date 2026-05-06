@@ -229,6 +229,16 @@ class PackageHandlerFuseSoC(PackageHandler):
             return
 
         dirs = self._get_core_dirs(pkg)
+
+        # For src:fusesoc packages, also register the catalog .core directory so
+        # that FuseSoC sees the catalog VLNV name (e.g. ::vlog_tb_utils:1.1-r1).
+        # This is needed because the cloned repo may have a different name in its
+        # .core file (e.g. fusesoc:utils:vlog_tb_utils:1.1.1 vs ::vlog_tb_utils).
+        catalog_core_dir = getattr(pkg, "catalog_core_dir", None)
+        if catalog_core_dir and _has_cores_nonrecursive(catalog_core_dir):
+            if catalog_core_dir not in dirs:
+                dirs = list(dirs) + [catalog_core_dir]
+
         if dirs:
             with self._lock:
                 self._core_dirs[pkg.name] = dirs

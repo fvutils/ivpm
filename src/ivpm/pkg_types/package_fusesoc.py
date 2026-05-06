@@ -53,22 +53,67 @@ class PackageFuseSoC(Package):
     The actual fetch is delegated to a ``PackageGit`` instance.
     """
     vlnv: str = None
+    # Directory inside fusesoc-cores containing the catalog .core file for this VLNV.
+    # Stored during update() so the fusesoc handler can also register this dir,
+    # ensuring the catalog VLNV name (e.g. ::vlog_tb_utils:1.1-r1) is visible to
+    # FuseSoC alongside the cloned repo (which may use a different name).
+    catalog_core_dir: Optional[str] = None
 
     def update(self, update_info: ProjectUpdateInfo) -> 'ProjInfo':
-        from .package_git import PackageGit
-        git_pkg = self._resolve_to_git(update_info)
-        result = git_pkg.update(update_info)
-        self.path = git_pkg.path  # propagate so handlers can discover .core files
-        return result
-
-    def _resolve_to_git(self, update_info: ProjectUpdateInfo):
-        """Resolve VLNV to a PackageGit by scanning the fusesoc-cores index."""
         index_dir = self._ensure_index(update_info)
-        url, version = self._vlnv_lookup(self.vlnv, index_dir)
+        core_path, url, version = self._vlnv_lookup(self.vlnv, index_dir)
+
+        # Remember the catalog dir so the handler can register it too
+        self.catalog_core_dir = os.path.dirname(core_path)
+
+        if url is None:
+            # url-type provider: download the single file
+            return self._fetch_url_provider(update_info, core_path)
+
         from .package_git import PackageGit
         pkg = PackageGit(name=self.name, url=url, tag=version)
         pkg.process_options({"url": url, "tag": version}, None)
-        return pkg
+        result = pkg.update(update_info)
+        self.path = pkg.path  # propagate so handlers can discover .core files
+        return result
+
+    def _fetch_url_provider(self, update_info: ProjectUpdateInfo, core_path: str):
+        """Handle FuseSoC 'url' providers: download a single file + place the .core file."""
+        import httpx
+        import shutil
+        from ..proj_info import ProjInfo
+
+        with open(core_path) as fh:
+            core_data = yaml.safe_load(fh)
+
+        provider = core_data.get("provider", {}) if isinstance(core_data, dict) else {}
+        file_url = provider.get("url") if isinstance(provider, dict) else None
+        if not file_url:
+            fatal("VLNV %s: url provider missing 'url' key in %s" % (self.vlnv, core_path))
+
+        pkg_dir = os.path.join(update_info.deps_dir, self.name)
+        self.path = pkg_dir.replace("\\", "/")
+
+        if os.path.isdir(pkg_dir):
+            note("package %s is already loaded" % self.name)
+            return ProjInfo.mkFromProj(pkg_dir)
+
+        os.makedirs(pkg_dir, exist_ok=True)
+
+        # Download the source file
+        filename = os.path.basename(file_url.split("?")[0])
+        dest_file = os.path.join(pkg_dir, filename)
+        note("Downloading %s from %s" % (self.name, file_url))
+        r = httpx.get(file_url, follow_redirects=True)
+        if r.status_code < 200 or r.status_code >= 300:
+            fatal("Failed to download %s: HTTP %d" % (file_url, r.status_code))
+        with open(dest_file, "wb") as f:
+            f.write(r.content)
+
+        # Copy the .core file so fusesoc can discover the core
+        shutil.copy2(core_path, os.path.join(pkg_dir, os.path.basename(core_path)))
+
+        return ProjInfo.mkFromProj(pkg_dir)
 
     def _ensure_index(self, update_info: ProjectUpdateInfo) -> str:
         """Ensure the fusesoc-cores index is available in deps-dir.
@@ -97,8 +142,10 @@ class PackageFuseSoC(Package):
     def _vlnv_lookup(self, vlnv: str, index_dir: str):
         """Walk *.core files in *index_dir*, find the one matching *vlnv*.
 
-        Returns ``(url, version)`` from the matching core file's provider block.
-        Raises ``SystemExit`` (via ``fatal()``) on failure.
+        Returns ``(core_path, url, version)``.  When the provider uses a direct
+        URL download (``name: url``) rather than a git clone, ``url`` is
+        ``None`` and the caller must use ``core_path`` to obtain the download URL.
+        Raises via ``fatal()`` on unrecoverable failure.
         """
         target_name = self._parse_vlnv_name(vlnv)
 
@@ -131,14 +178,13 @@ class PackageFuseSoC(Package):
             # Multiple versions: pick the one matching the requested version
             if target_version == "latest":
                 candidates.sort(key=lambda c: self._parse_version_key(c[1]))
-                # Prefer the latest version that has a usable provider block
+                # Prefer the latest version that has a git-clonable provider
                 for cpath, cver in reversed(candidates):
                     url, ver = self._extract_provider(cpath)
                     if url is not None:
-                        return url, ver
-                fatal(
-                    "VLNV %s: found %s but no version has a fetchable "
-                    "provider block" % (vlnv, target_name))
+                        return cpath, url, ver
+                # Fall back to the latest version even if it only has a url provider
+                best = candidates[-1]
             else:
                 matching = [c for c in candidates if c[1] == target_version]
                 if not matching:
@@ -151,12 +197,18 @@ class PackageFuseSoC(Package):
         else:
             best = candidates[0]
 
-        url, ver = self._extract_provider(best[0])
+        core_path = best[0]
+        url, ver = self._extract_provider(core_path)
         if url is None:
+            # Check whether it's a known url-type provider (handled by caller)
+            raw_provider = self._get_raw_provider(core_path)
+            prov_name = raw_provider.get("name") if isinstance(raw_provider, dict) else None
+            if prov_name == "url":
+                return core_path, None, None
             fatal(
                 "VLNV %s: core file has no fetchable provider block "
                 "(CAPI=2 cores without a provider must be cloned directly)" % vlnv)
-        return url, ver
+        return core_path, url, ver
 
     @staticmethod
     def _parse_vlnv_name(vlnv: str) -> str:
@@ -216,6 +268,18 @@ class PackageFuseSoC(Package):
                 if name and (name.startswith(target) or target.startswith(name)):
                     matches.append(name)
         return matches
+
+    @staticmethod
+    def _get_raw_provider(core_path: str):
+        """Return the raw ``provider`` dict from a .core file, or None."""
+        try:
+            with open(core_path) as fh:
+                data = yaml.safe_load(fh)
+        except Exception:
+            return None
+        if not isinstance(data, dict):
+            return None
+        return data.get("provider", None)
 
     @staticmethod
     def _extract_provider(core_path: str):

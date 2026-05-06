@@ -19,9 +19,9 @@ package:
       src: pypi
 
     # Verilator simulator (optional, enables simulation targets)
-    - name: verilator
+    - name: iverilog
       src: gh-rls
-      url: https://github.com/edapack/verilator-bin
+      url: https://github.com/edapack/iverilog-bin
       cache: true
 
     # i2c core from the FuseSoC registry.
