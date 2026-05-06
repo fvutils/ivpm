@@ -389,15 +389,16 @@ FuseSoC <code class="docutils literal notranslate"><span class="pre">.core</span
 <h2>Handler Ordering<a class="headerlink" href="#handler-ordering" title="Link to this heading"></a></h2>
 <p>IVPM loads handlers in this order:</p>
 <ol class="arabic simple">
-<li><p>Built-in handlers (Python, Direnv, Agents) – all at phase <code class="docutils literal notranslate"><span class="pre">0</span></code></p></li>
+<li><p>Built-in handlers in phase order: Direnv (phase <code class="docutils literal notranslate"><span class="pre">0</span></code>), Python (phase <code class="docutils literal notranslate"><span class="pre">5</span></code>), Agents (phase <code class="docutils literal notranslate"><span class="pre">6</span></code>)</p></li>
 <li><p>Extension handlers discovered via <code class="docutils literal notranslate"><span class="pre">ivpm.handlers</span></code> entry points, in
 installation order</p></li>
 </ol>
 <p>Within the root phase, handlers with the same phase number run in the order they
 were registered. Leaf callbacks always run concurrently with no guaranteed
 ordering.</p>
-<p>To run after all built-in handlers, use <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">10</span></code> or higher. To run before
-a built-in, use a negative phase (though this is rarely needed).</p>
+<p>To run after all built-in handlers, use <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">10</span></code> or higher.  To interleave
+between built-ins (e.g., after Python but before Agents), use a phase between
+<code class="docutils literal notranslate"><span class="pre">5</span></code> and <code class="docutils literal notranslate"><span class="pre">6</span></code>.  To run before all built-ins, use a negative phase (rarely needed).</p>
 </section>
 <section id="testing-your-handler">
 <h2>Testing Your Handler<a class="headerlink" href="#testing-your-handler" title="Link to this heading"></a></h2>

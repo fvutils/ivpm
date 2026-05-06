@@ -55,7 +55,9 @@ When you run ``ivpm update``, IVPM executes these stages:
         |
         v
     3. Process -------- root handlers run in phase order
-        |                  phase 0: python, direnv, agents (built-in)
+        |                  phase 0: direnv (built-in)
+        |                  phase 5: python (built-in)
+        |                  phase 6: agents (built-in)
         |                  phase N: any third-party handlers
         |
         v
@@ -70,8 +72,9 @@ root callback (filtered by ``root_when`` conditions) in phase order.
 Built-in Handlers
 =================
 
-IVPM ships three built-in handlers, all at ``phase = 0``.  They are
-registered via entry points in IVPM's own ``pyproject.toml`` and run on every
+IVPM ships three built-in handlers.  They run in phase order (direnv → python → agents)
+so that the Python venv is ready before the agents handler queries ``ivpm.skill`` entry-points.
+They are registered via entry points in IVPM's own ``pyproject.toml`` and run on every
 ``update`` and ``clone`` invocation.
 
 .. tip::
@@ -239,7 +242,7 @@ Packages with missing or malformed frontmatter are skipped with a warning.
 
 **Leaf phase**
 
-Runs for every non-PyPI package.  Discovers skill files using one of three methods
+Runs for every non-PyPI package.  Discovers skill files using one of four methods
 (in priority order):
 
 1. **Consumer-specified paths** (highest priority)
@@ -273,11 +276,48 @@ Runs for every non-PyPI package.  Discovers skill files using one of three metho
 
 3. **Auto-probe** (lowest priority, fallback)
    
-   No explicit paths declared — automatically checks for ``SKILL.md`` in the
-   package root.  If found and valid, it is used.
+   No explicit paths declared — automatically checks two locations:
 
-Skill paths support glob patterns (e.g., ``skills/**/SKILL.md``) and are
-evaluated relative to the package directory.
+   a. ``SKILL.md`` in the package root — used if present and valid.
+   b. ``skills/`` subdirectory — all ``SKILL.md`` files found recursively
+      under ``<package-root>/skills/`` are included.
+
+   Both locations are checked; a package may contribute multiple skills this way.
+
+4. **Python ``ivpm.skill`` entry-points** (Python packages only)
+
+   Python packages installed into the project's managed virtual environment may
+   register skills via the ``ivpm.skill`` `entry-point group`_.  The Python
+   handler queries this group after installing all packages, and the agents
+   handler processes the results.
+
+   Each entry-point must be a callable that returns either a single path
+   (``str``) or a list of paths to **directories containing** ``SKILL.md``:
+
+   .. code-block:: toml
+
+       # pyproject.toml of the skill-providing Python package
+       [project.entry-points."ivpm.skill"]
+       my-skill = "mypkg.skills:get_skill_dir"
+
+   .. code-block:: python
+
+       # mypkg/skills.py
+       import importlib.resources
+
+       def get_skill_dir() -> str:
+           """Return the path to the directory containing SKILL.md."""
+           return str(importlib.resources.files("mypkg") / "skill_data")
+
+   The returned directory must contain a ``SKILL.md`` with valid frontmatter.
+   Entry-points that raise exceptions or return invalid paths emit a warning
+   and are skipped.  This mechanism is independent of the package having an
+   ``ivpm.yaml`` — it works for any Python package installed into the venv.
+
+.. _entry-point group: https://packaging.python.org/en/latest/specifications/entry-points/
+
+Skill paths (for mechanisms 1–3) support glob patterns (e.g.,
+``skills/**/SKILL.md``) and are evaluated relative to the package directory.
 
 **Root phase**
 
@@ -286,14 +326,16 @@ Runs when at least one valid skill file was found.  Steps:
 1. Create ``.agents/skills/`` directory
 2. Create ``.claude/skills/`` directory if ``claude: true`` OR if ``.claude/``
    already exists
-3. For each skill, create a relative symlink (or copy as fallback) with a
+3. Process skills gathered from dependencies (mechanisms 1–3 above) and from
+   ``ivpm.skill`` Python entry-points (mechanism 4)
+4. For each skill, create a relative symlink (or copy as fallback) with a
    human-readable name derived from its source directory
-4. Dependency skills are named as ``<package>-<dir>`` (or just ``<package>`` for a
+5. Dependency skills are named as ``<package>-<dir>`` (or just ``<package>`` for a
    package-root ``SKILL.md``); conflicting names expand to include parent
    directories, such as ``<package>-<parent>-<dir>``
-5. Root-project skills are named as ``<dir>``; conflicting names expand to include
+6. Root-project skills are named as ``<dir>``; conflicting names expand to include
    parent directories, such as ``<parent>-<dir>``
-6. Remove stale entries from previous runs
+7. Remove stale entries from previous runs
 
 **Configuration (``ivpm.yaml``)**
 
@@ -355,26 +397,30 @@ Handler Summary
 
 .. list-table::
    :header-rows: 1
-   :widths: 12 30 25 25 15
+   :widths: 12 8 30 25 25 15
 
    * - Handler
+     - Phase
      - Purpose
      - Leaf Detection
      - Root Action
      - Output
-   * - ``python``
-     - Python venv and package install
-     - ``setup.py`` / ``pyproject.toml`` / ``src: pypi``
-     - Creates venv, installs packages
-     - ``packages/python/``
    * - ``direnv``
+     - 0
      - Environment file aggregation
      - ``.envrc`` / ``export.envrc``
      - Writes combined envrc
      - ``packages/packages.envrc``
+   * - ``python``
+     - 5
+     - Python venv and package install
+     - ``setup.py`` / ``pyproject.toml`` / ``src: pypi``
+     - Creates venv, installs packages; queries ``ivpm.skill`` entry-points
+     - ``packages/python/``
    * - ``agents``
+     - 6
      - Skill file discovery and symlinking
-     - ``SKILL.md`` (auto or declared)
+     - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``ivpm.skill`` entry-points
      - Creates symlinks to skills
      - ``.agents/skills/``, ``.claude/skills/``
 
