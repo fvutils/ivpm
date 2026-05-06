@@ -1,4 +1,7 @@
 
+# 2.8.0
+- Add FuseSoc integration
+
 # 2.7.0
 - Change cache to default to 'on'
 - Only create Python venv if Python packages are present
