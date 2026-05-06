@@ -39,4 +39,5 @@ python = "ivpm.handlers.package_handler_python:PackageHandlerPython"
 direnv = "ivpm.handlers.package_handler_direnv:PackageHandlerDirenv"
 agents = "ivpm.handlers.package_handler_agents:PackageHandlerAgents"
 fusesoc = "ivpm.handlers.package_handler_fusesoc:PackageHandlerFuseSoC"
+modules = "ivpm.handlers.package_handler_modules:PackageHandlerModules"
 

@@ -1,9 +1,10 @@
 import os
 import sys
 import dataclasses as dc
+import platform
 import subprocess
 from ..proj_info import ProjInfo
-from ..utils import fatal
+from ..utils import fatal, get_venv_bindir
 
 @dc.dataclass
 class CmdActivate(object):
@@ -27,21 +28,46 @@ class CmdActivate(object):
         if not os.path.isdir(python_dir):
             fatal("No packages/python directory ; must run ivpm update first")
 
-        activate = os.path.join(python_dir, "bin/activate")
+        bindir = get_venv_bindir(python_dir)
 
-        # TODO: consider non-bash shells and non-Linux platforms
-        shell = getattr(os.environ, "SHELL", "bash")
-        cmd = None
-        if shell.find("bash") != -1:
-            cmd = [shell, "-rcfile",  activate]
+        if platform.system() == "Windows":
+            # On Windows, prefer PowerShell; fall back to cmd.exe
+            comspec = os.environ.get("COMSPEC", "cmd.exe")
+            ps_activate = os.path.join(bindir, "Activate.ps1")
+            bat_activate = os.path.join(bindir, "activate.bat")
 
-            if args.c is not None:
-                cmd.extend(["-c", args.c])
-        elif shell.find("csh") != -1 or shell.find("ksh") != -1:
-            cmd = [shell, "-s",  activate + ".csh"]
-
-            if args.c is None:
-                cmd.extend(["-i", args.c])
+            if os.path.isfile(ps_activate) and "powershell" not in comspec.lower():
+                # Launch PowerShell with the activation script
+                cmd = ["powershell", "-NoExit", "-Command",
+                       ". '%s'" % ps_activate]
+                if args.c is not None:
+                    cmd = ["powershell", "-Command",
+                           ". '%s'; %s" % (ps_activate, args.c)]
+            elif os.path.isfile(bat_activate):
+                # Launch cmd.exe with the activation batch file
+                cmd = [comspec, "/K", bat_activate]
+                if args.c is not None:
+                    cmd = [comspec, "/C", "%s && %s" % (bat_activate, args.c)]
+            else:
+                fatal("Cannot find activation script in %s" % bindir)
+        else:
+            # Unix shells
+            activate = os.path.join(bindir, "activate")
+            shell = os.environ.get("SHELL", "bash")
+            cmd = None
+            if "bash" in shell:
+                cmd = [shell, "-rcfile", activate]
+                if args.c is not None:
+                    cmd.extend(["-c", args.c])
+            elif "csh" in shell or "ksh" in shell:
+                cmd = [shell, "-s", activate + ".csh"]
+                if args.c is not None:
+                    cmd.extend(["-i", args.c])
+            else:
+                # Generic fallback: source activate in a subshell
+                cmd = [shell, "-c", ". '%s' && exec %s" % (activate, shell)]
+                if args.c is not None:
+                    cmd = [shell, "-c", ". '%s' && %s" % (activate, args.c)]
 
         cmd.extend(args.args)
 
@@ -65,4 +91,3 @@ class CmdActivate(object):
             cmd,
             env=env)
         sys.exit(result.returncode)
-

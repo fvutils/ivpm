@@ -1,0 +1,5 @@
+package:
+    name: module_leaf2
+    dep-sets:
+        - name: default-dev
+          deps: []

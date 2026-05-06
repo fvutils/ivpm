@@ -15,16 +15,34 @@ from pathlib import Path
 
 _logger = logging.getLogger("ivpm.utils")
 
+def is_filesystem_root(path):
+    """True when *path* is the filesystem root.
+
+    Works on both Unix (``/``) and Windows (``C:\\``, ``D:\\``, etc.).
+    """
+    return os.path.dirname(path) == path
+
+
+def get_venv_bindir(python_dir):
+    """Return the ``Scripts`` or ``bin`` directory inside a venv.
+
+    Windows venvs place executables under ``Scripts/``; Unix under ``bin/``.
+    """
+    scripts = os.path.join(python_dir, "Scripts")
+    if os.path.isdir(scripts):
+        return scripts
+    return os.path.join(python_dir, "bin")
+
 
 def find_project_root(path):
     pt = path
-    while pt != "/" and pt != "":
+    while pt != "" and not is_filesystem_root(pt):
         if os.path.isfile(os.path.join(pt, "ivpm.yaml")) and os.path.isdir(os.path.join(pt, "packages")):
             break
         else:
             pt = os.path.dirname(pt)
 
-    if pt == "/":
+    if pt == "" or is_filesystem_root(pt):
         return None
     else:
         return pt

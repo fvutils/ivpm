@@ -214,3 +214,44 @@ def parse_type_field(value) -> list:
             result.extend(_item(elem))
         return result
     return _item(value)
+
+
+# ---------------------------------------------------------------------------
+# Built-in: module
+# ---------------------------------------------------------------------------
+
+@dc.dataclass
+class ModuleTypeData(TypeData):
+    """Type-specific data for packages processed by the modules handler."""
+    load: bool = True        # emit 'module load' into envrc
+    module: str = None       # module specifier (copied from PackageModule.module)
+
+
+class ModuleContentType(PkgContentType):
+    """Content type 'module': emit module load and/or resolve root directory."""
+
+    @property
+    def name(self) -> str:
+        return "module"
+
+    def create_data(self, with_opts: dict, si) -> ModuleTypeData:
+        known = {"load"}
+        for k in with_opts:
+            if k not in known:
+                fatal("type 'module' does not accept parameter '%s' "
+                      "(known: %s)" % (k, ", ".join(sorted(known))))
+        data = ModuleTypeData()
+        if "load" in with_opts:
+            data.load = bool(with_opts["load"])
+        data.type_name = self.name
+        return data
+
+    def content_type_info(self):
+        from .show.info_types import ContentTypeInfo, ParamInfo
+        return ContentTypeInfo(
+            name="module",
+            description="Environment Module -- emit module load and/or resolve root directory for handler discovery",
+            params=[
+                ParamInfo("load", "Emit 'module load' into envrc (default: true)", type_hint="bool"),
+            ],
+        )

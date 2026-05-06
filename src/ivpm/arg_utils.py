@@ -5,6 +5,7 @@ Created on Jun 8, 2021
 '''
 import os
 import sys
+from .utils import is_filesystem_root
 
 
 def find_project_dir():
@@ -16,7 +17,7 @@ def find_project_dir():
     else:
         # Go up the path
         parent = os.path.dirname(cwd)
-        while parent != "" and parent != "/":
+        while parent != "" and not is_filesystem_root(parent):
             if os.path.isdir(os.path.join(parent, "packages")):
                 return parent
             parent = os.path.dirname(parent)

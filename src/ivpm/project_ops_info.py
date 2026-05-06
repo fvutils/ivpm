@@ -83,6 +83,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     project_dir: Optional[str] = None   # Project root (one level above deps_dir)
     handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
     pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
+    modules_interface: Optional['ModulesInterface'] = None  # lazily populated by PackageModule.update()
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None

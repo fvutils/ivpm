@@ -18,6 +18,7 @@
 #****************************************************************************
 import logging
 from .pkg_content_type import PkgContentType, PythonContentType, RawContentType
+from .pkg_content_type import ModuleContentType
 
 _logger = logging.getLogger("ivpm.pkg_content_type_rgy")
 
@@ -56,6 +57,7 @@ class PkgContentTypeRgy:
     def _load(self):
         self.register(PythonContentType())
         self.register(RawContentType())
+        self.register(ModuleContentType())
 
         # Future: scan entry_points(group='ivpm.content_types') here
         try:

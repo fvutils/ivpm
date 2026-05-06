@@ -325,3 +325,67 @@ package:
           deps: []
         """)
         self.assertEqual(proj.self_types, [("python", {}), ("raw", {})])
+
+
+class TestModuleContentType(unittest.TestCase):
+    """Tests for ModuleContentType.create_data() directly."""
+
+    def setUp(self):
+        from ivpm.pkg_content_type import ModuleContentType
+        self.ct = ModuleContentType()
+
+    def test_module_type_registered(self):
+        rgy = PkgContentTypeRgy.inst()
+        self.assertTrue(rgy.has("module"))
+
+    def test_module_type_create_data_defaults(self):
+        from ivpm.pkg_content_type import ModuleTypeData
+        data = self.ct.create_data({}, si=None)
+        self.assertIsInstance(data, ModuleTypeData)
+        self.assertTrue(data.load)
+        self.assertIsNone(data.module)
+
+    def test_module_type_create_data_load_false(self):
+        data = self.ct.create_data({"load": False}, si=None)
+        self.assertFalse(data.load)
+
+    def test_module_type_unknown_param(self):
+        with self.assertRaises(Exception) as ctx:
+            self.ct.create_data({"foo": 1}, si=None)
+        self.assertIn("foo", str(ctx.exception))
+
+
+class TestYamlModuleTypeData(TestBase):
+    """Tests that IvpmYamlReader handles type: module correctly."""
+
+    def test_type_module_no_with(self):
+        from ivpm.pkg_content_type import ModuleTypeData
+        proj = _read_yaml(_HEADER + """
+            - name: mypkg
+              url: https://example.com/mypkg.git
+              type: module
+        """)
+        pkg = _first_pkg(proj)
+        self.assertEqual(len(pkg.type_data), 1)
+        self.assertIsInstance(pkg.type_data[0], ModuleTypeData)
+        self.assertTrue(pkg.type_data[0].load)
+
+    def test_type_module_load_false(self):
+        proj = _read_yaml(_HEADER + """
+            - name: mypkg
+              url: https://example.com/mypkg.git
+              type:
+                module:
+                  load: false
+        """)
+        pkg = _first_pkg(proj)
+        self.assertFalse(pkg.type_data[0].load)
+
+    def test_type_module_name_recorded(self):
+        proj = _read_yaml(_HEADER + """
+            - name: mypkg
+              url: https://example.com/mypkg.git
+              type: module
+        """)
+        pkg = _first_pkg(proj)
+        self.assertEqual(pkg.type_data[0].type_name, "module")

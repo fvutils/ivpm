@@ -1,5 +1,5 @@
 {
-	"$schema" : "https://json-schema.org/draft/2020-12/schema",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://fvutils.github.com/ivpm/ivpm.json",
 	"title": "IVPM",
 	"description": "Schema for IP and Verification Package Manager (IVPM)",
@@ -25,7 +25,10 @@
 			}
 		}
 	},
-	"required": [ "package", "version" ],
+	"required": [
+		"package",
+		"version"
+	],
 	"defs": {
 		"package-def": {
 			"title": "Package Definition",
@@ -116,7 +119,9 @@
 			"$$target": "#/defs/package-dep",
 			"type": "object",
 			"properties": {
-				"required": [ "name" ],
+				"required": [
+					"name"
+				],
 				"name": {
 					"type": "string",
 					"description": "Package identifier"
@@ -145,7 +150,7 @@
 							"const": "dir",
 							"title": "URL points to a local directory (file://path)"
 						},
-						{	
+						{
 							"const": "jar",
 							"title": "URL points to a .jar file. IVPM will not expand"
 						},
@@ -168,6 +173,10 @@
 						{
 							"const": "gh-rls",
 							"title": "GitHub Release - downloads platform-specific binaries or source from releases"
+						},
+						{
+							"const": "module",
+							"title": "Environment Module -- resolves a module specifier to its modulefile directory"
 						}
 					]
 				},
@@ -182,6 +191,10 @@
 						{
 							"const": "python",
 							"title": "Python package that IVPM will install into the venv"
+						},
+						{
+							"const": "module",
+							"title": "Environment Module -- emit module load and/or resolve root directory for handler discovery"
 						}
 					]
 				},
@@ -208,7 +221,9 @@
 				"deps": {
 					"type": "string",
 					"title": "When set to 'skip', sub-dependencies will not be loaded",
-					"enum": ["skip"]
+					"enum": [
+						"skip"
+					]
 				},
 				"depth": {
 					"type": "integer",
@@ -245,6 +260,19 @@
 				"with": {
 					"type": "object",
 					"title": "Type-specific parameters. Only valid when 'type' is also specified. Parameter names and values are validated at runtime by the content-type handler."
+				},
+				"module": {
+					"type": "string",
+					"title": "Module specifier (e.g. gcc/15.2.0). Required when src is module"
+				},
+				"root": {
+					"type": "string",
+					"title": "Explicit root directory override for src: module"
+				},
+				"resolve-root": {
+					"type": "boolean",
+					"title": "Opt-in: parse module show output to determine the install prefix",
+					"default": false
 				}
 			}
 		},
@@ -277,35 +305,64 @@
 				},
 				"value": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Set the variable to this value (space-separated if array)"
 				},
 				"path": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Set the variable as a path (colon-separated if array)"
 				},
 				"path-append": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Append to the variable as a path"
 				},
 				"path-prepend": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Prepend to the variable as a path"
 				}
 			},
-			"required": ["name"]
+			"required": [
+				"name"
+			]
 		}
 	}
 }
-

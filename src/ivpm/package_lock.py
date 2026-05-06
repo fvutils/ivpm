@@ -91,6 +91,12 @@ def _entry_from_pkg(pkg) -> dict:
         entry["path"] = url
         entry["reproducible"] = False
 
+    elif src == "module":
+        entry["module"] = getattr(pkg, "module", None)
+        entry["modulefile"] = getattr(pkg, "modulefile_path", None)
+        entry["root"] = getattr(pkg, "module_root", None)
+        entry["reproducible"] = False
+
     return entry
 
 
@@ -120,6 +126,9 @@ def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
         if url.startswith("file://"):
             url = url[7:]
         return url == lock_entry.get("path")
+
+    elif src == "module":
+        return getattr(pkg, "module", None) == lock_entry.get("module")
 
     return False
 
@@ -374,6 +383,16 @@ class IvpmLockReader:
                 path = entry.get("path", "")
                 p.url = "file://" + path if not path.startswith("file://") else path
                 p.src_type = src
+                pkg = p
+
+            elif src == "module":
+                from .pkg_types.package_module import PackageModule
+                p = PackageModule(name)
+                p.module = entry.get("module")
+                p.modulefile_path = entry.get("modulefile")
+                p.module_root = entry.get("root")
+                p.path = entry.get("root")
+                p.src_type = "module"
                 pkg = p
 
             else:
