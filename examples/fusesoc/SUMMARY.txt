@@ -1,0 +1,84 @@
+================================================================================
+FuseSoC Integration Examples - Creation Summary
+================================================================================
+
+LOCATION: examples/fusesoc/
+
+CREATED FILES:
+  - README.md                      Overview and quick start guide
+  - TEST.md                        Testing and verification procedures
+  - ex1-registry/                  Example 1: Registry-based core resolution
+    - ivpm.yaml                    IVPM configuration
+    - .envrc                       direnv configuration
+    - README.md                    Detailed documentation
+  - ex2-custom/                    Example 2: Auto-discovery of cores
+    - ivpm.yaml                    IVPM configuration
+    - .envrc                        direnv configuration
+    - README.md                    Detailed documentation
+
+EXAMPLE 1: Registry-Based Core Resolution (ex1-registry/)
+========================================================
+Demonstrates VLNV-based core resolution from the FuseSoC public registry.
+
+Key Features:
+  ✓ Resolves ::i2c:1.0 VLNV via fusesoc-cores registry
+  ✓ Fetches FuseSoC from PyPI
+  ✓ Includes Verilator simulator binary
+  ✓ Auto-discovers .core files
+  ✓ Generates FUSESOC_CORES environment
+
+Quick Start:
+  cd ex1-registry
+  export PYTHONPATH=../../../src
+  ivpm update
+  . packages/packages.envrc
+  fusesoc core list
+
+EXAMPLE 2: Auto-Discovery of Cores (ex2-custom/)
+=================================================
+Demonstrates automatic core discovery in fetched packages.
+
+Key Features:
+  ✓ No explicit core configuration needed
+  ✓ Fetches FuseSoC from PyPI
+  ✓ Includes Verilator simulator binary
+  ✓ Auto-discovers .core files in uart16550 core
+  ✓ Easy to adapt for custom projects
+
+Quick Start:
+  cd ex2-custom
+  export PYTHONPATH=../../../src
+  ivpm update
+  . packages/packages.envrc
+  fusesoc core list
+
+TESTING
+=======
+All examples have been validated:
+  ✓ YAML syntax verified
+  ✓ Dependencies parsed correctly
+  ✓ FuseSoC source type recognized
+  ✓ FuseSoC handler configured
+  ✓ Python handler configured
+  ✓ Configuration completeness verified
+
+To test with the FuseSoC support:
+  export PYTHONPATH=../../../src
+
+Full integration tests require network access and will take several minutes.
+See TEST.md for detailed testing procedures.
+
+DOCUMENTATION
+==============
+Design document: ../../docs/fusesoc-examples-design.md
+Testing guide:   ./TEST.md
+Overview:        ./README.md
+Design rationale: See MSB feedback review in design document
+
+NEXT STEPS
+==========
+1. Run tests with: make test (if available) or use TEST.md procedures
+2. Adapt examples for production use
+3. Share examples in documentation or tutorials
+
+================================================================================

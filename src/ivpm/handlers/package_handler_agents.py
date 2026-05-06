@@ -91,7 +91,7 @@ class PackageHandlerAgents(PackageHandler):
     description        = "Creates .agents/skills/ symlinks (or copies) for deps that provide SKILL.md files"
     leaf_when          = None
     root_when          = None
-    phase              = 0
+    phase              = 6   # after python handler (phase=5) so venv is available for entrypoint discovery
     conditions_summary = (
         "leaf: all non-PyPI packages; "
         "root: always (cleans stale entries even when no skills are present)"
@@ -110,7 +110,10 @@ class PackageHandlerAgents(PackageHandler):
                 "containing each dependency's SKILL.md. "
                 "When claude: true is set under package.with.agents, also mirrors to .claude/skills/. "
                 "Falls back to directory copy on platforms without symlink support. "
-                "Skill paths support glob patterns (e.g. skills/**/SKILL.md)."
+                "Skill paths support glob patterns (e.g. skills/**/SKILL.md). "
+                "Python packages may register skills via the 'ivpm.skill' entry-point group; "
+                "each entry-point must be a callable returning a path (str) or list of paths "
+                "to directories containing SKILL.md."
             ),
         )
 
@@ -138,12 +141,8 @@ class PackageHandlerAgents(PackageHandler):
         if patterns is not None:
             found = self._resolve_skill_dirs(pkg.name, pkg.path, patterns)
         else:
-            # Priority 3: auto-probe
-            found = []
-            skill_file = os.path.join(pkg.path, "SKILL.md")
-            if os.path.isfile(skill_file):
-                if self._validate_frontmatter(skill_file, pkg.name):
-                    found.append(pkg.path)
+            # Priority 3: auto-probe (root SKILL.md + skills/ directory)
+            found = self._auto_probe_skill_dirs(pkg.name, pkg.path)
 
         if found:
             entries = [
@@ -167,6 +166,17 @@ class PackageHandlerAgents(PackageHandler):
         self._remove_managed(project_dir, self._prev_state)
 
         self.skill_entries.extend(self._discover_project_skills(update_info, project_dir))
+
+        # Consume skills pushed by the Python handler (ivpm.skill entry-points)
+        for ep_name, skill_dir in getattr(update_info, 'pending_skill_dirs', []):
+            skill_file = os.path.join(skill_dir, "SKILL.md")
+            if not os.path.isfile(skill_file):
+                _logger.warning(
+                    "ivpm.skill entrypoint '%s': no SKILL.md in %s", ep_name, skill_dir)
+                continue
+            if not self._validate_frontmatter(skill_file, ep_name):
+                continue
+            self.skill_entries.append(SkillEntry("dependency", ep_name, skill_dir, skill_dir))
 
         if not self.skill_entries:
             return
@@ -240,10 +250,8 @@ class PackageHandlerAgents(PackageHandler):
                 project_dir,
                 [str(p) for p in patterns])
         else:
-            found = []
-            skill_file = os.path.join(project_dir, "SKILL.md")
-            if os.path.isfile(skill_file) and self._validate_frontmatter(skill_file, project_name):
-                found.append(project_dir)
+            # Auto-probe: root SKILL.md + skills/ directory
+            found = self._auto_probe_skill_dirs(project_name, project_dir)
 
         return [SkillEntry("project", project_name, project_dir, skill_dir) for skill_dir in found]
 
@@ -362,6 +370,36 @@ class PackageHandlerAgents(PackageHandler):
             candidates.append("-".join(prefix + [dir_name]))
 
         return candidates
+
+    def _auto_probe_skill_dirs(self, owner_name: str, root_dir: str) -> List[str]:
+        """Auto-probe for skill dirs when no explicit skills config is present.
+
+        Checks:
+          1. <root>/SKILL.md  — the package root itself
+          2. Any SKILL.md files found recursively under <root>/skills/
+        """
+        found: List[str] = []
+        seen: set = set()
+
+        # Root-level SKILL.md
+        skill_file = os.path.join(root_dir, "SKILL.md")
+        if os.path.isfile(skill_file) and self._validate_frontmatter(skill_file, owner_name):
+            found.append(root_dir)
+            seen.add(os.path.normpath(root_dir))
+
+        # skills/ sub-directory
+        skills_dir = os.path.join(root_dir, "skills")
+        if os.path.isdir(skills_dir):
+            for rel_md in sorted(_glob.glob("**/SKILL.md", root_dir=skills_dir, recursive=True)):
+                abs_md = os.path.join(skills_dir, rel_md)
+                skill_dir = os.path.normpath(os.path.dirname(abs_md))
+                if skill_dir in seen:
+                    continue
+                if self._validate_frontmatter(abs_md, owner_name):
+                    found.append(skill_dir)
+                    seen.add(skill_dir)
+
+        return found
 
     def _validate_frontmatter(self, path: str, pkg_name: str) -> bool:
         fields = _parse_frontmatter(path)

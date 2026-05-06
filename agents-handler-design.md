@@ -159,7 +159,8 @@ There are three sources of skill-path information, checked in priority order
 |---|---|---|
 | 1 | `agents:` key on the dep entry in the **consumer's** `ivpm.yaml` | Any dep, including non-IVPM projects with no `ivpm.yaml` |
 | 2 | `package.with.agents.skills:` in the **dep's own** `ivpm.yaml` | IVPM-aware deps that self-declare skill locations |
-| 3 | Auto-probe: `SKILLS.md` then `SKILL.md` at the package root | Any dep that follows the default convention |
+| 3 | Auto-probe: `SKILL.md` at the package root, plus all `SKILL.md` files found recursively under `skills/` | Any dep that follows the default convention |
+| 4 | `ivpm.skill` Python entry-points discovered from the project venv | Python packages installed into the project's managed venv |
 
 When a higher-priority source is found it is used exclusively; lower-priority
 sources are not consulted.
@@ -378,12 +379,19 @@ class PackageHandlerAgents(PackageHandler):
                         found.append(os.path.dirname(skill_file))
         else:
             found = []
-            for candidate in ("SKILLS.md", "SKILL.md"):
-                skill_file = os.path.join(pkg.path, candidate)
-                if os.path.isfile(skill_file):
-                    if self._validate_frontmatter(skill_file, pkg.name):
-                        found.append(pkg.path)
-                    break
+            # Auto-probe: root SKILL.md only (SKILLS.md support was removed)
+            skill_file = os.path.join(pkg.path, "SKILL.md")
+            if os.path.isfile(skill_file):
+                if self._validate_frontmatter(skill_file, pkg.name):
+                    found.append(pkg.path)
+            # Also probe skills/ subdirectory recursively
+            skills_dir = os.path.join(pkg.path, "skills")
+            if os.path.isdir(skills_dir):
+                for rel_md in sorted(glob.glob("**/SKILL.md", root_dir=skills_dir, recursive=True)):
+                    abs_md = os.path.join(skills_dir, rel_md)
+                    sd = os.path.normpath(os.path.dirname(abs_md))
+                    if sd not in found and self._validate_frontmatter(abs_md, pkg.name):
+                        found.append(sd)
 
         if found:
             with self._lock:

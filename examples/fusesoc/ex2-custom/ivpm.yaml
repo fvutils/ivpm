@@ -1,0 +1,30 @@
+# FuseSoC Example 2: Auto-Discovery of Cores in Existing Projects
+# This example demonstrates how IVPM automatically discovers .core files
+# in any fetched package and registers them with FuseSoC.
+#
+# Usage:
+#   cd ex2-custom
+#   ivpm update
+#   . packages/packages.envrc
+#   fusesoc core list
+
+package:
+  name: ivpm-fusesoc-example-custom
+
+  dep-sets:
+  - name: default
+    deps:
+    # FuseSoC tool (Python package from PyPI)
+    - name: fusesoc
+      src: pypi
+
+    # Verilator simulator (optional, enables simulation targets)
+    - name: verilator
+      src: gh-rls
+      url: https://github.com/edapack/verilator-bin
+
+    # Clone a git repo that contains .core files.
+    # The FuseSoC handler auto-discovers the .core files and
+    # adds this directory to FUSESOC_CORES — no 'with:' needed.
+    - name: uart16550
+      url: https://github.com/olofk/uart16550.git

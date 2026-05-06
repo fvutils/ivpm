@@ -343,7 +343,7 @@ Handler Ordering
 
 IVPM loads handlers in this order:
 
-1. Built-in handlers (Python, Direnv, Agents) -- all at phase ``0``
+1. Built-in handlers in phase order: Direnv (phase ``0``), Python (phase ``5``), Agents (phase ``6``)
 2. Extension handlers discovered via ``ivpm.handlers`` entry points, in
    installation order
 
@@ -351,8 +351,9 @@ Within the root phase, handlers with the same phase number run in the order they
 were registered. Leaf callbacks always run concurrently with no guaranteed
 ordering.
 
-To run after all built-in handlers, use ``phase = 10`` or higher. To run before
-a built-in, use a negative phase (though this is rarely needed).
+To run after all built-in handlers, use ``phase = 10`` or higher.  To interleave
+between built-ins (e.g., after Python but before Agents), use a phase between
+``5`` and ``6``.  To run before all built-ins, use a negative phase (rarely needed).
 
 
 Testing Your Handler

@@ -23,7 +23,7 @@ import dataclasses as dc
 import enum
 import logging
 import time
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from .update_event import UpdateEvent, UpdateEventType, UpdateEventDispatcher
 
@@ -82,6 +82,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     handler_configs: dict = dc.field(default_factory=dict)  # Extra with: keys for plugin handlers
     project_dir: Optional[str] = None   # Project root (one level above deps_dir)
     handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
+    pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None

@@ -57,7 +57,9 @@ class PackageFuseSoC(Package):
     def update(self, update_info: ProjectUpdateInfo) -> 'ProjInfo':
         from .package_git import PackageGit
         git_pkg = self._resolve_to_git(update_info)
-        return git_pkg.update(update_info)
+        result = git_pkg.update(update_info)
+        self.path = git_pkg.path  # propagate so handlers can discover .core files
+        return result
 
     def _resolve_to_git(self, update_info: ProjectUpdateInfo):
         """Resolve VLNV to a PackageGit by scanning the fusesoc-cores index."""
@@ -123,12 +125,20 @@ class PackageFuseSoC(Package):
                 "VLNV %s: no matching core found in fusesoc-cores index%s" % (
                     vlnv, hint))
 
+        target_version = self._parse_vlnv_version(vlnv)
+
         if len(candidates) > 1:
             # Multiple versions: pick the one matching the requested version
-            target_version = self._parse_vlnv_version(vlnv)
             if target_version == "latest":
                 candidates.sort(key=lambda c: self._parse_version_key(c[1]))
-                best = candidates[-1]
+                # Prefer the latest version that has a usable provider block
+                for cpath, cver in reversed(candidates):
+                    url, ver = self._extract_provider(cpath)
+                    if url is not None:
+                        return url, ver
+                fatal(
+                    "VLNV %s: found %s but no version has a fetchable "
+                    "provider block" % (vlnv, target_name))
             else:
                 matching = [c for c in candidates if c[1] == target_version]
                 if not matching:
@@ -141,7 +151,12 @@ class PackageFuseSoC(Package):
         else:
             best = candidates[0]
 
-        return self._extract_provider(best[0])
+        url, ver = self._extract_provider(best[0])
+        if url is None:
+            fatal(
+                "VLNV %s: core file has no fetchable provider block "
+                "(CAPI=2 cores without a provider must be cloned directly)" % vlnv)
+        return url, ver
 
     @staticmethod
     def _parse_vlnv_name(vlnv: str) -> str:
@@ -206,8 +221,12 @@ class PackageFuseSoC(Package):
     def _extract_provider(core_path: str):
         """Extract git URL and version from the provider block of a .core file.
 
-        Supports ``provider: { github: ... }`` and ``provider: { git: ... }``.
-        Returns ``(url, version)``.
+        Supports two formats:
+        - CAPI=2 hybrid: ``provider: {name: github, user: X, repo: Y, version: Z}``
+        - CAPI=1-style:  ``provider: {github: "user/repo"}`` or ``provider: {git: {repo: URL}}``
+
+        Returns ``(url, version)`` on success, or ``(None, None)`` if the file
+        has no usable provider block.
         """
         try:
             with open(core_path) as fh:
@@ -220,11 +239,31 @@ class PackageFuseSoC(Package):
 
         provider = data.get("provider", None)
         if not isinstance(provider, dict):
-            fatal("Core file %s has no 'provider:' block" % core_path)
+            return None, None
 
         version = data.get("version", "HEAD")
 
-        # GitHub provider: short form
+        # CAPI=2 hybrid format: provider: {name: github, user: X, repo: Y, version: Z}
+        prov_name = provider.get("name", None)
+        if prov_name == "github":
+            user = provider.get("user", "")
+            repo = provider.get("repo", "")
+            prov_version = provider.get("version", None)
+            url = "https://github.com/%s/%s.git" % (user, repo)
+            if prov_version:
+                version = prov_version
+            return url, version
+
+        if prov_name == "git":
+            url = provider.get("repo", None)
+            if not url:
+                fatal("Core file %s: git provider missing 'repo' key" % core_path)
+            prov_version = provider.get("version", None)
+            if prov_version:
+                version = prov_version
+            return url, version
+
+        # CAPI=1-style dict-key format: provider: {github: ...}
         github = provider.get("github", None)
         if github:
             # github: "user/repo"  or  github: {user: ..., repo: ...}
@@ -249,10 +288,7 @@ class PackageFuseSoC(Package):
                 version = git_version
             return url, version
 
-        fatal(
-            "Core file %s: unsupported provider type (only github and git "
-            "are supported); got: %s" % (core_path, list(provider.keys())))
-        return None, None  # unreachable
+        return None, None  # Unknown provider format
 
     @staticmethod
     def _parse_version_key(version_str: str):

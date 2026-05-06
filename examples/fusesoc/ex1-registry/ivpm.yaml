@@ -1,0 +1,41 @@
+# FuseSoC Example 1: Registry-Based Core Resolution
+# This example demonstrates fetching a FuseSoC core from the public registry
+# using VLNV (Vendor:Library:Name:Version) addressing.
+#
+# Usage:
+#   cd ex1-registry
+#   ivpm update
+#   . packages/packages.envrc
+#   fusesoc core list
+
+package:
+  name: ivpm-fusesoc-example-registry
+
+  dep-sets:
+  - name: default
+    deps:
+    # FuseSoC tool (Python package from PyPI)
+    - name: fusesoc
+      src: pypi
+
+    # Verilator simulator (optional, enables simulation targets)
+    - name: verilator
+      src: gh-rls
+      url: https://github.com/edapack/verilator-bin
+      cache: true
+
+    # i2c core from the FuseSoC registry.
+    # IVPM resolves ::i2c:1.0 VLNV via the fusesoc-cores index,
+    # then clones the repo. The FuseSoC handler auto-discovers
+    # the .core files and adds this directory to FUSESOC_CORES.
+    - name: i2c
+      src: fusesoc
+      vlnv: "::i2c"
+
+    - name: vlog_tb_utils
+      src: fusesoc
+      vlnv: "::vlog_tb_utils"
+
+    - name: wiredelay
+      src: fusesoc
+      vlnv: "::wiredelay"
