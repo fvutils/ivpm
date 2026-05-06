@@ -10,5 +10,5 @@ ${IVPM_PYTHON} -m venv ${scripts_dir}/packages/python
 
 ${scripts_dir}/packages/python/bin/python -m pip install -r requirements.txt
 
-PYTHONPATH=${scripts_dir}/src ${scripts_dir}/packages/python/bin/python -m ivpm update
+PYTHONPATH=${scripts_dir}/src ${scripts_dir}/packages/python/bin/python -m ivpm update -a
 
