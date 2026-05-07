@@ -62,7 +62,7 @@ class IvpmYamlReader(object):
             raise Exception("Missing 'package' section YAML file %s" % name)
         pkg = data["package"]
 
-        # Resolve ${var} references before any other processing
+        # Resolve ${{var}} references before any other processing
         pkg, resolved_vars = resolve_variables(
             pkg, cli_overrides or {}, persisted_vars or {})
 

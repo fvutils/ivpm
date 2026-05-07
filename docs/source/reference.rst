@@ -731,7 +731,7 @@ vars
 ~~~~
 
 Optional mapping of variable names to default values.  Variables can
-be referenced as ``${name}`` in any scalar value elsewhere in the
+be referenced as ``${{name}}`` in any scalar value elsewhere in the
 file.  Override from the command line with ``-Dname=value``.
 
 .. code-block:: yaml

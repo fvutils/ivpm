@@ -9,7 +9,7 @@ the command line without editing the file.
 Overview
 ========
 
-Declare variables in a ``vars:`` block, reference them with ``${name}``
+Declare variables in a ``vars:`` block, reference them with ``${{name}}``
 anywhere in the file, and override them with ``-D`` on the command line.
 Every variable has a default, so the file always works standalone.
 
@@ -26,13 +26,13 @@ Every variable has a default, so the file always works standalone.
          deps:
            - name: my_env
              src: cbwa
-             wacfg: ${wacfg}
+             wacfg: ${{wacfg}}
 
            - name: smn
              src: p4_mkwa
              codeline: smn15
              branch: smn15_main
-             changelist: ${cl}
+             changelist: ${{cl}}
 
 .. code-block:: bash
 
@@ -76,13 +76,13 @@ and numbers (``7716052``) are fine.
 Referencing Variables
 =====================
 
-Use ``${name}`` in any scalar value anywhere below ``package:``:
+Use ``${{name}}`` in any scalar value anywhere below ``package:``:
 
 .. code-block:: yaml
 
-   changelist: ${cl}
-   branch: ${codeline}_main
-   url: https://${host}/${repo}.git
+   changelist: ${{cl}}
+   branch: ${{codeline}}_main
+   url: https://${{host}}/${{repo}}.git
 
 References can be the entire value or embedded in a larger string.
 Multiple references in one value are supported.
@@ -96,11 +96,11 @@ Multiple references in one value are supported.
 
 **Escaping:**
 
-To produce a literal ``${`` in output, write ``$${``:
+To produce a literal ``${{`` in output, write ``$${{``:
 
 .. code-block:: yaml
 
-   literal: $${not_a_variable}   # produces "${not_a_variable}"
+   literal: $${{not_a_variable}}   # produces "${{not_a_variable}}"
 
 **Error handling:**
 
@@ -177,7 +177,7 @@ Parameterized wacfg for cbwa
            - name: nbio_env
              src: cbwa
              env-dir: _env/local
-             wacfg: ${wacfg}
+             wacfg: ${{wacfg}}
 
 .. code-block:: bash
 
@@ -202,14 +202,14 @@ Shared version across dependencies
              src: p4_mkwa
              codeline: smn15
              branch: smn15_main
-             changelist: ${smn_cl}
-             cache: ${cache}
+             changelist: ${{smn_cl}}
+             cache: ${{cache}}
            - name: iohubutils
              src: p4_mkwa
              codeline: iohubutils
              branch: iohubutils_main
-             changelist: ${iohub_cl}
-             cache: ${cache}
+             changelist: ${{iohub_cl}}
+             cache: ${{cache}}
 
 .. code-block:: bash
 

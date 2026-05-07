@@ -1,7 +1,7 @@
 """IVPM variable declaration, resolution, and CLI parsing.
 
 Variables are declared in the ``vars:`` block of ``ivpm.yaml`` and
-referenced as ``${name}`` in scalar values throughout the file.
+referenced as ``${{name}}`` in scalar values throughout the file.
 This module provides the resolution engine that expands those
 references before the rest of the IVPM pipeline sees the data.
 """
@@ -11,9 +11,9 @@ from typing import Dict, List, Optional, Tuple
 
 from .utils import fatal
 
-# Matches either the escape sequence ``$${`` or a variable reference
-# ``${name}`` where *name* is a C-style identifier.
-_VAR_RE = re.compile(r'\$\$\{|\$\{([a-zA-Z_][a-zA-Z0-9_]*)\}')
+# Matches either the escape sequence ``$${{`` or a variable reference
+# ``${{name}}`` where *name* is a C-style identifier.
+_VAR_RE = re.compile(r'\$\$\{\{|\$\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}')
 
 _ENV_PREFIX = "IVPM_VAR_"
 
@@ -27,18 +27,18 @@ def resolve_variables(
     cli_overrides: Optional[Dict[str, str]] = None,
     persisted_vars: Optional[Dict[str, str]] = None,
 ) -> Tuple[dict, Dict[str, str]]:
-    """Resolve ``${var}`` references in *pkg_data* (mutated in place).
+    """Resolve ``${{var}}`` references in *pkg_data* (mutated in place).
 
     1. Extract and remove the ``vars:`` key from *pkg_data*.
     2. Merge defaults with *cli_overrides*, env-var fallbacks, and
        *persisted_vars* using the four-tier precedence:
        CLI > ``IVPM_VAR_<NAME>`` > persisted > default.
-    3. Walk the entire dict tree replacing ``${var}`` in all strings.
+    3. Walk the entire dict tree replacing ``${{var}}`` in all strings.
     4. Return ``(pkg_data, resolved_map)`` so the caller can persist
        the final values.
 
     Raises (via ``fatal()``) on:
-    - ``${name}`` referencing an undeclared variable.
+    - ``${{name}}`` referencing an undeclared variable.
     - A CLI override naming a variable not present in ``vars:``.
     """
     if cli_overrides is None:
@@ -115,7 +115,7 @@ def _merge_values(
 
 
 def _substitute_dict(d: dict, variables: Dict[str, str]):
-    """Recursively substitute ``${var}`` references in dict values."""
+    """Recursively substitute ``${{var}}`` references in dict values."""
     for key in list(d.keys()):
         val = d[key]
         if isinstance(val, str):
@@ -127,7 +127,7 @@ def _substitute_dict(d: dict, variables: Dict[str, str]):
 
 
 def _substitute_list(lst: list, variables: Dict[str, str]):
-    """Recursively substitute ``${var}`` references in list elements."""
+    """Recursively substitute ``${{var}}`` references in list elements."""
     for i, val in enumerate(lst):
         if isinstance(val, str):
             lst[i] = _substitute_str(val, variables)
@@ -138,18 +138,18 @@ def _substitute_list(lst: list, variables: Dict[str, str]):
 
 
 def _substitute_str(s: str, variables: Dict[str, str]) -> str:
-    """Replace ``${var}`` references in a single string.
+    """Replace ``${{var}}`` references in a single string.
 
-    ``$${`` produces a literal ``${`` (escape).
-    ``${name}`` is replaced by the resolved value.
+    ``$${{`` produces a literal ``${{`` (escape).
+    ``${{name}}`` is replaced by the resolved value.
     An undefined reference raises a fatal error.
     """
     def _replacer(m):
-        if m.group(0) == '$${':
-            return '${'
+        if m.group(0) == '$${{':
+            return '${{' 
         name = m.group(1)
         if name not in variables:
-            fatal("Undefined variable '${%s}' in ivpm.yaml" % name)
+            fatal("Undefined variable '${{%s}}' in ivpm.yaml" % name)
         return variables[name]
 
     return _VAR_RE.sub(_replacer, s)
