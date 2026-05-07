@@ -167,6 +167,7 @@ my-project/
 - Add `packages/` to `.gitignore`
 - Use `ivpm update --force-py-install` to reinstall Python packages
 - Use `ivpm update -a` for anonymous (HTTPS) Git clones
+- Use `ivpm update -v` or `ivpm sync -v` for detailed transcript output in CI (non-TTY) environments
 - Use `ivpm snapshot <dir>` to create reproducible archives
 
 ## Environment Variables

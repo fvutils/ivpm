@@ -14,6 +14,7 @@ from .env_spec import EnvSpec
 import yaml
 
 from .utils import fatal, getlocstr, warning
+from .variables import resolve_variables
 from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
 from ivpm.pkg_content_type import parse_type_field
@@ -24,6 +25,7 @@ _KNOWN_PACKAGE_KEYS = {
     "deps-dir", "default-dep-set",
     "dep-sets", "setup-deps",
     "paths", "env", "env-sets",
+    "vars",
     # old-style keys – detected and rejected with a friendlier message
     "deps", "dev-deps",
 }
@@ -44,7 +46,7 @@ class IvpmYamlReader(object):
         self.debug = False
         pass
     
-    def read(self, fp, name) -> 'ProjInfo':
+    def read(self, fp, name, cli_overrides=None, persisted_vars=None) -> 'ProjInfo':
         from ivpm.proj_info import ProjInfo
 
         ret = ProjInfo(is_src=True)
@@ -59,7 +61,11 @@ class IvpmYamlReader(object):
         if "package" not in data.keys():
             raise Exception("Missing 'package' section YAML file %s" % name)
         pkg = data["package"]
-        
+
+        # Resolve ${var} references before any other processing
+        pkg, resolved_vars = resolve_variables(
+            pkg, cli_overrides or {}, persisted_vars or {})
+
         if "name" not in pkg.keys():
             raise Exception("Missing 'name' key in YAML file %s" % name)
 
@@ -73,9 +79,7 @@ class IvpmYamlReader(object):
                         ", ".join(sorted(_KNOWN_PACKAGE_KEYS))))
 
         ret.name = pkg["name"]
-
-
-        
+        ret.resolved_vars = resolved_vars
         if "version" in pkg.keys():
             ret.version = pkg["version"]
         else:
@@ -385,6 +389,5 @@ class IvpmYamlReader(object):
             raise Exception(
                 "No variable-directive setting (value, path, path-append, path-prepend) specified")
         info.env_settings.append(EnvSpec(evar["name"], val, act))
-
 
 

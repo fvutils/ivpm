@@ -48,17 +48,19 @@ class ProjectOps(object):
                args = None,
                lock_file : str = None,
                refresh_all : bool = False,
-               force : bool = False):
+               force : bool = False,
+               cli_overrides = None):
         from .update_event import UpdateEvent, UpdateEventType
         
-        proj_info, deps_dir, dep_set = self._init(dep_set)
+        proj_info, deps_dir, dep_set = self._init(dep_set, cli_overrides=cli_overrides)
 
         # Get log level from args for TUI selection
         log_level = getattr(args, 'log_level', 'NONE')
+        verbose = getattr(args, 'verbose', 0)
         
         # Create event dispatcher and TUI
         event_dispatcher = UpdateEventDispatcher()
-        tui = create_update_tui(log_level)
+        tui = create_update_tui(log_level, verbose=verbose)
         event_dispatcher.add_listener(tui)
         
         # Determine if we should suppress output (Rich TUI mode)
@@ -84,7 +86,7 @@ class ProjectOps(object):
                 lock_reader = IvpmLockReader(lock_file)
                 ds = lock_reader.build_packages_info()
             else:
-                ds = self._getDepSet(proj_info, dep_set)
+                dep_set, ds = self._getDepSet(proj_info, dep_set)
 
                 # Change detection: compare current specs against existing lock
                 if not refresh_all and not force:
@@ -104,6 +106,15 @@ class ProjectOps(object):
             # Suppress subprocess output when using Rich TUI
             updater.update_info.suppress_output = suppress_output
             updater.update_info._tui_ref = tui
+
+            # Load existing lock data so packages can detect spec changes
+            _lock_path = os.path.join(deps_dir, "package-lock.json")
+            if os.path.isfile(_lock_path):
+                try:
+                    from .package_lock import read_lock as _read_lock
+                    updater.update_info.lock_data = _read_lock(_lock_path)
+                except Exception:
+                    _logger.debug("Could not read lock file for change detection")
 
             # Build the handler update_info (with dispatcher wired in)
             handler_update_info = ProjectUpdateInfo(
@@ -151,6 +162,8 @@ class ProjectOps(object):
 
             # Write ivpm.json with dep-set and handler state
             ivpm_json = {"dep-set": dep_set}
+            if proj_info.resolved_vars:
+                ivpm_json["vars"] = proj_info.resolved_vars
             state_contributions = pkg_handler.get_state_entries()
             if state_contributions:
                 ivpm_json["handlers"] = state_contributions
@@ -164,7 +177,7 @@ class ProjectOps(object):
     def build(self, dep_set : str = None, args = None, debug : bool = False):
         proj_info, deps_dir, dep_set = self._init(dep_set)
 
-        ds = self._getDepSet(proj_info, dep_set)
+        dep_set, ds = self._getDepSet(proj_info, dep_set)
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
         updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False)
@@ -338,10 +351,25 @@ class ProjectOps(object):
 
         return sorted(results, key=lambda r: r.name)
 
-    def _init(self, dep_set : str = None) -> Tuple['ProjInfo', str, str]:
+    def _init(self, dep_set : str = None, cli_overrides=None) -> Tuple['ProjInfo', str, str]:
         from .proj_info import ProjInfo
 
-        proj_info = ProjInfo.mkFromProj(self.root_dir)
+        # Load persisted variables from a previous run
+        persisted_vars = {}
+        _pre_deps_dir = os.path.join(self.root_dir, "packages")  # default
+        _pre_ivpm_json_path = os.path.join(_pre_deps_dir, "ivpm.json")
+        if os.path.isfile(_pre_ivpm_json_path):
+            try:
+                with open(_pre_ivpm_json_path) as _fp:
+                    _pre_ivpm = json.load(_fp)
+                    persisted_vars = _pre_ivpm.get("vars", {})
+            except Exception:
+                pass
+
+        proj_info = ProjInfo.mkFromProj(
+            self.root_dir,
+            cli_overrides=cli_overrides,
+            persisted_vars=persisted_vars)
 
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
@@ -380,5 +408,4 @@ class ProjectOps(object):
         else:
             ds = proj_info.dep_set_m[dep_set]
         
-        return ds
-
+        return dep_set, ds

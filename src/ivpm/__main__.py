@@ -66,7 +66,6 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         choices=["INFO", "DEBUG", "WARN", "NONE"],
         default="NONE",
         help="Set the logging level (default: NONE)")
-    
     subparser = parser.add_subparsers()
     subparser.required = True
     subparser.dest = 'command'
@@ -162,10 +161,16 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Inherit system site-packages in the virtual environment (default: isolated)")
     clone_cmd.set_defaults(func=CmdClone())
     subcommands["clone"] = clone_cmd
+    clone_cmd.add_argument("-D", dest="definitions", action="append",
+        default=[], metavar="VAR=VALUE",
+        help="Set variable VAR to VALUE, overriding the default in vars:")
 
     update_cmd = subparser.add_parser("update",
         help="Fetches packages specified in ivpm.yaml that have not already been loaded")
     update_cmd.set_defaults(func=CmdUpdate())
+    update_cmd.add_argument("-D", dest="definitions", action="append",
+        default=[], metavar="VAR=VALUE",
+        help="Set variable VAR to VALUE, overriding the default in vars:")
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
         help="Specifies the project directory to use (default: cwd)")
     update_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
@@ -201,6 +206,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--force", dest="force",
         action="store_true", default=False,
         help="Suppress safety errors during refresh; implies --refresh-all")
+    update_cmd.add_argument("-v", "--verbose", action="count", default=0,
+        help="Increase transcript output detail (-v: activity, -vv: subprocess lines)")
     subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
@@ -242,6 +249,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Number of parallel sync operations (default: CPU count)")
     sync_cmd.add_argument("--no-rich", action="store_true", default=False,
         help="Plain-text output without Rich formatting")
+    sync_cmd.add_argument("-v", "--verbose", action="count", default=0,
+        help="Increase transcript output detail (-v: per-package activity)")
 
     status_cmd = subparser.add_parser("status",
         help="Checks the status of sub-dependencies such as git repositories")
@@ -353,6 +362,28 @@ def main(project_dir=None):
     
     # Custom parsing to allow trailing workspace dir after options for 'clone'
     args, extras = parser.parse_known_args()
+
+    # Handle -D flags that appear before the subcommand (in extras)
+    remaining_extras = []
+    i = 0
+    while i < len(extras):
+        e = extras[i]
+        if e.startswith('-D') and len(e) > 2:
+            # -Dvar=val (combined form)
+            if not hasattr(args, 'definitions'):
+                args.definitions = []
+            args.definitions.append(e[2:])
+        elif e == '-D' and i + 1 < len(extras):
+            # -D var=val (separate form)
+            if not hasattr(args, 'definitions'):
+                args.definitions = []
+            args.definitions.append(extras[i + 1])
+            i += 1
+        else:
+            remaining_extras.append(e)
+        i += 1
+    extras = remaining_extras
+
     if getattr(args, 'command', None) == 'clone' and getattr(args, 'workspace_dir', None) is None:
         if len(extras) == 1:
             args.workspace_dir = extras[0]

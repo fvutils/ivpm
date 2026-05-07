@@ -165,6 +165,25 @@ class Package(object):
                 first_name = pairs[0][0]
                 if first_name in Spec2PackageType.keys():
                     self.pkg_type = Spec2PackageType[first_name]
+
+    def get_lock_entry(self):
+        """Return extra fields for this package's lock-file entry.
+
+        Subclasses (especially extension package types) override this to
+        contribute type-specific identity fields to package-lock.json.
+        Return None to fall through to the built-in type-specific
+        serialization in package_lock._entry_from_pkg().
+        """
+        return None
+
+    def spec_matches_lock(self, lock_entry):
+        """Compare this package's current spec against a lock-file entry.
+
+        Return True if the specs match, False if they differ, or
+        None to fall through to the built-in comparison in
+        package_lock._spec_matches_lock().
+        """
+        return None
     
     @staticmethod
     def mk(name, opts, si) -> 'Package':

@@ -72,3 +72,15 @@ class TestCliHelp(unittest.TestCase):
         commands = _usage_commands(result.stdout)
 
         self.assertEqual(commands, sorted(commands))
+
+    def test_update_accepts_verbose_flag(self):
+        result = _run("update", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("-v", result.stdout)
+        self.assertIn("--verbose", result.stdout)
+
+    def test_sync_accepts_verbose_flag(self):
+        result = _run("sync", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("-v", result.stdout)
+        self.assertIn("--verbose", result.stdout)

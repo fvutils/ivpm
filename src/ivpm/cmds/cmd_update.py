@@ -7,6 +7,7 @@ import logging
 import os
 
 from ivpm.project_ops import ProjectOps
+from ivpm.variables import parse_definitions
 
 _logger = logging.getLogger("ivpm.cmd_update")
 
@@ -27,13 +28,16 @@ class CmdUpdate(object):
         if hasattr(args, "dep_set") and args.dep_set is not None:
             ds_name = args.dep_set
 
+        cli_overrides = parse_definitions(getattr(args, 'definitions', []))
+
         ProjectOps(args.project_dir).update(
             dep_set=ds_name,
             force_py_install=args.force_py_install,
             args=args,
             lock_file=getattr(args, "lock_file", None),
             refresh_all=getattr(args, "refresh_all", False),
-            force=getattr(args, "force", False))
+            force=getattr(args, "force", False),
+            cli_overrides=cli_overrides)
 
 
 

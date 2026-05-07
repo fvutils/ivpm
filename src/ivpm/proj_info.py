@@ -91,6 +91,7 @@ class ProjInfo():
         # that are not handled by the core reader.  Keyed by the with-key
         # name (e.g. "cbwa"), value is the raw dict/value from YAML.
         self.handler_configs : Dict[str, object] = {}
+        self.resolved_vars : Dict[str, str] = {}
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()
@@ -113,7 +114,7 @@ class ProjInfo():
         self.dependencies.append(dep)
 
     @staticmethod
-    def mkFromProj(proj_dir : str) -> 'ProjInfo':
+    def mkFromProj(proj_dir : str, cli_overrides=None, persisted_vars=None) -> 'ProjInfo':
         ret : ProjInfo = None
         
         # First, see if this is a new-style project
@@ -121,7 +122,10 @@ class ProjInfo():
             note("Reading ivpm.yaml from project %s" % proj_dir)
             path = os.path.join(proj_dir, "ivpm.yaml");
             with open(path, "r") as fp:
-                ret = IvpmYamlReader().read(fp, path)
+                ret = IvpmYamlReader().read(
+                    fp, path,
+                    cli_overrides=cli_overrides,
+                    persisted_vars=persisted_vars)
         else:
             # This doesn't appear to be an IVPM project
             # No IVPM-specific data to rely on here

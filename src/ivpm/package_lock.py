@@ -59,6 +59,15 @@ def _entry_from_pkg(pkg) -> dict:
         "reproducible": True,
     }
 
+    # Let extension packages contribute their own lock-entry fields.
+    # If get_lock_entry() returns a dict, merge it and skip the
+    # built-in type-specific branches.
+    _ext_entry = pkg.get_lock_entry()
+    if _ext_entry is not None:
+        entry.update(_ext_entry)
+        return entry
+
+    # Built-in type-specific serialization.
     if src == "git":
         entry["url"] = getattr(pkg, "url", None)
         entry["branch"] = getattr(pkg, "branch", None)
@@ -104,6 +113,12 @@ def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
     """Return True if the user-specified fields of *pkg* match *lock_entry*."""
     src = getattr(pkg, "src_type", None) or ""
 
+    # Let extension packages handle their own comparison first.
+    _ext_result = pkg.spec_matches_lock(lock_entry)
+    if _ext_result is not None:
+        return _ext_result
+
+    # Built-in type-specific comparison.
     if src == "git":
         return (
             getattr(pkg, "url", None) == lock_entry.get("url")

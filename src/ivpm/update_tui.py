@@ -24,6 +24,7 @@ Provides both Rich-based interactive display and transcript-based plain text out
 import logging
 import os
 import sys
+import threading
 import time
 from typing import Dict, List, Optional
 
@@ -368,9 +369,11 @@ class TranscriptUpdateTUI(UpdateEventListener):
     Shows plain text output suitable for non-interactive use or logging.
     """
     
-    def __init__(self, verbose: bool = False):
+    def __init__(self, verbose: int = 0):
         self.verbose = verbose
         self.errors: List[tuple] = []
+        self._lock = threading.Lock()
+        self._task_last_pct: Dict[str, int] = {}
     
     def make_prompt_callback(self):
         """Return a prompt_callback for non-Rich mode."""
@@ -380,33 +383,42 @@ class TranscriptUpdateTUI(UpdateEventListener):
     def on_event(self, event: UpdateEvent):
         """Handle an update event."""
         if event.event_type == UpdateEventType.VENV_START:
-            print(">> [venv] - Creating Python virtual environment")
-            sys.stdout.flush()
+            with self._lock:
+                print(">> [venv] - Creating Python virtual environment")
+                sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.VENV_COMPLETE:
             duration_str = f" ({event.duration:.1f}s)" if event.duration else ""
-            print(f"<< [venv]{duration_str}")
-            sys.stdout.flush()
+            with self._lock:
+                print(f"<< [venv]{duration_str}")
+                sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.VENV_ERROR:
-            print(f"<< [venv] ERROR: {event.error_message}")
-            self.errors.append(("[venv]", event.error_message))
-            sys.stdout.flush()
+            with self._lock:
+                print(f"<< [venv] ERROR: {event.error_message}")
+                self.errors.append(("[venv]", event.error_message))
+                sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.PACKAGE_START:
-            print(f">> {event.package_name} - {event.package_type or ''} {event.package_src or ''}")
-            sys.stdout.flush()
+            with self._lock:
+                type_str = f" ({event.package_type})" if event.package_type else ""
+                print(f">> {event.package_name}{type_str}")
+                sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.PACKAGE_COMPLETE:
-            print(f"<< {event.package_name}")
-            sys.stdout.flush()
+            with self._lock:
+                duration_str = f" ({event.duration:.1f}s)" if event.duration else ""
+                print(f"<< {event.package_name}{duration_str}")
+                sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.PACKAGE_ERROR:
-            print(f"<< {event.package_name} ERROR: {event.error_message}")
-            self.errors.append((event.package_name, event.error_message))
-            sys.stdout.flush()
+            with self._lock:
+                print(f"<< {event.package_name} ERROR: {event.error_message}")
+                self.errors.append((event.package_name, event.error_message))
+                sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.UPDATE_COMPLETE:
+            # Runs on main thread after all workers joined -- no lock needed.
             print("")
             print("Sub-Package Update Summary:")
             print(f"  Total packages: {event.total_packages}")
@@ -432,32 +444,58 @@ class TranscriptUpdateTUI(UpdateEventListener):
             sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_START:
-            indent = "  " if event.parent_task_id else ""
-            print(f"{indent}>> [{event.task_name}]")
-            sys.stdout.flush()
+            with self._lock:
+                if event.package_name:
+                    if self.verbose < 1:
+                        sys.stdout.flush()
+                        return
+                    print(f">> [{event.task_name}] ({event.package_name})")
+                else:
+                    indent = "  " if event.parent_task_id else ""
+                    print(f"{indent}>> [{event.task_name}]")
+                sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_PROGRESS:
-            indent = "  " if event.parent_task_id else ""
-            if event.task_step is not None and event.task_total is not None:
-                print(f"{indent}   {event.task_message} ({event.task_step}/{event.task_total})")
-            elif event.task_message:
-                print(f"{indent}   {event.task_message}")
-            sys.stdout.flush()
+            if self.verbose < 1:
+                return
+            with self._lock:
+                # Percentage throttling: skip intermediate reports
+                if event.task_step is not None and event.task_total is not None:
+                    last = self._task_last_pct.get(event.task_id, -1)
+                    if event.task_step - last < 10 and event.task_step < event.task_total:
+                        sys.stdout.flush()
+                        return
+                    self._task_last_pct[event.task_id] = event.task_step
+                pkg_tag = f"[{event.package_name}] " if event.package_name else ""
+                indent = "  " if event.parent_task_id else ""
+                if event.task_step is not None and event.task_total is not None:
+                    print(f"{indent}   {pkg_tag}{event.task_message} ({event.task_step}/{event.task_total})")
+                elif event.task_message:
+                    print(f"{indent}   {pkg_tag}{event.task_message}")
+                sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_END:
-            indent = "  " if event.parent_task_id else ""
-            duration_str = f" ({event.duration:.1f}s)" if event.duration else ""
-            print(f"{indent}<< [{event.task_name}]{duration_str}")
-            sys.stdout.flush()
+            with self._lock:
+                if event.package_name:
+                    # Always suppress -- the << package line already signals completion
+                    sys.stdout.flush()
+                    return
+                else:
+                    indent = "  " if event.parent_task_id else ""
+                    duration_str = f" ({event.duration:.1f}s)" if event.duration else ""
+                    print(f"{indent}<< [{event.task_name}]{duration_str}")
+                sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_ERROR:
-            indent = "  " if event.parent_task_id else ""
-            print(f"{indent}<< [{event.task_name}] ERROR: {event.task_message}")
-            self.errors.append((event.task_name, event.task_message or "error"))
-            sys.stdout.flush()
+            with self._lock:
+                indent = "  " if event.parent_task_id else ""
+                pkg_tag = f"[{event.package_name}] " if event.package_name else ""
+                print(f"{indent}<< [{event.task_name}] {pkg_tag}ERROR: {event.task_message}")
+                self.errors.append((event.task_name, event.task_message or "error"))
+                sys.stdout.flush()
 
 
-def create_update_tui(log_level: str) -> UpdateEventListener:
+def create_update_tui(log_level: str, verbose: int = 0) -> UpdateEventListener:
     """
     Create the appropriate TUI based on settings.
     
@@ -484,6 +522,5 @@ def create_update_tui(log_level: str) -> UpdateEventListener:
         _logger.debug("Using Rich-based TUI")
         return RichUpdateTUI()
     else:
-        verbose = log_level != "NONE"
-        _logger.debug("Using transcript-based TUI (verbose=%s)", verbose)
+        _logger.debug("Using transcript-based TUI (verbose=%d)", verbose)
         return TranscriptUpdateTUI(verbose=verbose)

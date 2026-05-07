@@ -22,6 +22,7 @@ import time
 
 from ..utils import fatal
 from ..project_ops import ProjectOps
+from ..variables import parse_definitions
 from ..update_event import UpdateEvent, UpdateEventType, UpdateEventDispatcher
 from ..update_tui import create_update_tui, RichUpdateTUI
 
@@ -79,9 +80,11 @@ class CmdClone(object):
         ivpm_yaml_path = os.path.join(target_dir, "ivpm.yaml")
         
         if os.path.isfile(ivpm_yaml_path):
+            cli_overrides = parse_definitions(getattr(args, 'definitions', []))
             ProjectOps(target_dir).update(
                 dep_set=dep_set,
-                args=args
+                args=args,
+                cli_overrides=cli_overrides,
             )
         else:
             if dep_set is not None:

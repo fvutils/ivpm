@@ -2,8 +2,10 @@
 #* test_package_lock.py
 #*
 #* Tests for the package_lock module (write/read round-trip, change detection,
-#* reproducible flag, and Python pip version contribution).
+#* reproducible flag, Python pip version contribution, and lock-file hook
+#* delegation).
 #****************************************************************************
+import dataclasses as dc
 import os
 import json
 import tempfile
@@ -280,6 +282,130 @@ class TestPackageLock(unittest.TestCase):
         self.assertEqual(entry["src"], "git")
         self.assertEqual(entry["url"], "https://github.com/org/myrepo.git")
         self.assertEqual(entry["branch"], "main")
+
+    # ------------------------------------------------------------------
+    # Lock-file hook delegation
+    # ------------------------------------------------------------------
+
+    def test_get_lock_entry_hook_merged(self):
+        """get_lock_entry() return value is merged into the base lock entry."""
+        from ivpm.package import Package
+
+        @dc.dataclass
+        class CustomPkg(Package):
+            def get_lock_entry(self):
+                return {"custom_field": "custom_value"}
+
+        pkg = CustomPkg("custompkg")
+        pkg.src_type = "custom"
+        pkg.resolved_by = "root"
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        entry = data["packages"]["custompkg"]
+        # Base fields present
+        self.assertEqual(entry["src"], "custom")
+        self.assertEqual(entry["resolved_by"], "root")
+        # Custom field merged
+        self.assertEqual(entry["custom_field"], "custom_value")
+
+    def test_get_lock_entry_hook_none_falls_through(self):
+        """Plain Package (no override) with unknown src_type gets only base fields."""
+        from ivpm.package import Package
+
+        pkg = Package("plainpkg")
+        pkg.src_type = "unknown_type"
+        pkg.resolved_by = "root"
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        entry = data["packages"]["plainpkg"]
+        self.assertEqual(entry["src"], "unknown_type")
+        self.assertEqual(entry["resolved_by"], "root")
+        self.assertIn("dep_set", entry)
+        self.assertIn("reproducible", entry)
+
+    def test_spec_matches_lock_hook_true(self):
+        """spec_matches_lock() returning True suppresses diff reporting."""
+        from ivpm.package import Package
+
+        @dc.dataclass
+        class AlwaysMatchPkg(Package):
+            def spec_matches_lock(self, lock_entry):
+                return True
+
+        pkg = AlwaysMatchPkg("matchpkg")
+        pkg.src_type = "custom"
+        pkg.resolved_by = "root"
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+
+        diffs = check_lock_changes(self.tmpdir, pkgs)
+        self.assertEqual(diffs, {})
+
+    def test_spec_matches_lock_hook_false(self):
+        """spec_matches_lock() returning False forces a diff to be reported."""
+        from ivpm.package import Package
+
+        @dc.dataclass
+        class NeverMatchPkg(Package):
+            def spec_matches_lock(self, lock_entry):
+                return False
+
+        pkg = NeverMatchPkg("nomatchpkg")
+        pkg.src_type = "custom"
+        pkg.resolved_by = "root"
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+
+        diffs = check_lock_changes(self.tmpdir, pkgs)
+        self.assertIn("nomatchpkg", diffs)
+
+    def test_spec_matches_lock_hook_none_falls_through(self):
+        """spec_matches_lock() returning None falls through to built-in git logic."""
+        from ivpm.package import Package
+
+        @dc.dataclass
+        class GitLikePkg(Package):
+            url: str = None
+            branch: str = None
+            tag: str = None
+            commit: str = None
+            resolved_commit: str = None
+            cache: str = None
+
+            def spec_matches_lock(self, lock_entry):
+                return None
+
+        pkg = GitLikePkg("gitlike")
+        pkg.src_type = "git"
+        pkg.resolved_by = "root"
+        pkg.url = "https://github.com/org/repo.git"
+        pkg.branch = "main"
+        pkg.resolved_commit = "abc123"
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+
+        # Same spec -- built-in git comparison should find no diff
+        diffs = check_lock_changes(self.tmpdir, pkgs)
+        self.assertEqual(diffs, {})
+
+    def test_existing_git_roundtrip_unaffected(self):
+        """Plain PackageGit (no custom hooks) round-trips with no diffs."""
+        pkg = _make_git_pkg(
+            "plainrepo",
+            "https://github.com/org/plainrepo.git",
+            branch="main",
+            commit=None,
+            resolved_commit="deadbeef",
+        )
+        pkgs = self._make_pkgs(pkg)
+        write_lock(self.tmpdir, pkgs)
+
+        diffs = check_lock_changes(self.tmpdir, pkgs)
+        self.assertEqual(diffs, {})
 
 
 if __name__ == "__main__":

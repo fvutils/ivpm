@@ -25,6 +25,7 @@ TranscriptSyncTUI — plain-text fallback (non-TTY / --no-rich).
 Both implement SyncProgressListener so they can receive per-package
 notifications during a parallel sync, then render the final results table.
 """
+import threading
 import sys
 import time
 from typing import Dict, List, Optional
@@ -303,16 +304,22 @@ class RichSyncTUI(SyncProgressListener):
 class TranscriptSyncTUI(SyncProgressListener):
     """Plain-text TUI: >> / << lines during sync, full table after."""
 
+    def __init__(self, verbose: int = 0):
+        self.verbose = verbose
+        self._lock = threading.Lock()
+
     # ── SyncProgressListener ─────────────────────────────────────────────
 
     def on_pkg_start(self, name: str) -> None:
-        print(">> %s" % name)
-        sys.stdout.flush()
+        with self._lock:
+            print(">> %s" % name)
+            sys.stdout.flush()
 
     def on_pkg_result(self, result: PkgSyncResult) -> None:
-        icon, _ = _ICONS.get(result.outcome, ("?", ""))
-        print("<< %s  %s  %s" % (result.name, icon, result.outcome.value))
-        sys.stdout.flush()
+        with self._lock:
+            icon, _ = _ICONS.get(result.outcome, ("?", ""))
+            print("<< %s  %s  %s" % (result.name, icon, result.outcome.value))
+            sys.stdout.flush()
 
     # ── Lifecycle (no-ops for transcript) ────────────────────────────────
 
@@ -335,6 +342,10 @@ class TranscriptSyncTUI(SyncProgressListener):
                 pypi_count += 1
                 continue
             if r.outcome not in _ATTENTION_OUTCOMES:
+                continue
+
+            # --- Only print attention detail at verbose >= 1 ---
+            if self.verbose < 1:
                 continue
 
             icon, _ = _ICONS.get(r.outcome, ("?", ""))
@@ -395,7 +406,8 @@ class TranscriptSyncTUI(SyncProgressListener):
 def create_sync_tui(args) -> object:
     """Return the appropriate TUI based on terminal and args."""
     no_rich = getattr(args, "no_rich", False)
+    verbose = getattr(args, "verbose", 0)
     use_rich = not no_rich and sys.stdout.isatty()
     if use_rich:
         return RichSyncTUI()
-    return TranscriptSyncTUI()
+    return TranscriptSyncTUI(verbose=verbose)
