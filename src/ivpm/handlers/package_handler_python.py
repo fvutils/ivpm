@@ -251,7 +251,7 @@ class PackageHandlerPython(PackageHandler):
 
         # --- Determine how to install ivpm into the venv ---
         # Query the site config for the install spec (e.g. ["ivpm"] for
-        # PyPI, or ["/path/to/ivpm_amd-2.2.4.whl"] for a local wheel).
+        # PyPI, or ["/path/to/ivpm-2.2.4.whl"] for a local wheel).
         # Store the raw args for injection into the requirements file.
         if "ivpm" not in self.pypi_pkg_s:
             from ..site_config import get_site_config

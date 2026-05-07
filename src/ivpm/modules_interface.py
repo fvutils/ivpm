@@ -137,7 +137,7 @@ class ModulesInterface:
     def _module_path_3x(self, module: str) -> Optional[str]:
         """Modules 3.x: ``tclsh modulecmd.tcl python path <module>``.
 
-        Some AMD variants emit ``execfile('/tmp/modulescript_...')`` on
+        Some variants emit ``execfile('/tmp/modulescript_...')`` on
         stdout instead of the real modulefile path.  The temp script
         contains ``result.append('/real/path/to/modulefile')``.  When
         the initial parse returns a temp-script path we read the script
@@ -148,7 +148,7 @@ class ModulesInterface:
         if not path:
             path = self._parse_path_stdout(r.stdout)
 
-        # Detect AMD modulecmd temp-script paths and resolve the real
+        # Detect modulecmd temp-script paths and resolve the real
         # modulefile path from the script contents or module show.
         if path and os.path.basename(path).startswith("modulescript_"):
             real = self._resolve_path_from_modulescript(path)
@@ -160,7 +160,7 @@ class ModulesInterface:
         return path if path and os.path.exists(path) else None
 
     def _resolve_path_from_modulescript(self, script_path: str) -> Optional[str]:
-        """Read an AMD modulecmd temp script and extract the real modulefile path."""
+        """Read an modulecmd temp script and extract the real modulefile path."""
         try:
             with open(script_path) as fh:
                 for line in fh:
