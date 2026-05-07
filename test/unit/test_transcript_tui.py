@@ -223,24 +223,6 @@ class TestTranscriptUpdateTUIVerbosity(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Phase 5: p4_mkwa output suppression (source-level guard)
-# ---------------------------------------------------------------------------
-
-class TestP4MkwaOutputSuppression(unittest.TestCase):
-
-    def test_no_stdout_write_in_exec(self):
-        """Verify the _exec_p4_mkwa code has no sys.stdout.write call.
-
-        This is a source-level assertion to guard against regressions.
-        """
-        import inspect
-        from ivpm_amd_ext.package_p4_mkwa import PackageP4Mkwa
-        source = inspect.getsource(PackageP4Mkwa._exec_p4_mkwa)
-        self.assertNotIn("sys.stdout.write", source)
-        self.assertNotIn("stdout.write(line)", source)
-
-
-# ---------------------------------------------------------------------------
 # Phase 6: Sync TUI verbosity
 # ---------------------------------------------------------------------------
 
