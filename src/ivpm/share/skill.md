@@ -1,6 +1,6 @@
 ---
 name: ivpm
-description: IVPM (IP and Verification Package Manager) is a lightweight project-local package manager for managing software dependencies. Use when the user is working with IVPM-enabled projects, needs to manage dependencies, or needs to work with ivpm.yaml files.
+description: IVPM (Integrated View Package Manager) is a project-local polyglot package manager that fetches dependencies from diverse sources and assembles unified project views. Use when the user is working with IVPM-enabled projects, needs to manage dependencies, or needs to work with ivpm.yaml files.
 ---
 
 # IVPM Agent Skill

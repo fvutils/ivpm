@@ -225,6 +225,37 @@ Complete Examples
             - name: pdk-libs
               url: https://github.com/org/pdk.git
 
+**Example 3: Software Service Profiles**
+
+.. code-block:: yaml
+
+    package:
+      name: data-platform
+      default-dep-set: dev
+
+      dep-sets:
+        - name: api
+          deps:
+            - name: fastapi
+              src: pypi
+            - name: shared-models
+              url: https://github.com/org/shared-models.git
+
+        - name: worker
+          deps:
+            - name: celery
+              src: pypi
+            - name: shared-models
+              url: https://github.com/org/shared-models.git
+
+        - name: dev
+          uses: api
+          deps:
+            - name: celery
+              src: pypi
+            - name: pytest
+              src: pypi
+
 Hierarchical Dependency Sets
 =============================
 

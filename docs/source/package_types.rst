@@ -541,6 +541,38 @@ When ``type: python`` is specified you can pass additional parameters under a
    phase of every ``update`` / ``clone`` run.  See :ref:`handler-python` in :doc:`handlers` for the full list of installation options and CLI
    flags such as ``--py-uv`` and ``--force-py-install``.
 
+Node (``node``)
+----------------
+
+Node.js packages are installed into the project's Node.js environment at
+``packages/node/``.
+
+**Auto-detection:** A package is considered Node.js if:
+
+- ``src: npm`` is specified, OR
+- Directory contains ``package.json``
+
+**Examples:**
+
+.. code-block:: yaml
+
+    # npm registry package
+    - name: lodash
+      src: npm
+
+    # Source package with package.json (auto-detected)
+    - name: my-ts-lib
+      url: https://github.com/org/my-ts-lib.git
+      type: node
+
+.. note::
+
+   When a package has ``type: node``, the **Node handler** installs it into
+   ``packages/node/`` during the root phase.  See :ref:`handler-node` in
+   :doc:`handlers` for the full list of options, and :doc:`node_packages`
+   for complete Node.js workflow details.
+
+
 Raw (``raw``)
 -------------
 
@@ -623,6 +655,10 @@ Based on content and source:
      - ``python``
    * - Contains ``setup.py``, ``setup.cfg``, or ``pyproject.toml``
      - ``python``
+   * - ``src: npm``
+     - ``node``
+   * - Contains ``package.json``
+     - ``node``
    * - Otherwise
      - ``raw``
 
