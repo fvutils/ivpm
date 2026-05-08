@@ -336,7 +336,13 @@ def main(project_dir=None):
     discovered_plugins = entry_points(group='ivpm.ext')
     parser_ext = []
     options_ext = []
+    # Guard against duplicate entry points that appear when stale
+    # metadata (e.g. an old .egg-info) coexists with current .dist-info.
+    seen_ext_modules = set()
     for p in discovered_plugins:
+        if p.value in seen_ext_modules:
+            continue
+        seen_ext_modules.add(p.value)
         try:
             mod = p.load()
             if hasattr(mod, "ivpm_subcommand"):

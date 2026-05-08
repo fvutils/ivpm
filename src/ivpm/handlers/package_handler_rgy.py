@@ -43,7 +43,11 @@ class PackageHandlerRgy(object):
         else:
             from importlib.metadata import entry_points
 
+        seen = set()
         for ep in entry_points(group="ivpm.handlers"):
+            if ep.value in seen:
+                continue
+            seen.add(ep.value)
             try:
                 cls = ep.load()
                 _logger.debug("Loaded handler '%s' from entry point", ep.name)
