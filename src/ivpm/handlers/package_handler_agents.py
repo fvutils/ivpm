@@ -106,8 +106,10 @@ class PackageHandlerAgents(PackageHandler):
             phase=cls.phase,
             conditions=cls.conditions_summary,
             notes=(
-                "Creates relative symlinks from .agents/skills/<pkg> to the directory "
+                "Creates symlinks from .agents/skills/<pkg> to the directory "
                 "containing each dependency's SKILL.md. "
+                "Symlinks are relative when the target is inside the project tree, "
+                "absolute otherwise. "
                 "When claude: true is set under package.with.agents, also mirrors to .claude/skills/. "
                 "Falls back to directory copy on platforms without symlink support. "
                 "Skill paths support glob patterns (e.g. skills/**/SKILL.md). "
@@ -189,12 +191,19 @@ class PackageHandlerAgents(PackageHandler):
         assigned = self._assign_dest_names(self.skill_entries)
         self._managed_names = [dest_name for dest_name, _ in assigned]
 
+        project_dir_norm = os.path.normpath(project_dir)
         for dest_name, entry in assigned:
             for tgt in targets:
                 dest = os.path.join(tgt, dest_name)
                 if use_symlinks:
-                    rel_target = os.path.relpath(entry.skill_dir, tgt)
-                    self._ensure_symlink(dest, rel_target, entry.skill_dir, deps_dir_norm)
+                    skill_dir_norm = os.path.normpath(entry.skill_dir)
+                    # Use relative path only when the skill lives inside the project tree
+                    if skill_dir_norm == project_dir_norm or \
+                            skill_dir_norm.startswith(project_dir_norm + os.sep):
+                        link_target = os.path.relpath(entry.skill_dir, tgt)
+                    else:
+                        link_target = os.path.abspath(entry.skill_dir)
+                    self._ensure_symlink(dest, link_target, entry.skill_dir, deps_dir_norm)
                 else:
                     self._ensure_copy(dest, entry.skill_dir)
 
@@ -415,10 +424,10 @@ class PackageHandlerAgents(PackageHandler):
             return False
         return True
 
-    def _ensure_symlink(self, dest: str, rel_target: str, skill_dir: str, deps_dir_norm: str):
-        """Create or replace symlink at dest, handling existing entries gracefully."""
+    def _ensure_symlink(self, dest: str, link_target: str, skill_dir: str, deps_dir_norm: str):
+        """Create or replace symlink at dest pointing to link_target (relative or absolute)."""
         if os.path.islink(dest):
-            # Resolve stored target to absolute path
+            # Resolve stored target to absolute path for comparison
             stored_target = os.readlink(dest)
             stored_abs = os.path.normpath(os.path.join(os.path.dirname(dest), stored_target))
             expected_abs = os.path.normpath(skill_dir)
@@ -429,7 +438,7 @@ class PackageHandlerAgents(PackageHandler):
             # Check if it points into deps_dir
             if stored_abs.startswith(deps_dir_norm + os.sep):
                 os.unlink(dest)
-                os.symlink(rel_target, dest)
+                os.symlink(link_target, dest)
             else:
                 _logger.warning(
                     "Symlink %s points outside deps_dir to %s; leaving as-is",
@@ -439,7 +448,7 @@ class PackageHandlerAgents(PackageHandler):
                 "Cannot create symlink %s; path exists and is not a symlink",
                 dest)
         else:
-            os.symlink(rel_target, dest)
+            os.symlink(link_target, dest)
 
     def _ensure_copy(self, dest: str, skill_dir: str):
         """Create or replace copy at dest, handling existing entries gracefully."""
