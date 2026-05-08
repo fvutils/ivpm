@@ -257,6 +257,31 @@ Paths are organized by:
 Basic Structure
 ---------------
 
+**Software project:**
+
+.. code-block:: yaml
+
+    package:
+      name: web-service
+
+      paths:
+        src:
+          python:
+            - src/api
+            - src/workers
+          typescript:
+            - frontend/src
+        test:
+          python:
+            - test/unit
+            - test/integration
+        config:
+          yaml:
+            - deploy/k8s
+            - deploy/terraform
+
+**Hardware project:**
+
 .. code-block:: yaml
 
     package:
@@ -305,6 +330,24 @@ Common Path Categories
 
 - ``testdata`` - Test vectors
 - ``config`` - Configuration files
+
+**src** - Source code:
+
+- ``python`` - Python source files
+- ``typescript`` - TypeScript source files
+- ``go`` - Go source files
+
+**test** - Test suites:
+
+- ``python`` - Python tests
+- ``typescript`` - TypeScript tests
+- ``shell`` - Shell-based integration tests
+
+**config** - Configuration and deployment:
+
+- ``yaml`` - YAML configuration files
+- ``json`` - JSON configuration files
+- ``toml`` - TOML configuration files
 
 Complete Paths Example
 -----------------------

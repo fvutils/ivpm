@@ -55,6 +55,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#node-handler-node">Node Handler (<code class="docutils literal notranslate"><span class="pre">node</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#direnv-handler-direnv">Direnv Handler (<code class="docutils literal notranslate"><span class="pre">direnv</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agents-handler-agents">Agents Handler (<code class="docutils literal notranslate"><span class="pre">agents</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#modules-handler-modules">Modules Handler (<code class="docutils literal notranslate"><span class="pre">modules</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fusesoc-handler-fusesoc">FuseSoC Handler (<code class="docutils literal notranslate"><span class="pre">fusesoc</span></code>)</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#handler-summary">Handler Summary</a></li>
@@ -110,8 +112,10 @@
 <p>A <strong>handler</strong> is a Python class that observes packages as they are fetched by
 <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> (or <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">clone</span></code>) and performs processing work.  Handlers are
 how IVPM turns a collection of fetched files into a working development
-environment – creating virtual environments, generating configuration files,
-and aggregating metadata.</p>
+environment – each handler builds a unified <em>view</em> of one facet of the
+project: a virtual environment, a Node.js environment, an environment-variable
+file, an agent skills directory, a FuseSoC library map, or a set of loaded
+modules.</p>
 <p>Every handler participates in up to two phases of the update pipeline:</p>
 <dl class="simple">
 <dt><strong>Leaf phase</strong> (per-package, concurrent)</dt><dd><p>Called once for each package, on a worker thread, as soon as that package
@@ -163,8 +167,10 @@ root callback (filtered by <code class="docutils literal notranslate"><span clas
 </section>
 <section id="built-in-handlers">
 <h2>Built-in Handlers<a class="headerlink" href="#built-in-handlers" title="Link to this heading"></a></h2>
-<p>IVPM ships three built-in handlers.  They run in phase order (direnv → python → agents)
-so that the Python venv is ready before the agents handler queries <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points.
+<p>IVPM ships six built-in handlers.  They run in phase order (direnv → modules
+→ python → node/agents → fusesoc) so that the environment is configured
+before Python packages are installed, and the Python venv is ready before the
+agents handler queries <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points.
 They are registered via entry points in IVPM’s own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> and run on every
 <code class="docutils literal notranslate"><span class="pre">update</span></code> and <code class="docutils literal notranslate"><span class="pre">clone</span></code> invocation.</p>
 <div class="admonition tip">
@@ -470,6 +476,62 @@ that have manually created it).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">.claude/skills/&lt;package&gt;</span></code> — same, if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> or if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> exists</p></li>
 </ul>
 </section>
+<section id="modules-handler-modules">
+<span id="handler-modules"></span><h3>Modules Handler (<code class="docutils literal notranslate"><span class="pre">modules</span></code>)<a class="headerlink" href="#modules-handler-modules" title="Link to this heading"></a></h3>
+<p>Generates <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code> statements for <a class="reference external" href="https://modules.readthedocs.io/">Environment Modules</a> integration.</p>
+<p><strong>Purpose</strong></p>
+<p>Packages can declare an Environment Module dependency via the <code class="docutils literal notranslate"><span class="pre">module</span></code>
+content type in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.  The modules handler collects these
+declarations, generates <code class="docutils literal notranslate"><span class="pre">packages/modules.envrc</span></code> with <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code>
+statements, and patches <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> to source it.</p>
+<p><strong>Leaf phase</strong></p>
+<p>Inspects every package.  Packages carrying <code class="docutils literal notranslate"><span class="pre">ModuleTypeData</span></code> with
+<code class="docutils literal notranslate"><span class="pre">load:</span> <span class="pre">true</span></code> are recorded.</p>
+<p><strong>Root phase</strong></p>
+<p>Writes <code class="docutils literal notranslate"><span class="pre">packages/modules.envrc</span></code> with one <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span> <span class="pre">&lt;spec&gt;</span></code> line per
+discovered module.  Patches <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> with a
+sentinel-wrapped <code class="docutils literal notranslate"><span class="pre">source_env</span></code> line.  Cleans up stale entries when no
+modules remain.</p>
+<p><strong>Configuration (``ivpm.yaml``)</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gcc-toolchain</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> module</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> load</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="nt"> module</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;gcc/15.2.0&quot;</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/modules.envrc</span></code></p>
+</section>
+<section id="fusesoc-handler-fusesoc">
+<span id="handler-fusesoc"></span><h3>FuseSoC Handler (<code class="docutils literal notranslate"><span class="pre">fusesoc</span></code>)<a class="headerlink" href="#fusesoc-handler-fusesoc" title="Link to this heading"></a></h3>
+<p>Discovers <a class="reference external" href="https://fusesoc.readthedocs.io/">FuseSoC</a> <code class="docutils literal notranslate"><span class="pre">.core</span></code> files
+from dependencies and generates library metadata.</p>
+<p><strong>Purpose</strong></p>
+<p>When dependencies contain CAPI-2 <code class="docutils literal notranslate"><span class="pre">.core</span></code> files (or declare
+<code class="docutils literal notranslate"><span class="pre">with.fusesoc.cores</span></code> paths), the FuseSoC handler collects those
+directories and writes <code class="docutils literal notranslate"><span class="pre">packages/fusesoc-cores.envrc</span></code> (setting
+<code class="docutils literal notranslate"><span class="pre">FUSESOC_CORES</span></code>) and <code class="docutils literal notranslate"><span class="pre">packages/fusesoc-cores.txt</span></code>.  Optionally, when
+<code class="docutils literal notranslate"><span class="pre">update-conf:</span> <span class="pre">true</span></code> is set in <code class="docutils literal notranslate"><span class="pre">with.fusesoc</span></code>, it also updates
+<code class="docutils literal notranslate"><span class="pre">fusesoc.conf</span></code> with <code class="docutils literal notranslate"><span class="pre">[library.ivpm.*]</span></code> sections.</p>
+<p><strong>Leaf phase</strong></p>
+<p>Inspects every non-PyPI package.  Recursively searches for valid <code class="docutils literal notranslate"><span class="pre">.core</span></code>
+files and records directories that contain them.</p>
+<p><strong>Root phase</strong></p>
+<p>Always runs (cleans stale entries even when no cores remain).  Writes
+output files and patches <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code>.</p>
+<p><strong>Configuration (``ivpm.yaml``)</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soc-project</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">fusesoc</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">update-conf</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">cores</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rtl/cores</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/fusesoc-cores.envrc</span></code>, <code class="docutils literal notranslate"><span class="pre">packages/fusesoc-cores.txt</span></code>,
+optionally <code class="docutils literal notranslate"><span class="pre">fusesoc.conf</span></code></p>
+<p>See <a class="reference internal" href="integrations.html"><span class="doc">Integrations</span></a> for FuseSoC integration patterns with CMake and
+other build systems.</p>
+</section>
 </section>
 <section id="handler-summary">
 <h2>Handler Summary<a class="headerlink" href="#handler-summary" title="Link to this heading"></a></h2>
@@ -499,12 +561,26 @@ that have manually created it).</p></li>
 <td><p>Writes combined envrc</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">modules</span></code></p></td>
+<td><p>1</p></td>
+<td><p>Environment Modules integration</p></td>
+<td><p>Packages with <code class="docutils literal notranslate"><span class="pre">ModuleTypeData</span></code></p></td>
+<td><p>Writes <code class="docutils literal notranslate"><span class="pre">module</span> <span class="pre">load</span></code> statements</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">packages/modules.envrc</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
 <td><p>5</p></td>
 <td><p>Python venv and package install</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">setup.py</span></code> / <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> / <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code></p></td>
 <td><p>Creates venv, installs packages; queries <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">packages/python/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node</span></code></p></td>
+<td><p>6</p></td>
+<td><p>Node.js environment and package install</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">package.json</span></code> / <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code></p></td>
+<td><p>Synthesises <code class="docutils literal notranslate"><span class="pre">package.json</span></code>, runs npm/pnpm/yarn, links source packages</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">packages/node/</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">agents</span></code></p></td>
 <td><p>6</p></td>
@@ -512,6 +588,13 @@ that have manually created it).</p></li>
 <td><p><code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> at root, under <code class="docutils literal notranslate"><span class="pre">skills/</span></code>, declared paths, or <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points</p></td>
 <td><p>Creates symlinks to skills</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fusesoc</span></code></p></td>
+<td><p>10</p></td>
+<td><p>FuseSoC core library mapping</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.core</span></code> files (CAPI-2) or <code class="docutils literal notranslate"><span class="pre">with.fusesoc.cores</span></code></p></td>
+<td><p>Writes <code class="docutils literal notranslate"><span class="pre">fusesoc-cores.envrc</span></code>, <code class="docutils literal notranslate"><span class="pre">fusesoc-cores.txt</span></code>; optionally updates <code class="docutils literal notranslate"><span class="pre">fusesoc.conf</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">packages/fusesoc-cores.*</span></code></p></td>
 </tr>
 </tbody>
 </table>
@@ -551,7 +634,7 @@ thread safety, progress reporting, and entry-point registration.</p>
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

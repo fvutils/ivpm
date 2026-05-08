@@ -2,7 +2,7 @@
 	"$schema" : "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://fvutils.github.com/ivpm/ivpm.json",
 	"title": "IVPM",
-	"description": "Schema for IP and Verification Package Manager (IVPM)",
+	"description": "Schema for IVPM (Integrated View Package Manager)",
 	"type": "object",
 	"properties": {
 		"package": {
@@ -296,4 +296,3 @@
 		}
 	}
 }
-

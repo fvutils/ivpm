@@ -100,7 +100,7 @@
 <h1>Introduction<a class="headerlink" href="#introduction" title="Link to this heading"></a></h1>
 <section id="what-is-ivpm">
 <h2>What is IVPM?<a class="headerlink" href="#what-is-ivpm" title="Link to this heading"></a></h2>
-<p>IVPM (IP and Verification Package Manager) is a lightweight, project-local
+<p>IVPM (Integrated View Package Manager) is a project-local, polyglot
 package manager.  It fetches dependencies into a <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory
 inside your project, processes them through a <a class="reference internal" href="handlers.html"><span class="doc">handler pipeline</span></a>, and optionally manages a Python virtual environment.  Each
 project is fully self-contained – there is no global state shared between
@@ -125,10 +125,12 @@ changes, update from upstream, and work with editable Git dependencies.</p></li>
 <li><p><strong>Caching and reproducibility</strong> – cached packages are shared across
 projects via symlinks.  A lock file records exact resolved versions for
 deterministic reproduction.</p></li>
-<li><p><strong>Extensible handler pipeline</strong> – handlers process and aggregate
-information from fetched packages.  IVPM ships handlers for Python,
-direnv, and AI agent skills.  Third-party handlers can be added via
-Python entry points.</p></li>
+<li><p><strong>Extensible handler pipeline</strong> – each handler builds a unified <em>view</em>
+of one facet of the project.  The Python handler builds a virtual
+environment view, the Node handler builds a Node.js environment view,
+the direnv handler builds an environment-variable view, and the agents
+handler builds a skills-directory view.  Third-party handlers can add
+new views via Python entry points.</p></li>
 </ul>
 </section>
 <section id="where-ivpm-fits">
@@ -142,6 +144,9 @@ file and one command (<code class="docutils literal notranslate"><span class="pr
 dependencies are repositories you also contribute to.  Source dependencies
 are checked out with full Git history, installed in editable mode, and
 manageable via <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code> and <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code>.</p>
+<p>Where pip installs packages and Nix builds environments, IVPM assembles
+<em>views</em> – each handler transforms a slice of the dependency graph into a
+coherent, domain-specific projection of the project.</p>
 </section>
 <section id="example-domains">
 <h2>Example Domains<a class="headerlink" href="#example-domains" title="Link to this heading"></a></h2>
@@ -186,11 +191,29 @@ set of mixed dependencies benefits from IVPM.</p>
 <span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
 <span class="w">      </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
 <span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
-<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytest</span>
+<span class="w">      </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<p><strong>AI agent project with skills:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-agent-workspace</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">claude</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shared-skills</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/shared-skills.git</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">langchain</span>
 <span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
 </pre></div>
 </div>
-<p>Both projects share the same structure: an <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> file, a
+<p>All three projects share the same structure: an <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> file, a
 <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory, and the same <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> / <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code>
 workflow.</p>
 </section>
@@ -214,7 +237,7 @@ workflow.</p>
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

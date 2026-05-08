@@ -343,6 +343,28 @@ to discover.</p>
 </section>
 <section id="basic-structure">
 <h3>Basic Structure<a class="headerlink" href="#basic-structure" title="Link to this heading"></a></h3>
+<p><strong>Software project:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">web-service</span>
+
+<span class="w">  </span><span class="nt">paths</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/api</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/workers</span>
+<span class="w">      </span><span class="nt">typescript</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">frontend/src</span>
+<span class="w">    </span><span class="nt">test</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test/unit</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test/integration</span>
+<span class="w">    </span><span class="nt">config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">yaml</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy/k8s</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deploy/terraform</span>
+</pre></div>
+</div>
+<p><strong>Hardware project:</strong></p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soc-design</span>
 
@@ -389,6 +411,24 @@ to discover.</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">testdata</span></code> - Test vectors</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">config</span></code> - Configuration files</p></li>
+</ul>
+<p><strong>src</strong> - Source code:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">python</span></code> - Python source files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">typescript</span></code> - TypeScript source files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">go</span></code> - Go source files</p></li>
+</ul>
+<p><strong>test</strong> - Test suites:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">python</span></code> - Python tests</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">typescript</span></code> - TypeScript tests</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">shell</span></code> - Shell-based integration tests</p></li>
+</ul>
+<p><strong>config</strong> - Configuration and deployment:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">yaml</span></code> - YAML configuration files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">json</span></code> - JSON configuration files</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">toml</span></code> - TOML configuration files</p></li>
 </ul>
 </section>
 <section id="complete-paths-example">
@@ -627,7 +667,7 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

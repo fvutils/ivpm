@@ -8,8 +8,10 @@ What Are Handlers?
 A **handler** is a Python class that observes packages as they are fetched by
 ``ivpm update`` (or ``ivpm clone``) and performs processing work.  Handlers are
 how IVPM turns a collection of fetched files into a working development
-environment -- creating virtual environments, generating configuration files,
-and aggregating metadata.
+environment -- each handler builds a unified *view* of one facet of the
+project: a virtual environment, a Node.js environment, an environment-variable
+file, an agent skills directory, a FuseSoC library map, or a set of loaded
+modules.
 
 Every handler participates in up to two phases of the update pipeline:
 
@@ -72,8 +74,10 @@ root callback (filtered by ``root_when`` conditions) in phase order.
 Built-in Handlers
 =================
 
-IVPM ships three built-in handlers.  They run in phase order (direnv → python → agents)
-so that the Python venv is ready before the agents handler queries ``ivpm.skill`` entry-points.
+IVPM ships six built-in handlers.  They run in phase order (direnv → modules
+→ python → node/agents → fusesoc) so that the environment is configured
+before Python packages are installed, and the Python venv is ready before the
+agents handler queries ``ivpm.skill`` entry-points.
 They are registered via entry points in IVPM's own ``pyproject.toml`` and run on every
 ``update`` and ``clone`` invocation.
 
@@ -459,6 +463,90 @@ Or via consumer dep-entry:
 - ``.claude/skills/<package>`` — same, if ``claude: true`` or if ``.claude/`` exists
 
 
+.. _handler-modules:
+
+Modules Handler (``modules``)
+------------------------------
+
+Generates ``module load`` statements for `Environment Modules
+<https://modules.readthedocs.io/>`_ integration.
+
+**Purpose**
+
+Packages can declare an Environment Module dependency via the ``module``
+content type in ``ivpm.yaml``.  The modules handler collects these
+declarations, generates ``packages/modules.envrc`` with ``module load``
+statements, and patches ``packages/packages.envrc`` to source it.
+
+**Leaf phase**
+
+Inspects every package.  Packages carrying ``ModuleTypeData`` with
+``load: true`` are recorded.
+
+**Root phase**
+
+Writes ``packages/modules.envrc`` with one ``module load <spec>`` line per
+discovered module.  Patches ``packages/packages.envrc`` with a
+sentinel-wrapped ``source_env`` line.  Cleans up stale entries when no
+modules remain.
+
+**Configuration (``ivpm.yaml``)**
+
+.. code-block:: yaml
+
+    deps:
+      - name: gcc-toolchain
+        type: { module: { load: true, module: "gcc/15.2.0" } }
+
+**Output:** ``packages/modules.envrc``
+
+
+.. _handler-fusesoc:
+
+FuseSoC Handler (``fusesoc``)
+------------------------------
+
+Discovers `FuseSoC <https://fusesoc.readthedocs.io/>`_ ``.core`` files
+from dependencies and generates library metadata.
+
+**Purpose**
+
+When dependencies contain CAPI-2 ``.core`` files (or declare
+``with.fusesoc.cores`` paths), the FuseSoC handler collects those
+directories and writes ``packages/fusesoc-cores.envrc`` (setting
+``FUSESOC_CORES``) and ``packages/fusesoc-cores.txt``.  Optionally, when
+``update-conf: true`` is set in ``with.fusesoc``, it also updates
+``fusesoc.conf`` with ``[library.ivpm.*]`` sections.
+
+**Leaf phase**
+
+Inspects every non-PyPI package.  Recursively searches for valid ``.core``
+files and records directories that contain them.
+
+**Root phase**
+
+Always runs (cleans stale entries even when no cores remain).  Writes
+output files and patches ``packages/packages.envrc``.
+
+**Configuration (``ivpm.yaml``)**
+
+.. code-block:: yaml
+
+    package:
+      name: soc-project
+      with:
+        fusesoc:
+          update-conf: true
+          cores:
+            - rtl/cores
+
+**Output:** ``packages/fusesoc-cores.envrc``, ``packages/fusesoc-cores.txt``,
+optionally ``fusesoc.conf``
+
+See :doc:`integrations` for FuseSoC integration patterns with CMake and
+other build systems.
+
+
 Handler Summary
 ===============
 
@@ -478,18 +566,36 @@ Handler Summary
      - ``.envrc`` / ``export.envrc``
      - Writes combined envrc
      - ``packages/packages.envrc``
+   * - ``modules``
+     - 1
+     - Environment Modules integration
+     - Packages with ``ModuleTypeData``
+     - Writes ``module load`` statements
+     - ``packages/modules.envrc``
    * - ``python``
      - 5
      - Python venv and package install
      - ``setup.py`` / ``pyproject.toml`` / ``src: pypi``
      - Creates venv, installs packages; queries ``ivpm.skill`` entry-points
      - ``packages/python/``
+   * - ``node``
+     - 6
+     - Node.js environment and package install
+     - ``package.json`` / ``src: npm``
+     - Synthesises ``package.json``, runs npm/pnpm/yarn, links source packages
+     - ``packages/node/``
    * - ``agents``
      - 6
      - Skill file discovery and symlinking
      - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``ivpm.skill`` entry-points
      - Creates symlinks to skills
      - ``.agents/skills/``, ``.claude/skills/``
+   * - ``fusesoc``
+     - 10
+     - FuseSoC core library mapping
+     - ``.core`` files (CAPI-2) or ``with.fusesoc.cores``
+     - Writes ``fusesoc-cores.envrc``, ``fusesoc-cores.txt``; optionally updates ``fusesoc.conf``
+     - ``packages/fusesoc-cores.*``
 
 
 Discovering Handlers

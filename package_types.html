@@ -67,6 +67,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#package-types">Package Types</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#python-python">Python (<code class="docutils literal notranslate"><span class="pre">python</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#node-node">Node (<code class="docutils literal notranslate"><span class="pre">node</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#raw-raw">Raw (<code class="docutils literal notranslate"><span class="pre">raw</span></code>)</a></li>
 </ul>
 </li>
@@ -594,6 +595,34 @@ phase of every <code class="docutils literal notranslate"><span class="pre">upda
 flags such as <code class="docutils literal notranslate"><span class="pre">--py-uv</span></code> and <code class="docutils literal notranslate"><span class="pre">--force-py-install</span></code>.</p>
 </div>
 </section>
+<section id="node-node">
+<h3>Node (<code class="docutils literal notranslate"><span class="pre">node</span></code>)<a class="headerlink" href="#node-node" title="Link to this heading"></a></h3>
+<p>Node.js packages are installed into the project’s Node.js environment at
+<code class="docutils literal notranslate"><span class="pre">packages/node/</span></code>.</p>
+<p><strong>Auto-detection:</strong> A package is considered Node.js if:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code> is specified, OR</p></li>
+<li><p>Directory contains <code class="docutils literal notranslate"><span class="pre">package.json</span></code></p></li>
+</ul>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># npm registry package</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lodash</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+
+<span class="c1"># Source package with package.json (auto-detected)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ts-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-ts-lib.git</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>When a package has <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">node</span></code>, the <strong>Node handler</strong> installs it into
+<code class="docutils literal notranslate"><span class="pre">packages/node/</span></code> during the root phase.  See <a class="reference internal" href="handlers.html#handler-node"><span class="std std-ref">Node Handler (node)</span></a> in
+<a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> for the full list of options, and <a class="reference internal" href="node_packages.html"><span class="doc">Node.js Package Management</span></a>
+for complete Node.js workflow details.</p>
+</div>
+</section>
 <section id="raw-raw">
 <h3>Raw (<code class="docutils literal notranslate"><span class="pre">raw</span></code>)<a class="headerlink" href="#raw-raw" title="Link to this heading"></a></h3>
 <p>Raw packages are placed in <code class="docutils literal notranslate"><span class="pre">packages/&lt;name&gt;/</span></code> but not processed further.</p>
@@ -686,6 +715,12 @@ that need no install step.</p>
 </tr>
 <tr class="row-odd"><td><p>Contains <code class="docutils literal notranslate"><span class="pre">setup.py</span></code>, <code class="docutils literal notranslate"><span class="pre">setup.cfg</span></code>, or <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">python</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Contains <code class="docutils literal notranslate"><span class="pre">package.json</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">node</span></code></p></td>
 </tr>
 <tr class="row-even"><td><p>Otherwise</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
@@ -922,7 +957,7 @@ third-party plugins.</p>
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
