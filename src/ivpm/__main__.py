@@ -57,7 +57,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     
     parser = argparse.ArgumentParser(
         prog="ivpm",
-        description="IVPM (IP and Verification Package Manager) - A lightweight project-local package manager for managing software dependencies. Excels at managing projects where dependencies are co-developed.",
+        description="IVPM (Integrated View Package Manager) - A polyglot package manager that fetches dependencies from diverse sources and assembles unified project views.",
         epilog=epilog,
         formatter_class=argparse.RawDescriptionHelpFormatter)
 

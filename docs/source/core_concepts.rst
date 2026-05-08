@@ -53,11 +53,14 @@ When you run ``ivpm update``, IVPM executes a three-stage pipeline:
     └──────────────────────┬────────────────────────────────┘
                            │
     ┌──────────────────────▼────────────────────────────────┐
-    │ Stage 3: Process                                      │
-    │   Root handlers run sequentially (by phase number)    │
-    │     - Python handler: create venv, install packages   │
-    │     - Direnv handler: write packages.envrc            │
-    │     - Agents handler: populate .agents/skills         │
+    │ Stage 3: Build Views                                  │
+    │   Root handlers build project views (by phase number) │
+    │     - Direnv handler:  environment view               │
+    │     - Modules handler: module-load view               │
+    │     - Python handler:  Python venv view               │
+    │     - Node handler:    Node.js environment view       │
+    │     - Agents handler:  agent skills view              │
+    │     - FuseSoC handler: FuseSoC library view           │
     │                                                       │
     │   Lock file written (packages/package-lock.json)      │
     └───────────────────────────────────────────────────────┘
@@ -76,11 +79,13 @@ so on.  Fetches run in parallel.  As each package becomes available on disk,
 registered :doc:`handlers <handlers>` run their **leaf callbacks**
 concurrently to detect and classify the package.
 
-**Stage 3 -- Process:**
+**Stage 3 -- Build Views:**
 After all packages are fetched, handlers run their **root callbacks** on the
-main thread.  The Python handler creates a virtual environment and installs
-Python packages.  Other handlers generate configuration files.  Finally,
-the lock file is written.
+main thread.  Each handler builds a *view* -- a coherent projection of the
+dependency graph into one domain.  The Python handler builds a virtual
+environment view; the direnv handler builds an environment-variable view;
+the agents handler builds a skills-directory view; the Node handler builds a
+Node.js environment view.  Finally, the lock file is written.
 
 For details on the handler mechanism, see :doc:`handlers`.
 
@@ -94,6 +99,7 @@ Every package has two key attributes:
 
 - ``git`` -- clone a Git repository
 - ``pypi`` -- install from the Python Package Index
+- ``npm`` -- install from the npm registry
 - ``http`` -- download an archive via HTTP/HTTPS
 - ``gh-rls`` -- download from a GitHub Release
 - ``dir`` -- symlink a local directory
@@ -102,6 +108,7 @@ Every package has two key attributes:
 **Content type** -- what the package contains and how to process it:
 
 - ``python`` -- a Python package (installed into the venv by the Python handler)
+- ``node`` -- a Node.js package (installed into the Node environment by the Node handler)
 - ``raw`` -- data, HDL, or other files (placed in ``packages/`` with no further processing)
 
 These attributes are independent: a ``git`` source can contain a ``python``
@@ -178,7 +185,7 @@ For full details, see :doc:`package_lock`.
 Next Steps
 ==========
 
-- :doc:`handlers` -- How handlers process packages (Python, Direnv, Agents)
+- :doc:`handlers` -- How handlers build project views (Python, Node, Direnv, Agents, and more)
 - :doc:`getting_started` -- Install IVPM and set up your first project
 - :doc:`dependency_sets` -- Dependency set patterns and inheritance
 - :doc:`package_types` -- All source types, content types, and attributes

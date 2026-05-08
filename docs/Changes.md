@@ -1,4 +1,10 @@
 
+# Unreleased
+- Rename: IVPM now stands for "Integrated View Package Manager"
+  (previously "IP and Verification Package Manager"). The `ivpm`
+  command, package name, config filenames, and all import paths are
+  unchanged.
+
 # 2.8.0
 - Add FuseSoc integration
 

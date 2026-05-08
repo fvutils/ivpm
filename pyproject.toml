@@ -18,7 +18,7 @@ dependencies = [
 authors = [
     {name = "Matthew Ballance", email = "matt.ballance@gmail.com"},
 ]
-description = "IVPM (IP and Verification Package Manager) is a project-internal package manager."
+description = "IVPM (Integrated View Package Manager) is a project-local polyglot package manager."
 license = {file = "LICENSE" }
 
 [tool.setuptools.dynamic]
@@ -42,4 +42,3 @@ agents = "ivpm.handlers.package_handler_agents:PackageHandlerAgents"
 fusesoc = "ivpm.handlers.package_handler_fusesoc:PackageHandlerFuseSoC"
 modules = "ivpm.handlers.package_handler_modules:PackageHandlerModules"
 node = "ivpm.handlers.package_handler_node:PackageHandlerNode"
-

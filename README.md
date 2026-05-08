@@ -1,9 +1,9 @@
-# IP and Verification Package Manager (IVPM)
+# Integrated View Package Manager (IVPM)
 
-IVPM is a Python- and Git-centric utility for managing external 
-project dependencies.  It was initially designed to manage dependencies
-for hardware design projects, but has been used on a variety of other
-project styles including purely-software projects.
+IVPM is a project-local, polyglot package manager. It fetches
+dependencies from diverse sources -- git repos, PyPI, npm, HTTP
+archives, GitHub releases, local directories, FuseSoC cores,
+and Environment Modules -- and assembles unified project views
+through an extensible handler pipeline.
 
 You can find more detailed documentation on IVPM here: [IVPM docs](https://fvutils.github.io/ivpm)
-

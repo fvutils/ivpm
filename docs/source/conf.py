@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(proj_dir, "src"))
 # -- Project information -----------------------------------------------------
 
 project = 'IVPM'
-copyright = '2018-2024, Matthew Ballance'
+copyright = '2018-2026, Matthew Ballance'
 author = 'Matthew Ballance'
 
 

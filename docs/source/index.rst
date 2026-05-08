@@ -6,6 +6,15 @@
 Welcome to IVPM's documentation!
 ================================
 
+IVPM (Integrated View Package Manager) is a project-local, polyglot
+package manager.  It fetches dependencies from diverse sources -- git,
+PyPI, npm, HTTP archives, GitHub releases, local directories, and more --
+and assembles unified *views* of your project through an extensible
+handler pipeline: a Python virtual environment, a Node.js environment,
+a FuseSoC library map, an agent skills directory, a merged direnv file.
+
+One YAML file.  One command.  A complete, self-contained workspace.
+
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
