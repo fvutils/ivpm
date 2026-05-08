@@ -727,6 +727,30 @@ YAML File Format
 JSON Schema
 -----------
 
+vars
+~~~~
+
+Optional mapping of variable names to default values.  Variables can
+be referenced as ``${{name}}`` in any scalar value elsewhere in the
+file.  Override from the command line with ``-Dname=value``.
+
+.. code-block:: yaml
+
+   package:
+     name: my-project
+     vars:
+       wacfg: default
+       cl:    7716052
+     dep-sets:
+       - name: default
+         deps:
+           - name: my_env
+             src: cbwa
+             wacfg: ${wacfg}
+
+See :doc:`variables` for full details.
+
+
 IVPM provides a JSON Schema for ``ivpm.yaml`` files that enables IDE autocompletion
 and validation. To use it, add a ``$schema`` reference at the top of your file:
 
@@ -859,4 +883,3 @@ See Also
 - :doc:`workflows` - Common command workflows
 - :doc:`git_integration` - Git command details
 - :doc:`caching` - Cache command usage
-

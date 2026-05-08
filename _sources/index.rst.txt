@@ -15,6 +15,7 @@ Welcome to IVPM's documentation!
    core_concepts
    handlers
    dependency_sets
+   variables
    package_types
    caching
    package_lock

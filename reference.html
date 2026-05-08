@@ -48,6 +48,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
@@ -111,7 +112,10 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#yaml-file-format">YAML File Format</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#json-schema">JSON Schema</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#json-schema">JSON Schema</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#vars">vars</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#package-definition">Package Definition</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#package-definition">Package Definition</a></li>
 </ul>
@@ -373,7 +377,7 @@
 <h4>clone<a class="headerlink" href="#clone" title="Link to this heading"></a></h4>
 <p>Create a new workspace from a Git URL or path</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">clone</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">b</span> <span class="n">BRANCH</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span>
-           <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
+           <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span>
            <span class="n">src</span> <span class="p">[</span><span class="n">workspace_dir</span><span class="p">]</span>
 </pre></div>
 </div>
@@ -413,21 +417,29 @@
 <dd><p>Inherit system site-packages in the virtual environment (default: isolated)</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
 </dd>
+<dt><kbd>-D</kbd></dt>
+<dd><p>Set variable VAR to VALUE, overriding the default in vars:</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
 </dl>
 </section>
 </section>
 <section id="update">
 <h4>update<a class="headerlink" href="#update" title="Link to this heading"></a></h4>
 <p>Fetches packages specified in ivpm.yaml that have not already been loaded</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span>
             <span class="p">[</span><span class="o">--</span><span class="n">skip</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">prerls</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
             <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
-            <span class="p">[</span><span class="o">--</span><span class="n">lock</span><span class="o">-</span><span class="n">file</span> <span class="n">LOCK_FILE</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">refresh</span><span class="o">-</span><span class="nb">all</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="p">]</span>
+            <span class="p">[</span><span class="o">--</span><span class="n">lock</span><span class="o">-</span><span class="n">file</span> <span class="n">LOCK_FILE</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">refresh</span><span class="o">-</span><span class="nb">all</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat7">
 <h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat7" title="Link to this heading"></a></h5>
 <dl class="option-list">
+<dt><kbd>-D</kbd></dt>
+<dd><p>Set variable VAR to VALUE, overriding the default in vars:</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code></p>
+</dd>
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd><p>Specifies the project directory to use (default: cwd)</p>
 </dd>
@@ -475,6 +487,10 @@
 <dt><kbd>--force</kbd></dt>
 <dd><p>Suppress safety errors during refresh; implies –refresh-all</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-v, --verbose</kbd></dt>
+<dd><p>Increase transcript output detail (-v: activity, -vv: subprocess lines)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">0</span></code></p>
 </dd>
 </dl>
 </section>
@@ -561,7 +577,7 @@
 <section id="sync">
 <h4>sync<a class="headerlink" href="#sync" title="Link to this heading"></a></h4>
 <p>Synchronizes dependent packages with an upstream source (if available)</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">sync</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">sync</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat12">
@@ -580,6 +596,10 @@
 <dt><kbd>--no-rich</kbd></dt>
 <dd><p>Plain-text output without Rich formatting</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-v, --verbose</kbd></dt>
+<dd><p>Increase transcript output detail (-v: per-package activity)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">0</span></code></p>
 </dd>
 </dl>
 </section>
@@ -1311,6 +1331,25 @@ $<span class="w"> </span>ivpm<span class="w"> </span>--log-level<span class="w">
 <h2>YAML File Format<a class="headerlink" href="#yaml-file-format" title="Link to this heading"></a></h2>
 <section id="json-schema">
 <h3>JSON Schema<a class="headerlink" href="#json-schema" title="Link to this heading"></a></h3>
+<section id="vars">
+<h4>vars<a class="headerlink" href="#vars" title="Link to this heading"></a></h4>
+<p>Optional mapping of variable names to default values.  Variables can
+be referenced as <code class="docutils literal notranslate"><span class="pre">${{name}}</span></code> in any scalar value elsewhere in the
+file.  Override from the command line with <code class="docutils literal notranslate"><span class="pre">-Dname=value</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">wacfg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">    </span><span class="nt">cl</span><span class="p">:</span><span class="w">    </span><span class="l l-Scalar l-Scalar-Plain">7716052</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_env</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cbwa</span>
+<span class="w">          </span><span class="nt">wacfg</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${wacfg}</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="variables.html"><span class="doc">Variables</span></a> for full details.</p>
 <p>IVPM provides a JSON Schema for <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files that enables IDE autocompletion
 and validation. To use it, add a <code class="docutils literal notranslate"><span class="pre">$schema</span></code> reference at the top of your file:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">$schema</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://fvutils.github.io/ivpm/ivpm.schema.json</span>
@@ -1327,6 +1366,7 @@ and validation. To use it, add a <code class="docutils literal notranslate"><spa
 </ul>
 <p>Most modern editors (VS Code, IntelliJ, Vim with LSP) will automatically provide
 validation and autocompletion when the <code class="docutils literal notranslate"><span class="pre">$schema</span></code> field is present.</p>
+</section>
 </section>
 <section id="package-definition">
 <h3>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h3>

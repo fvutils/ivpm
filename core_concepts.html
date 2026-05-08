@@ -58,6 +58,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
@@ -126,7 +127,8 @@ recreates the entire environment from scratch.</p>
 <p>When you run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>, IVPM executes a three-stage pipeline:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>┌───────────────────────────────────────────────────────┐
 │ Stage 1: Resolution                                   │
-│   Read ivpm.yaml, select dependency set,              │
+│   Read ivpm.yaml, resolve variables (${var}),         │
+│   select dependency set,                              │
 │   resolve sub-dependencies recursively                │
 └──────────────────────┬────────────────────────────────┘
                        │
@@ -151,7 +153,9 @@ recreates the entire environment from scratch.</p>
 </pre></div>
 </div>
 <p><strong>Stage 1 – Resolution:</strong>
-IVPM reads <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, selects the active dependency set (via <code class="docutils literal notranslate"><span class="pre">-d</span></code> flag
+IVPM reads <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, resolves any <code class="docutils literal notranslate"><span class="pre">${var}</span></code> references from the
+<code class="docutils literal notranslate"><span class="pre">vars:</span></code> block (see <a class="reference internal" href="variables.html"><span class="doc">Variables</span></a>), selects the active dependency
+set (via <code class="docutils literal notranslate"><span class="pre">-d</span></code> flag
 or <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code>), and walks sub-package <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files
 recursively to build a complete dependency graph.</p>
 <p><strong>Stage 2 – Fetch:</strong>

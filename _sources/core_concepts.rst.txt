@@ -38,7 +38,8 @@ When you run ``ivpm update``, IVPM executes a three-stage pipeline:
 
     ┌───────────────────────────────────────────────────────┐
     │ Stage 1: Resolution                                   │
-    │   Read ivpm.yaml, select dependency set,              │
+    │   Read ivpm.yaml, resolve variables (${var}),         │
+    │   select dependency set,                              │
     │   resolve sub-dependencies recursively                │
     └──────────────────────┬────────────────────────────────┘
                            │
@@ -62,7 +63,9 @@ When you run ``ivpm update``, IVPM executes a three-stage pipeline:
     └───────────────────────────────────────────────────────┘
 
 **Stage 1 -- Resolution:**
-IVPM reads ``ivpm.yaml``, selects the active dependency set (via ``-d`` flag
+IVPM reads ``ivpm.yaml``, resolves any ``${var}`` references from the
+``vars:`` block (see :doc:`variables`), selects the active dependency
+set (via ``-d`` flag
 or ``default-dep-set``), and walks sub-package ``ivpm.yaml`` files
 recursively to build a complete dependency graph.
 
