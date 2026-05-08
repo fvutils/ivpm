@@ -168,6 +168,73 @@ package versions (via ``pip list``) and writes them under the
 See :doc:`python_packages` for full Python workflow details.
 
 
+.. _handler-node:
+
+Node Handler (``node``)
+------------------------
+
+Manages the project-local Node.js environment at ``packages/node/``.
+
+**Purpose**
+
+Detects Node.js packages across the dependency tree, synthesises a
+``packages/node/package.json``, and runs the configured package manager
+(npm / pnpm / yarn) to install all detected packages.  Source packages with
+a ``package.json`` are linked via ``npm link`` so they can be
+``require()``-d directly.
+
+**Leaf phase**
+
+Runs for every package.  Detection rules:
+
+- ``src: npm`` -- always a Node.js package (installed via the package manager)
+- ``src: package.json`` -- import deps from an existing ``package.json`` file
+- Has ``package.json`` in its path -- auto-detected as a Node.js source package
+- Explicit ``type: node`` in ``ivpm.yaml`` -- detected as a linkable source package
+
+**Root phase**
+
+Runs when at least one Node.js package was detected *or* when the project has
+``with.node`` configuration.  Steps:
+
+1. Synthesise ``packages/node/package.json`` from all collected npm packages
+2. Compare SHA-256 hash with stored value -- skip install if unchanged and
+   ``node_modules/`` exists
+3. Run ``npm install --prefix packages/node`` (or pnpm/yarn equivalent)
+4. Run ``npm link <path>`` for each source package with ``link: true``
+5. Write ``packages/node/export.envrc`` (and Windows ``.bat``/``.ps1`` helpers)
+6. Patch sentinel section in ``packages/packages.envrc``
+7. Write ``packages/node/.nvmrc`` if ``version:`` is set
+
+**Configuration (``ivpm.yaml``)**
+
+Project-level settings under ``package.with.node``:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      with:
+        node:
+          manager: npm      # npm (default) | pnpm | yarn
+          version: "20"     # Node version → writes .nvmrc
+          env: true         # Patch packages.envrc (default: true)
+
+Per-package options via the ``type:`` field:
+
+.. code-block:: yaml
+
+    deps:
+      # Link a TypeScript library into the node environment
+      - name: my-ts-lib
+        url: https://github.com/org/my-ts-lib.git
+        type: { node: { dev: false, link: true } }
+
+**Output:** ``packages/node/`` -- the project-local Node.js environment.
+
+See :doc:`node_packages` for full Node.js workflow details.
+
+
 .. _handler-direnv:
 
 Direnv Handler (``direnv``)

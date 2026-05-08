@@ -52,6 +52,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#how-handlers-fit-into-the-update-pipeline">How Handlers Fit into the Update Pipeline</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#built-in-handlers">Built-in Handlers</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#python-handler-python">Python Handler (<code class="docutils literal notranslate"><span class="pre">python</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#node-handler-node">Node Handler (<code class="docutils literal notranslate"><span class="pre">node</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#direnv-handler-direnv">Direnv Handler (<code class="docutils literal notranslate"><span class="pre">direnv</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#agents-handler-agents">Agents Handler (<code class="docutils literal notranslate"><span class="pre">agents</span></code>)</a></li>
 </ul>
@@ -67,6 +68,7 @@
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
@@ -237,6 +239,58 @@ package versions (via <code class="docutils literal notranslate"><span class="pr
 <code class="docutils literal notranslate"><span class="pre">python_packages</span></code> key in <code class="docutils literal notranslate"><span class="pre">packages/package-lock.json</span></code>.</p>
 <p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code> – the project-local virtual environment.</p>
 <p>See <a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> for full Python workflow details.</p>
+</section>
+<section id="node-handler-node">
+<span id="handler-node"></span><h3>Node Handler (<code class="docutils literal notranslate"><span class="pre">node</span></code>)<a class="headerlink" href="#node-handler-node" title="Link to this heading"></a></h3>
+<p>Manages the project-local Node.js environment at <code class="docutils literal notranslate"><span class="pre">packages/node/</span></code>.</p>
+<p><strong>Purpose</strong></p>
+<p>Detects Node.js packages across the dependency tree, synthesises a
+<code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code>, and runs the configured package manager
+(npm / pnpm / yarn) to install all detected packages.  Source packages with
+a <code class="docutils literal notranslate"><span class="pre">package.json</span></code> are linked via <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">link</span></code> so they can be
+<code class="docutils literal notranslate"><span class="pre">require()</span></code>-d directly.</p>
+<p><strong>Leaf phase</strong></p>
+<p>Runs for every package.  Detection rules:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code> – always a Node.js package (installed via the package manager)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">package.json</span></code> – import deps from an existing <code class="docutils literal notranslate"><span class="pre">package.json</span></code> file</p></li>
+<li><p>Has <code class="docutils literal notranslate"><span class="pre">package.json</span></code> in its path – auto-detected as a Node.js source package</p></li>
+<li><p>Explicit <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">node</span></code> in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> – detected as a linkable source package</p></li>
+</ul>
+<p><strong>Root phase</strong></p>
+<p>Runs when at least one Node.js package was detected <em>or</em> when the project has
+<code class="docutils literal notranslate"><span class="pre">with.node</span></code> configuration.  Steps:</p>
+<ol class="arabic simple">
+<li><p>Synthesise <code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code> from all collected npm packages</p></li>
+<li><p>Compare SHA-256 hash with stored value – skip install if unchanged and
+<code class="docutils literal notranslate"><span class="pre">node_modules/</span></code> exists</p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">install</span> <span class="pre">--prefix</span> <span class="pre">packages/node</span></code> (or pnpm/yarn equivalent)</p></li>
+<li><p>Run <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">link</span> <span class="pre">&lt;path&gt;</span></code> for each source package with <code class="docutils literal notranslate"><span class="pre">link:</span> <span class="pre">true</span></code></p></li>
+<li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/node/export.envrc</span></code> (and Windows <code class="docutils literal notranslate"><span class="pre">.bat</span></code>/<code class="docutils literal notranslate"><span class="pre">.ps1</span></code> helpers)</p></li>
+<li><p>Patch sentinel section in <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code></p></li>
+<li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/node/.nvmrc</span></code> if <code class="docutils literal notranslate"><span class="pre">version:</span></code> is set</p></li>
+</ol>
+<p><strong>Configuration (``ivpm.yaml``)</strong></p>
+<p>Project-level settings under <code class="docutils literal notranslate"><span class="pre">package.with.node</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">manager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span><span class="w">      </span><span class="c1"># npm (default) | pnpm | yarn</span>
+<span class="w">      </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;20&quot;</span><span class="w">     </span><span class="c1"># Node version → writes .nvmrc</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Patch packages.envrc (default: true)</span>
+</pre></div>
+</div>
+<p>Per-package options via the <code class="docutils literal notranslate"><span class="pre">type:</span></code> field:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Link a TypeScript library into the node environment</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ts-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-ts-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> node</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> dev</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">,</span><span class="nt"> link</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/node/</span></code> – the project-local Node.js environment.</p>
+<p>See <a class="reference internal" href="node_packages.html"><span class="doc">Node.js Package Management</span></a> for full Node.js workflow details.</p>
 </section>
 <section id="direnv-handler-direnv">
 <span id="handler-direnv"></span><h3>Direnv Handler (<code class="docutils literal notranslate"><span class="pre">direnv</span></code>)<a class="headerlink" href="#direnv-handler-direnv" title="Link to this heading"></a></h3>

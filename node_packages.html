@@ -1,0 +1,631 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Node.js Package Management &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="GitHub Releases" href="github_releases.html" />
+    <link rel="prev" title="Python Package Management" href="python_packages.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Node.js Package Management</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#node-environment-structure">Node Environment Structure</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#package-manager-selection">Package Manager Selection</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#configuring-the-node-handler">Configuring the Node Handler</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#manager-key"><code class="docutils literal notranslate"><span class="pre">manager</span></code> key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#version-key"><code class="docutils literal notranslate"><span class="pre">version</span></code> key</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#env-key"><code class="docutils literal notranslate"><span class="pre">env</span></code> key</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#npm-registry-packages-src-npm">npm Registry Packages (<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-deps-from-an-existing-package-json-src-package-json">Importing deps from an Existing package.json (<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">package.json</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#source-package-linking-type-node">Source Package Linking (<code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">node</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#generated-packages-node-package-json">Generated <code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#environment-activation">Environment Activation</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#direnv-recommended">direnv (recommended)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#manual-activation">Manual activation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#windows">Windows</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#node-version-management">Node Version Management</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#lockfile-recommendations">Lockfile Recommendations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-examples">Complete Examples</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-1-front-end-tooling">Example 1: Front-end Tooling</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-2-mixed-python-node-project">Example 2: Mixed Python + Node Project</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#example-3-importing-from-existing-package-json">Example 3: Importing from Existing package.json</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Node.js Package Management</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/node_packages.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="node-js-package-management">
+<h1>Node.js Package Management<a class="headerlink" href="#node-js-package-management" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM provides first-class support for Node.js packages, managing both npm
+registry packages and source packages (linked via <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">link</span></code>) within a
+project-local Node.js environment.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The Node handler performs the work described on this page.  For
+handler-level details (activation conditions, phase ordering, how it
+fits into the update pipeline), see <a class="reference internal" href="handlers.html#handler-node"><span class="std std-ref">Node Handler (node)</span></a> in
+<a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a>.</p>
+</div>
+</section>
+<section id="node-environment-structure">
+<h2>Node Environment Structure<a class="headerlink" href="#node-environment-structure" title="Link to this heading"></a></h2>
+<p>IVPM creates a project-local Node.js environment in <code class="docutils literal notranslate"><span class="pre">packages/node/</span></code>
+<strong>on demand</strong>: it is only created when at least one dependency (direct or
+transitive) is a Node.js package.  Projects that contain no Node packages
+never create this directory, keeping the workspace lean.</p>
+<p>When a Node environment is created it is placed at:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>packages/
+└── node/
+    ├── package.json         # Generated by IVPM — do not edit manually
+    ├── package-lock.json    # Committed for reproducible builds
+    ├── node_modules/        # Installed packages (git-ignored)
+    ├── export.envrc         # direnv activation snippet
+    └── .nvmrc               # Node version pin (when version: is set)
+</pre></div>
+</div>
+<section id="package-manager-selection">
+<h3>Package Manager Selection<a class="headerlink" href="#package-manager-selection" title="Link to this heading"></a></h3>
+<p>IVPM supports three Node.js package managers:</p>
+<ol class="arabic simple">
+<li><p><strong>npm</strong> — default, requires Node.js to be installed</p></li>
+<li><p><strong>pnpm</strong> — faster, disk-efficient alternative</p></li>
+<li><p><strong>yarn</strong> — alternative package manager</p></li>
+</ol>
+<p>Specify the manager in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">manager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pnpm</span><span class="w">   </span><span class="c1"># npm (default) | pnpm | yarn</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuring-the-node-handler">
+<h2>Configuring the Node Handler<a class="headerlink" href="#configuring-the-node-handler" title="Link to this heading"></a></h2>
+<p>A project can permanently configure the Node handler by adding a <code class="docutils literal notranslate"><span class="pre">with.node</span></code>
+section inside <code class="docutils literal notranslate"><span class="pre">package:</span></code> in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">manager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span><span class="w">      </span><span class="c1"># npm (default) | pnpm | yarn</span>
+<span class="w">      </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;20&quot;</span><span class="w">     </span><span class="c1"># Node version to pin (.nvmrc)</span>
+<span class="w">      </span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Write packages.envrc entry (default: true)</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lodash</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+</pre></div>
+</div>
+<section id="manager-key">
+<h3><code class="docutils literal notranslate"><span class="pre">manager</span></code> key<a class="headerlink" href="#manager-key" title="Link to this heading"></a></h3>
+<p>Selects the package manager for all <code class="docutils literal notranslate"><span class="pre">node</span> <span class="pre">install</span></code> / <code class="docutils literal notranslate"><span class="pre">node</span> <span class="pre">link</span></code> operations.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 15.0%" />
+<col style="width: 85.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Behaviour</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">npm</span></code> (default)</p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">install</span> <span class="pre">--prefix</span> <span class="pre">packages/node</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pnpm</span></code></p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">pnpm</span> <span class="pre">install</span> <span class="pre">--dir</span> <span class="pre">packages/node</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">yarn</span></code></p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">yarn</span> <span class="pre">install</span> <span class="pre">--cwd</span> <span class="pre">packages/node</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="version-key">
+<h3><code class="docutils literal notranslate"><span class="pre">version</span></code> key<a class="headerlink" href="#version-key" title="Link to this heading"></a></h3>
+<p>When set, writes a <code class="docutils literal notranslate"><span class="pre">.nvmrc</span></code> file to <code class="docutils literal notranslate"><span class="pre">packages/node/</span></code> containing the
+specified version string.  Tools such as <code class="docutils literal notranslate"><span class="pre">nvm</span> <span class="pre">use</span></code> and <code class="docutils literal notranslate"><span class="pre">volta</span></code> read this
+file to select the correct Node runtime automatically.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">with</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;20&quot;</span><span class="w">    </span><span class="c1"># writes packages/node/.nvmrc</span>
+</pre></div>
+</div>
+</section>
+<section id="env-key">
+<h3><code class="docutils literal notranslate"><span class="pre">env</span></code> key<a class="headerlink" href="#env-key" title="Link to this heading"></a></h3>
+<p>Controls whether the handler writes an activation entry into
+<code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code>.  Defaults to <code class="docutils literal notranslate"><span class="pre">true</span></code>.  Set to <code class="docutils literal notranslate"><span class="pre">false</span></code> to
+suppress environment modification (useful for CI or projects that manage their
+own PATH).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">with</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">env</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">    </span><span class="c1"># Don&#39;t patch packages.envrc</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="npm-registry-packages-src-npm">
+<h2>npm Registry Packages (<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code>)<a class="headerlink" href="#npm-registry-packages-src-npm" title="Link to this heading"></a></h2>
+<p>Install a package from the npm registry by specifying <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Latest version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lodash</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+
+<span class="w">  </span><span class="c1"># Specific version</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">react</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^18.0.0&quot;</span>
+
+<span class="w">  </span><span class="c1"># Dev-only dependency</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jest</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">    </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># Optional dependency</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fsevents</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">    </span><span class="nt">optional</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">version</span></code></dt><dd><p>npm semver range (e.g., <code class="docutils literal notranslate"><span class="pre">^18.0.0</span></code>, <code class="docutils literal notranslate"><span class="pre">&gt;=1.0.0</span> <span class="pre">&lt;2.0.0</span></code>).  Defaults to <code class="docutils literal notranslate"><span class="pre">*</span></code>
+(latest).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">dev</span></code></dt><dd><p>When <code class="docutils literal notranslate"><span class="pre">true</span></code>, the package is placed in <code class="docutils literal notranslate"><span class="pre">devDependencies</span></code> in the generated
+<code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code>.  Defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">optional</span></code></dt><dd><p>When <code class="docutils literal notranslate"><span class="pre">true</span></code>, marks the package as optional.  Defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd>
+</dl>
+<p><strong>Install behavior:</strong> All npm packages are installed into
+<code class="docutils literal notranslate"><span class="pre">packages/node/node_modules/</span></code> by running the configured package manager.</p>
+</section>
+<section id="importing-deps-from-an-existing-package-json-src-package-json">
+<h2>Importing deps from an Existing package.json (<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">package.json</span></code>)<a class="headerlink" href="#importing-deps-from-an-existing-package-json-src-package-json" title="Link to this heading"></a></h2>
+<p>If your project already has a <code class="docutils literal notranslate"><span class="pre">package.json</span></code> (e.g., in the repo root or in a
+sub-package), you can import all its dependencies into the IVPM-managed
+environment without duplicating them:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pkg-json</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package.json</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/package.json</span>
+</pre></div>
+</div>
+<p>IVPM reads the <code class="docutils literal notranslate"><span class="pre">dependencies</span></code> and <code class="docutils literal notranslate"><span class="pre">devDependencies</span></code> sections of the
+referenced file and synthesises <code class="docutils literal notranslate"><span class="pre">PackageNpm</span></code> entries for each one.  An
+explicit <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code> entry in the same dep-set always overrides a same-named
+entry from <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">package.json</span></code> (explicit entries win).</p>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">url</span></code></dt><dd><p>Path to the <code class="docutils literal notranslate"><span class="pre">package.json</span></code> file.  Supports:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">file://</span></code> prefix for absolute paths</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">${VAR}</span></code> environment variable substitution</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="source-package-linking-type-node">
+<h2>Source Package Linking (<code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">node</span></code>)<a class="headerlink" href="#source-package-linking-type-node" title="Link to this heading"></a></h2>
+<p>Source packages (git, dir) that provide a Node.js library can be <em>linked</em> into
+the managed environment using <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">link</span></code> so that other packages in the
+project can <code class="docutils literal notranslate"><span class="pre">require()</span></code> them directly:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Git-hosted TypeScript library</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-ts-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-ts-lib.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span>
+
+<span class="w">  </span><span class="c1"># Link but treat as dev-only</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shared-utils</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/shared-utils.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> node</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> dev</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="nt"> link</span><span class="p">:</span><span class="w"> </span><span class="nv">true</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+
+<span class="w">  </span><span class="c1"># Source present but do NOT link (just track)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">build-tool</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/build-tool.git</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> node</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> link</span><span class="p">:</span><span class="w"> </span><span class="nv">false</span><span class="w"> </span><span class="p p-Indicator">}</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</pre></div>
+</div>
+<p><strong>Per-package options (``type: { node: { … } }``):</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">dev</span></code></dt><dd><p>Treat the linked package as a dev dependency.  Defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">link</span></code></dt><dd><p>When <code class="docutils literal notranslate"><span class="pre">true</span></code> (default), runs <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">link</span> <span class="pre">&lt;path&gt;</span></code> for the package after
+install.  Set to <code class="docutils literal notranslate"><span class="pre">false</span></code> to track the package without linking.</p>
+</dd>
+</dl>
+<p><strong>Auto-detection:</strong> IVPM automatically applies <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">node</span></code> (with
+<code class="docutils literal notranslate"><span class="pre">link:</span> <span class="pre">true</span></code>) to any source package (git/dir/http/gh-rls) that contains a
+<code class="docutils literal notranslate"><span class="pre">package.json</span></code> but has no explicit <code class="docutils literal notranslate"><span class="pre">type:</span></code> set.  This mirrors the Python
+handler’s <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> auto-detection.</p>
+</section>
+<section id="generated-packages-node-package-json">
+<h2>Generated <code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code><a class="headerlink" href="#generated-packages-node-package-json" title="Link to this heading"></a></h2>
+<p>IVPM synthesises a <code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code> from all collected npm
+packages.  The file is written during <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> and should be committed
+to your repository (together with <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code>) for reproducible
+builds.</p>
+<p>Example generated file:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ivpm-node-env&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0.0&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;private&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;dependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;lodash&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^4.17.21&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;axios&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^1.0.0&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;devDependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;jest&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^29.0.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;typescript&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;^5.0.0&quot;</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Do <strong>not</strong> edit <code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code> manually — IVPM regenerates
+it on every <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> run.  Put all dependency declarations in
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
+</div>
+<p><strong>Hash-based skip:</strong> IVPM stores a SHA-256 hash of the generated
+<code class="docutils literal notranslate"><span class="pre">package.json</span></code> in <code class="docutils literal notranslate"><span class="pre">packages/ivpm.json</span></code>.  On subsequent runs, if the hash
+matches and <code class="docutils literal notranslate"><span class="pre">node_modules/</span></code> already exists, the expensive <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">install</span></code>
+step is skipped automatically, making repeated <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> calls fast.</p>
+</section>
+<section id="environment-activation">
+<h2>Environment Activation<a class="headerlink" href="#environment-activation" title="Link to this heading"></a></h2>
+<section id="direnv-recommended">
+<h3>direnv (recommended)<a class="headerlink" href="#direnv-recommended" title="Link to this heading"></a></h3>
+<p>The Node handler patches <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> to source the Node
+activation snippet automatically when you <code class="docutils literal notranslate"><span class="pre">cd</span></code> into the project:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>packages/
+├── packages.envrc       # Patched to source node/export.envrc
+└── node/
+    └── export.envrc     # Sets PATH and NODE_PATH
+</pre></div>
+</div>
+<p>Contents of <code class="docutils literal notranslate"><span class="pre">packages/node/export.envrc</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generated by IVPM node handler — do not edit manually</span>
+PATH_add<span class="w"> </span>node_modules/.bin
+<span class="nb">export</span><span class="w"> </span><span class="nv">NODE_PATH</span><span class="o">=</span><span class="s2">&quot;</span><span class="nv">$PWD</span><span class="s2">/node_modules&quot;</span>
+</pre></div>
+</div>
+<p>With direnv installed and <code class="docutils literal notranslate"><span class="pre">.envrc</span></code> sourcing <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code>,
+all executables in <code class="docutils literal notranslate"><span class="pre">packages/node/node_modules/.bin</span></code> are on your <code class="docutils literal notranslate"><span class="pre">PATH</span></code>
+automatically (e.g., <code class="docutils literal notranslate"><span class="pre">jest</span></code>, <code class="docutils literal notranslate"><span class="pre">tsc</span></code>, <code class="docutils literal notranslate"><span class="pre">eslint</span></code>).</p>
+</section>
+<section id="manual-activation">
+<h3>Manual activation<a class="headerlink" href="#manual-activation" title="Link to this heading"></a></h3>
+<p>Without direnv, source the export file manually:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">source</span><span class="w"> </span>packages/node/export.envrc
+</pre></div>
+</div>
+</section>
+<section id="windows">
+<h3>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h3>
+<p>On Windows, IVPM additionally writes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">packages/node/activate_node.bat</span></code> — adds <code class="docutils literal notranslate"><span class="pre">node_modules/.bin</span></code> to <code class="docutils literal notranslate"><span class="pre">%PATH%</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">packages/node/activate_node.ps1</span></code> — PowerShell equivalent</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">packages/packages_activate.bat</span></code> / <code class="docutils literal notranslate"><span class="pre">.ps1</span></code> — top-level wrappers</p></li>
+</ul>
+<div class="highlight-bat notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: In a .bat script or CMD session</span>
+<span class="k">call</span> packages\packages_activate.bat
+
+<span class="p">:</span><span class="c1">: In PowerShell</span>
+. packages\packages_activate.ps1
+</pre></div>
+</div>
+</section>
+</section>
+<section id="node-version-management">
+<h2>Node Version Management<a class="headerlink" href="#node-version-management" title="Link to this heading"></a></h2>
+<p>When <code class="docutils literal notranslate"><span class="pre">version:</span></code> is configured, IVPM writes a <code class="docutils literal notranslate"><span class="pre">.nvmrc</span></code> file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">with</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;20&quot;</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># .nvmrc written to packages/node/.nvmrc</span>
+$<span class="w"> </span>cat<span class="w"> </span>packages/node/.nvmrc
+<span class="m">20</span>
+
+<span class="c1"># nvm picks up the version automatically</span>
+$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/node<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>nvm<span class="w"> </span>use
+Now<span class="w"> </span>using<span class="w"> </span>node<span class="w"> </span>v20.x.x
+
+<span class="c1"># volta also reads .nvmrc</span>
+$<span class="w"> </span>volta<span class="w"> </span>pin<span class="w"> </span>node@<span class="k">$(</span>cat<span class="w"> </span>packages/node/.nvmrc<span class="k">)</span>
+</pre></div>
+</div>
+<p>To ensure the correct Node.js version is active before running IVPM:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>nvm<span class="w"> </span>use<span class="w"> </span><span class="m">20</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="lockfile-recommendations">
+<h2>Lockfile Recommendations<a class="headerlink" href="#lockfile-recommendations" title="Link to this heading"></a></h2>
+<p>Commit <code class="docutils literal notranslate"><span class="pre">packages/node/package-lock.json</span></code> (or <code class="docutils literal notranslate"><span class="pre">pnpm-lock.yaml</span></code> /
+<code class="docutils literal notranslate"><span class="pre">yarn.lock</span></code> for other managers) to version control.  This ensures every
+developer and CI system installs the exact same package versions.</p>
+<p>IVPM will warn if <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code> is present but git-ignored:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">WARNING</span><span class="p">:</span> <span class="n">packages</span><span class="o">/</span><span class="n">node</span><span class="o">/</span><span class="n">package</span><span class="o">-</span><span class="n">lock</span><span class="o">.</span><span class="n">json</span> <span class="ow">is</span> <span class="n">gitignored</span><span class="o">.</span>
+<span class="n">Consider</span> <span class="n">committing</span> <span class="n">it</span> <span class="k">for</span> <span class="n">reproducible</span> <span class="n">builds</span><span class="o">.</span>
+</pre></div>
+</div>
+<p>Add to <code class="docutils literal notranslate"><span class="pre">.gitignore</span></code> (node_modules only, <strong>not</strong> the lockfile):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>packages/node/node_modules/
+</pre></div>
+</div>
+</section>
+<section id="complete-examples">
+<h2>Complete Examples<a class="headerlink" href="#complete-examples" title="Link to this heading"></a></h2>
+<section id="example-1-front-end-tooling">
+<h3>Example 1: Front-end Tooling<a class="headerlink" href="#example-1-front-end-tooling" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-webapp</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">manager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">      </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;20&quot;</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Runtime</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">react</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^18.0.0&quot;</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">react-dom</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^18.0.0&quot;</span>
+
+<span class="w">        </span><span class="c1"># Dev tools</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">typescript</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^5.0.0&quot;</span>
+<span class="w">          </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jest</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^29.0.0&quot;</span>
+<span class="w">          </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;@types/react&quot;</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^18.0.0&quot;</span>
+<span class="w">          </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>tsc<span class="w"> </span>--noEmit<span class="w">          </span><span class="c1"># type-check (tsc on PATH via direnv)</span>
+$<span class="w"> </span>jest<span class="w">                  </span><span class="c1"># run tests</span>
+$<span class="w"> </span>node<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;require(&#39;react&#39;)&quot;</span><span class="w">  </span><span class="c1"># verify install</span>
+</pre></div>
+</div>
+</section>
+<section id="example-2-mixed-python-node-project">
+<h3>Example 2: Mixed Python + Node Project<a class="headerlink" href="#example-2-mixed-python-node-project" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fullstack-app</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">venv</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv</span>
+<span class="w">    </span><span class="nt">node</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">manager</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Python backend</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fastapi</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uvicorn</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">        </span><span class="c1"># Node frontend build</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">webpack</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">babel-loader</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">        </span><span class="c1"># Shared TypeScript library (source)</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shared-types</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/shared-types.git</span>
+<span class="w">          </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node</span>
+</pre></div>
+</div>
+<p><strong>Usage:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
+$<span class="w"> </span>uvicorn<span class="w"> </span>app:main<span class="w"> </span><span class="p">&amp;</span><span class="w">         </span><span class="c1"># Python backend</span>
+$<span class="w"> </span>webpack<span class="w"> </span>--config<span class="w"> </span>webpack.config.js<span class="w">   </span><span class="c1"># Node build</span>
+</pre></div>
+</div>
+</section>
+<section id="example-3-importing-from-existing-package-json">
+<h3>Example 3: Importing from Existing package.json<a class="headerlink" href="#example-3-importing-from-existing-package-json" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">existing-project</span>
+<span class="w">  </span><span class="nt">default-dep-set</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default-dev</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># Import all deps from the repo&#39;s root package.json</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-deps</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package.json</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/package.json</span>
+
+<span class="w">        </span><span class="c1"># Override one specific version</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lodash</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">          </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^4.17.21&quot;</span><span class="w">   </span><span class="c1"># Overrides whatever is in package.json</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Commit lockfiles</strong> (<code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code>, <code class="docutils literal notranslate"><span class="pre">pnpm-lock.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">yarn.lock</span></code>)
+for reproducible builds; never commit <code class="docutils literal notranslate"><span class="pre">node_modules/</span></code>.</p></li>
+<li><p><strong>Pin Node.js version</strong> using <code class="docutils literal notranslate"><span class="pre">with.node.version</span></code> and <code class="docutils literal notranslate"><span class="pre">.nvmrc</span></code> for
+consistent environments.</p></li>
+<li><p><strong>Separate dev deps</strong> with <code class="docutils literal notranslate"><span class="pre">dev:</span> <span class="pre">true</span></code> to keep production installs lean.</p></li>
+<li><p><strong>Use auto-detection</strong> — source packages with <code class="docutils literal notranslate"><span class="pre">package.json</span></code> are detected
+automatically; only add <code class="docutils literal notranslate"><span class="pre">type:</span> <span class="pre">node</span></code> when you need to change options.</p></li>
+<li><p><strong>Let IVPM own</strong> <code class="docutils literal notranslate"><span class="pre">packages/node/package.json</span></code> — declare all deps in
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> and never edit the generated file directly.</p></li>
+<li><p><strong>Use pnpm</strong> for monorepos with many shared sub-packages; it handles
+symlink-based deduplication better than npm.</p></li>
+</ol>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> - Node handler details and other built-in handlers</p></li>
+<li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic project setup</p></li>
+<li><p><a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> - Organizing Node.js and other deps together</p></li>
+<li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - npm and package.json source types</p></li>
+<li><p><a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> - Python package management (similar patterns)</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="python_packages.html" class="btn btn-neutral float-left" title="Python Package Management" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="github_releases.html" class="btn btn-neutral float-right" title="GitHub Releases" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2024, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

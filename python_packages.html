@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="GitHub Releases" href="github_releases.html" />
+    <link rel="next" title="Node.js Package Management" href="node_packages.html" />
     <link rel="prev" title="Package Lock File" href="package_lock.html" /> 
 </head>
 
@@ -82,6 +82,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#pre-release-packages">Pre-release Packages</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#importing-dependencies-from-pyproject-toml">Importing Dependencies from <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="#source-packages">Source Packages</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#git-based-python-packages">Git-based Python Packages</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#local-development-packages">Local Development Packages</a></li>
@@ -110,6 +111,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
@@ -528,6 +530,84 @@ case.</p>
 </div>
 </section>
 </section>
+<section id="importing-dependencies-from-pyproject-toml">
+<h2>Importing Dependencies from <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code><a class="headerlink" href="#importing-dependencies-from-pyproject-toml" title="Link to this heading"></a></h2>
+<p>If your project already declares its Python dependencies in a standard
+<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> (PEP 621), you can tell IVPM to read them directly
+instead of duplicating the list in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.</p>
+<p><strong>Basic usage</strong> — import runtime dependencies only:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pyproject</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyproject.toml</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/pyproject.toml</span>
+</pre></div>
+</div>
+<p><strong>Select which sections to import</strong> with the optional <code class="docutils literal notranslate"><span class="pre">include:</span></code> field:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Section name</p></th>
+<th class="head"><p>What is imported</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dependencies</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">[project].dependencies</span></code> (runtime deps) — <strong>default</strong></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">optional-dependencies.&lt;extra&gt;</span></code></p></td>
+<td><p>One named extra, e.g. <code class="docutils literal notranslate"><span class="pre">optional-dependencies.dev</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dependency-groups.&lt;group&gt;</span></code></p></td>
+<td><p>One PEP 735 dependency-group; <code class="docutils literal notranslate"><span class="pre">include-group</span></code> entries are
+expanded recursively</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>All of the above combined (runtime deps + every extra + every dep-group)</p></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Examples:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Runtime deps only (default)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pyproject</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyproject.toml</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/pyproject.toml</span>
+
+<span class="w">  </span><span class="c1"># Runtime deps + dev/test extras</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pyproject</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyproject.toml</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/pyproject.toml</span>
+<span class="w">    </span><span class="nt">include</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dependencies</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">optional-dependencies.dev</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">optional-dependencies.test</span>
+
+<span class="w">  </span><span class="c1"># Everything (runtime + all extras + all dep-groups)</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pyproject</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyproject.toml</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/pyproject.toml</span>
+<span class="w">    </span><span class="nt">include</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">all</span>
+</pre></div>
+</div>
+<p><strong>Collision rule:</strong> If an explicit <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> entry in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> has
+the same (normalised) name as a dependency read from <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>, the
+<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> entry wins and the <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> entry is silently ignored.
+This lets you pin or override individual packages while still pulling in the
+rest from <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>.</p>
+<p><strong>URL syntax:</strong> The <code class="docutils literal notranslate"><span class="pre">url:</span></code> field follows the same <code class="docutils literal notranslate"><span class="pre">file://</span></code> +
+<code class="docutils literal notranslate"><span class="pre">${VAR}</span></code> conventions as other IVPM source types.  Environment variables
+in the path are expanded at runtime.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Dependencies from <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> are synthesised as <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code>
+entries and installed into the project-local virtual environment exactly
+like hand-written <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> entries.  The full PEP 508 specifier
+(version constraints, environment markers, extras) is preserved verbatim.</p>
+</div>
+</section>
 <section id="source-packages">
 <h2>Source Packages<a class="headerlink" href="#source-packages" title="Link to this heading"></a></h2>
 <section id="git-based-python-packages">
@@ -843,7 +923,7 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="package_lock.html" class="btn btn-neutral float-left" title="Package Lock File" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="github_releases.html" class="btn btn-neutral float-right" title="GitHub Releases" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="node_packages.html" class="btn btn-neutral float-right" title="Node.js Package Management" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

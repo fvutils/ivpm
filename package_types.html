@@ -55,6 +55,9 @@
 <li class="toctree-l2"><a class="reference internal" href="#source-types">Source Types</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#git-git">Git (<code class="docutils literal notranslate"><span class="pre">git</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#pypi-pypi">PyPI (<code class="docutils literal notranslate"><span class="pre">pypi</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#npm-npm">npm (<code class="docutils literal notranslate"><span class="pre">npm</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#package-json-package-json">package.json (<code class="docutils literal notranslate"><span class="pre">package.json</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#pyproject-toml-pyproject-toml">pyproject.toml (<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#http-url-http">HTTP/URL (<code class="docutils literal notranslate"><span class="pre">http</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#file-file">File (<code class="docutils literal notranslate"><span class="pre">file</span></code>)</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#directory-dir">Directory (<code class="docutils literal notranslate"><span class="pre">dir</span></code>)</a></li>
@@ -89,6 +92,7 @@
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
@@ -232,6 +236,88 @@
 </pre></div>
 </div>
 <p><strong>Install behavior:</strong> Installed into <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code> virtual environment.</p>
+</section>
+<section id="npm-npm">
+<h3>npm (<code class="docutils literal notranslate"><span class="pre">npm</span></code>)<a class="headerlink" href="#npm-npm" title="Link to this heading"></a></h3>
+<p>Install a package from the npm registry.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lodash</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+
+<span class="w">  </span><span class="c1"># With version range</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">react</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">    </span><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^18.0.0&quot;</span>
+
+<span class="w">  </span><span class="c1"># Dev-only</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jest</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">npm</span>
+<span class="w">    </span><span class="nt">dev</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">version</span></code></dt><dd><p>npm semver range (e.g., <code class="docutils literal notranslate"><span class="pre">^18.0.0</span></code>, <code class="docutils literal notranslate"><span class="pre">&gt;=1.0</span> <span class="pre">&lt;2.0</span></code>).  Defaults to <code class="docutils literal notranslate"><span class="pre">*</span></code>
+(latest).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">dev</span></code></dt><dd><p>Place in <code class="docutils literal notranslate"><span class="pre">devDependencies</span></code>.  Defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">optional</span></code></dt><dd><p>Mark as optional.  Defaults to <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p>
+</dd>
+</dl>
+<p><strong>Install behavior:</strong> Installed into <code class="docutils literal notranslate"><span class="pre">packages/node/node_modules/</span></code>.</p>
+</section>
+<section id="package-json-package-json">
+<h3>package.json (<code class="docutils literal notranslate"><span class="pre">package.json</span></code>)<a class="headerlink" href="#package-json-package-json" title="Link to this heading"></a></h3>
+<p>Import all <code class="docutils literal notranslate"><span class="pre">dependencies</span></code> and <code class="docutils literal notranslate"><span class="pre">devDependencies</span></code> from an existing
+<code class="docutils literal notranslate"><span class="pre">package.json</span></code> file into the IVPM-managed Node.js environment.  Explicit
+<code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code> entries in the same dep-set take precedence over same-named
+entries read from the file.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pkgjson</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">package.json</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/package.json</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">url</span></code></dt><dd><p>Path to the <code class="docutils literal notranslate"><span class="pre">package.json</span></code> file (<code class="docutils literal notranslate"><span class="pre">file://</span></code> prefix + <code class="docutils literal notranslate"><span class="pre">${VAR}</span></code>
+substitution supported).</p>
+</dd>
+</dl>
+<p><strong>Install behavior:</strong> Entries are synthesised as <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">npm</span></code> packages and
+installed into <code class="docutils literal notranslate"><span class="pre">packages/node/node_modules/</span></code>.</p>
+</section>
+<section id="pyproject-toml-pyproject-toml">
+<h3>pyproject.toml (<code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code>)<a class="headerlink" href="#pyproject-toml-pyproject-toml" title="Link to this heading"></a></h3>
+<p>Import <code class="docutils literal notranslate"><span class="pre">[project].dependencies</span></code>, optional extras, or PEP 735
+dependency-groups from an existing <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> into the IVPM-managed
+Python virtual environment.  Explicit <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> entries in the same
+dep-set take precedence over same-named entries read from the file.</p>
+<p><strong>Basic usage:</strong></p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root-pyproject</span>
+<span class="w">    </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyproject.toml</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file://${PROJECT_ROOT}/pyproject.toml</span>
+</pre></div>
+</div>
+<p><strong>Attributes:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">url</span></code></dt><dd><p>Path to the <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> file (<code class="docutils literal notranslate"><span class="pre">file://</span></code> prefix + <code class="docutils literal notranslate"><span class="pre">${VAR}</span></code>
+substitution supported).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">include</span></code> — optional, default: <code class="docutils literal notranslate"><span class="pre">[dependencies]</span></code></dt><dd><p>One section name, a list of section names, or the special value
+<code class="docutils literal notranslate"><span class="pre">all</span></code>.  Understood names: <code class="docutils literal notranslate"><span class="pre">dependencies</span></code>,
+<code class="docutils literal notranslate"><span class="pre">optional-dependencies.&lt;extra&gt;</span></code>, <code class="docutils literal notranslate"><span class="pre">dependency-groups.&lt;group&gt;</span></code>.
+<code class="docutils literal notranslate"><span class="pre">include-group</span></code> references inside dependency-groups are expanded
+recursively.</p>
+</dd>
+</dl>
+<p><strong>Install behavior:</strong> Entries are synthesised as <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code> packages and
+installed into <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code>.</p>
+<p>See <a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> for full details, examples, and the collision rule.</p>
 </section>
 <section id="http-url-http">
 <h3>HTTP/URL (<code class="docutils literal notranslate"><span class="pre">http</span></code>)<a class="headerlink" href="#http-url-http" title="Link to this heading"></a></h3>

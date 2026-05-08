@@ -20,6 +20,7 @@ Welcome to IVPM's documentation!
    caching
    package_lock
    python_packages
+   node_packages
    github_releases
    environment_paths
    workflows
