@@ -57,6 +57,14 @@ class PythonConfig:
     pre_release: bool = False
 
 
+@dc.dataclass
+class NodeConfig:
+    """Configuration for the node handler, parsed from ``package.with.node:``."""
+    manager: str = "npm"   # "npm" | "pnpm" | "yarn"
+    version: str = None    # written to packages/node/.nvmrc; None means no .nvmrc
+    env: bool = True       # patch packages.envrc with PATH/NODE_PATH
+
+
 class ProjInfo():
     """Holds information read about a project from its IVPM file"""
     def __init__(self, is_src):
@@ -87,6 +95,9 @@ class ProjInfo():
         # Configuration for the python handler from 'package.with.python:'.
         # None means the project did not declare ``with.python`` at all.
         self.python_config : Optional[PythonConfig] = None
+        # Configuration for the node handler from 'package.with.node:'.
+        # None means the project did not declare ``with.node`` at all.
+        self.node_config : Optional[NodeConfig] = None
         # Generic handler configuration from 'package.with.<key>:' entries
         # that are not handled by the core reader.  Keyed by the with-key
         # name (e.g. "cbwa"), value is the raw dict/value from YAML.

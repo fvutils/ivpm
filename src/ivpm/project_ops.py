@@ -126,6 +126,7 @@ class ProjectOps(object):
                 suppress_output=suppress_output,
                 event_dispatcher=event_dispatcher,
                 python_config=proj_info.python_config,
+                node_config=proj_info.node_config,
             )
             handler_update_info.handler_configs = proj_info.handler_configs
             handler_update_info._tui_ref = tui

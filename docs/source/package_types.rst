@@ -131,6 +131,104 @@ Install from the Python Package Index using pip or uv.
 
 **Install behavior:** Installed into ``packages/python/`` virtual environment.
 
+npm (``npm``)
+-------------
+
+Install a package from the npm registry.
+
+**Basic usage:**
+
+.. code-block:: yaml
+
+    deps:
+      - name: lodash
+        src: npm
+
+      # With version range
+      - name: react
+        src: npm
+        version: "^18.0.0"
+
+      # Dev-only
+      - name: jest
+        src: npm
+        dev: true
+
+**Attributes:**
+
+``version``
+    npm semver range (e.g., ``^18.0.0``, ``>=1.0 <2.0``).  Defaults to ``*``
+    (latest).
+
+``dev``
+    Place in ``devDependencies``.  Defaults to ``false``.
+
+``optional``
+    Mark as optional.  Defaults to ``false``.
+
+**Install behavior:** Installed into ``packages/node/node_modules/``.
+
+package.json (``package.json``)
+--------------------------------
+
+Import all ``dependencies`` and ``devDependencies`` from an existing
+``package.json`` file into the IVPM-managed Node.js environment.  Explicit
+``src: npm`` entries in the same dep-set take precedence over same-named
+entries read from the file.
+
+**Basic usage:**
+
+.. code-block:: yaml
+
+    deps:
+      - name: root-pkgjson
+        src: package.json
+        url: file://${PROJECT_ROOT}/package.json
+
+**Attributes:**
+
+``url``
+    Path to the ``package.json`` file (``file://`` prefix + ``${VAR}``
+    substitution supported).
+
+**Install behavior:** Entries are synthesised as ``src: npm`` packages and
+installed into ``packages/node/node_modules/``.
+
+pyproject.toml (``pyproject.toml``)
+------------------------------------
+
+Import ``[project].dependencies``, optional extras, or PEP 735
+dependency-groups from an existing ``pyproject.toml`` into the IVPM-managed
+Python virtual environment.  Explicit ``src: pypi`` entries in the same
+dep-set take precedence over same-named entries read from the file.
+
+**Basic usage:**
+
+.. code-block:: yaml
+
+    deps:
+      - name: root-pyproject
+        src: pyproject.toml
+        url: file://${PROJECT_ROOT}/pyproject.toml
+
+**Attributes:**
+
+``url``
+    Path to the ``pyproject.toml`` file (``file://`` prefix + ``${VAR}``
+    substitution supported).
+
+``include`` — optional, default: ``[dependencies]``
+    One section name, a list of section names, or the special value
+    ``all``.  Understood names: ``dependencies``,
+    ``optional-dependencies.<extra>``, ``dependency-groups.<group>``.
+    ``include-group`` references inside dependency-groups are expanded
+    recursively.
+
+**Install behavior:** Entries are synthesised as ``src: pypi`` packages and
+installed into ``packages/python/``.
+
+See :doc:`python_packages` for full details, examples, and the collision rule.
+
 HTTP/URL (``http``)
 -------------------
 

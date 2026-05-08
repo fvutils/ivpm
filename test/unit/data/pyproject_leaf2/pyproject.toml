@@ -1,0 +1,26 @@
+[project]
+name = "leaf2"
+version = "0.2.0"
+dependencies = [
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+test = [
+    "pytest>=8.0",
+    "responses>=0.25",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+]
+lint = [
+    "ruff>=0.4",
+    { include-group = "dev" },
+]

@@ -33,6 +33,9 @@ _KNOWN_PACKAGE_KEYS = {
 # Valid keys inside ``package.with.python:``.
 _KNOWN_PYTHON_WITH_KEYS = {"venv", "system-site-packages", "pre-release"}
 
+# Valid keys inside ``package.with.node:``.
+_KNOWN_NODE_WITH_KEYS = {"manager", "version", "env"}
+
 
 def _suggest(unknown: str, valid) -> str:
     """Return a hint string when *unknown* is close to a known key, or ''."""
@@ -132,7 +135,7 @@ class IvpmYamlReader(object):
 
     def _read_with_section(self, info: 'ProjInfo', with_data: dict, name: str):
         """Parse the package-level ``with:`` map into handler configurations."""
-        from .proj_info import VenvMode, PythonConfig
+        from .proj_info import VenvMode, PythonConfig, NodeConfig
         from .handlers.package_handler_rgy import PackageHandlerRgy
 
         # Build the set of valid keys dynamically from the handler registry so
@@ -173,10 +176,37 @@ class IvpmYamlReader(object):
                 cfg.pre_release = bool(py_data["pre-release"])
             info.python_config = cfg
 
-        # Store config for non-python registered handlers so they can
+        if "node" in with_data.keys():
+            nd_data = with_data["node"]
+            if nd_data is None:
+                nd_data = {}
+            cfg = NodeConfig()
+
+            for key in nd_data.keys():
+                if key not in _KNOWN_NODE_WITH_KEYS:
+                    hint = _suggest(key, _KNOWN_NODE_WITH_KEYS)
+                    fatal(
+                        "Unknown key '%s' in package.with.node in %s.%s"
+                        " Valid keys: %s" % (
+                            key, name, hint,
+                            ", ".join(sorted(_KNOWN_NODE_WITH_KEYS))))
+
+            if "manager" in nd_data:
+                val = str(nd_data["manager"]).strip().lower()
+                if val not in {"npm", "pnpm", "yarn"}:
+                    fatal("Invalid manager '%s' in package.with.node in %s."
+                          " Valid values: npm, pnpm, yarn" % (val, name))
+                cfg.manager = val
+            if "version" in nd_data:
+                cfg.version = str(nd_data["version"])
+            if "env" in nd_data:
+                cfg.env = bool(nd_data["env"])
+            info.node_config = cfg
+
+        # Store config for non-python/non-node registered handlers so they can
         # retrieve their settings via ProjectUpdateInfo.handler_configs.
         for key, value in with_data.items():
-            if key != "python":
+            if key not in ("python", "node"):
                 info.handler_configs[key] = value
 
     def read_dep_sets(self, info : 'ProjInfo', dep_sets):

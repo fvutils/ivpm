@@ -414,6 +414,82 @@ Or specify the pre-release version explicitly in the dep:
         src: pypi
         version: ">=1.0.0a1"  # Includes alpha releases
 
+Importing Dependencies from ``pyproject.toml``
+===============================================
+
+If your project already declares its Python dependencies in a standard
+``pyproject.toml`` (PEP 621), you can tell IVPM to read them directly
+instead of duplicating the list in ``ivpm.yaml``.
+
+**Basic usage** — import runtime dependencies only:
+
+.. code-block:: yaml
+
+    deps:
+      - name: root-pyproject
+        src: pyproject.toml
+        url: file://${PROJECT_ROOT}/pyproject.toml
+
+**Select which sections to import** with the optional ``include:`` field:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Section name
+     - What is imported
+   * - ``dependencies``
+     - ``[project].dependencies`` (runtime deps) — **default**
+   * - ``optional-dependencies.<extra>``
+     - One named extra, e.g. ``optional-dependencies.dev``
+   * - ``dependency-groups.<group>``
+     - One PEP 735 dependency-group; ``include-group`` entries are
+       expanded recursively
+   * - ``all``
+     - All of the above combined (runtime deps + every extra + every dep-group)
+
+**Examples:**
+
+.. code-block:: yaml
+
+    deps:
+      # Runtime deps only (default)
+      - name: root-pyproject
+        src: pyproject.toml
+        url: file://${PROJECT_ROOT}/pyproject.toml
+
+      # Runtime deps + dev/test extras
+      - name: root-pyproject
+        src: pyproject.toml
+        url: file://${PROJECT_ROOT}/pyproject.toml
+        include:
+          - dependencies
+          - optional-dependencies.dev
+          - optional-dependencies.test
+
+      # Everything (runtime + all extras + all dep-groups)
+      - name: root-pyproject
+        src: pyproject.toml
+        url: file://${PROJECT_ROOT}/pyproject.toml
+        include: all
+
+**Collision rule:** If an explicit ``src: pypi`` entry in ``ivpm.yaml`` has
+the same (normalised) name as a dependency read from ``pyproject.toml``, the
+``src: pypi`` entry wins and the ``pyproject.toml`` entry is silently ignored.
+This lets you pin or override individual packages while still pulling in the
+rest from ``pyproject.toml``.
+
+**URL syntax:** The ``url:`` field follows the same ``file://`` +
+``${VAR}`` conventions as other IVPM source types.  Environment variables
+in the path are expanded at runtime.
+
+.. note::
+
+   Dependencies from ``pyproject.toml`` are synthesised as ``src: pypi``
+   entries and installed into the project-local virtual environment exactly
+   like hand-written ``src: pypi`` entries.  The full PEP 508 specifier
+   (version constraints, environment markers, extras) is preserved verbatim.
+
 Source Packages
 ===============
 

@@ -189,6 +189,66 @@ class RawContentType(PkgContentType):
 
 
 # ---------------------------------------------------------------------------
+# Built-in: node
+# ---------------------------------------------------------------------------
+
+@dc.dataclass
+class NodeTypeData(TypeData):
+    """Type-specific data for packages processed by the Node handler."""
+    dev: bool = False   # install as devDependency
+    link: bool = True   # use npm link (editable); default True for source packages
+
+
+class NodeContentType(PkgContentType):
+    """Content type 'node': installs a source package into the managed node environment."""
+
+    @property
+    def name(self) -> str:
+        return "node"
+
+    def create_data(self, with_opts: dict, si) -> NodeTypeData:
+        known = {"dev", "link"}
+        for k in with_opts:
+            if k not in known:
+                fatal("Unknown parameter '%s' for type 'node' @ %s" % (
+                    k, getlocstr(with_opts[k]) if hasattr(with_opts[k], 'srcinfo') else str(si)))
+        data = NodeTypeData()
+        if "dev" in with_opts:
+            data.dev = bool(with_opts["dev"])
+        if "link" in with_opts:
+            data.link = bool(with_opts["link"])
+        data.type_name = self.name
+        return data
+
+    def content_type_info(self):
+        from .show.info_types import ContentTypeInfo, ParamInfo
+        return ContentTypeInfo(
+            name="node",
+            description="Install source package into the managed Node.js environment via npm link",
+            params=[
+                ParamInfo("dev", "Install as devDependency (default: false)", type_hint="bool"),
+                ParamInfo("link", "Use npm link (editable install). Default: true for source packages", type_hint="bool"),
+            ],
+        )
+
+    def get_json_schema(self) -> dict:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "dev": {
+                    "type": "boolean",
+                    "title": "Install as devDependency (default: false)"
+                },
+                "link": {
+                    "type": "boolean",
+                    "title": "Use npm link (editable install). Default: true for source packages."
+                }
+            }
+        }
+
+
+# ---------------------------------------------------------------------------
 # YAML type-field parser
 # ---------------------------------------------------------------------------
 

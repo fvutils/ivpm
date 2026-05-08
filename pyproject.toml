@@ -13,6 +13,7 @@ dependencies = [
     "rich",
     "setuptools",
     "toposort",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 authors = [
     {name = "Matthew Ballance", email = "matt.ballance@gmail.com"},
@@ -40,4 +41,5 @@ direnv = "ivpm.handlers.package_handler_direnv:PackageHandlerDirenv"
 agents = "ivpm.handlers.package_handler_agents:PackageHandlerAgents"
 fusesoc = "ivpm.handlers.package_handler_fusesoc:PackageHandlerFuseSoC"
 modules = "ivpm.handlers.package_handler_modules:PackageHandlerModules"
+node = "ivpm.handlers.package_handler_node:PackageHandlerNode"
 
