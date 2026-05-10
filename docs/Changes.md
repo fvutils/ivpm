@@ -1,4 +1,7 @@
 
+# 2.9.0
+- Add 'show deps' sub-command
+
 # Unreleased
 - Rename: IVPM now stands for "Integrated View Package Manager"
   (previously "IP and Verification Package Manager"). The `ivpm`
