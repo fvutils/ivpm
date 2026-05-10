@@ -60,6 +60,7 @@
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
@@ -632,14 +633,14 @@
 <section id="show">
 <h4>show<a class="headerlink" href="#show" title="Link to this heading"></a></h4>
 <p>Introspect registered package sources, content types, and handlers</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">schema</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">{</span><span class="n">handler</span><span class="p">,</span><span class="n">source</span><span class="p">,</span><span class="nb">type</span><span class="p">}</span> <span class="o">...</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">schema</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">{</span><span class="n">deps</span><span class="p">,</span><span class="n">handler</span><span class="p">,</span><span class="n">source</span><span class="p">,</span><span class="nb">type</span><span class="p">}</span> <span class="o">...</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat8">
 <h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat8" title="Link to this heading"></a></h5>
 <dl class="option-list">
-<dt><kbd>{handler,source,type}</kbd></dt>
-<dd><p>Possible choices: source, src, type, handler</p>
+<dt><kbd>{deps,handler,source,type}</kbd></dt>
+<dd><p>Possible choices: source, src, type, handler, deps</p>
 </dd>
 </dl>
 </section>
@@ -742,6 +743,46 @@
 <dt><kbd>--no-rich</kbd></dt>
 <dd><p>Plain-text output</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="deps">
+<h6>deps<a class="headerlink" href="#deps" title="Link to this heading"></a></h6>
+<p>Show project dependency tree and package information</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">deps</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">tree</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
+               <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span>
+               <span class="p">[</span><span class="n">name</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="positional-arguments_repeat12">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat12" title="Link to this heading"></a></h6>
+<dl class="option-list">
+<dt><kbd>name</kbd></dt>
+<dd><p>Show full detail for this specific dependency (omit to list all)</p>
+</dd>
+</dl>
+</section>
+<section id="named-arguments_repeat18">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat18" title="Link to this heading"></a></h6>
+<dl class="option-list">
+<dt><kbd>--tree, -t</kbd></dt>
+<dd><p>Show hierarchical dependency tree instead of flat list</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--json</kbd></dt>
+<dd><p>Emit JSON output</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--no-rich</kbd></dt>
+<dd><p>Plain-text output without Rich formatting</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-p, --project-dir</kbd></dt>
+<dd><p>Project root directory (default: cwd)</p>
+</dd>
+<dt><kbd>-d, --dep-set</kbd></dt>
+<dd><p>Dependency set to inspect (default: project default)</p>
 </dd>
 </dl>
 </section>
@@ -1057,13 +1098,15 @@ $<span class="w"> </span>ivpm<span class="w"> </span>share<span class="w"> </spa
 </section>
 <section id="show">
 <h3>show<a class="headerlink" href="#show" title="Link to this heading"></a></h3>
-<p>Inspect registered package sources, content types, and handlers.</p>
+<p>Inspect registered package sources, content types, and handlers — and view
+the current project’s resolved dependency graph.</p>
 <p><strong>Synopsis:</strong></p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm show [--json] [--no-rich] [--schema]
-ivpm show source [--json] [--no-rich] [&lt;name&gt;]
-ivpm show src    [--json] [--no-rich] [&lt;name&gt;]   # alias for source
-ivpm show type   [--json] [--no-rich] [&lt;name&gt;]
+ivpm show source  [--json] [--no-rich] [&lt;name&gt;]
+ivpm show src     [--json] [--no-rich] [&lt;name&gt;]   # alias for source
+ivpm show type    [--json] [--no-rich] [&lt;name&gt;]
 ivpm show handler [--json] [--no-rich] [&lt;name&gt;]
+ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [&lt;name&gt;]
 </pre></div>
 </div>
 <p><strong>Sub-commands:</strong></p>
@@ -1077,8 +1120,26 @@ details for a specific type.</p>
 <dt><code class="docutils literal notranslate"><span class="pre">handler</span></code> <em>[name]</em></dt><dd><p>List all registered package handlers, or show full details for a specific
 handler including activation conditions and CLI options.</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">deps</span></code> <em>[name]</em></dt><dd><p>Show the resolved dependency graph for the current project (or the project
+at <code class="docutils literal notranslate"><span class="pre">-p</span> <span class="pre">DIR</span></code>).  Without <em>name</em>, all packages are listed as a flat table
+(default) or tree (<code class="docutils literal notranslate"><span class="pre">--tree</span></code>). With <em>name</em>, shows full detail for a single
+package.  See <a class="reference internal" href="show_deps.html"><span class="doc">Inspecting Dependencies (show deps)</span></a> for a detailed how-to guide.</p>
+</dd>
 </dl>
-<p><strong>Options:</strong></p>
+<p><strong>Options (show deps):</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">-p</span> <span class="pre">DIR</span></code> / <code class="docutils literal notranslate"><span class="pre">--project-dir</span> <span class="pre">DIR</span></code></dt><dd><p>Project root to inspect (default: current working directory).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-d</span> <span class="pre">DEP-SET</span></code> / <code class="docutils literal notranslate"><span class="pre">--dep-set</span> <span class="pre">DEP-SET</span></code></dt><dd><p>Dep-set to load from the root <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> (default: <code class="docutils literal notranslate"><span class="pre">default-dev</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--tree</span></code> / <code class="docutils literal notranslate"><span class="pre">-t</span></code></dt><dd><p>Show the full dependency hierarchy instead of the flat table.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--json</span></code></dt><dd><p>Emit machine-readable JSON.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--no-rich</span></code></dt><dd><p>Plain text output without terminal colours or tables.</p>
+</dd>
+</dl>
+<p><strong>Options (show / show source / type / handler):</strong></p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">--json</span></code></dt><dd><p>Emit JSON output instead of Rich/plain text. Useful for scripting.</p>
 </dd>
@@ -1089,24 +1150,39 @@ handlers). Does not require a sub-command.</p>
 </dd>
 </dl>
 <p><strong>Examples:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Overview — show all registries at once</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># --- show deps ---</span>
+
+<span class="c1"># Flat table of all resolved dependencies (default)</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--no-rich
+Name<span class="w">      </span>Version<span class="w">  </span>Specifier<span class="w">  </span>Source<span class="w">  </span>URL
+--------<span class="w">  </span>-------<span class="w">  </span>---------<span class="w">  </span>------<span class="w">  </span>---
+pyyaml<span class="w">    </span><span class="m">6</span>.0.1<span class="w">    </span>root<span class="w">       </span>pypi
+requests<span class="w">  </span><span class="m">2</span>.31.0<span class="w">   </span>root<span class="w">       </span>pypi
+
+<span class="c1"># Dependency tree</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--tree<span class="w"> </span>--no-rich
+my-project
+├──<span class="w"> </span>pyyaml<span class="w">       </span><span class="m">6</span>.0.1<span class="w">   </span><span class="o">(</span>pypi<span class="o">)</span>
+└──<span class="w"> </span>requests<span class="w">     </span><span class="m">2</span>.31.0<span class="w">  </span><span class="o">(</span>pypi<span class="o">)</span>
+
+<span class="c1"># Detail for a single package</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>pyyaml<span class="w"> </span>--no-rich
+Name:<span class="w">          </span>pyyaml
+Specifier:<span class="w">     </span>root
+Source:<span class="w">        </span>pypi
+Version:<span class="w">       </span><span class="m">6</span>.0.1
+Also<span class="w"> </span>requested<span class="w"> </span>by:<span class="w"> </span><span class="o">(</span>none<span class="o">)</span>
+
+<span class="c1"># Machine-readable flat list</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[].name&#39;</span>
+
+<span class="c1"># --- show (registry) ---</span>
+
+<span class="c1"># Overview — show all registries at once</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>--no-rich
 
 <span class="c1"># List registered source types</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span><span class="nb">source</span><span class="w"> </span>--no-rich
-dir<span class="w">      </span>Local<span class="w"> </span>directory<span class="w"> </span>—<span class="w"> </span>symlinked<span class="w"> </span>into<span class="w"> </span>packages/
-git<span class="w">      </span>Git<span class="w"> </span>repository<span class="w"> </span>—<span class="w"> </span>cloned<span class="w"> </span>into<span class="w"> </span>packages/
-...
-
-<span class="c1"># Detailed view for a specific source</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span><span class="nb">source</span><span class="w"> </span>git<span class="w"> </span>--no-rich
-Source:<span class="w">      </span>git
-Description:<span class="w"> </span>Git<span class="w"> </span>repository<span class="w"> </span>—<span class="w"> </span>cloned<span class="w"> </span>into<span class="w"> </span>packages/
-Parameters:
-<span class="w">  </span>url<span class="w">     </span>Repository<span class="w"> </span>URL<span class="w"> </span><span class="o">(</span>required<span class="o">)</span>
-<span class="w">  </span>branch<span class="w">  </span>Branch<span class="w"> </span>to<span class="w"> </span>checkout
-<span class="w">  </span>tag<span class="w">     </span>Tag<span class="w"> </span>to<span class="w"> </span>checkout
-<span class="w">  </span>...
 
 <span class="c1"># List content types as JSON</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span><span class="nb">type</span><span class="w"> </span>--json
@@ -1118,9 +1194,11 @@ $<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span
 $<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>--schema
 </pre></div>
 </div>
-<p><strong>Use case:</strong> Discover what sources, types, and handlers are active in the
-current environment — including any third-party extensions that have been
-installed. Useful when writing <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files or developing IVPM plugins.</p>
+<p><strong>Use case:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">deps</span></code> answers <em>“what is actually installed and who
+asked for it?”</em> — handy for auditing transitive dependencies, understanding
+ownership conflicts, and integrating with downstream tooling via JSON output.
+The other <code class="docutils literal notranslate"><span class="pre">show</span></code> sub-commands discover what sources, types, and handlers are
+active in the current environment, including any third-party extensions.</p>
 </section>
 <section id="snapshot">
 <h3>snapshot<a class="headerlink" href="#snapshot" title="Link to this heading"></a></h3>

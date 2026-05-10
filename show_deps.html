@@ -1,0 +1,319 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inspecting Dependencies (show deps) &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+    <link rel="shortcut icon" href="_static/favicon.svg"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Integrations" href="integrations.html" />
+    <link rel="prev" title="Git Integration" href="git_integration.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+              <img src="_static/ivpm-logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Inspecting Dependencies (show deps)</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#flat-table-default">Flat table (default)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dependency-tree">Dependency tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#single-package-detail">Single-package detail</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#machine-readable-json">Machine-readable JSON</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#selecting-a-dep-set">Selecting a dep-set</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#inspecting-another-project">Inspecting another project</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#when-the-lock-file-is-absent">When the lock file is absent</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Inspecting Dependencies (show deps)</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/show_deps.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="inspecting-dependencies-show-deps">
+<h1>Inspecting Dependencies (show deps)<a class="headerlink" href="#inspecting-dependencies-show-deps" title="Link to this heading"></a></h1>
+<p>The <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">deps</span></code> command introspects the <strong>resolved</strong> dependency graph of
+the current project.  It reads <code class="docutils literal notranslate"><span class="pre">packages/package-lock.json</span></code> (when present)
+and the <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> files of installed sub-packages to produce a view that
+faithfully reflects what is <em>actually on disk</em> after an <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#flat-table-default" id="id1">Flat table (default)</a></p></li>
+<li><p><a class="reference internal" href="#dependency-tree" id="id2">Dependency tree</a></p></li>
+<li><p><a class="reference internal" href="#single-package-detail" id="id3">Single-package detail</a></p></li>
+<li><p><a class="reference internal" href="#machine-readable-json" id="id4">Machine-readable JSON</a></p></li>
+<li><p><a class="reference internal" href="#selecting-a-dep-set" id="id5">Selecting a dep-set</a></p></li>
+<li><p><a class="reference internal" href="#inspecting-another-project" id="id6">Inspecting another project</a></p></li>
+<li><p><a class="reference internal" href="#when-the-lock-file-is-absent" id="id7">When the lock file is absent</a></p></li>
+</ul>
+</nav>
+<p>—</p>
+<section id="flat-table-default">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Flat table (default)</a><a class="headerlink" href="#flat-table-default" title="Link to this heading"></a></h2>
+<p>Running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">deps</span></code> without any flags prints a colour-coded table where
+every package appears <strong>exactly once</strong> — first-specifier-wins (the same
+deduplication rule IVPM’s resolver uses).</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps
+Name<span class="w">        </span>Version<span class="w">   </span>Specifier<span class="w">   </span>Source<span class="w">   </span>URL<span class="w"> </span>/<span class="w"> </span>commit
+----------<span class="w">  </span>--------<span class="w">  </span>----------<span class="w">  </span>-------<span class="w">  </span>--------------------
+pyyaml<span class="w">      </span><span class="m">6</span>.0.1<span class="w">     </span>root<span class="w">        </span>pypi
+requests<span class="w">    </span><span class="m">2</span>.31.0<span class="w">    </span>root<span class="w">        </span>pypi
+my-lib<span class="w">      </span>abc1234<span class="w">   </span>root<span class="w">        </span>git<span class="w">      </span>https://github.com/org/my-lib
+helper<span class="w">      </span>-<span class="w">         </span>my-lib<span class="w">      </span>dir<span class="w">      </span>packages/helper
+</pre></div>
+</div>
+<p>Columns:</p>
+<ul class="simple">
+<li><p><strong>Name</strong> — package name as it appears in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code></p></li>
+<li><p><strong>Version</strong> — resolved version (pypi) or <code class="docutils literal notranslate"><span class="pre">-</span></code> when not applicable</p></li>
+<li><p><strong>Specifier</strong> — which package <em>first</em> declared this dependency (<code class="docutils literal notranslate"><span class="pre">root</span></code> =
+the top-level project)</p></li>
+<li><p><strong>Source</strong> — source type (<code class="docutils literal notranslate"><span class="pre">git</span></code>, <code class="docutils literal notranslate"><span class="pre">pypi</span></code>, <code class="docutils literal notranslate"><span class="pre">dir</span></code>, …)</p></li>
+<li><p><strong>URL / commit</strong> — resolved URL and/or commit hash for git sources</p></li>
+</ul>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--no-rich</span></code> for plain text output without ANSI colours:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--no-rich
+</pre></div>
+</div>
+<p>—</p>
+</section>
+<section id="dependency-tree">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Dependency tree</a><a class="headerlink" href="#dependency-tree" title="Link to this heading"></a></h2>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">--tree</span></code> (<code class="docutils literal notranslate"><span class="pre">-t</span></code>) to see the full hierarchy, including packages that
+were shadowed because an ancestor already claimed them:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--tree<span class="w"> </span>--no-rich
+my-project
+├──<span class="w"> </span>pyyaml<span class="w">       </span><span class="m">6</span>.0.1<span class="w">    </span><span class="o">(</span>pypi<span class="o">)</span>
+├──<span class="w"> </span>requests<span class="w">     </span><span class="m">2</span>.31.0<span class="w">   </span><span class="o">(</span>pypi<span class="o">)</span>
+└──<span class="w"> </span>my-lib<span class="w">       </span>abc1234<span class="w">  </span><span class="o">(</span>git<span class="o">)</span>
+<span class="w">    </span>├──<span class="w"> </span>pyyaml<span class="w">   </span><span class="o">[</span>shadowed<span class="w"> </span>by<span class="w"> </span>root<span class="o">]</span>
+<span class="w">    </span>└──<span class="w"> </span>helper<span class="w">   </span>-<span class="w">        </span><span class="o">(</span>dir<span class="o">)</span>
+</pre></div>
+</div>
+<p>Shadowed entries are shown in the tree for completeness but are greyed out (or
+bracketed in <code class="docutils literal notranslate"><span class="pre">--no-rich</span></code> mode).  They will not appear in the flat list.</p>
+<p>—</p>
+</section>
+<section id="single-package-detail">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Single-package detail</a><a class="headerlink" href="#single-package-detail" title="Link to this heading"></a></h2>
+<p>Provide a package name as a positional argument to see full detail for that
+package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>my-lib<span class="w"> </span>--no-rich
+Name:<span class="w">              </span>my-lib
+Specifier:<span class="w">         </span>root
+Source:<span class="w">            </span>git
+URL:<span class="w">               </span>https://github.com/org/my-lib.git
+Commit:<span class="w">            </span>abc1234def5678...
+Also<span class="w"> </span>requested<span class="w"> </span>by:<span class="w"> </span><span class="o">(</span>none<span class="o">)</span>
+
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>helper<span class="w"> </span>--no-rich
+Name:<span class="w">              </span>helper
+Specifier:<span class="w">         </span>my-lib
+Source:<span class="w">            </span>dir
+URL:<span class="w">               </span>packages/helper
+Also<span class="w"> </span>requested<span class="w"> </span>by:<span class="w"> </span><span class="o">(</span>none<span class="o">)</span>
+</pre></div>
+</div>
+<p>The command exits with status <strong>1</strong> if the package is not found.</p>
+<p>—</p>
+</section>
+<section id="machine-readable-json">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Machine-readable JSON</a><a class="headerlink" href="#machine-readable-json" title="Link to this heading"></a></h2>
+<p>Add <code class="docutils literal notranslate"><span class="pre">--json</span></code> to get structured output for scripting and CI pipelines.</p>
+<p><strong>Flat list</strong> (default + <code class="docutils literal notranslate"><span class="pre">--json</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--json
+<span class="o">[</span>
+<span class="w">  </span><span class="o">{</span>
+<span class="w">    </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;pyyaml&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;specifier&quot;</span>:<span class="w"> </span><span class="s2">&quot;root&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;pypi&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;version&quot;</span>:<span class="w"> </span><span class="s2">&quot;6.0.1&quot;</span>,
+<span class="w">    </span><span class="s2">&quot;url&quot;</span>:<span class="w"> </span>null,
+<span class="w">    </span><span class="s2">&quot;commit&quot;</span>:<span class="w"> </span>null,
+<span class="w">    </span><span class="s2">&quot;also_requested_by&quot;</span>:<span class="w"> </span><span class="o">[]</span>
+<span class="w">  </span><span class="o">}</span>,
+<span class="w">  </span>...
+<span class="o">]</span>
+</pre></div>
+</div>
+<p><strong>Tree</strong> (<code class="docutils literal notranslate"><span class="pre">--tree</span> <span class="pre">--json</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--tree<span class="w"> </span>--json
+<span class="o">{</span>
+<span class="w">  </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;my-project&quot;</span>,
+<span class="w">  </span><span class="s2">&quot;children&quot;</span>:<span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="o">{</span>
+<span class="w">      </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;pyyaml&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;specifier&quot;</span>:<span class="w"> </span><span class="s2">&quot;root&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;pypi&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;version&quot;</span>:<span class="w"> </span><span class="s2">&quot;6.0.1&quot;</span>,
+<span class="w">      </span><span class="s2">&quot;shadowed&quot;</span>:<span class="w"> </span>false,
+<span class="w">      </span><span class="s2">&quot;children&quot;</span>:<span class="w"> </span><span class="o">[]</span>
+<span class="w">    </span><span class="o">}</span>,
+<span class="w">    </span>...
+<span class="w">  </span><span class="o">]</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p><strong>Single package</strong> (<code class="docutils literal notranslate"><span class="pre">&lt;name&gt;</span> <span class="pre">--json</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>my-lib<span class="w"> </span>--json
+<span class="o">{</span>
+<span class="w">  </span><span class="s2">&quot;name&quot;</span>:<span class="w"> </span><span class="s2">&quot;my-lib&quot;</span>,
+<span class="w">  </span><span class="s2">&quot;specifier&quot;</span>:<span class="w"> </span><span class="s2">&quot;root&quot;</span>,
+<span class="w">  </span><span class="s2">&quot;source&quot;</span>:<span class="w"> </span><span class="s2">&quot;git&quot;</span>,
+<span class="w">  </span><span class="s2">&quot;url&quot;</span>:<span class="w"> </span><span class="s2">&quot;https://github.com/org/my-lib.git&quot;</span>,
+<span class="w">  </span><span class="s2">&quot;commit&quot;</span>:<span class="w"> </span><span class="s2">&quot;abc1234&quot;</span>,
+<span class="w">  </span><span class="s2">&quot;version&quot;</span>:<span class="w"> </span>null,
+<span class="w">  </span><span class="s2">&quot;also_requested_by&quot;</span>:<span class="w"> </span><span class="o">[]</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>Useful <code class="docutils literal notranslate"><span class="pre">jq</span></code> recipes:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># List all dependency names</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;.[].name&#39;</span>
+
+<span class="c1"># Find packages not directly specified by root</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;[.[] | select(.specifier != &quot;root&quot;)]&#39;</span>
+
+<span class="c1"># Extract commit hashes for all git deps</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--json<span class="w"> </span><span class="p">|</span><span class="w"> </span>jq<span class="w"> </span><span class="s1">&#39;[.[] | select(.commit) | {name, commit}]&#39;</span>
+</pre></div>
+</div>
+<p>—</p>
+</section>
+<section id="selecting-a-dep-set">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Selecting a dep-set</a><a class="headerlink" href="#selecting-a-dep-set" title="Link to this heading"></a></h2>
+<p>By default <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">deps</span></code> loads the <code class="docutils literal notranslate"><span class="pre">default-dev</span></code> dep-set from the root
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.  Use <code class="docutils literal notranslate"><span class="pre">-d</span></code> / <code class="docutils literal notranslate"><span class="pre">--dep-set</span></code> to select a different one:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>-d<span class="w"> </span>ci
+</pre></div>
+</div>
+<p>—</p>
+</section>
+<section id="inspecting-another-project">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Inspecting another project</a><a class="headerlink" href="#inspecting-another-project" title="Link to this heading"></a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">-p</span></code> / <code class="docutils literal notranslate"><span class="pre">--project-dir</span></code> to introspect a project outside the current
+working directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>-p<span class="w"> </span>/path/to/other/project
+</pre></div>
+</div>
+<p>—</p>
+</section>
+<section id="when-the-lock-file-is-absent">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">When the lock file is absent</a><a class="headerlink" href="#when-the-lock-file-is-absent" title="Link to this heading"></a></h2>
+<p>If <code class="docutils literal notranslate"><span class="pre">packages/package-lock.json</span></code> does not exist (e.g. before the first
+<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>), <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">deps</span></code> still works but emits a warning and
+populates only the fields declared in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> — resolved versions and
+commit hashes will be missing.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>show<span class="w"> </span>deps<span class="w"> </span>--no-rich
+Warning:<span class="w"> </span>packages/package-lock.json<span class="w"> </span>not<span class="w"> </span>found<span class="p">;</span><span class="w"> </span>showing<span class="w"> </span>declared<span class="w"> </span>deps<span class="w"> </span>only.
+...
+</pre></div>
+</div>
+<p>Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> first to get a fully resolved view.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="git_integration.html" class="btn btn-neutral float-left" title="Git Integration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="integrations.html" class="btn btn-neutral float-right" title="Integrations" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
