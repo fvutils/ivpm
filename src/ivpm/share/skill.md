@@ -211,6 +211,54 @@ The `--json` flag is especially useful for programmatic introspection:
 ivpm show source --json | python3 -c "import sys,json; [print(s['name'], s['description']) for s in json.load(sys.stdin)]"
 ```
 
+## Inspecting Project Dependencies
+
+Use `ivpm show deps` to view the **resolved** dependency graph for the current
+project.  It reads `packages/package-lock.json` (when present) and the
+`ivpm.yaml` files of installed sub-packages.
+
+```bash
+# Flat table of all resolved packages (default) — each package appears once
+ivpm show deps
+
+# Hierarchical tree showing who depends on whom
+ivpm show deps --tree
+
+# Full detail for a single package
+ivpm show deps pyyaml
+
+# Plain-text output (no Rich formatting)
+ivpm show deps --no-rich
+ivpm show deps --tree --no-rich
+
+# Machine-readable JSON (flat list)
+ivpm show deps --json
+
+# Machine-readable JSON (tree)
+ivpm show deps --tree --json
+
+# Inspect a different project or dep-set
+ivpm show deps -p /path/to/project
+ivpm show deps -d ci
+```
+
+Key concepts:
+- **Specifier**: which package *first* declared a dependency (`root` = top-level project).  IVPM uses first-specifier-wins, so if both root and a sub-project declare the same package, only the root's version is installed and the sub-project's request is silently dropped.
+- **Shadowed**: in tree view, a package that was already claimed by an ancestor appears as a shadowed (greyed) leaf.
+- **lock_available**: when `packages/package-lock.json` exists, resolved versions and commit hashes are shown; otherwise only declared info is available.
+
+Useful `jq` recipes:
+```bash
+# All dependency names
+ivpm show deps --json | jq '.[].name'
+
+# Transitive deps (not declared by root)
+ivpm show deps --json | jq '[.[] | select(.specifier != "root") | .name]'
+
+# Git deps with their commit hashes
+ivpm show deps --json | jq '[.[] | select(.commit != null) | {name, commit}]'
+```
+
 ## All Commands
 
 | Command | Description |
@@ -224,6 +272,7 @@ ivpm show source --json | python3 -c "import sys,json; [print(s['name'], s['desc
 | `ivpm build` | Build Python packages with native extensions |
 | `ivpm cache` | Manage package cache |
 | `ivpm show` | Introspect registered sources, types, and handlers |
+| `ivpm show deps` | View the resolved project dependency graph |
 | `ivpm snapshot` | Create self-contained project copy |
 | `ivpm share` | Get IVPM share directory path |
 | `ivpm pkg-info` | Query package paths/libraries |

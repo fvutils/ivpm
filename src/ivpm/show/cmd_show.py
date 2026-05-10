@@ -39,6 +39,9 @@ class CmdShow:
         elif sub == "handler":
             from .show_handler import ShowHandler
             ShowHandler()(args)
+        elif sub == "deps":
+            from .show_deps import ShowDeps
+            ShowDeps()(args)
         else:
             # No sub-command: show all three categories
             _show_all(args)

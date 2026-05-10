@@ -34,6 +34,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    environment_paths
    workflows
    git_integration
+   show_deps
    integrations
    extending_ivpm
    troubleshooting

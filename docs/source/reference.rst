@@ -388,17 +388,19 @@ Return the IVPM share directory path.
 show
 ----
 
-Inspect registered package sources, content types, and handlers.
+Inspect registered package sources, content types, and handlers — and view
+the current project's resolved dependency graph.
 
 **Synopsis:**
 
 .. code-block:: text
 
     ivpm show [--json] [--no-rich] [--schema]
-    ivpm show source [--json] [--no-rich] [<name>]
-    ivpm show src    [--json] [--no-rich] [<name>]   # alias for source
-    ivpm show type   [--json] [--no-rich] [<name>]
+    ivpm show source  [--json] [--no-rich] [<name>]
+    ivpm show src     [--json] [--no-rich] [<name>]   # alias for source
+    ivpm show type    [--json] [--no-rich] [<name>]
     ivpm show handler [--json] [--no-rich] [<name>]
+    ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [<name>]
 
 **Sub-commands:**
 
@@ -414,7 +416,30 @@ Inspect registered package sources, content types, and handlers.
     List all registered package handlers, or show full details for a specific
     handler including activation conditions and CLI options.
 
-**Options:**
+``deps`` *[name]*
+    Show the resolved dependency graph for the current project (or the project
+    at ``-p DIR``).  Without *name*, all packages are listed as a flat table
+    (default) or tree (``--tree``). With *name*, shows full detail for a single
+    package.  See :doc:`show_deps` for a detailed how-to guide.
+
+**Options (show deps):**
+
+``-p DIR`` / ``--project-dir DIR``
+    Project root to inspect (default: current working directory).
+
+``-d DEP-SET`` / ``--dep-set DEP-SET``
+    Dep-set to load from the root ``ivpm.yaml`` (default: ``default-dev``).
+
+``--tree`` / ``-t``
+    Show the full dependency hierarchy instead of the flat table.
+
+``--json``
+    Emit machine-readable JSON.
+
+``--no-rich``
+    Plain text output without terminal colours or tables.
+
+**Options (show / show source / type / handler):**
 
 ``--json``
     Emit JSON output instead of Rich/plain text. Useful for scripting.
@@ -430,24 +455,39 @@ Inspect registered package sources, content types, and handlers.
 
 .. code-block:: bash
 
+    # --- show deps ---
+
+    # Flat table of all resolved dependencies (default)
+    $ ivpm show deps --no-rich
+    Name      Version  Specifier  Source  URL
+    --------  -------  ---------  ------  ---
+    pyyaml    6.0.1    root       pypi
+    requests  2.31.0   root       pypi
+
+    # Dependency tree
+    $ ivpm show deps --tree --no-rich
+    my-project
+    ├── pyyaml       6.0.1   (pypi)
+    └── requests     2.31.0  (pypi)
+
+    # Detail for a single package
+    $ ivpm show deps pyyaml --no-rich
+    Name:          pyyaml
+    Specifier:     root
+    Source:        pypi
+    Version:       6.0.1
+    Also requested by: (none)
+
+    # Machine-readable flat list
+    $ ivpm show deps --json | jq '.[].name'
+
+    # --- show (registry) ---
+
     # Overview — show all registries at once
     $ ivpm show --no-rich
 
     # List registered source types
     $ ivpm show source --no-rich
-    dir      Local directory — symlinked into packages/
-    git      Git repository — cloned into packages/
-    ...
-
-    # Detailed view for a specific source
-    $ ivpm show source git --no-rich
-    Source:      git
-    Description: Git repository — cloned into packages/
-    Parameters:
-      url     Repository URL (required)
-      branch  Branch to checkout
-      tag     Tag to checkout
-      ...
 
     # List content types as JSON
     $ ivpm show type --json
@@ -458,9 +498,11 @@ Inspect registered package sources, content types, and handlers.
     # Dump complete registry schema
     $ ivpm show --schema
 
-**Use case:** Discover what sources, types, and handlers are active in the
-current environment — including any third-party extensions that have been
-installed. Useful when writing ``ivpm.yaml`` files or developing IVPM plugins.
+**Use case:** ``ivpm show deps`` answers *"what is actually installed and who
+asked for it?"* — handy for auditing transitive dependencies, understanding
+ownership conflicts, and integrating with downstream tooling via JSON output.
+The other ``show`` sub-commands discover what sources, types, and handlers are
+active in the current environment, including any third-party extensions.
 
 snapshot
 --------

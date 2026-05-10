@@ -628,6 +628,24 @@ class PackageGit(PackageURL):
         pkg.process_options(opts, si)
         return pkg
 
+    @staticmethod
+    def get_live_info(name: str, deps_dir: str) -> dict:
+        """Return the HEAD commit from the installed git package directory."""
+        pkg_dir = os.path.join(deps_dir, name)
+        real_dir = os.path.realpath(pkg_dir) if os.path.exists(pkg_dir) else pkg_dir
+        if not os.path.isdir(real_dir):
+            return {}
+        try:
+            r = subprocess.run(
+                ["git", "rev-parse", "HEAD"],
+                cwd=real_dir, capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode == 0:
+                return {"commit_resolved": r.stdout.strip()}
+        except Exception:
+            pass
+        return {}
+
     @classmethod
     def source_info(cls):
         from ..show.info_types import PkgSourceInfo, ParamInfo

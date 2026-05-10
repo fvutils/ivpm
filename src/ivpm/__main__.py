@@ -300,6 +300,21 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_handler_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
         help="Plain-text output")
 
+    show_deps_cmd = show_subparser.add_parser("deps",
+        help="Show project dependency tree and package information")
+    show_deps_cmd.add_argument("name", nargs="?",
+        help="Show full detail for this specific dependency (omit to list all)")
+    show_deps_cmd.add_argument("--tree", "-t", action="store_true", default=False,
+        help="Show hierarchical dependency tree instead of flat list")
+    show_deps_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_deps_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+    show_deps_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Project root directory (default: cwd)")
+    show_deps_cmd.add_argument("-d", "--dep-set", dest="dep_set", default=None,
+        help="Dependency set to inspect (default: project default)")
+
     _finalize_subparser_help(show_subparser)
 
     show_cmd.set_defaults(func=CmdShow())

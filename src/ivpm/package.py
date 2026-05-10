@@ -166,6 +166,18 @@ class Package(object):
                 if first_name in Spec2PackageType.keys():
                     self.pkg_type = Spec2PackageType[first_name]
 
+    @staticmethod
+    def get_live_info(name: str, deps_dir: str) -> dict:
+        """Query the live environment for additional display info.
+
+        Called by 'ivpm show deps' when lock-file data is incomplete.
+        Subclasses override this to inspect the installed state (e.g. scan
+        dist-info dirs for PyPI packages, or read git HEAD for git packages).
+        Returns a dict with any subset of: ``version_resolved``,
+        ``commit_resolved``.
+        """
+        return {}
+
     def get_lock_entry(self):
         """Return extra fields for this package's lock-file entry.
 

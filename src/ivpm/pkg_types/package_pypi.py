@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+import os
 from ..package import Package
 
 @dc.dataclass
@@ -48,6 +49,16 @@ class PackagePyPi(Package):
         pkg = PackagePyPi(name)
         pkg.process_options(opts, si)
         return pkg
+
+    @staticmethod
+    def get_live_info(name: str, deps_dir: str) -> dict:
+        """Return the installed version via importlib.metadata."""
+        try:
+            import importlib.metadata
+            version = importlib.metadata.version(name)
+            return {"version_resolved": version}
+        except Exception:
+            return {}
 
     @classmethod
     def source_info(cls):
