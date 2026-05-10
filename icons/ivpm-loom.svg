@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Loom: vertical warp threads (one per ecosystem) descend from source dots,
+    then are woven into a rich fabric panel in the lower half.
+    Ecosystems: Python #3776AB, JS #F7DF1E, Go #00ADD8, Rust #E8552B, Other #A855F7
+    Columns (centres): x = 52, 90, 128, 166, 204
+    Warp strips: y = 22..102 (each strip 36px wide, 2px gap)
+    Fabric: y = 108..238 — checkerboard weave via SVG pattern
+  -->
+  <defs>
+    <clipPath id="lm-clip"><rect width="256" height="256" rx="28"/></clipPath>
+    <!--
+      Checkerboard weave pattern: 5 columns × 36px, 2 rows of 12px each.
+      Row 0 (y=0..11): col A colour in col 0, weft #cbd5e1 in col 1, col C in col 2, weft in col 3, col E in col 4
+      Row 1 (y=12..23): weft in col 0, col B in col 1, weft in col 2, col D in col 3, weft in col 4
+      Background (gap) colour = #0f172a (the dark bg shows through 2px gaps).
+    -->
+    <pattern id="weave-pat" x="34" y="108" width="190" height="24" patternUnits="userSpaceOnUse">
+      <rect width="190" height="24" fill="#1e293b"/>
+      <!-- row 0: warp columns lit -->
+      <rect x="0"   y="0" width="34" height="11" fill="#3776AB"/>
+      <rect x="38"  y="0" width="34" height="11" fill="#cbd5e1"/>
+      <rect x="76"  y="0" width="34" height="11" fill="#00ADD8"/>
+      <rect x="114" y="0" width="34" height="11" fill="#cbd5e1"/>
+      <rect x="152" y="0" width="34" height="11" fill="#A855F7"/>
+      <!-- row 1: off-columns lit -->
+      <rect x="0"   y="13" width="34" height="11" fill="#cbd5e1"/>
+      <rect x="38"  y="13" width="34" height="11" fill="#F7DF1E"/>
+      <rect x="76"  y="13" width="34" height="11" fill="#cbd5e1"/>
+      <rect x="114" y="13" width="34" height="11" fill="#E8552B"/>
+      <rect x="152" y="13" width="34" height="11" fill="#cbd5e1"/>
+    </pattern>
+  </defs>
+
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#lm-clip)">
+
+    <!-- warp strips descending from source dots to top of fabric -->
+    <rect x="34"  y="22" width="36" height="84" fill="#3776AB" opacity="0.85"/>
+    <rect x="72"  y="22" width="36" height="84" fill="#F7DF1E" opacity="0.85"/>
+    <rect x="110" y="22" width="36" height="84" fill="#00ADD8" opacity="0.85"/>
+    <rect x="148" y="22" width="36" height="84" fill="#E8552B" opacity="0.85"/>
+    <rect x="186" y="22" width="36" height="84" fill="#A855F7" opacity="0.85"/>
+
+    <!-- separator line (heddle / reed) -->
+    <line x1="28" y1="106" x2="228" y2="106" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+    <line x1="28" y1="111" x2="228" y2="111" stroke="#475569" stroke-width="1.5"/>
+
+    <!-- woven fabric panel -->
+    <rect x="34" y="108" width="190" height="132" fill="url(#weave-pat)"/>
+    <!-- slight top-fade on fabric so it blends into the heddle line -->
+    <rect x="34" y="108" width="190" height="16" fill="url(#lm-fade)" opacity="0.55"/>
+
+    <!-- side frame / selvage lines -->
+    <line x1="33"  y1="22" x2="33"  y2="238" stroke="#475569" stroke-width="1.5"/>
+    <line x1="225" y1="22" x2="225" y2="238" stroke="#475569" stroke-width="1.5"/>
+
+  </g>
+
+  <!-- source circles (sit on top of clip group, above strips) -->
+  <circle cx="52"  cy="14" r="9" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="90"  cy="14" r="9" fill="#F7DF1E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="14" r="9" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="166" cy="14" r="9" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="204" cy="14" r="9" fill="#A855F7" stroke="#0f172a" stroke-width="2"/>
+</svg>

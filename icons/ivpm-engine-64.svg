@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="64" height="64">
+  <!-- 64×64 variant — heavier strokes, bolder box border, larger dots -->
+  <defs>
+    <clipPath id="eg64-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#eg64-clip)">
+    <g fill="none" stroke-linecap="round" stroke-width="22">
+      <path d="M 28,33  C 28,74  78,86  78,92"  stroke="#3776AB"/>
+      <path d="M 72,33  C 72,74  102,86 102,92" stroke="#F7DF1E"/>
+      <path d="M 128,33 C 128,74 128,86 128,92" stroke="#00ADD8"/>
+      <path d="M 184,33 C 184,74 154,86 154,92" stroke="#E8552B"/>
+      <path d="M 228,33 C 228,74 178,86 178,92" stroke="#A855F7"/>
+    </g>
+    <g fill="none" stroke-linecap="round" stroke-width="22">
+      <path d="M 128,144 C 128,160 128,175 128,192" stroke="#00ADD8"/>
+      <path d="M 148,144 C 148,160 108,170 128,192" stroke="#E8552B"/>
+      <path d="M 108,144 C 108,160 148,170 128,192" stroke="#3776AB"/>
+    </g>
+    <rect x="50" y="92" width="156" height="52" rx="10"
+          fill="#0f2d4a" stroke="#3b82f6" stroke-width="5"/>
+    <text x="128" y="126"
+          font-family="system-ui, ui-sans-serif, sans-serif"
+          font-size="26" font-weight="800" letter-spacing="3"
+          text-anchor="middle" fill="white">IVPM</text>
+    <rect x="22" y="188" width="36" height="10" rx="4"
+          fill="#334155" stroke="#475569" stroke-width="2.5"/>
+    <rect x="14" y="192" width="228" height="52" rx="12"
+          fill="#1e293b" stroke="#475569" stroke-width="4"/>
+    <circle cx="128" cy="218" r="10"  fill="#00ADD8"/>
+    <circle cx="116" cy="211" r="8"   fill="#3776AB"/>
+    <circle cx="140" cy="211" r="8"   fill="#F7DF1E"/>
+    <circle cx="116" cy="229" r="8"   fill="#A855F7"/>
+    <circle cx="140" cy="229" r="8"   fill="#E8552B"/>
+  </g>
+  <circle cx="28"  cy="20" r="16" fill="#3776AB" stroke="#0f172a" stroke-width="2.5"/>
+  <circle cx="72"  cy="20" r="16" fill="#F7DF1E" stroke="#0f172a" stroke-width="2.5"/>
+  <circle cx="128" cy="20" r="16" fill="#00ADD8" stroke="#0f172a" stroke-width="2.5"/>
+  <circle cx="184" cy="20" r="16" fill="#E8552B" stroke="#0f172a" stroke-width="2.5"/>
+  <circle cx="228" cy="20" r="16" fill="#A855F7" stroke="#0f172a" stroke-width="2.5"/>
+</svg>

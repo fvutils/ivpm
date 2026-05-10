@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    ivpm-converge: packages (top circles) braid together in the upper third,
+    then all threads funnel into a single deps-directory box at the bottom.
+    Two visible X-crossings give the "braiding" feel before convergence.
+
+    Crossing Z-order (drawn first = goes under):
+      Yellow under Blue  (left-side crossing  ~y=66, x≈65)
+      Purple under Orange (right-side crossing ~y=66, x≈191)
+    Teal is drawn between under and over layers so it goes under Blue/Orange
+    where those outer threads arc across the centre.
+
+    Colours:
+      Python  #3776AB  cx=28
+      JS      #F7DF1E  cx=72
+      Go      #00ADD8  cx=128
+      Rust    #E8552B  cx=184
+      Other   #A855F7  cx=228
+  -->
+  <defs>
+    <clipPath id="cv-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#cv-clip)">
+
+    <!-- ── THREADS ───────────────────────────────────────────────── -->
+    <g fill="none" stroke-linecap="round" stroke-width="14">
+
+      <!-- under-layer: drawn first so the "over" threads appear on top -->
+      <!-- Yellow: stays left, gets crossed by Blue -->
+      <path d="M 72,33  C 72,70  40,70  128,192" stroke="#F7DF1E"/>
+      <!-- Purple: sweeps far left, gets crossed by Orange -->
+      <path d="M 228,33 C 228,70  56,70  128,192" stroke="#A855F7"/>
+      <!-- Teal: straight centre — goes under Blue/Orange arcs in mid-icon -->
+      <path d="M 128,33 C 128,80 128,155 128,192" stroke="#00ADD8"/>
+
+      <!-- over-layer: drawn on top at crossing points -->
+      <!-- Blue: sweeps far right, crossing over Yellow -->
+      <path d="M 28,33  C 28,70  200,70  128,192" stroke="#3776AB"/>
+      <!-- Orange: stays right, crossing over Purple -->
+      <path d="M 184,33 C 184,70 216,70  128,192" stroke="#E8552B"/>
+
+    </g>
+
+    <!-- ── DEPS DIRECTORY BOX ────────────────────────────────────── -->
+    <rect x="100" y="192" width="56" height="38" rx="8"
+          fill="#1e293b" stroke="#475569" stroke-width="2"/>
+
+    <!-- folder-tab hint at top of box -->
+    <rect x="108" y="189" width="18" height="6" rx="3"
+          fill="#334155" stroke="#475569" stroke-width="1.5"/>
+
+    <!-- merged-package dots: diamond cluster showing all packages present -->
+    <circle cx="128" cy="208" r="7.5" fill="#00ADD8"/>  <!-- Teal centre -->
+    <circle cx="119" cy="203" r="6"   fill="#3776AB"/>  <!-- Blue  upper-left  -->
+    <circle cx="137" cy="203" r="6"   fill="#F7DF1E"/>  <!-- Yellow upper-right -->
+    <circle cx="119" cy="217" r="6"   fill="#A855F7"/>  <!-- Purple lower-left  -->
+    <circle cx="137" cy="217" r="6"   fill="#E8552B"/>  <!-- Orange lower-right -->
+
+  </g>
+
+  <!-- ── SOURCE CIRCLES (outside clip so corners don't cut them) ── -->
+  <circle cx="28"  cy="20" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="72"  cy="20" r="13" fill="#F7DF1E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="20" r="13" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="184" cy="20" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="228" cy="20" r="13" fill="#A855F7" stroke="#0f172a" stroke-width="2"/>
+</svg>

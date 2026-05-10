@@ -1,5 +1,7 @@
 # Integrated View Package Manager (IVPM)
 
+<img src="icons/ivpm-engine.svg" align="right" width="128" alt="IVPM icon"/>
+
 IVPM is a project-local, polyglot package manager. It fetches
 dependencies from diverse sources -- git repos, PyPI, npm, HTTP
 archives, GitHub releases, local directories, FuseSoC cores,

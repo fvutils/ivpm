@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    ivpm-funnel: packages (top circles) feed via converging threads into a
+    project box at the bottom. The threads visually funnel from a wide spread
+    into the project, and coloured dots inside the box show that every package
+    is now part of the unified project-centric view.
+
+    Colours:
+      Python  #3776AB  cx=28
+      JS      #F7DF1E  cx=72
+      Go      #00ADD8  cx=128
+      Rust    #E8552B  cx=184
+      Other   #A855F7  cx=228
+
+    Thread endpoints inside project box (slight convergence):
+      60, 90, 128, 166, 196
+  -->
+  <defs>
+    <clipPath id="fn-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#fn-clip)">
+
+    <!-- project box (drawn first so threads render in front of its border) -->
+    <rect x="22" y="162" width="212" height="84" rx="14"
+          fill="#1e293b" stroke="#334155" stroke-width="2.5"/>
+
+    <!-- funnelling threads — converge from wide source spread to narrower project spread -->
+    <g fill="none" stroke-linecap="round" stroke-width="14">
+      <path d="M 28,33  C 28,105  60,150  60,208"  stroke="#3776AB"/>
+      <path d="M 72,33  C 72,105  90,150  90,208"  stroke="#F7DF1E"/>
+      <path d="M 128,33 C 128,105 128,150 128,208" stroke="#00ADD8"/>
+      <path d="M 184,33 C 184,105 166,150 166,208" stroke="#E8552B"/>
+      <path d="M 228,33 C 228,105 196,150 196,208" stroke="#A855F7"/>
+    </g>
+
+    <!-- coloured dots inside the project: packages melded into the project view -->
+    <circle cx="60"  cy="208" r="11" fill="#3776AB" stroke="#1e293b" stroke-width="2"/>
+    <circle cx="90"  cy="208" r="11" fill="#F7DF1E" stroke="#1e293b" stroke-width="2"/>
+    <circle cx="128" cy="208" r="11" fill="#00ADD8" stroke="#1e293b" stroke-width="2"/>
+    <circle cx="166" cy="208" r="11" fill="#E8552B" stroke="#1e293b" stroke-width="2"/>
+    <circle cx="196" cy="208" r="11" fill="#A855F7" stroke="#1e293b" stroke-width="2"/>
+
+    <!-- subtle label area at bottom of project box -->
+    <rect x="64" y="224" width="128" height="14" rx="4" fill="#334155" opacity="0.7"/>
+
+  </g>
+
+  <!-- package source circles at top (outside clip so they're never corner-clipped) -->
+  <circle cx="28"  cy="20" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="72"  cy="20" r="13" fill="#F7DF1E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="20" r="13" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="184" cy="20" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="228" cy="20" r="13" fill="#A855F7" stroke="#0f172a" stroke-width="2"/>
+</svg>

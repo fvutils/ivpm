@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Weave: 5 horizontal ribbons flow left-to-right. Two pairs swap positions
+    (cross at the midpoint), communicating that disparate inputs are woven
+    into a unified, reordered output.
+
+    Ribbon layout (input y / output y):
+      0  Python blue   #3776AB   46 → 88   (crosses under ribbon 1)
+      1  JS yellow     #F7DF1E   88 → 46   (crosses over  ribbon 0)
+      2  Go teal       #00ADD8  128 → 168  (crosses under ribbon 3)
+      3  Rust orange   #E8552B  168 → 128  (crosses over  ribbon 2)
+      4  Other purple  #A855F7  210 → 210  (straight, no crossing)
+
+    Drawing order to get correct Z: 0,2 (under), then 4 (straight), then 1,3 (over).
+  -->
+  <defs>
+    <clipPath id="wv-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#wv-clip)" fill="none" stroke-linecap="round" stroke-width="20">
+
+    <!-- under ribbons first -->
+    <path d="M 26,46  C 128,46  128,88  230,88"  stroke="#3776AB"/>
+    <path d="M 26,128 C 128,128 128,168 230,168" stroke="#00ADD8"/>
+
+    <!-- straight ribbon (middle) -->
+    <path d="M 26,210 L 230,210" stroke="#A855F7"/>
+
+    <!-- over ribbons (drawn on top at crossing zone) -->
+    <path d="M 26,88  C 128,88  128,46  230,46"  stroke="#F7DF1E"/>
+    <path d="M 26,168 C 128,168 128,128 230,128" stroke="#E8552B"/>
+
+  </g>
+
+  <!-- Input dots (left) — input order -->
+  <circle cx="14" cy="46"  r="11" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="14" cy="88"  r="11" fill="#F7DF1E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="14" cy="128" r="11" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="14" cy="168" r="11" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="14" cy="210" r="11" fill="#A855F7" stroke="#0f172a" stroke-width="2"/>
+
+  <!-- Output dots (right) — swapped order shows weave reintegrated everything -->
+  <circle cx="242" cy="46"  r="11" fill="#F7DF1E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="242" cy="88"  r="11" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="242" cy="128" r="11" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="242" cy="168" r="11" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="242" cy="210" r="11" fill="#A855F7" stroke="#0f172a" stroke-width="2"/>
+</svg>

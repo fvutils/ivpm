@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 340" width="820" height="340">
+  <!--
+    IVPM system diagram: Package Sources → IVPM → Project (packages/)
+    Replaces the clunky Excalidraw export.
+    Layout:
+      Sources  x=10–160   (5 labelled pills)
+      IVPM box x=300–430  (centre engine)
+      Project  x=580–810  (project dir / packages/ tree)
+    Converging lines echo the icon's funnel metaphor.
+  -->
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6"/>
+    </marker>
+  </defs>
+
+  <!-- background -->
+  <rect width="820" height="340" rx="18" fill="#0f172a"/>
+
+  <!-- ── SOURCE PILLS ─────────────────────────────────────────────── -->
+  <!-- Git -->
+  <rect x="12" y="28"  width="148" height="36" rx="10" fill="#1e293b" stroke="#E8552B" stroke-width="1.5"/>
+  <circle cx="30" cy="46" r="8" fill="#E8552B"/>
+  <text x="48" y="51" font-family="system-ui,sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Git repos</text>
+
+  <!-- PyPI -->
+  <rect x="12" y="82"  width="148" height="36" rx="10" fill="#1e293b" stroke="#3776AB" stroke-width="1.5"/>
+  <circle cx="30" cy="100" r="8" fill="#3776AB"/>
+  <text x="48" y="105" font-family="system-ui,sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">PyPI</text>
+
+  <!-- npm -->
+  <rect x="12" y="136" width="148" height="36" rx="10" fill="#1e293b" stroke="#F7DF1E" stroke-width="1.5"/>
+  <circle cx="30" cy="154" r="8" fill="#F7DF1E"/>
+  <text x="48" y="159" font-family="system-ui,sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">npm</text>
+
+  <!-- HTTP -->
+  <rect x="12" y="190" width="148" height="36" rx="10" fill="#1e293b" stroke="#00ADD8" stroke-width="1.5"/>
+  <circle cx="30" cy="208" r="8" fill="#00ADD8"/>
+  <text x="48" y="213" font-family="system-ui,sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">HTTP archives</text>
+
+  <!-- local / other -->
+  <rect x="12" y="244" width="148" height="36" rx="10" fill="#1e293b" stroke="#A855F7" stroke-width="1.5"/>
+  <circle cx="30" cy="262" r="8" fill="#A855F7"/>
+  <text x="48" y="267" font-family="system-ui,sans-serif" font-size="14" font-weight="600" fill="#e2e8f0">Local / other</text>
+
+  <!-- ── FUNNEL LINES (sources → IVPM) ───────────────────────────── -->
+  <g stroke-linecap="round" stroke-width="2" fill="none" marker-end="url(#arrow)">
+    <path d="M 162,46  C 230,46  280,158 298,168" stroke="#E8552B" opacity="0.7"/>
+    <path d="M 162,100 C 230,100 280,158 298,168" stroke="#3776AB" opacity="0.7"/>
+    <path d="M 162,154 C 230,154 280,163 298,168" stroke="#F7DF1E" opacity="0.7"/>
+    <path d="M 162,208 C 230,208 280,173 298,173" stroke="#00ADD8" opacity="0.7"/>
+    <path d="M 162,262 C 230,262 280,183 298,178" stroke="#A855F7" opacity="0.7"/>
+  </g>
+
+  <!-- ── IVPM BOX ─────────────────────────────────────────────────── -->
+  <rect x="298" y="120" width="140" height="100" rx="14" fill="#0f2d4a" stroke="#3b82f6" stroke-width="2.5"/>
+  <!-- mini icon inside: 3 dots representing the braid/cluster -->
+  <circle cx="365" cy="146" r="6"   fill="#00ADD8"/>
+  <circle cx="357" cy="140" r="4.5" fill="#3776AB"/>
+  <circle cx="373" cy="140" r="4.5" fill="#E8552B"/>
+  <line x1="365" y1="153" x2="365" y2="160" stroke="#64748b" stroke-width="1.5"/>
+  <text x="365" y="178"
+        font-family="system-ui,sans-serif" font-size="20" font-weight="800"
+        letter-spacing="2" text-anchor="middle" fill="white">IVPM</text>
+  <text x="365" y="210"
+        font-family="system-ui,sans-serif" font-size="10"
+        text-anchor="middle" fill="#64748b">ivpm update</text>
+
+  <!-- ── OUTPUT ARROW (IVPM → Project) ──────────────────────────── -->
+  <path d="M 440,170 L 576,170" stroke="#3b82f6" stroke-width="2"
+        fill="none" marker-end="url(#arrow-blue)"/>
+
+  <!-- ── PROJECT BOX ─────────────────────────────────────────────── -->
+  <!-- folder tab -->
+  <rect x="580" y="44" width="60" height="12" rx="5" fill="#334155" stroke="#475569" stroke-width="1.5"/>
+  <!-- main box -->
+  <rect x="580" y="52" width="228" height="236" rx="14" fill="#1e293b" stroke="#475569" stroke-width="2"/>
+
+  <!-- project label -->
+  <text x="694" y="76" font-family="system-ui,sans-serif" font-size="13" font-weight="700"
+        text-anchor="middle" fill="#94a3b8" letter-spacing="1">PROJECT</text>
+  <line x1="594" y1="84" x2="794" y2="84" stroke="#334155" stroke-width="1"/>
+
+  <!-- packages/ directory entry -->
+  <text x="600" y="106" font-family="ui-monospace,monospace" font-size="12" fill="#64748b">📁 packages/</text>
+
+  <!-- individual package entries with coloured dots -->
+  <circle cx="614" cy="126" r="5" fill="#E8552B"/>
+  <text x="626" y="130" font-family="ui-monospace,monospace" font-size="11" fill="#cbd5e1">my-git-dep/</text>
+
+  <circle cx="614" cy="148" r="5" fill="#3776AB"/>
+  <text x="626" y="152" font-family="ui-monospace,monospace" font-size="11" fill="#cbd5e1">numpy  (pypi)</text>
+
+  <circle cx="614" cy="170" r="5" fill="#F7DF1E"/>
+  <text x="626" y="174" font-family="ui-monospace,monospace" font-size="11" fill="#cbd5e1">react  (npm)</text>
+
+  <circle cx="614" cy="192" r="5" fill="#00ADD8"/>
+  <text x="626" y="196" font-family="ui-monospace,monospace" font-size="11" fill="#cbd5e1">asset.tar.gz</text>
+
+  <circle cx="614" cy="214" r="5" fill="#A855F7"/>
+  <text x="626" y="218" font-family="ui-monospace,monospace" font-size="11" fill="#cbd5e1">local-lib/</text>
+
+  <line x1="594" y1="228" x2="794" y2="228" stroke="#334155" stroke-width="1"/>
+
+  <!-- python/ venv entry -->
+  <text x="600" y="248" font-family="ui-monospace,monospace" font-size="12" fill="#64748b">📁 python/  (venv)</text>
+  <text x="600" y="268" font-family="ui-monospace,monospace" font-size="12" fill="#64748b">📄 ivpm.yaml</text>
+  <text x="600" y="285" font-family="ui-monospace,monospace" font-size="12" fill="#64748b">📄 ivpm.json  (lock)</text>
+
+  <!-- ── CAPTION ──────────────────────────────────────────────────── -->
+  <text x="410" y="326"
+        font-family="system-ui,sans-serif" font-size="12" fill="#475569"
+        text-anchor="middle">
+    IVPM fetches heterogeneous dependencies and assembles a unified project-local view
+  </text>
+</svg>

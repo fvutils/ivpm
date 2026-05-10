@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="32" height="32">
+  <!--
+    32×32 variant — 3 sources (drop JS + Other), very heavy strokes,
+    bolder box, no horizontal rule. IVPM text kept but bold/compact.
+  -->
+  <defs>
+    <clipPath id="eg32-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#eg32-clip)">
+    <!-- 3 fan-in threads only -->
+    <g fill="none" stroke-linecap="round" stroke-width="36">
+      <path d="M 48,33  C 48,74  90,86  90,92"  stroke="#3776AB"/>
+      <path d="M 128,33 C 128,74 128,86 128,92" stroke="#00ADD8"/>
+      <path d="M 208,33 C 208,74 166,86 166,92" stroke="#E8552B"/>
+    </g>
+    <!-- 3-strand braid -->
+    <g fill="none" stroke-linecap="round" stroke-width="36">
+      <path d="M 128,144 C 128,160 128,175 128,192" stroke="#00ADD8"/>
+      <path d="M 155,144 C 155,162 101,172 128,192" stroke="#E8552B"/>
+      <path d="M 101,144 C 101,162 155,172 128,192" stroke="#3776AB"/>
+    </g>
+    <!-- IVPM box -->
+    <rect x="48" y="88" width="160" height="56" rx="12"
+          fill="#0f2d4a" stroke="#3b82f6" stroke-width="7"/>
+    <text x="128" y="127"
+          font-family="system-ui, ui-sans-serif, sans-serif"
+          font-size="26" font-weight="800" letter-spacing="2"
+          text-anchor="middle" fill="white">IVPM</text>
+    <!-- project box -->
+    <rect x="22" y="186" width="36" height="12" rx="4"
+          fill="#334155" stroke="#475569" stroke-width="3"/>
+    <rect x="10" y="192" width="236" height="56" rx="14"
+          fill="#1e293b" stroke="#475569" stroke-width="6"/>
+    <!-- 3-dot cluster (matches 3 threads) -->
+    <circle cx="128" cy="218" r="13" fill="#00ADD8"/>
+    <circle cx="113" cy="210" r="10" fill="#3776AB"/>
+    <circle cx="143" cy="210" r="10" fill="#E8552B"/>
+  </g>
+  <!-- 3 source circles -->
+  <circle cx="48"  cy="20" r="20" fill="#3776AB" stroke="#0f172a" stroke-width="3"/>
+  <circle cx="128" cy="20" r="20" fill="#00ADD8" stroke="#0f172a" stroke-width="3"/>
+  <circle cx="208" cy="20" r="20" fill="#E8552B" stroke="#0f172a" stroke-width="3"/>
+</svg>

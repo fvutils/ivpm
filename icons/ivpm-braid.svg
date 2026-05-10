@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <clipPath id="br-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#br-clip)" fill="none" stroke-linecap="round" stroke-width="22">
+    <!-- B (emerald, always back — oscillates wide) -->
+    <path d="M 128,20 C 53,20 53,74 128,74 C 203,74 203,128 128,128 C 53,128 53,182 128,182 C 203,182 203,236 128,236"
+          stroke="#22C55E"/>
+    <!-- Period 1,3: C under A -->
+    <path d="M 184,20  C 128,20  128,74  72,74"  stroke="#E8552B"/>
+    <path d="M 184,128 C 128,128 128,182 72,182" stroke="#E8552B"/>
+    <!-- Period 2,4: A under C -->
+    <path d="M 184,74  C 128,74  128,128 72,128" stroke="#3776AB"/>
+    <path d="M 184,182 C 128,182 128,236 72,236" stroke="#3776AB"/>
+    <!-- Period 1,3: A on top -->
+    <path d="M 72,20  C 128,20  128,74  184,74"  stroke="#3776AB"/>
+    <path d="M 72,128 C 128,128 128,182 184,182" stroke="#3776AB"/>
+    <!-- Period 2,4: C on top -->
+    <path d="M 72,74  C 128,74  128,128 184,128" stroke="#E8552B"/>
+    <path d="M 72,182 C 128,182 128,236 184,236" stroke="#E8552B"/>
+  </g>
+  <!-- Extra small source nodes hinting at more ecosystems -->
+  <circle cx="44"  cy="20" r="8"  fill="#A855F7"/>
+  <circle cx="212" cy="20" r="8"  fill="#F7DF1E"/>
+  <!-- Main source nodes -->
+  <circle cx="72"  cy="20" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="20" r="13" fill="#22C55E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="184" cy="20" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <!-- Output nodes (reordered — braid has mixed them) -->
+  <circle cx="72"  cy="236" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="236" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="184" cy="236" r="13" fill="#22C55E" stroke="#0f172a" stroke-width="2"/>
+</svg>

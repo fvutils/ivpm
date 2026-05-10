@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    Triple helix: three strands (Python blue, Go teal, Rust orange) wound around
+    a common axis. Period = 72 px; amplitude = 50 px (x = 78..178).
+    Phases: A starts at right peak (178,20), B starts at centre (128,20),
+            C starts at left trough (78,20).
+    Back-facing arc segments are drawn at low opacity to suggest depth.
+    Front-facing segments are drawn full-opacity on top.
+  -->
+  <defs>
+    <clipPath id="hx-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#hx-clip)" fill="none" stroke-linecap="round">
+
+    <!-- ── BACK ARCS (dimmed) ─────────────────────────────────────── -->
+    <g opacity="0.28" stroke-width="18">
+      <!-- A back arcs: x goes 128→78→128 -->
+      <path d="M 128,38  C 61,38  61,74  128,74"  stroke="#3776AB"/>
+      <path d="M 128,110 C 61,110 61,146 128,146" stroke="#3776AB"/>
+      <path d="M 128,182 C 61,182 61,218 128,218" stroke="#3776AB"/>
+      <!-- B back arcs: x goes 128→78→128 -->
+      <path d="M 128,20  C 61,20  61,56  128,56"  stroke="#00ADD8"/>
+      <path d="M 128,92  C 61,92  61,128 128,128" stroke="#00ADD8"/>
+      <path d="M 128,164 C 61,164 61,200 128,200" stroke="#00ADD8"/>
+      <!-- C back arcs (starting/ending quarter-arcs + full back arcs) -->
+      <path d="M 78,20   C 78,29  102,38 128,38"  stroke="#E8552B"/>
+      <path d="M 128,74  C 61,74  61,110 128,110" stroke="#E8552B"/>
+      <path d="M 128,146 C 61,146 61,182 128,182" stroke="#E8552B"/>
+      <path d="M 128,218 C 102,218 78,227 78,236" stroke="#E8552B"/>
+    </g>
+
+    <!-- ── FRONT ARCS (full opacity) ─────────────────────────────── -->
+    <g stroke-width="18">
+      <!-- C front arcs first (so A ends up on top where they share y-bands) -->
+      <path d="M 128,38  C 195,38  195,74  128,74"  stroke="#E8552B"/>
+      <path d="M 128,110 C 195,110 195,146 128,146" stroke="#E8552B"/>
+      <path d="M 128,182 C 195,182 195,218 128,218" stroke="#E8552B"/>
+      <!-- B front arcs -->
+      <path d="M 128,56  C 195,56  195,92  128,92"  stroke="#00ADD8"/>
+      <path d="M 128,128 C 195,128 195,164 128,164" stroke="#00ADD8"/>
+      <path d="M 128,200 C 195,200 195,236 128,236" stroke="#00ADD8"/>
+      <!-- A front arcs (drawn last = topmost) -->
+      <path d="M 178,20  C 178,29  154,38 128,38"   stroke="#3776AB"/>
+      <path d="M 128,74  C 195,74  195,110 128,110" stroke="#3776AB"/>
+      <path d="M 128,146 C 195,146 195,182 128,182" stroke="#3776AB"/>
+      <path d="M 128,218 C 154,218 178,227 178,236" stroke="#3776AB"/>
+    </g>
+  </g>
+
+  <!-- Extra small source dots -->
+  <circle cx="44"  cy="20" r="8"  fill="#A855F7"/>
+  <circle cx="212" cy="20" r="8"  fill="#F7DF1E"/>
+  <!-- Main source nodes at strand start positions -->
+  <circle cx="78"  cy="20" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="20" r="13" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="178" cy="20" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <!-- Output nodes (strands return to same relative positions after 3 full turns) -->
+  <circle cx="78"  cy="236" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="236" r="13" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="178" cy="236" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+</svg>

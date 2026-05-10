@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="16" height="16">
+  <!--
+    16×16 variant — no text, 3 sources, 2 thick converging lines,
+    minimal project box with 3-dot cluster. Maximum contrast.
+  -->
+  <defs>
+    <clipPath id="eg16-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#eg16-clip)">
+    <!-- 3 converging threads — no IVPM box, direct funnel into project -->
+    <g fill="none" stroke-linecap="round" stroke-width="52">
+      <path d="M 48,38  C 48,120 128,148 128,192" stroke="#3776AB"/>
+      <path d="M 128,38 C 128,120 128,148 128,192" stroke="#00ADD8"/>
+      <path d="M 208,38 C 208,120 128,148 128,192" stroke="#E8552B"/>
+    </g>
+    <!-- project box -->
+    <rect x="8" y="192" width="240" height="58" rx="16"
+          fill="#1e293b" stroke="#475569" stroke-width="10"/>
+    <!-- 3-dot cluster -->
+    <circle cx="128" cy="219" r="15" fill="#00ADD8"/>
+    <circle cx="108" cy="209" r="12" fill="#3776AB"/>
+    <circle cx="148" cy="209" r="12" fill="#E8552B"/>
+  </g>
+  <!-- 3 source circles -->
+  <circle cx="48"  cy="22" r="24" fill="#3776AB" stroke="#0f172a" stroke-width="4"/>
+  <circle cx="128" cy="22" r="24" fill="#00ADD8" stroke="#0f172a" stroke-width="4"/>
+  <circle cx="208" cy="22" r="24" fill="#E8552B" stroke="#0f172a" stroke-width="4"/>
+</svg>

@@ -12,7 +12,9 @@ inside your project, processes them through a :doc:`handler pipeline
 project is fully self-contained -- there is no global state shared between
 projects.
 
-.. image:: imgs/ivpm_system.png
+.. image:: imgs/ivpm_system_diagram.svg
+   :width: 100%
+   :alt: IVPM system diagram
 
 Key Capabilities
 =================

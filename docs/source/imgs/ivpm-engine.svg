@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!--
+    ivpm-engine: five ecosystem threads fan into an "IVPM" box (the tool),
+    which outputs a tight 3-strand braid that converges into a wide project
+    box (the deps directory) at the bottom.
+
+    Flow:
+      top  — 5 source circles (packages)
+      ↓    — fan-in threads converge toward IVPM box
+      mid  — IVPM box (the tool / engine)
+      ↓    — 3 tight braid threads (L crosses over R, C centre)
+      bot  — wide project/deps-dir box with all 5 package dots
+
+    Fan-in entry x positions: 78, 102, 128, 154, 178
+    Braid exit  x positions: 108 (L·blue), 128 (C·teal), 148 (R·orange)
+    All braid threads converge to (128, 192).
+
+    Braid Z-order: C drawn first (always under), R under L, L on top.
+  -->
+  <defs>
+    <clipPath id="eg-clip"><rect width="256" height="256" rx="28"/></clipPath>
+  </defs>
+
+  <rect width="256" height="256" rx="28" fill="#0f172a"/>
+  <g clip-path="url(#eg-clip)">
+
+    <!-- ── FAN-IN THREADS (packages → IVPM box) ─────────────────── -->
+    <g fill="none" stroke-linecap="round" stroke-width="13">
+      <path d="M 28,33  C 28,74  78,86  78,92"  stroke="#3776AB"/>
+      <path d="M 72,33  C 72,74  102,86 102,92" stroke="#F7DF1E"/>
+      <path d="M 128,33 C 128,74 128,86 128,92" stroke="#00ADD8"/>
+      <path d="M 184,33 C 184,74 154,86 154,92" stroke="#E8552B"/>
+      <path d="M 228,33 C 228,74 178,86 178,92" stroke="#A855F7"/>
+    </g>
+
+    <!-- ── BRAID THREADS (IVPM box → deps convergence) ───────────── -->
+    <!-- Drawn BEFORE the IVPM box so the box border sits on top -->
+    <!-- Draw C first (always under), then R (under L), then L (on top) -->
+    <g fill="none" stroke-linecap="round" stroke-width="13">
+      <!-- C: centre, teal, goes relatively straight -->
+      <path d="M 128,144 C 128,160 128,175 128,192" stroke="#00ADD8"/>
+      <!-- R: orange, sweeps left — goes UNDER L at crossing ~y=162 -->
+      <path d="M 148,144 C 148,160 108,170 128,192" stroke="#E8552B"/>
+      <!-- L: blue, sweeps right — goes OVER R at crossing ~y=162 -->
+      <path d="M 108,144 C 108,160 148,170 128,192" stroke="#3776AB"/>
+    </g>
+
+    <!-- ── IVPM BOX (drawn after braid so its border is always on top) ── -->
+    <rect x="50" y="92" width="156" height="52" rx="10"
+          fill="#0f2d4a" stroke="#3b82f6" stroke-width="2.5"/>
+    <!-- subtle horizontal rule suggesting "processing" -->
+    <line x1="62" y1="118" x2="194" y2="118" stroke="#1e4976" stroke-width="1"/>
+    <text x="128" y="124"
+          font-family="system-ui, ui-sans-serif, sans-serif"
+          font-size="24" font-weight="700" letter-spacing="3"
+          text-anchor="middle" fill="white" opacity="0.95">IVPM</text>
+
+    <!-- ── PROJECT / DEPS-DIR BOX ─────────────────────────────────── -->
+    <!-- folder tab -->
+    <rect x="22" y="188" width="36" height="8" rx="4"
+          fill="#334155" stroke="#475569" stroke-width="1.5"/>
+    <!-- main box (covers braid convergence point at (128,192)) -->
+    <rect x="14" y="192" width="228" height="52" rx="12"
+          fill="#1e293b" stroke="#475569" stroke-width="2"/>
+
+    <!-- converged-package diamond cluster (same as ivpm-converge.svg focal point,
+         shifted to centre of this project box at (128,218)) -->
+    <circle cx="128" cy="218" r="7.5" fill="#00ADD8"/>  <!-- Teal  centre       -->
+    <circle cx="119" cy="213" r="6"   fill="#3776AB"/>  <!-- Blue  upper-left   -->
+    <circle cx="137" cy="213" r="6"   fill="#F7DF1E"/>  <!-- Yellow upper-right -->
+    <circle cx="119" cy="227" r="6"   fill="#A855F7"/>  <!-- Purple lower-left  -->
+    <circle cx="137" cy="227" r="6"   fill="#E8552B"/>  <!-- Orange lower-right -->
+
+  </g>
+
+  <!-- ── SOURCE CIRCLES (outside clip so corners don't trim them) ── -->
+  <circle cx="28"  cy="20" r="13" fill="#3776AB" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="72"  cy="20" r="13" fill="#F7DF1E" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="128" cy="20" r="13" fill="#00ADD8" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="184" cy="20" r="13" fill="#E8552B" stroke="#0f172a" stroke-width="2"/>
+  <circle cx="228" cy="20" r="13" fill="#A855F7" stroke="#0f172a" stroke-width="2"/>
+</svg>
