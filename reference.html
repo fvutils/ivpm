@@ -751,7 +751,7 @@
 <h6>deps<a class="headerlink" href="#deps" title="Link to this heading"></a></h6>
 <p>Show project dependency tree and package information</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">deps</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">tree</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
-               <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span>
+               <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">dot</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">o</span> <span class="n">OUTPUT</span><span class="p">]</span>
                <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
@@ -783,6 +783,13 @@
 </dd>
 <dt><kbd>-d, --dep-set</kbd></dt>
 <dd><p>Dependency set to inspect (default: project default)</p>
+</dd>
+<dt><kbd>--dot</kbd></dt>
+<dd><p>Emit a Graphviz DOT graph of the dependency relationships</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-o, --output</kbd></dt>
+<dd><p>Write output to FILE instead of stdout (useful with –dot)</p>
 </dd>
 </dl>
 </section>
