@@ -314,6 +314,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Project root directory (default: cwd)")
     show_deps_cmd.add_argument("-d", "--dep-set", dest="dep_set", default=None,
         help="Dependency set to inspect (default: project default)")
+    show_deps_cmd.add_argument("--dot", action="store_true", default=False,
+        help="Emit a Graphviz DOT graph of the dependency relationships")
+    show_deps_cmd.add_argument("-o", "--output", dest="output", default=None,
+        help="Write output to FILE instead of stdout (useful with --dot)")
 
     _finalize_subparser_help(show_subparser)
 

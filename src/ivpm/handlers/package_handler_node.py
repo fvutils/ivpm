@@ -224,17 +224,29 @@ class PackageHandlerNode(PackageHandler):
         """Read a package.json URL and synthesize PackageNpm entries."""
         from ..pkg_types.package_npm import PackageNpm
 
-        url = getattr(pkg, "url", None)
-        if not url:
-            _logger.warning("src: package.json entry '%s' has no url — skipping", pkg.name)
-            return
+        proj_dir = getattr(update_info, "project_dir", None) or os.getcwd()
 
-        # Resolve file:// URLs and ${VAR} substitutions
-        path = url
-        if path.startswith("file://"):
-            path = path[len("file://"):]
-        # Expand environment variables
-        path = os.path.expandvars(path)
+        json_path = getattr(pkg, "json_path", None)
+        if json_path:
+            # Expand env vars and resolve relative paths against the project dir
+            json_path = os.path.expandvars(json_path)
+            if not os.path.isabs(json_path):
+                json_path = os.path.join(proj_dir, json_path)
+            path = json_path
+        else:
+            url = getattr(pkg, "url", None)
+            if not url:
+                # Default to the project root's package.json when no url is given
+                url = os.path.join(proj_dir, "package.json")
+                _logger.debug(
+                    "src: package.json entry '%s' has no url — defaulting to '%s'",
+                    pkg.name, url)
+
+            # Resolve file:// URLs and ${VAR} substitutions
+            path = url
+            if path.startswith("file://"):
+                path = path[len("file://"):]
+            path = os.path.expandvars(path)
 
         if not os.path.isfile(path):
             _logger.warning("package.json not found at '%s' — skipping", path)

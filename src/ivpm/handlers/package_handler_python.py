@@ -146,7 +146,7 @@ import re as _re
 _PEP508_NAME_RE = _re.compile(r'^([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)')
 
 
-def _resolve_pyproject_url(url: str) -> str:
+def _resolve_pyproject_url(url: str, proj_dir: str = None) -> str:
     """Strip ``file://`` prefix and expand environment variables."""
     path = url
     if path.startswith("file://"):
@@ -289,7 +289,7 @@ class PackageHandlerPython(PackageHandler):
             with self._lock:
                 self.pkgs_info[pkg.name] = pkg
 
-    def _harvest_pyproject_toml(self, pkg) -> list:
+    def _harvest_pyproject_toml(self, pkg, update_info=None) -> list:
         """Read a ``pyproject.toml`` and return a list of ``PackagePyPi`` entries.
 
         Entries whose normalised name already exists in ``self.pypi_pkg_s``
@@ -302,11 +302,21 @@ class PackageHandlerPython(PackageHandler):
 
         from ..pkg_types.package_pypi import PackagePyPi
 
-        path = _resolve_pyproject_url(pkg.url)
+        toml_path = getattr(pkg, "toml_path", None)
+        if toml_path:
+            proj_dir = (getattr(update_info, "project_dir", None) or os.getcwd())
+            toml_path = os.path.expandvars(toml_path)
+            if not os.path.isabs(toml_path):
+                toml_path = os.path.join(proj_dir, toml_path)
+            path = toml_path
+        else:
+            url = pkg.url
+            path = _resolve_pyproject_url(url)
         if not os.path.isfile(path):
+            source_ref = getattr(pkg, "toml_path", None) or getattr(pkg, "url", None) or "<unknown>"
             fatal(
                 "src: pyproject.toml — file not found: %s "
-                "(resolved from '%s')" % (path, pkg.url)
+                "(resolved from '%s')" % (path, source_ref)
             )
             return []
 
@@ -402,7 +412,7 @@ class PackageHandlerPython(PackageHandler):
         # Runs before the has_python_pkgs check so a project with only a
         # pyproject.toml entry still triggers venv creation.
         for vp in self._pyproject_toml_pkgs:
-            for p in self._harvest_pyproject_toml(vp):
+            for p in self._harvest_pyproject_toml(vp, update_info):
                 if p.name not in self.pypi_pkg_s:
                     self.pypi_pkg_s.add(p.name)
                     self.pkgs_info[p.name] = p

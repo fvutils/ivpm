@@ -31,6 +31,7 @@ class PackagePackageJson(Package):
     Explicit IVPM entries always win on name collision.
     """
     url: str = None
+    json_path: str = None
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
@@ -38,6 +39,8 @@ class PackagePackageJson(Package):
 
         if "url" in opts:
             self.url = str(opts["url"])
+        if "path" in opts:
+            self.json_path = str(opts["path"])
 
     @staticmethod
     def create(name, opts, si) -> 'Package':
@@ -53,6 +56,7 @@ class PackagePackageJson(Package):
             description="Import npm dependencies from an existing package.json file",
             params=[
                 ParamInfo("url", "file:// path to the package.json (supports ${PROJ_ROOT} variables)"),
+                ParamInfo("path", "relative or absolute filesystem path to the package.json"),
             ],
             notes="IVPM reads 'dependencies' → non-dev and 'devDependencies' → dev npm packages. "
                   "Explicit IVPM dep entries always win on name collision.",

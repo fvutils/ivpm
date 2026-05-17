@@ -322,6 +322,88 @@ def _rich_detail(node: DepNode) -> None:
 
 
 # ---------------------------------------------------------------------------
+# DOT / Graphviz helpers
+# ---------------------------------------------------------------------------
+
+# Colours by package source type
+_SRC_COLORS = {
+    "git":     "lightyellow",
+    "pypi":    "lightgreen",
+    "gh-rls":  "lightcyan",
+    "http":    "lightsalmon",
+    "file":    "lightgrey",
+}
+_ROOT_COLOR   = "lightblue"
+_DEFAULT_COLOR = "white"
+
+
+def _dot_id(name: str) -> str:
+    """Return a safe DOT node identifier."""
+    return '"' + name.replace('"', '\\"') + '"'
+
+
+def _dot_label(name: str, node: DepNode) -> str:
+    """Build a multi-line DOT label for a package node."""
+    parts = [name]
+    ver = node.version_label()
+    if ver:
+        parts.append(ver)
+    if node.src:
+        parts.append(f"[{node.src}]")
+    return "\\n".join(parts)
+
+
+def _dot_graph(graph: DepGraph) -> str:
+    """Return a Graphviz DOT representation of the dependency graph."""
+    lines: List[str] = []
+    lines.append("digraph deps {")
+    lines.append("    rankdir=LR;")
+    lines.append('    node [shape=box, style=filled, fontname="Helvetica"];')
+    lines.append("")
+
+    # Root project node
+    root_id = _dot_id(graph.project)
+    root_ver = f"\\n{graph.version}" if graph.version else ""
+    lines.append(
+        f"    {root_id} [label={_dot_id(graph.project + root_ver)}, "
+        f'fillcolor="{_ROOT_COLOR}", shape=ellipse];'
+    )
+
+    # Collect unique nodes and edges via depth-first traversal
+    seen_nodes: dict = {}   # name → DepNode
+    edges: List[tuple] = [] # (from_name, to_name)
+
+    def _visit(nodes: List[DepNode], parent: str) -> None:
+        for node in nodes:
+            edges.append((parent, node.name))
+            if node.name not in seen_nodes:
+                seen_nodes[node.name] = node
+            if not node.shadowed:
+                _visit(node.deps, node.name)
+
+    _visit(graph.nodes, graph.project)
+
+    # Emit package nodes
+    lines.append("")
+    for name, node in sorted(seen_nodes.items()):
+        color = _SRC_COLORS.get(node.src, _DEFAULT_COLOR)
+        style = "dashed" if node.shadowed else "filled"
+        label = _dot_label(name, node)
+        lines.append(
+            f"    {_dot_id(name)} [label={_dot_id(label)}, "
+            f'fillcolor="{color}", style="{style}"];'
+        )
+
+    # Emit edges
+    lines.append("")
+    for from_name, to_name in edges:
+        lines.append(f"    {_dot_id(from_name)} -> {_dot_id(to_name)};")
+
+    lines.append("}")
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
 # Warning banner
 # ---------------------------------------------------------------------------
 
@@ -349,13 +431,21 @@ class ShowDeps:
         name     = getattr(args, "name", None)
         as_tree  = getattr(args, "tree", False)
         as_json  = getattr(args, "json", False)
+        as_dot   = getattr(args, "dot", False)
         no_rich  = getattr(args, "no_rich", False)
         proj_dir = getattr(args, "project_dir", None) or os.getcwd()
         dep_set  = getattr(args, "dep_set", None)
+        output   = getattr(args, "output", None)
 
-        # Mutual exclusion: --tree and <name>
+        # Mutual exclusion checks
         if as_tree and name:
             print("ivpm show deps: --tree and <name> are mutually exclusive.", file=sys.stderr)
+            sys.exit(1)
+        if as_dot and name:
+            print("ivpm show deps: --dot and <name> are mutually exclusive.", file=sys.stderr)
+            sys.exit(1)
+        if as_dot and (as_json or as_tree):
+            print("ivpm show deps: --dot is mutually exclusive with --json and --tree.", file=sys.stderr)
             sys.exit(1)
 
         from .dep_loader import DepLoader
@@ -373,31 +463,61 @@ class ShowDeps:
             _warn_no_lock(no_rich)
 
         if name:
-            self._show_detail(name, graph, as_json, no_rich)
+            self._show_detail(name, graph, as_json, no_rich, output)
+        elif as_dot:
+            self._show_dot(graph, output)
         elif as_tree:
-            self._show_tree(graph, as_json, no_rich)
+            self._show_tree(graph, as_json, no_rich, output)
         else:
-            self._show_flat(graph, as_json, no_rich)
+            self._show_flat(graph, as_json, no_rich, output)
 
     # ------------------------------------------------------------------
 
-    def _show_flat(self, graph: DepGraph, as_json: bool, no_rich: bool) -> None:
+    def _write_output(self, text: str, output: Optional[str]) -> None:
+        """Write text to a file or stdout."""
+        if output:
+            with open(output, "w") as f:
+                f.write(text)
+                if not text.endswith("\n"):
+                    f.write("\n")
+        else:
+            print(text)
+
+    def _show_flat(self, graph: DepGraph, as_json: bool, no_rich: bool, output: Optional[str] = None) -> None:
         if as_json:
-            print(_flat_json(graph))
-        elif no_rich or not sys.stdout.isatty():
-            _plain_flat(graph)
+            self._write_output(_flat_json(graph), output)
+        elif output or no_rich or not sys.stdout.isatty():
+            import io, contextlib
+            if output:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    _plain_flat(graph)
+                self._write_output(buf.getvalue().rstrip("\n"), output)
+            else:
+                _plain_flat(graph)
         else:
             _rich_flat(graph)
 
-    def _show_tree(self, graph: DepGraph, as_json: bool, no_rich: bool) -> None:
+    def _show_tree(self, graph: DepGraph, as_json: bool, no_rich: bool, output: Optional[str] = None) -> None:
         if as_json:
-            print(_tree_json(graph))
-        elif no_rich or not sys.stdout.isatty():
-            _plain_tree(graph)
+            self._write_output(_tree_json(graph), output)
+        elif output or no_rich or not sys.stdout.isatty():
+            import io, contextlib
+            if output:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    _plain_tree(graph)
+                self._write_output(buf.getvalue().rstrip("\n"), output)
+            else:
+                _plain_tree(graph)
         else:
             _rich_tree(graph)
 
-    def _show_detail(self, name: str, graph: DepGraph, as_json: bool, no_rich: bool) -> None:
+    def _show_dot(self, graph: DepGraph, output: Optional[str] = None) -> None:
+        dot_text = _dot_graph(graph)
+        self._write_output(dot_text, output)
+
+    def _show_detail(self, name: str, graph: DepGraph, as_json: bool, no_rich: bool, output: Optional[str] = None) -> None:
         node = self._find_node(name, graph.nodes)
         if node is None:
             known = sorted(self._collect_names(graph.nodes))
@@ -407,9 +527,16 @@ class ShowDeps:
             sys.exit(1)
 
         if as_json:
-            print(_detail_json(node))
-        elif no_rich or not sys.stdout.isatty():
-            _plain_detail(node)
+            self._write_output(_detail_json(node), output)
+        elif output or no_rich or not sys.stdout.isatty():
+            import io, contextlib
+            if output:
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    _plain_detail(node)
+                self._write_output(buf.getvalue().rstrip("\n"), output)
+            else:
+                _plain_detail(node)
         else:
             _rich_detail(node)
 

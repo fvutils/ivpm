@@ -37,6 +37,7 @@ class PackagePyprojectToml(Package):
     * ``all``                           — everything: runtime + all extras + all groups
     """
     url: str = None
+    toml_path: str = None
     include: list = dc.field(default_factory=lambda: ["dependencies"])
 
     def process_options(self, opts, si):
@@ -44,6 +45,8 @@ class PackagePyprojectToml(Package):
         self.src_type = "pyproject.toml"
         if "url" in opts:
             self.url = str(opts["url"])
+        if "path" in opts:
+            self.toml_path = str(opts["path"])
         if "include" in opts:
             raw = opts["include"]
             self.include = [raw] if isinstance(raw, str) else list(raw)
@@ -65,8 +68,12 @@ class PackagePyprojectToml(Package):
                     "url",
                     "file:// path to the pyproject.toml "
                     "(supports ${PROJ_ROOT} and other IVPM variables)",
-                    required=True,
+                    required=False,
                     type_hint="url",
+                ),
+                ParamInfo(
+                    "path",
+                    "relative or absolute filesystem path to the pyproject.toml",
                 ),
                 ParamInfo(
                     "include",
