@@ -31,6 +31,7 @@ import dataclasses as dc
 import logging
 import os
 import re
+import threading
 import yaml
 from typing import Optional
 
@@ -42,6 +43,10 @@ _logger = logging.getLogger("ivpm.pkg_types.package_fusesoc")
 
 _FUSESOC_CORES_URL = "https://github.com/fusesoc/fusesoc-cores.git"
 _FUSESOC_CORES_DIR = "fusesoc-cores"
+
+# Serializes concurrent _ensure_index calls to prevent the symlink race
+# condition when multiple src:fusesoc packages run in parallel.
+_index_lock = threading.Lock()
 
 
 @dc.dataclass
@@ -119,25 +124,32 @@ class PackageFuseSoC(Package):
         """Ensure the fusesoc-cores index is available in deps-dir.
 
         The index is fetched as a cached git dependency if not already present.
+        Uses a module-level lock to serialise concurrent calls from parallel
+        src:fusesoc packages so only one thread creates the symlink.
         """
         deps_dir = update_info.deps_dir
         index_path = os.path.join(deps_dir, _FUSESOC_CORES_DIR)
 
+        # Fast path: already exists — no lock needed
         if os.path.isdir(index_path):
-            note("FuseSoC cores index already available at %s" % index_path)
             return index_path
 
-        from .package_git import PackageGit
-        note("Fetching FuseSoC cores index from %s" % _FUSESOC_CORES_URL)
-        index_pkg = PackageGit(
-            name=_FUSESOC_CORES_DIR,
-            url=_FUSESOC_CORES_URL,
-            cache=True)
-        index_pkg.process_options(
-            {"url": _FUSESOC_CORES_URL, "cache": True},
-            None)
-        index_pkg.update(update_info)
-        return index_path
+        with _index_lock:
+            # Re-check inside the lock: another thread may have created it
+            if os.path.isdir(index_path):
+                return index_path
+
+            from .package_git import PackageGit
+            note("Fetching FuseSoC cores index from %s" % _FUSESOC_CORES_URL)
+            index_pkg = PackageGit(
+                name=_FUSESOC_CORES_DIR,
+                url=_FUSESOC_CORES_URL,
+                cache=True)
+            index_pkg.process_options(
+                {"url": _FUSESOC_CORES_URL, "cache": True},
+                None)
+            index_pkg.update(update_info)
+            return index_path
 
     def _vlnv_lookup(self, vlnv: str, index_dir: str):
         """Walk *.core files in *index_dir*, find the one matching *vlnv*.
