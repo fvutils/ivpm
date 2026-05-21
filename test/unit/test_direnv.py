@@ -26,6 +26,7 @@ class TestDirenv(TestBase):
         with open(envrc_path) as f:
             content = f.read()
         self.assertIn("source_env ./envrc_leaf1/export.envrc", content)
+        self.assertIn("export IVPM_PACKAGES_DIR=", content)
 
     def test_no_envrc_no_file(self):
         """Packages without envrc files produce no packages.envrc."""

@@ -511,9 +511,14 @@ class PackageGhRls(PackageHttp):
         Returns (glibc_major, glibc_minor, arch) or None
         """
         n = (name or "").lower()
-        m = re.search(r"manylinux_(\d+)_(\d+)_([a-z0-9_]+)", n)
+        m = re.search(r"manylinux_(\d+)_(\d+)[_-]([a-z0-9_]+)", n)
         if m:
-            return (int(m.group(1)), int(m.group(2)), m.group(3))
+            arch = m.group(3)
+            if arch in ("x64", "amd64"):
+                arch = "x86_64"
+            elif arch in ("aarch_64", "arm64"):
+                arch = "aarch64"
+            return (int(m.group(1)), int(m.group(2)), arch)
         m = re.search(r"manylinux(1|2010|2014)_([a-z0-9_]+)", n)
         if m:
             legacy = m.group(1)
