@@ -1,0 +1,304 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Deps-Source &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+    <link rel="shortcut icon" href="_static/favicon.svg"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Package Lock File" href="package_lock.html" />
+    <link rel="prev" title="Caching" href="caching.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+              <img src="_static/ivpm-logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Deps-Source</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#when-to-use-it">When to Use It</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quickstart">Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-matching-works">How Matching Works</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#trust-deps-source"><code class="docutils literal notranslate"><span class="pre">--trust-deps-source</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#materialization-mode">Materialization Mode</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#interaction-with-ivpm-sync">Interaction with <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#what-does-not-go-through-deps-source">What Does <em>Not</em> Go Through Deps-Source</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#lock-file-representation">Lock-File Representation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Deps-Source</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/deps_source.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="deps-source">
+<h1>Deps-Source<a class="headerlink" href="#deps-source" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>A <strong>deps-source</strong> is a sibling workspace’s <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory (whatever
+the project calls its packages dir – <code class="docutils literal notranslate"><span class="pre">packages/</span></code> by default in IVPM).
+When configured, IVPM consults that directory <em>before</em> the shared cache and
+before any remote fetch. If a satisfying entry is found, the current
+workspace’s package becomes a symlink (or copy) of the parent’s, and no
+clone or download happens.</p>
+<p>A deps-source is a third package source, in addition to remote fetch and
+the shared <a class="reference internal" href="caching.html"><span class="doc">cache</span></a>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Source</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Remote fetch</p></td>
+<td><p>Clone or download from <code class="docutils literal notranslate"><span class="pre">url:</span></code> (git, http, pypi, gh-rls, …).</p></td>
+</tr>
+<tr class="row-odd"><td><p>Shared cache</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code> (default <code class="docutils literal notranslate"><span class="pre">~/.cache/ivpm/</span></code>), populated lazily on
+first remote fetch, then symlinked into <code class="docutils literal notranslate"><span class="pre">packages/</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>Deps-source</p></td>
+<td><p>A parent <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory that acts as an even-more-local
+cache, consulted before the shared cache.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="when-to-use-it">
+<h2>When to Use It<a class="headerlink" href="#when-to-use-it" title="Link to this heading"></a></h2>
+<p>The motivating use case is <strong>LLM benchmarking</strong> and other
+derivative-workspace workflows: you maintain one large “golden” workspace
+whose <code class="docutils literal notranslate"><span class="pre">packages/</span></code> has every package already materialized – possibly
+patched or pinned in ways that aren’t reproducible from <code class="docutils literal notranslate"><span class="pre">url:</span></code> alone –
+and want short-lived child workspaces to pull only the subset of packages
+they actually need from it.</p>
+<p>If you just want network avoidance across multiple workspaces, the shared
+<code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is usually a better fit. Deps-source is for the case where
+the <em>source of truth</em> for a package is “whatever is in that other
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> over there.”</p>
+</section>
+<section id="quickstart">
+<h2>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>update<span class="w"> </span>--deps-source<span class="w"> </span>/path/to/golden/packages
+</pre></div>
+</div>
+<p>Repeatable for multiple parents (searched in order, first-match-wins):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>update<span class="w"> </span>--deps-source<span class="w"> </span>/shared/golden/packages<span class="w"> </span><span class="se">\</span>
+<span class="w">            </span>--deps-source<span class="w"> </span>/shared/baseline/packages
+</pre></div>
+</div>
+<p>Environment-variable form (colon-separated like <code class="docutils literal notranslate"><span class="pre">PATH</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_DEPS_SOURCE</span><span class="o">=</span>/shared/golden/packages:/shared/baseline/packages
+ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</section>
+<section id="how-matching-works">
+<h2>How Matching Works<a class="headerlink" href="#how-matching-works" title="Link to this heading"></a></h2>
+<p>By default, IVPM verifies a candidate by reading the parent’s
+<code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code> and comparing the <em>resolved identity</em> of the package
+the current project would fetch against the lock entry’s identity field:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><code class="docutils literal notranslate"><span class="pre">src_type</span></code></p></th>
+<th class="head"><p>identity field in parent lock</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">git</span></code>, <code class="docutils literal notranslate"><span class="pre">gh-rls</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">commit_resolved</span></code> / <code class="docutils literal notranslate"><span class="pre">version_resolved</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">tgz</span></code>, <code class="docutils literal notranslate"><span class="pre">txz</span></code>, <code class="docutils literal notranslate"><span class="pre">zip</span></code>, <code class="docutils literal notranslate"><span class="pre">jar</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">etag</span></code> (then <code class="docutils literal notranslate"><span class="pre">last_modified</span></code>)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">version_resolved</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dir</span></code>, <code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
+<td><p>never matched (no caching identity)</p></td>
+</tr>
+</tbody>
+</table>
+<p>A name collision across different <code class="docutils literal notranslate"><span class="pre">src_type</span></code> s (the parent has <code class="docutils literal notranslate"><span class="pre">foo</span></code> as
+<code class="docutils literal notranslate"><span class="pre">pypi</span></code>, you want <code class="docutils literal notranslate"><span class="pre">foo</span></code> as <code class="docutils literal notranslate"><span class="pre">git</span></code>) is a deliberate miss.</p>
+<p>If the parent has no <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code>, all matches via this strategy
+fail silently – IVPM falls through to the cache / remote fetch path as if
+no deps-source were configured.</p>
+<section id="trust-deps-source">
+<h3><code class="docutils literal notranslate"><span class="pre">--trust-deps-source</span></code><a class="headerlink" href="#trust-deps-source" title="Link to this heading"></a></h3>
+<p>Skip lock-file verification and trust that any same-named directory in the
+parent satisfies the request:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>update<span class="w"> </span>--deps-source<span class="w"> </span>/shared/golden/packages<span class="w"> </span>--trust-deps-source
+</pre></div>
+</div>
+<p>Use this when you know the parent is the right snapshot (typical for
+benchmarking) and don’t want to depend on having a current lock file.</p>
+</section>
+</section>
+<section id="materialization-mode">
+<h2>Materialization Mode<a class="headerlink" href="#materialization-mode" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">--deps-source-mode={link,copy}</span></code></p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">link</span></code> (default): <code class="docutils literal notranslate"><span class="pre">packages/&lt;pkg&gt;</span></code> is a symlink into the parent.
+Fast and free, but edits leak through to the parent.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">copy</span></code>: <code class="docutils literal notranslate"><span class="pre">packages/&lt;pkg&gt;</span></code> is a real copy. Slower and disk-heavy, but
+the child workspace can mutate the package without affecting the parent.</p></li>
+</ul>
+</section>
+<section id="interaction-with-ivpm-sync">
+<h2>Interaction with <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code><a class="headerlink" href="#interaction-with-ivpm-sync" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> is a no-op for packages materialized from a deps-source –
+they are read-only mirrors of someone else’s tree. The sync result reports
+<code class="docutils literal notranslate"><span class="pre">SKIPPED</span></code> with an actionable next step (“re-run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> without
+<code class="docutils literal notranslate"><span class="pre">--deps-source</span></code>, or point at a refreshed parent”).</p>
+</section>
+<section id="what-does-not-go-through-deps-source">
+<h2>What Does <em>Not</em> Go Through Deps-Source<a class="headerlink" href="#what-does-not-go-through-deps-source" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">dir:</span></code> and <code class="docutils literal notranslate"><span class="pre">file:</span></code> packages – already user-supplied paths with no
+caching identity.</p></li>
+<li><p>Editable git checkouts (<code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code>) – the user explicitly wants a
+hackable clone, not a foreign symlink.</p></li>
+</ul>
+</section>
+<section id="lock-file-representation">
+<h2>Lock-File Representation<a class="headerlink" href="#lock-file-representation" title="Link to this heading"></a></h2>
+<p>When a package comes from a deps-source, the local workspace’s
+<code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code> entry records the provenance:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;fusesoc&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;git&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;commit_resolved&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;abc123...&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;from_deps_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;/shared/golden/packages/fusesoc&quot;</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code> surfaces this provenance so it’s clear which packages are
+mirrors of a foreign tree.</p>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> – the more general shared-cache mechanism.</p></li>
+<li><p><a class="reference internal" href="package_lock.html"><span class="doc">Package Lock File</span></a> – how IVPM records resolved package identity.</p></li>
+<li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> – per-type identity fields used for matching.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="caching.html" class="btn btn-neutral float-left" title="Caching" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="package_lock.html" class="btn btn-neutral float-right" title="Package Lock File" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

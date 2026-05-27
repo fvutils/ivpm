@@ -535,6 +535,9 @@ Options:
 See Also
 ========
 
+- :doc:`deps_source` - A per-invocation "even-more-local cache" pointing at
+  a sibling workspace's ``packages/`` directory, consulted *before* the
+  shared cache when configured.
 - :doc:`package_types` - Understanding cache attribute on different package types
 - :doc:`getting_started` - Basic cache setup
 - :doc:`troubleshooting` - Solutions to common problems

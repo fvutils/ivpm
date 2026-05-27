@@ -27,6 +27,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    variables
    package_types
    caching
+   deps_source
    package_lock
    python_packages
    node_packages

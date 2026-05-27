@@ -53,6 +53,7 @@
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deps_source.html">Deps-Source</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
@@ -434,7 +435,8 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span>
             <span class="p">[</span><span class="o">--</span><span class="n">skip</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">prerls</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
             <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
-            <span class="p">[</span><span class="o">--</span><span class="n">lock</span><span class="o">-</span><span class="n">file</span> <span class="n">LOCK_FILE</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">refresh</span><span class="o">-</span><span class="nb">all</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
+            <span class="p">[</span><span class="o">--</span><span class="n">lock</span><span class="o">-</span><span class="n">file</span> <span class="n">LOCK_FILE</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">deps</span><span class="o">-</span><span class="n">source</span> <span class="n">PATH</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">trust</span><span class="o">-</span><span class="n">deps</span><span class="o">-</span><span class="n">source</span><span class="p">]</span>
+            <span class="p">[</span><span class="o">--</span><span class="n">deps</span><span class="o">-</span><span class="n">source</span><span class="o">-</span><span class="n">mode</span> <span class="p">{</span><span class="n">link</span><span class="p">,</span><span class="n">copy</span><span class="p">}]</span> <span class="p">[</span><span class="o">--</span><span class="n">refresh</span><span class="o">-</span><span class="nb">all</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">force</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat7">
@@ -483,6 +485,18 @@
 </dd>
 <dt><kbd>--lock-file</kbd></dt>
 <dd><p>Reproduce workspace from a package-lock.json file (ignores ivpm.yaml)</p>
+</dd>
+<dt><kbd>--deps-source</kbd></dt>
+<dd><p>Search PATH (a sibling deps/ dir) before the shared cache. Repeatable.</p>
+</dd>
+<dt><kbd>--trust-deps-source</kbd></dt>
+<dd><p>Trust deps-source entries by name (skip lock-file verification)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--deps-source-mode</kbd></dt>
+<dd><p>Possible choices: link, copy</p>
+<p>How to materialize a deps-source hit (default: link)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">'link'</span></code></p>
 </dd>
 <dt><kbd>--refresh-all</kbd></dt>
 <dd><p>Re-fetch all packages regardless of existing package-lock.json state</p>
