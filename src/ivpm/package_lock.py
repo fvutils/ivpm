@@ -106,6 +106,10 @@ def _entry_from_pkg(pkg) -> dict:
         entry["root"] = getattr(pkg, "module_root", None)
         entry["reproducible"] = False
 
+    # Record provenance if the package came from a deps-source.
+    if getattr(pkg, "from_deps_source", None):
+        entry["from_deps_source"] = pkg.from_deps_source
+
     return entry
 
 

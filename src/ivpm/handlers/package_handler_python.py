@@ -23,6 +23,7 @@ import dataclasses as dc
 import json
 import logging
 import platform
+import re
 import subprocess
 import textwrap
 import toposort
@@ -667,26 +668,36 @@ class PackageHandlerPython(PackageHandler):
         self._push_entrypoint_skills(python_dir, update_info)
 
     def _push_entrypoint_skills(self, python_dir: str, update_info) -> None:
-        """Query 'ivpm.skill' entry-points from the managed venv and push (name, skill_dir)
-        pairs to update_info.pending_skill_dirs for the agents handler to consume."""
+        """Query 'agent.skills' entry-points (with legacy 'ivpm.skill' fallback) from
+        the managed venv and push (name, skill_dir) pairs to update_info.pending_skill_dirs
+        for the agents handler to consume."""
         venv_python = get_venv_python(python_dir)
         if not os.path.isfile(venv_python):
             return
 
+        # Note: result is wrapped in sentinel markers so we can recover the JSON
+        # even when imported modules print noise to stdout at import time.
+        # Queries both 'agent.skills' (current) and 'ivpm.skill' (deprecated),
+        # deduplicating by (group-prioritized) entry-point name so dual-publishing
+        # packages don't produce duplicates.
         script = textwrap.dedent("""\
             import importlib.metadata, json, sys
-            eps = importlib.metadata.entry_points(group='ivpm.skill')
             result = []
-            for ep in eps:
-                try:
-                    fn = ep.load()
-                    dirs = fn() if callable(fn) else str(fn)
-                    if isinstance(dirs, (str, bytes)):
-                        dirs = [str(dirs)]
-                    result.append({'name': ep.name, 'dirs': list(dirs)})
-                except Exception as exc:
-                    sys.stderr.write('ivpm: entrypoint %s error: %s\\n' % (ep.name, exc))
-            print(json.dumps(result))
+            seen_names = set()
+            for group in ('agent.skills', 'ivpm.skill'):
+                for ep in importlib.metadata.entry_points(group=group):
+                    if ep.name in seen_names:
+                        continue
+                    try:
+                        fn = ep.load()
+                        dirs = fn() if callable(fn) else str(fn)
+                        if isinstance(dirs, (str, bytes)):
+                            dirs = [str(dirs)]
+                        result.append({'name': ep.name, 'dirs': list(dirs)})
+                        seen_names.add(ep.name)
+                    except Exception as exc:
+                        sys.stderr.write('ivpm: entrypoint %s (%s) error: %s\\n' % (ep.name, group, exc))
+            sys.stdout.write('<<IVPM_SKILLS_JSON>>' + json.dumps(result) + '<</IVPM_SKILLS_JSON>>\\n')
         """)
 
         try:
@@ -697,13 +708,22 @@ class PackageHandlerPython(PackageHandler):
                 timeout=30,
             )
             if r.returncode != 0:
-                _logger.warning("ivpm.skill entrypoint query failed: %s", r.stderr.strip())
+                print("ivpm: warning: agent.skills entrypoint query failed:\n%s"
+                      % r.stderr.strip(), file=sys.stderr)
                 return
             if r.stderr.strip():
-                _logger.warning("ivpm.skill entrypoint warnings: %s", r.stderr.strip())
-            data = json.loads(r.stdout)
+                print("ivpm: warning: agent.skills entrypoint errors "
+                      "(affected skills will not be linked):\n%s"
+                      % r.stderr.strip(), file=sys.stderr)
+            m = re.search(r'<<IVPM_SKILLS_JSON>>(.*?)<</IVPM_SKILLS_JSON>>', r.stdout, re.DOTALL)
+            if not m:
+                print("ivpm: warning: agent.skills entrypoint query produced no parseable "
+                      "output (stdout pollution?)", file=sys.stderr)
+                return
+            data = json.loads(m.group(1))
         except Exception as exc:
-            _logger.warning("Failed to query ivpm.skill entrypoints: %s", exc)
+            print("ivpm: warning: failed to query agent.skills/ivpm.skill entrypoints: %s" % exc,
+                  file=sys.stderr)
             return
 
         for item in data:

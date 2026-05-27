@@ -200,6 +200,15 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Inherit system site-packages in the virtual environment (default: isolated)")
     update_cmd.add_argument("--lock-file", dest="lock_file", default=None,
         help="Reproduce workspace from a package-lock.json file (ignores ivpm.yaml)")
+    update_cmd.add_argument("--deps-source", dest="deps_source", action="append",
+        default=None, metavar="PATH",
+        help="Search PATH (a sibling deps/ dir) before the shared cache. Repeatable.")
+    update_cmd.add_argument("--trust-deps-source", dest="trust_deps_source",
+        action="store_true", default=False,
+        help="Trust deps-source entries by name (skip lock-file verification)")
+    update_cmd.add_argument("--deps-source-mode", dest="deps_source_mode",
+        choices=("link", "copy"), default="link",
+        help="How to materialize a deps-source hit (default: link)")
     update_cmd.add_argument("--refresh-all", dest="refresh_all",
         action="store_true", default=False,
         help="Re-fetch all packages regardless of existing package-lock.json state")

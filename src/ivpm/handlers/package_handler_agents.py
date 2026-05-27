@@ -113,7 +113,8 @@ class PackageHandlerAgents(PackageHandler):
                 "When claude: true is set under package.with.agents, also mirrors to .claude/skills/. "
                 "Falls back to directory copy on platforms without symlink support. "
                 "Skill paths support glob patterns (e.g. skills/**/SKILL.md). "
-                "Python packages may register skills via the 'ivpm.skill' entry-point group; "
+                "Python packages may register skills via the 'agent.skills' entry-point group "
+                "(legacy 'ivpm.skill' is also accepted for backward compatibility); "
                 "each entry-point must be a callable returning a path (str) or list of paths "
                 "to directories containing SKILL.md."
             ),
@@ -169,12 +170,12 @@ class PackageHandlerAgents(PackageHandler):
 
         self.skill_entries.extend(self._discover_project_skills(update_info, project_dir))
 
-        # Consume skills pushed by the Python handler (ivpm.skill entry-points)
+        # Consume skills pushed by the Python handler (agent.skills entry-points)
         for ep_name, skill_dir in getattr(update_info, 'pending_skill_dirs', []):
             skill_file = os.path.join(skill_dir, "SKILL.md")
             if not os.path.isfile(skill_file):
                 _logger.warning(
-                    "ivpm.skill entrypoint '%s': no SKILL.md in %s", ep_name, skill_dir)
+                    "agent.skills entrypoint '%s': no SKILL.md in %s", ep_name, skill_dir)
                 continue
             if not self._validate_frontmatter(skill_file, ep_name):
                 continue

@@ -57,6 +57,13 @@ class PackageGit(PackageURL):
             note("package %s is already loaded" % self.name)
             self._capture_resolved_commit(pkg_dir)
         else:
+            # Try deps-source first — resolve commit, then check parent deps-dir(s)
+            if update_info.deps_source is not None:
+                self._resolve_commit_for_deps_source(update_info)
+                if update_info.try_deps_source(self):
+                    note("deps-source hit for %s" % self.name)
+                    return ProjInfo.mkFromProj(pkg_dir)
+
             # Check if caching is enabled and supported
             if self.cache is True:
                 # For GitHub URLs, use GitHub API; for others, use git ls-remote
@@ -154,6 +161,26 @@ class PackageGit(PackageURL):
             pass
         
         return None
+
+    def _resolve_commit_for_deps_source(self, update_info: ProjectUpdateInfo):
+        """Populate self.resolved_commit (no clone) so deps-source matching
+        can compare commit hashes.  Safe to call repeatedly; subsequent
+        cache/clone paths will re-use the resolved value.
+        """
+        if self.resolved_commit is not None:
+            return
+        # If user pinned an exact commit, use it directly.
+        if self.commit:
+            self.resolved_commit = self.commit
+            return
+        ref = self.branch or self.tag or "HEAD"
+        if is_github_url(self.url):
+            owner, repo = parse_github_url(self.url)
+            h = self._get_github_commit_hash(owner, repo, ref, update_info)
+        else:
+            h = self._get_commit_hash_ls_remote(ref, update_info)
+        if h is not None:
+            self.resolved_commit = h
 
     def _update_with_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
         """Update using the cache."""

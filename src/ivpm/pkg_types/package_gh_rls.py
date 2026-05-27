@@ -100,6 +100,12 @@ class PackageGhRls(PackageHttp):
         release_tag = rls.get("tag_name", "")
         self.resolved_version = release_tag
 
+        # Try deps-source — resolved_version is set, so identity matching works
+        if update_info.deps_source is not None:
+            if update_info.try_deps_source(self):
+                note("deps-source hit for %s" % self.name)
+                return
+
         # Check if caching is enabled
         if self.cache is True:
             return self._update_with_cache(update_info, pkg_dir, file_url, forced_ext, release_tag)

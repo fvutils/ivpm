@@ -99,7 +99,10 @@ class ProjectOps(object):
 
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
             updater = PackageUpdater(deps_dir, pkg_handler, args=args)
-            
+
+            # Configure deps-source on update_info (if any was requested)
+            self._configure_deps_source(updater.update_info, args)
+
             # Configure event dispatcher on update_info
             updater.update_info.event_dispatcher = event_dispatcher
             
@@ -226,6 +229,7 @@ class ProjectOps(object):
                     src_type=src,
                     path=os.path.join(deps_dir, name),
                     vcs="none",
+                    from_deps_source=entry.get("from_deps_source"),
                 ))
                 continue
 
@@ -239,6 +243,8 @@ class ProjectOps(object):
                     path=pkg.path,
                     vcs="none",
                 )
+            if entry.get("from_deps_source"):
+                result.from_deps_source = entry["from_deps_source"]
             results.append(result)
 
         return sorted(results, key=lambda r: r.name)
@@ -305,7 +311,21 @@ class ProjectOps(object):
                     # registered directly (http archive types → "url").
                     if src in ("tgz", "txz", "zip", "jar", "http"):
                         src = "url"
-                    if not rgy.hasPkgType(src):
+                    # Packages materialized from a deps-source are read-only mirrors
+                    # of someone else's tree — there is nothing to sync.
+                    if entry.get("from_deps_source"):
+                        result = PkgSyncResult(
+                            name=name, src_type=src,
+                            path=os.path.join(deps_dir, name),
+                            outcome=SyncOutcome.SKIPPED,
+                            skipped_reason="materialized from deps-source %s" %
+                                entry["from_deps_source"],
+                            next_steps=[
+                                "Re-run 'ivpm update' without --deps-source, "
+                                "or point at a refreshed parent.",
+                            ],
+                        )
+                    elif not rgy.hasPkgType(src):
                         result = PkgSyncResult(
                             name=name, src_type=src,
                             path=os.path.join(deps_dir, name),
@@ -351,6 +371,30 @@ class ProjectOps(object):
             patch_lock_after_sync(lock_path, results)
 
         return sorted(results, key=lambda r: r.name)
+
+    def _configure_deps_source(self, update_info, args):
+        """Build a DepsSource from --deps-source flags / IVPM_DEPS_SOURCE env
+        and attach it (and the requested materialization mode) to update_info.
+        """
+        from .deps_source import DepsSource
+
+        paths = list(getattr(args, "deps_source", None) or [])
+        if not paths:
+            env = os.environ.get("IVPM_DEPS_SOURCE", "")
+            if env:
+                paths = [p for p in env.split(os.pathsep) if p]
+
+        if not paths:
+            return
+
+        for p in paths:
+            if not os.path.isdir(p):
+                fatal("--deps-source path is not a directory: %s" % p)
+
+        trust = bool(getattr(args, "trust_deps_source", False))
+        mode = getattr(args, "deps_source_mode", None) or "link"
+        update_info.deps_source = DepsSource.from_args(paths, trust=trust)
+        update_info.deps_source_mode = mode
 
     def _init(self, dep_set : str = None, cli_overrides=None) -> Tuple['ProjInfo', str, str]:
         from .proj_info import ProjInfo

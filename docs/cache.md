@@ -34,6 +34,8 @@ Packages that use the cache are generally expected to:
 
 Cached packages are always read-only
 
+> **See also:** [deps_source.md](deps_source.md) — a per-invocation "even-more-local cache" that points at a sibling workspace's `deps/` directory. Useful for benchmarking and derivative workspaces; consulted *before* the shared cache when configured.
+
 During the update operation, packages must signal whether they hit a
 cache entry. The top-level update command must report cache hit rate.
 

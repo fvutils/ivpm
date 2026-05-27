@@ -88,6 +88,8 @@ class RichUpdateTUI(UpdateEventListener):
         self.cacheable_packages = 0
         self.editable_packages = 0
         self.cache_unconfigured_packages = 0
+        self.deps_source_hits = 0
+        self.deps_source_misses = 0
         # Handler task tracking
         self.tasks: Dict[str, TaskStatus] = {}
         self.task_order: List[str] = []
@@ -263,6 +265,8 @@ class RichUpdateTUI(UpdateEventListener):
             self.cacheable_packages = event.cacheable_packages
             self.editable_packages = event.editable_packages
             self.cache_unconfigured_packages = event.cache_unconfigured_packages
+            self.deps_source_hits = event.deps_source_hits
+            self.deps_source_misses = event.deps_source_misses
             self.stop()
             self._show_summary()
 
@@ -328,6 +332,10 @@ class RichUpdateTUI(UpdateEventListener):
             hit_rate = (self.cache_hits / self.cacheable_packages * 100) if self.cacheable_packages > 0 else 0
             lines.append(f"Hit rate: {hit_rate:.1f}%")
         
+        if self.deps_source_hits or self.deps_source_misses:
+            lines.append(f"Deps-source hits: {self.deps_source_hits}")
+            lines.append(f"Deps-source misses: {self.deps_source_misses}")
+
         if self.cache_unconfigured_packages > 0:
             n = self.cache_unconfigured_packages
             lines.append("")
@@ -430,6 +438,10 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 hit_rate = (event.cache_hits / event.cacheable_packages * 100) if event.cacheable_packages > 0 else 0
                 print(f"  Hit rate: {hit_rate:.1f}%")
             
+            if event.deps_source_hits or event.deps_source_misses:
+                print(f"  Deps-source hits: {event.deps_source_hits}")
+                print(f"  Deps-source misses: {event.deps_source_misses}")
+
             if event.cache_unconfigured_packages > 0:
                 n = event.cache_unconfigured_packages
                 print("")

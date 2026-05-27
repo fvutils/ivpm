@@ -36,3 +36,4 @@ class PkgVcsStatus:
     ahead: Optional[int] = None     # commits ahead of upstream; None = unknown
     behind: Optional[int] = None    # commits behind upstream; None = unknown
     error: Optional[str] = None     # set if status could not be determined
+    from_deps_source: Optional[str] = None  # parent deps-dir if materialized via --deps-source

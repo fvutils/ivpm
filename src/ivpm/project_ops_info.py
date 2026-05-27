@@ -75,6 +75,10 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     cacheable_packages: int = 0
     cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set
     editable_packages: int = 0
+    deps_source: Optional['DepsSource'] = None
+    deps_source_mode: str = "link"  # "link" or "copy"
+    deps_source_hits: int = 0
+    deps_source_misses: int = 0
     max_parallel: int = 0  # 0 means use available cores
     event_dispatcher: Optional[UpdateEventDispatcher] = None
     suppress_output: bool = False  # When True, suppress subprocess output (Rich TUI mode)
@@ -103,6 +107,43 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     def report_cache_unconfigured(self):
         """Record that a package had cache=True but IVPM_CACHE was not set."""
         self.cache_unconfigured_packages += 1
+
+    def report_deps_source_hit(self):
+        self.deps_source_hits += 1
+
+    def report_deps_source_miss(self):
+        self.deps_source_misses += 1
+
+    def try_deps_source(self, pkg) -> bool:
+        """If a deps-source is configured and satisfies ``pkg``, materialize
+        ``deps/<pkg.name>`` from the parent and return True; otherwise return
+        False without modifying anything.
+        """
+        if self.deps_source is None:
+            return False
+        hit = self.deps_source.lookup(pkg)
+        if hit is None:
+            self.report_deps_source_miss()
+            return False
+        self._materialize_from_deps_source(pkg, hit)
+        self.report_deps_source_hit()
+        return True
+
+    def _materialize_from_deps_source(self, pkg, source_path: str):
+        import os
+        import shutil
+        target = os.path.join(self.deps_dir, pkg.name)
+        if os.path.lexists(target):
+            raise RuntimeError(
+                "Cannot materialize %s from deps-source %s: %s already exists"
+                % (pkg.name, source_path, target))
+        os.makedirs(self.deps_dir, exist_ok=True)
+        if self.deps_source_mode == "copy":
+            shutil.copytree(source_path, target, symlinks=True)
+        else:
+            os.symlink(source_path, target)
+        pkg.from_deps_source = source_path
+        pkg.path = target.replace("\\", "/")
 
     def report_cache_hit(self):
         self.cache_hits += 1
@@ -183,7 +224,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 cache_misses=self.cache_misses,
                 cacheable_packages=self.cacheable_packages,
                 editable_packages=self.editable_packages,
-                cache_unconfigured_packages=self.cache_unconfigured_packages
+                cache_unconfigured_packages=self.cache_unconfigured_packages,
+                deps_source_hits=self.deps_source_hits,
+                deps_source_misses=self.deps_source_misses,
             )
             self.event_dispatcher.dispatch(event)
         _logger.debug("Update complete: %d packages", self.total_packages)

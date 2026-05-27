@@ -45,6 +45,14 @@ class PackageHttp(PackageFile):
         if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
             note("Skipping %s, since it is already loaded" % self.name)
         else:
+            # Try deps-source: probe URL to populate resolved_etag/last_modified
+            # so the matcher has identity to compare against.
+            if update_info.deps_source is not None:
+                self._get_url_version(self.url)
+                if update_info.try_deps_source(self):
+                    note("deps-source hit for %s" % self.name)
+                    return
+
             # Check if caching is enabled
             if self.cache is True:
                 return self._update_with_cache(update_info, pkg_dir)
