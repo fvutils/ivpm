@@ -51,26 +51,28 @@ class ProjectOps(object):
                force : bool = False,
                cli_overrides = None):
         from .update_event import UpdateEvent, UpdateEventType
-        
-        proj_info, deps_dir, dep_set = self._init(dep_set, cli_overrides=cli_overrides)
 
         # Get log level from args for TUI selection
         log_level = getattr(args, 'log_level', 'NONE')
         verbose = getattr(args, 'verbose', 0)
-        
+
         # Create event dispatcher and TUI
         event_dispatcher = UpdateEventDispatcher()
         tui = create_update_tui(log_level, verbose=verbose)
         event_dispatcher.add_listener(tui)
-        
+
         # Determine if we should suppress output (Rich TUI mode)
         suppress_output = isinstance(tui, RichUpdateTUI)
-        
-        # Start the TUI if it's Rich-based
+
+        # Start the TUI (and install its diagnostic sink) before reading any
+        # project metadata, so informational notes emitted during _init() are
+        # filtered rather than printed above the progress display.
         if isinstance(tui, RichUpdateTUI):
             tui.start()
- 
+
         try:
+            proj_info, deps_dir, dep_set = self._init(dep_set, cli_overrides=cli_overrides)
+
             _logger.info("Processing root package %s", proj_info.name)
 
             if self.debug:

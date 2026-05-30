@@ -143,6 +143,10 @@ class RichSink(DiagnosticSink):
 
     Bound to a TUI's console, this prints above an active Live region rather
     than corrupting it.
+
+    *min_severity* suppresses diagnostics below the given threshold. TUIs raise
+    this to ``WARNING`` so informational notes don't clutter the live progress
+    display; warnings/errors are always shown.
     """
 
     _STYLE = {
@@ -152,11 +156,14 @@ class RichSink(DiagnosticSink):
         Severity.FATAL: "bold red",
     }
 
-    def __init__(self, console):
+    def __init__(self, console, min_severity=Severity.NOTE):
         self.console = console
+        self.min_severity = min_severity
 
     def emit(self, diag):
         from rich.text import Text
+        if diag.severity < self.min_severity:
+            return
         text = diag.format(excerpt=_want_excerpt(diag))
         # Text(...) avoids interpreting any '['/']' in the message as markup.
         self.console.print(Text(text), style=self._STYLE.get(diag.severity))

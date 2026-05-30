@@ -107,9 +107,10 @@ def _row_status(r: PkgSyncResult):
 class RichSyncTUI(SyncProgressListener):
     """Rich-based TUI: single live table that becomes the final output."""
 
-    def __init__(self):
+    def __init__(self, verbose: int = 0):
         from rich.console import Console
         self.console = Console()
+        self.verbose = verbose
         self._live = None
         self._pkg_states: Dict[str, dict] = {}   # name → {start, done, result}
         self._order: List[str] = []
@@ -139,9 +140,12 @@ class RichSyncTUI(SyncProgressListener):
         self._live.start()
 
         # Route user-facing diagnostics through this console (above the Live).
+        # Suppress informational notes unless -v was given, so the progress
+        # display stays clean. Warnings/errors are always shown.
         from .msg import use_sink
-        from .diagnostics import RichSink
-        self._prev_sink = use_sink(RichSink(self.console))
+        from .diagnostics import RichSink, Severity
+        min_severity = Severity.NOTE if self.verbose else Severity.WARNING
+        self._prev_sink = use_sink(RichSink(self.console, min_severity=min_severity))
 
     def stop(self):
         if self._live:
@@ -419,5 +423,5 @@ def create_sync_tui(args) -> object:
     verbose = getattr(args, "verbose", 0)
     use_rich = not no_rich and sys.stdout.isatty()
     if use_rich:
-        return RichSyncTUI()
+        return RichSyncTUI(verbose=verbose)
     return TranscriptSyncTUI(verbose=verbose)

@@ -72,10 +72,12 @@ class RichUpdateTUI(UpdateEventListener):
     and checkmarks for completed packages.
     """
     
-    def __init__(self, max_visible: Optional[int] = None):
+    def __init__(self, max_visible: Optional[int] = None, verbose: int = 0):
         from rich.console import Console
-        
+
         self.console = Console()
+        self.verbose = verbose
+        self._prev_sink = None
         self.packages: Dict[str, PackageStatus] = {}
         self.package_order: List[str] = []
         self.completed_packages: List[str] = []
@@ -114,12 +116,25 @@ class RichUpdateTUI(UpdateEventListener):
         
         self.live = Live(table, console=self.console, refresh_per_second=10)
         self.live.start()
-    
+
+        # Route user-facing diagnostics through this console (above the Live)
+        # and suppress informational notes unless -v was given, so the progress
+        # display stays clean. Warnings/errors are always shown.
+        from .msg import use_sink
+        from .diagnostics import RichSink, Severity
+        min_severity = Severity.NOTE if self.verbose else Severity.WARNING
+        self._prev_sink = use_sink(RichSink(self.console, min_severity=min_severity))
+
     def stop(self):
         """Stop the live display."""
         if self.live:
             self.live.stop()
             self.live = None
+
+        if self._prev_sink is not None:
+            from .msg import use_sink
+            use_sink(self._prev_sink)
+            self._prev_sink = None
     
     def _render(self):
         """Render the current state."""
@@ -532,7 +547,7 @@ def create_update_tui(log_level: str, verbose: int = 0) -> UpdateEventListener:
     
     if use_rich:
         _logger.debug("Using Rich-based TUI")
-        return RichUpdateTUI()
+        return RichUpdateTUI(verbose=verbose)
     else:
         _logger.debug("Using transcript-based TUI (verbose=%d)", verbose)
         return TranscriptUpdateTUI(verbose=verbose)
