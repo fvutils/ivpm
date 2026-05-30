@@ -77,6 +77,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     editable_packages: int = 0
     deps_source: Optional['DepsSource'] = None
     deps_source_mode: str = "link"  # "link" or "copy"
+    deps_source_auto: bool = False  # deps_source was auto-detected (git worktree)
     deps_source_hits: int = 0
     deps_source_misses: int = 0
     max_parallel: int = 0  # 0 means use available cores

@@ -5,13 +5,10 @@ Created on Jun 8, 2021
 '''
 import difflib
 import os
-import yaml_srcinfo_loader
 from typing import Dict, List
-from yaml_srcinfo_loader.srcinfo import SrcInfo
+from .yamlsrc import SrcInfo, load as yaml_load
 from .package import Package
 from .env_spec import EnvSpec
-
-import yaml
 
 from .utils import fatal, getlocstr, warning
 from .variables import resolve_variables
@@ -25,7 +22,7 @@ _KNOWN_PACKAGE_KEYS = {
     "deps-dir", "default-dep-set",
     "dep-sets", "setup-deps",
     "paths", "env", "env-sets",
-    "vars",
+    "vars", "include",
     # old-style keys – detected and rejected with a friendlier message
     "deps", "dev-deps",
 }
@@ -59,18 +56,17 @@ class IvpmYamlReader(object):
         if not hasattr(fp, "name"):
             fp.name = name
 
-        data = yaml.load(fp, Loader=yaml_srcinfo_loader.Loader)
-        
-        if "package" not in data.keys():
-            raise Exception("Missing 'package' section YAML file %s" % name)
-        pkg = data["package"]
+        # Load the ``package:`` body, recursively merging any ``include:``
+        # files first. Variables are resolved once, post-merge (so an include
+        # may reference variables defined by the includer).
+        pkg = self._load_merged_pkg(fp, name)
 
         # Resolve ${{var}} references before any other processing
         pkg, resolved_vars = resolve_variables(
             pkg, cli_overrides or {}, persisted_vars or {})
 
         if "name" not in pkg.keys():
-            raise Exception("Missing 'name' key in YAML file %s" % name)
+            fatal("Missing 'name' key in package (file %s)" % name, pkg)
 
         for key in pkg.keys():
             if key not in _KNOWN_PACKAGE_KEYS:
@@ -79,7 +75,8 @@ class IvpmYamlReader(object):
                     "Unknown tag '%s' at package level in %s.%s"
                     " Valid tags: %s" % (
                         key, name, hint,
-                        ", ".join(sorted(_KNOWN_PACKAGE_KEYS))))
+                        ", ".join(sorted(_KNOWN_PACKAGE_KEYS))),
+                    key)
 
         ret.name = pkg["name"]
         ret.resolved_vars = resolved_vars
@@ -133,6 +130,162 @@ class IvpmYamlReader(object):
             
         return ret
 
+    def _load_merged_pkg(self, fp, name, _visited=None):
+        """Load ``package:`` from *name*, recursively merging any ``include:``
+        files into it. Returns the merged package dict (variables NOT yet
+        resolved). Cross-file nodes retain their original ``.srcinfo`` because
+        the merge keeps the original value objects rather than copying them.
+
+        *_visited* is the set of canonical paths on the current include chain
+        (ancestors of *name*), used to detect cyclic includes. A copy is passed
+        down each branch, so a file reached by two independent paths (a diamond)
+        is permitted; only a true cycle is fatal.
+        """
+        if _visited is None:
+            _visited = set()
+        _visited = set(_visited)
+        _visited.add(os.path.realpath(name))
+
+        data = yaml_load(fp, name=name)
+
+        if data is None:
+            fatal("Empty ivpm.yaml file %s" % name)
+        if "package" not in data.keys():
+            fatal("Missing 'package' section in ivpm.yaml file %s" % name, data)
+        pkg = data["package"]
+
+        if "include" in pkg.keys():
+            includes = pkg["include"]
+            if not isinstance(includes, list):
+                fatal("'include' must be a list of file paths in %s" % name,
+                      includes)
+            base_dir = os.path.dirname(name)
+            for inc in includes:
+                if not isinstance(inc, str):
+                    fatal("'include' entries must be file-path strings in %s"
+                          % name, inc)
+                inc_path = inc if os.path.isabs(inc) \
+                    else os.path.join(base_dir, inc)
+                if os.path.realpath(inc_path) in _visited:
+                    fatal("Cyclic include detected: %s includes %s, which is "
+                          "already on the include chain" % (name, inc_path),
+                          inc)
+                if not os.path.isfile(inc_path):
+                    fatal("Include file '%s' (referenced from %s) does not exist"
+                          % (inc_path, name), inc)
+                with open(inc_path) as inc_fp:
+                    inc_pkg = self._load_merged_pkg(inc_fp, inc_path, _visited)
+                self._merge_pkg(pkg, inc_pkg, base=name, incl_path=inc_path)
+            # 'include' is consumed by the merge; it is not a ProjInfo field.
+            del pkg["include"]
+
+        return pkg
+
+    # Keys handled explicitly by ``_merge_pkg``; everything else falls through
+    # to the generic "adopt-if-absent, local wins" rule.
+    _MERGE_HANDLED_KEYS = {
+        "name", "version", "dep-sets",
+        "with", "vars", "paths",
+        "env", "env-sets", "setup-deps",
+    }
+
+    def _merge_pkg(self, local, incl, base, incl_path):
+        """Fold the included ``package:`` dict *incl* into the includer *local*,
+        in place. The includer (*local*) always wins on conflict. Node objects
+        from *incl* are adopted by reference so their ``.srcinfo`` is preserved.
+
+        Implements the design's merge rules:
+          - ``name``/``version`` may not be set by an include (identity is
+            anchored to the root) -> fatal.
+          - ``dep-sets`` merge by name; a name defined in both files is fatal
+            (no deps concatenation across files).
+          - ``with``/``vars`` deep-merge (local wins on scalar/list conflict).
+          - ``paths`` deep-merge as a map; leaf lists append.
+          - ``env``/``env-sets``/``setup-deps`` list-append.
+          - everything else (``type``, ``deps-dir``, ...): adopt if absent,
+            otherwise local wins.
+        """
+        # Identity may only come from the root file.
+        for ident in ("name", "version"):
+            if ident in incl.keys():
+                fatal("Include '%s' may not set '%s' @ %s ; package identity is "
+                      "anchored to the root file %s" % (
+                          incl_path, ident, getlocstr(incl[ident]), base),
+                      incl[ident])
+
+        # dep-sets: merge by name, duplicate across files is fatal.
+        if "dep-sets" in incl.keys():
+            if "dep-sets" not in local.keys():
+                local["dep-sets"] = incl["dep-sets"]
+            else:
+                local_ds = local["dep-sets"]
+                existing = {}
+                for ds in local_ds:
+                    if isinstance(ds, dict) and "name" in ds.keys():
+                        existing[str(ds["name"])] = ds
+                for ds in incl["dep-sets"]:
+                    if isinstance(ds, dict) and "name" in ds.keys():
+                        nm = str(ds["name"])
+                        if nm in existing:
+                            fatal("Duplicate dep-set '%s' @ %s ; previously "
+                                  "defined @ %s" % (
+                                      nm, getlocstr(ds),
+                                      getlocstr(existing[nm])))
+                        existing[nm] = ds
+                    local_ds.append(ds)
+
+        # with/vars: deep-merge maps, local wins (lists also local-wins).
+        for k in ("with", "vars"):
+            if k in incl.keys():
+                if k not in local.keys():
+                    local[k] = incl[k]
+                elif isinstance(local[k], dict) and isinstance(incl[k], dict):
+                    self._deep_merge_map(local[k], incl[k], append_lists=False)
+                # else: local wins, keep as-is
+
+        # paths: deep-merge map, leaf lists append.
+        if "paths" in incl.keys():
+            if "paths" not in local.keys():
+                local["paths"] = incl["paths"]
+            elif isinstance(local["paths"], dict) \
+                    and isinstance(incl["paths"], dict):
+                self._deep_merge_map(
+                    local["paths"], incl["paths"], append_lists=True)
+
+        # env/env-sets/setup-deps: top-level list append (include after local).
+        for k in ("env", "env-sets", "setup-deps"):
+            if k in incl.keys():
+                if k not in local.keys():
+                    local[k] = incl[k]
+                elif isinstance(local[k], list) and isinstance(incl[k], list):
+                    local[k].extend(incl[k])
+                # else: local wins
+
+        # Everything else (type, deps-dir, default-dep-set, ...): local wins,
+        # adopt only if absent locally.
+        for k in incl.keys():
+            if k in self._MERGE_HANDLED_KEYS:
+                continue
+            if k not in local.keys():
+                local[k] = incl[k]
+
+    def _deep_merge_map(self, local, incl, append_lists):
+        """Recursively merge map *incl* into map *local*, in place. *local*
+        wins on scalar conflict. Nested maps recurse. List values concatenate
+        (local first) when *append_lists*, otherwise *local* wins. Adopted
+        values keep their original node identity / ``.srcinfo``."""
+        for k in incl.keys():
+            if k not in local.keys():
+                local[k] = incl[k]
+            else:
+                lv, iv = local[k], incl[k]
+                if isinstance(lv, dict) and isinstance(iv, dict):
+                    self._deep_merge_map(lv, iv, append_lists)
+                elif append_lists and isinstance(lv, list) \
+                        and isinstance(iv, list):
+                    lv.extend(iv)
+                # else: scalar (or list when not appending) -> local wins
+
     def _read_with_section(self, info: 'ProjInfo', with_data: dict, name: str):
         """Parse the package-level ``with:`` map into handler configurations."""
         from .proj_info import VenvMode, PythonConfig, NodeConfig
@@ -148,7 +301,7 @@ class IvpmYamlReader(object):
             if key not in known_with_keys:
                 hint = _suggest(key, known_with_keys)
                 fatal("Unknown key '%s' in package.with in %s.%s Valid keys: %s" % (
-                    key, name, hint, ", ".join(sorted(known_with_keys))))
+                    key, name, hint, ", ".join(sorted(known_with_keys))), key)
 
         if "python" in with_data.keys():
             py_data = with_data["python"]
@@ -163,13 +316,14 @@ class IvpmYamlReader(object):
                         "Unknown key '%s' in package.with.python in %s.%s"
                         " Valid keys: %s" % (
                             key, name, hint,
-                            ", ".join(sorted(_KNOWN_PYTHON_WITH_KEYS))))
+                            ", ".join(sorted(_KNOWN_PYTHON_WITH_KEYS))),
+                        key)
 
             if "venv" in py_data:
                 try:
                     cfg.venv = VenvMode.parse(py_data["venv"])
                 except ValueError as e:
-                    fatal(str(e) + " in %s" % name)
+                    fatal(str(e) + " in %s" % name, py_data.get("venv"))
             if "system-site-packages" in py_data:
                 cfg.system_site_packages = bool(py_data["system-site-packages"])
             if "pre-release" in py_data:
@@ -189,13 +343,15 @@ class IvpmYamlReader(object):
                         "Unknown key '%s' in package.with.node in %s.%s"
                         " Valid keys: %s" % (
                             key, name, hint,
-                            ", ".join(sorted(_KNOWN_NODE_WITH_KEYS))))
+                            ", ".join(sorted(_KNOWN_NODE_WITH_KEYS))),
+                        key)
 
             if "manager" in nd_data:
                 val = str(nd_data["manager"]).strip().lower()
                 if val not in {"npm", "pnpm", "yarn"}:
                     fatal("Invalid manager '%s' in package.with.node in %s."
-                          " Valid values: npm, pnpm, yarn" % (val, name))
+                          " Valid values: npm, pnpm, yarn" % (val, name),
+                          nd_data.get("manager"))
                 cfg.manager = val
             if "version" in nd_data:
                 cfg.version = str(nd_data["version"])
@@ -211,17 +367,23 @@ class IvpmYamlReader(object):
 
     def read_dep_sets(self, info : 'ProjInfo', dep_sets):
         if not isinstance(dep_sets, list):
-            raise Exception("Expect body of dep-sets to be a list, not %s" % str(type(dep_sets)))
-        
+            fatal("Expect body of dep-sets to be a list, not %s" % str(type(dep_sets)),
+                  dep_sets)
+
+        seen_ds = {}
         for ds_ent in dep_sets:
             if not isinstance(ds_ent, dict):
-                raise Exception("Dependency set is not a dict")
+                fatal("Dependency set is not a dict", ds_ent)
             if "name" not in ds_ent.keys():
-                raise Exception("No name associated with dependency set")
+                fatal("No name associated with dependency set", ds_ent)
             if "deps" not in ds_ent.keys():
-                raise Exception("No 'deps' entry in dependency set")
-            
+                fatal("No 'deps' entry in dependency set", ds_ent)
+
             ds_name = ds_ent["name"]
+            if str(ds_name) in seen_ds:
+                fatal("Duplicate dep-set '%s' @ %s ; previously defined @ %s" % (
+                    ds_name, getlocstr(ds_ent), getlocstr(seen_ds[str(ds_name)])))
+            seen_ds[str(ds_name)] = ds_ent
             ds = PackagesInfo(ds_name)
             default_dep_set = None
 
@@ -234,7 +396,7 @@ class IvpmYamlReader(object):
             deps = ds_ent["deps"]
             
             if not isinstance(deps, list):
-                raise Exception("deps is not a list")
+                fatal("deps is not a list", deps)
             self.read_deps(ds, ds_ent["deps"], default_dep_set)
             info.set_dep_set(ds.name, ds)
 
@@ -258,11 +420,10 @@ class IvpmYamlReader(object):
                 return
             if name in visiting:
                 cycle = " -> ".join(list(visiting) + [name])
-                raise Exception(
-                    "Cyclic dep-set inheritance detected: %s" % cycle)
+                fatal("Cyclic dep-set inheritance detected: %s" % cycle)
             base_name = ds.uses
             if base_name not in dep_set_m:
-                raise Exception(
+                fatal(
                     "dep-set '%s' references unknown base dep-set '%s'"
                     % (name, base_name))
             visiting.add(name)
@@ -293,10 +454,7 @@ class IvpmYamlReader(object):
             si = d.srcinfo
             
             if "name" not in d.keys():
-                raise Exception("Missing 'name' key at %s:%d:%d" % (
-                    si.filename,
-                    si.lineno,
-                    si.linepos))
+                fatal("Missing 'name' key in dependency", si)
 
             if d["name"] in ret.keys():
                 pkg1 = ret[d["name"]]
@@ -319,7 +477,7 @@ class IvpmYamlReader(object):
                 # Auto-probing the package based on the URL. The user can always
                 # specify the source explicitly
                 if url is None:
-                    fatal("no src specified for package %s and no URL specified" % d["name"])
+                    fatal("no src specified for package %s and no URL specified" % d["name"], d)
 
                 if url.endswith(".git"):
                     src = "git"                
@@ -329,20 +487,20 @@ class IvpmYamlReader(object):
                     src = "file"
                 else:
                     pt_rgy = PkgTypeRgy.inst()
-                    raise Exception(
+                    fatal(
                         "Package '%s': cannot determine source type from url '%s' @ %s\n"
                         "  Please specify 'src' as one of: %s" % (
                             d["name"], url, getlocstr(d),
-                            ", ".join(pt_rgy.getSrcTypes())))
+                            ", ".join(pt_rgy.getSrcTypes())), d)
 
             pt_rgy = PkgTypeRgy.inst()
             
             if not pt_rgy.hasPkgType(src):
-                raise Exception(
+                fatal(
                     "Package '%s': unknown source type '%s' @ %s\n"
                     "  Known types: %s" % (
                         d["name"], src, getlocstr(d),
-                        ", ".join(pt_rgy.getSrcTypes())))
+                        ", ".join(pt_rgy.getSrcTypes())), d)
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
 
             # Resolve content type from 'type:' field (string, dict, or list form).
@@ -398,7 +556,7 @@ class IvpmYamlReader(object):
                               info : 'ProjInfo',
                               evar : Dict):
         if "name" not in evar.keys():
-            raise Exception("No variable-name specified: %s" % str(evar))
+            fatal("No variable-name specified: %s" % str(evar), evar)
         act = None
         act_s = None
         val = None
@@ -409,15 +567,16 @@ class IvpmYamlReader(object):
             ("path-prepend", EnvSpec.Act.PathPrepend)]:
             if an in evar.keys():
                 if act is not None:
-                    raise Exception("Multiple variable-setting directives specified: %s and %s" % (
-                        act_s, an))
+                    fatal("Multiple variable-setting directives specified: %s and %s" % (
+                        act_s, an), evar)
                 act_s = an
                 act = av
                 val = evar[an]
             
         if act is None:
-            raise Exception(
-                "No variable-directive setting (value, path, path-append, path-prepend) specified")
+            fatal(
+                "No variable-directive setting (value, path, path-append, path-prepend) specified",
+                evar)
         info.env_settings.append(EnvSpec(evar["name"], val, act))
 
 

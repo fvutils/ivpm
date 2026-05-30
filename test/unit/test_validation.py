@@ -235,5 +235,60 @@ package:
         self.assertIsNotNone(info.python_config)
 
 
+class TestErrorLocations(unittest.TestCase):
+    """Validation errors carry a file:line:col source location."""
+
+    def test_unknown_package_key_has_loc(self):
+        yaml_text = "package:\n  name: test\n  unknown_key: value\n"
+        with self.assertRaises(Exception) as ctx:
+            _parse(yaml_text, "proj.yaml")
+        m = str(ctx.exception)
+        self.assertIn("unknown_key", m)
+        self.assertIn("proj.yaml:3:", m)     # points at the offending key (line 3)
+
+    def test_missing_package_section_has_loc(self):
+        yaml_text = "other:\n  name: test\n"
+        with self.assertRaises(Exception) as ctx:
+            _parse(yaml_text, "proj.yaml")
+        self.assertIn("proj.yaml:", str(ctx.exception))
+
+    def test_missing_name_has_loc(self):
+        yaml_text = "package:\n  dep-sets: []\n"
+        with self.assertRaises(Exception) as ctx:
+            _parse(yaml_text, "proj.yaml")
+        m = str(ctx.exception)
+        self.assertIn("name", m)
+        self.assertIn("proj.yaml:2:", m)     # package mapping starts on line 2
+
+    def test_no_src_no_url_has_loc(self):
+        yaml_text = (
+            "package:\n"
+            "  name: test\n"
+            "  dep-sets:\n"
+            "    - name: default\n"
+            "      deps:\n"
+            "        - name: orphan\n"
+        )
+        with self.assertRaises(Exception) as ctx:
+            _parse(yaml_text, "proj.yaml")
+        m = str(ctx.exception)
+        self.assertIn("orphan", m)
+        self.assertIn("proj.yaml:6:", m)
+
+    def test_unknown_python_with_key_has_loc(self):
+        yaml_text = (
+            "package:\n"
+            "  name: test\n"
+            "  with:\n"
+            "    python:\n"
+            "      bogus: 1\n"
+        )
+        with self.assertRaises(Exception) as ctx:
+            _parse(yaml_text, "proj.yaml")
+        m = str(ctx.exception)
+        self.assertIn("bogus", m)
+        self.assertIn("proj.yaml:5:", m)
+
+
 if __name__ == "__main__":
     unittest.main()

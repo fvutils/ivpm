@@ -613,6 +613,71 @@ Raw packages are placed in ``packages/<name>/`` but not processed further.
    This is the right choice for IP cores, data files, and pre-built binaries
    that need no install step.
 
+
+.. _ivpm-yaml-factory:
+
+ivpm.yaml (Dep-Set Factory)
+---------------------------
+
+A ``src: ivpm.yaml`` dependency is a **dep-set factory**: it reads a referenced
+``ivpm.yaml``, selects one of *its* dep-sets, and folds those packages into the
+consuming dep-set.  Unlike every other source, a factory installs **no content
+of its own** — it has no packages-dir representation.  It is purely a source of
+dependency definitions.
+
+.. code-block:: yaml
+
+    package:
+      name: my-pkg
+      dep-sets:
+        - name: default
+          deps:
+            - name: core-tools
+              src: ivpm.yaml
+              url: https://example.com/tools.yaml   # http(s) or local path
+              dep-set: core                         # which dep-set to pull
+
+The deps defined in the referenced file's ``core`` dep-set are resolved and
+pinned exactly as if they had been written directly in the consumer's
+``default`` dep-set.  Each is recorded with ``resolved_by`` set to the factory
+dependency's ``name``.
+
+**Fields**
+
+- ``url`` *(required)* — ``http(s)`` URL or a local path (``file://`` or
+  relative) of the factory ``ivpm.yaml``.  Relative paths resolve against the
+  file that declares the dependency.
+- ``dep-set`` *(optional)* — the dep-set to pull from the factory.  Defaults to
+  the **consuming dep-set's name**.
+
+**No packages-dir representation.** The factory is a *virtual* node: nothing is
+checked out under ``packages/`` for it, and it does not appear in ``ivpm
+status`` or ``ivpm sync`` (it has no working tree to act on).  What *is* tracked
+lives in :doc:`package_lock`:
+
+- Each contributed leaf gets a ``from_ivpm_source: "<url>#<dep-set>"`` provenance
+  field on its package-lock entry.
+- The factory itself is recorded under a top-level ``ivpm_sources`` map keyed by
+  ``url``, with the dep-set name and a resolved ``fingerprint`` (etag /
+  last-modified, else a content ``sha256``).  This lets a re-resolve detect that
+  the factory's dep-set *membership* changed upstream, even though each leaf
+  re-pins independently.
+
+**Transitive factories and cycles.** A factory's dep-set may itself contain
+``src: ivpm.yaml`` deps; these are expanded recursively.  A factory that
+(transitively) references its own ``url`` is a **fatal** cyclic reference.
+
+**Fetch protocols (v1).** ``http(s)`` and local paths are supported.  Git-URL
+factories (a dep-set pulled directly from a repository) are not yet supported.
+
+.. note::
+
+   ``include:`` (see :doc:`multi_file`) and ``src: ivpm.yaml`` are
+   complementary: ``include:`` composes files on the **local filesystem** into
+   one package definition, while ``src: ivpm.yaml`` consumes a dep-set
+   **published elsewhere** as an ordinary dependency.
+
+
 Auto-Detection
 ==============
 

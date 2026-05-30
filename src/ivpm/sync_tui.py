@@ -138,10 +138,20 @@ class RichSyncTUI(SyncProgressListener):
         self._live = Live(tbl, console=self.console, refresh_per_second=10)
         self._live.start()
 
+        # Route user-facing diagnostics through this console (above the Live).
+        from .msg import use_sink
+        from .diagnostics import RichSink
+        self._prev_sink = use_sink(RichSink(self.console))
+
     def stop(self):
         if self._live:
             self._live.stop()
             self._live = None
+
+        if getattr(self, "_prev_sink", None) is not None:
+            from .msg import use_sink
+            use_sink(self._prev_sink)
+            self._prev_sink = None
 
     def _build_table(self, spinner=True):
         """Build the unified package table (used for both live and final display)."""

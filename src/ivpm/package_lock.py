@@ -110,6 +110,11 @@ def _entry_from_pkg(pkg) -> dict:
     if getattr(pkg, "from_deps_source", None):
         entry["from_deps_source"] = pkg.from_deps_source
 
+    # Record provenance if the package was contributed by a `src: ivpm.yaml`
+    # dep-set factory.
+    if getattr(pkg, "from_ivpm_source", None):
+        entry["from_ivpm_source"] = pkg.from_ivpm_source
+
     return entry
 
 
@@ -170,10 +175,19 @@ def write_lock(
     contributed by post-processing handlers (e.g. ``{"python_packages": {...}}``).
     """
     packages = {}
+    ivpm_sources = {}
     # PackagesInfo exposes .packages dict; plain dicts are also accepted.
     pkg_dict = getattr(all_pkgs, "packages", all_pkgs)
     for name, pkg in pkg_dict.items():
         if pkg is None:
+            continue
+        # Virtual nodes (e.g. `src: ivpm.yaml` factories) have no packages-dir
+        # representation. Record them under a separate top-level map keyed by
+        # url, not in the normal ``packages`` map.
+        if getattr(pkg, "virtual", False):
+            ent = pkg.get_lock_entry() or {}
+            key = ent.get("url") or name
+            ivpm_sources[key] = {k: v for k, v in ent.items() if k != "url"}
             continue
         packages[name] = _entry_from_pkg(pkg)
 
@@ -182,6 +196,9 @@ def write_lock(
         "generated": datetime.now(timezone.utc).isoformat(),
         "packages": packages,
     }
+
+    if ivpm_sources:
+        lock["ivpm_sources"] = ivpm_sources
 
     if handler_contributions:
         lock.update(handler_contributions)

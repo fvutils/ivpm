@@ -54,6 +54,15 @@ def _upstream_label(s: PkgVcsStatus) -> str:
     return " ".join(parts) if parts else "="
 
 
+def _provenance_label(s: PkgVcsStatus) -> str:
+    """Return a deps-source provenance suffix for the package name, or ''."""
+    if not getattr(s, "from_deps_source", None):
+        return ""
+    if getattr(s, "deps_source_auto", False):
+        return "(auto: worktree)"
+    return "(deps-source)"
+
+
 # ---------------------------------------------------------------------------
 # Rich TUI
 # ---------------------------------------------------------------------------
@@ -121,7 +130,11 @@ class RichStatusTUI:
                 state = Text(s.src_type, style="dim")
                 up_text = Text("—", style="dim")
 
-            table.add_row(marker, Text(s.name), branch_text, commit_text, state, up_text)
+            name_text = Text(s.name)
+            prov = _provenance_label(s)
+            if prov:
+                name_text.append(" " + prov, style="dim")
+            table.add_row(marker, name_text, branch_text, commit_text, state, up_text)
 
             # Dirty file details — only with -v
             if verbose >= 1 and s.vcs == "git":
@@ -187,8 +200,10 @@ class TranscriptStatusTUI:
                 upstream = _upstream_label(s)
                 branch = _branch_label(s)
                 commit = s.commit or "?"
+                prov = _provenance_label(s)
+                name = s.name + (" " + prov if prov else "")
                 print("  %s  %-30s  %-25s  %s  %-9s  upstream:%s" % (
-                    marker, s.name, branch, commit, state, upstream))
+                    marker, name, branch, commit, state, upstream))
 
                 if verbose >= 1:
                     for line in s.modified:
@@ -200,7 +215,9 @@ class TranscriptStatusTUI:
                     print("       ! %s" % s.error)
             else:
                 non_vcs_count += 1
-                print("  ~  %-30s  (%s)" % (s.name, s.src_type))
+                prov = _provenance_label(s)
+                suffix = ("  " + prov) if prov else ""
+                print("  ~  %-30s  (%s)%s" % (s.name, s.src_type, suffix))
 
         clean_count = git_total - dirty_count
         print("")

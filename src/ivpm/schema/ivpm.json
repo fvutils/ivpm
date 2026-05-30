@@ -43,6 +43,13 @@
 					"type": "string",
 					"description": "Version of the package"
 				},
+				"include": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Paths (relative to this file) of partial ivpm.yaml files to merge into this package. The including file wins on conflict; dep-sets merge by name (a name defined in two files is an error)."
+				},
 				"deps-dir": {
 					"type": "string",
 					"description": "Directory where dependencies are stored (default: 'packages')"
@@ -177,6 +184,10 @@
 						{
 							"const": "module",
 							"title": "Environment Module -- resolves a module specifier to its modulefile directory"
+						},
+						{
+							"const": "ivpm.yaml",
+							"title": "Dep-set factory -- pulls the named 'dep-set' from a referenced ivpm.yaml (via 'url'). Contributes deps only; no packages-dir entry."
 						}
 					]
 				},

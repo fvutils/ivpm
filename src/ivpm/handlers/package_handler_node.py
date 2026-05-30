@@ -193,6 +193,11 @@ class PackageHandlerNode(PackageHandler):
         from ..pkg_types.package_npm import PackageNpm
         from ..pkg_types.package_packagejson import PackagePackageJson
 
+        # Virtual nodes (e.g. `src: ivpm.yaml` factories) have no installed
+        # directory to scan -- they only contribute deps.
+        if getattr(pkg, "virtual", False):
+            return
+
         if pkg.src_type == "npm":
             with self._lock:
                 self._npm_pkgs[pkg.name] = pkg

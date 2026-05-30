@@ -34,6 +34,7 @@ from .package_module import PackageModule
 from .package_npm import PackageNpm
 from .package_packagejson import PackagePackageJson
 from .package_pyproject_toml import PackagePyprojectToml
+from .package_ivpm_yaml import PackageIvpmYaml
 
 @dc.dataclass
 class PkgTypeRgy(object):
@@ -94,6 +95,7 @@ class PkgTypeRgy(object):
         self.register("npm",          PackageNpm.create,         PackageNpm.source_info())
         self.register("package.json", PackagePackageJson.create, PackagePackageJson.source_info())
         self.register("pyproject.toml", PackagePyprojectToml.create, PackagePyprojectToml.source_info())
+        self.register("ivpm.yaml", PackageIvpmYaml.create, PackageIvpmYaml.source_info())
 
     @classmethod
     def inst(cls):

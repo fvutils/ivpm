@@ -9,7 +9,6 @@ dynamic = ["version"]
 dependencies = [
     "httpx>=0.28.1,<1.0",
     "pyyaml",
-    "pyyaml-srcinfo-loader",
     "rich",
     "setuptools",
     "toposort",

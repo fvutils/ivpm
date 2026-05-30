@@ -37,3 +37,4 @@ class PkgVcsStatus:
     behind: Optional[int] = None    # commits behind upstream; None = unknown
     error: Optional[str] = None     # set if status could not be determined
     from_deps_source: Optional[str] = None  # parent deps-dir if materialized via --deps-source
+    deps_source_auto: bool = False  # from_deps_source resolves into the parent git worktree

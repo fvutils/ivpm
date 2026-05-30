@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from ivpm.msg import setup_logging
+from ivpm.msg import setup_logging, SrcLoaderError
 from .cmds.cmd_activate import CmdActivate
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
@@ -209,6 +209,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--deps-source-mode", dest="deps_source_mode",
         choices=("link", "copy"), default="link",
         help="How to materialize a deps-source hit (default: link)")
+    update_cmd.add_argument("--no-worktree-deps-source", dest="no_worktree_deps_source",
+        action="store_true", default=False,
+        help="Disable automatic deps-source detection of the parent git worktree")
     update_cmd.add_argument("--refresh-all", dest="refresh_all",
         action="store_true", default=False,
         help="Re-fetch all packages regardless of existing package-lock.json state")
@@ -435,7 +438,12 @@ def main(project_dir=None):
     if not hasattr(args, "project_dir") or getattr(args, "project_dir") is None:
         args.project_dir = project_dir
 
-    args.func(args)
+    try:
+        args.func(args)
+    except SrcLoaderError:
+        # Diagnostics were already rendered when emitted; exit cleanly with a
+        # non-zero status and no traceback.
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()

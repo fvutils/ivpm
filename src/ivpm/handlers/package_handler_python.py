@@ -258,6 +258,10 @@ class PackageHandlerPython(PackageHandler):
         )
 
     def on_leaf_post_load(self, pkg: Package, update_info):
+        # Virtual nodes (e.g. `src: ivpm.yaml` factories) have no installed
+        # directory to scan -- they only contribute deps.
+        if getattr(pkg, "virtual", False):
+            return
         add = False
         if pkg.src_type == "pypi":
             with self._lock:
@@ -1031,9 +1035,26 @@ class PackageHandlerPython(PackageHandler):
 
 def _format_installer_error(captured_lines: list, tail: int = 20) -> str:
     """Return a newline-prefixed string with the last *tail* lines of installer
-    output, or an empty string when nothing was captured (non-PIPE mode)."""
+    output, or an empty string when nothing was captured (non-PIPE mode).
+    Prepends the name of the package being built when identifiable."""
     if not captured_lines:
         return ""
     relevant = [l for l in captured_lines if l.strip()]
     snippet = relevant[-tail:] if len(relevant) > tail else relevant
-    return "\n" + "\n".join(snippet)
+
+    # Scan backwards for the last "Building <pkg>" or uv "× Failed to build `<pkg>`"
+    # line so the error message identifies which package caused the failure.
+    pkg_context = None
+    import re as _re
+    for line in reversed(captured_lines):
+        m = _re.search(r'Failed to build `([^`@\s]+)', line)
+        if m:
+            pkg_context = m.group(1)
+            break
+        stripped = line.strip()
+        if stripped.startswith("Building "):
+            pkg_context = stripped[len("Building "):].split(" @ ")[0].split(" ")[0]
+            break
+
+    prefix = ("\n  while building package: %s" % pkg_context) if pkg_context else ""
+    return prefix + "\n" + "\n".join(snippet)

@@ -146,6 +146,8 @@ Common uses: separating dev from release dependencies, creating different
 build-target profiles, and controlling which sub-dependencies get loaded.
 
 For complete dependency set documentation, see :doc:`dependency_sets`.
+To split dep-sets and admin/header config across multiple files, see
+:doc:`multi_file`.
 
 
 Recursive Sub-Dependencies

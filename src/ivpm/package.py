@@ -113,6 +113,16 @@ class Package(object):
     # Track which package caused this dependency to be resolved.
     # None means it was resolved at the root level.
     resolved_by : str = None
+    # Provenance: set to "<url>#<dep-set>" when this package was contributed by
+    # a `src: ivpm.yaml` dep-set factory (see package_ivpm_yaml.py).
+    from_ivpm_source : Optional[str] = None
+
+    # Virtual packages exist in memory (in all_pkgs) but have no packages-dir
+    # representation -- they contribute deps without occupying a directory.
+    # Overridden to True by factory sources (e.g. PackageIvpmYaml). Consumers
+    # of all_pkgs/deps_dir test ``getattr(pkg, "virtual", False)`` to skip them.
+    # (Plain class attribute, not a dataclass field -- it is identity, not data.)
+    virtual = False
 
     def build(self, pkgs_info):
         pass

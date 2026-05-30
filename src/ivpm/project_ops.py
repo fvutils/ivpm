@@ -100,8 +100,9 @@ class ProjectOps(object):
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
             updater = PackageUpdater(deps_dir, pkg_handler, args=args)
 
-            # Configure deps-source on update_info (if any was requested)
-            self._configure_deps_source(updater.update_info, args)
+            # Configure deps-source on update_info (if any was requested, or
+            # auto-detected from a parent git worktree)
+            self._configure_deps_source(updater.update_info, args, proj_info)
 
             # Configure event dispatcher on update_info
             updater.update_info.event_dispatcher = event_dispatcher
@@ -247,7 +248,30 @@ class ProjectOps(object):
                 result.from_deps_source = entry["from_deps_source"]
             results.append(result)
 
+        # Recompute (do not persist) whether each deps-source package resolves
+        # into the current main git worktree, so status can mark those as
+        # "(auto: worktree)" vs a user-requested "(deps-source)".
+        self._mark_worktree_provenance(results, proj_info.deps_dir)
+
         return sorted(results, key=lambda r: r.name)
+
+    def _mark_worktree_provenance(self, results, deps_dir_name):
+        """Set ``deps_source_auto`` on any result whose ``from_deps_source``
+        resolves under the main git worktree's deps-dir."""
+        if not any(getattr(r, "from_deps_source", None) for r in results):
+            return
+        from .git_worktree import detect_main_worktree
+        main = detect_main_worktree(self.root_dir)
+        if main is None:
+            return
+        main_deps = os.path.realpath(os.path.join(main, deps_dir_name))
+        for r in results:
+            src = getattr(r, "from_deps_source", None)
+            if not src:
+                continue
+            real = os.path.realpath(src)
+            if real == main_deps or real.startswith(main_deps + os.sep):
+                r.deps_source_auto = True
 
     def sync(self, dep_set: str = None, args=None):
         import asyncio
@@ -372,9 +396,15 @@ class ProjectOps(object):
 
         return sorted(results, key=lambda r: r.name)
 
-    def _configure_deps_source(self, update_info, args):
+    def _configure_deps_source(self, update_info, args, proj_info=None):
         """Build a DepsSource from --deps-source flags / IVPM_DEPS_SOURCE env
         and attach it (and the requested materialization mode) to update_info.
+
+        When neither is supplied and ivpm is running inside a linked git
+        worktree, the main worktree's deps-dir is auto-configured as a
+        (lock-verified) deps-source so unchanged packages resolve from local
+        disk instead of the network. Auto-detection can be disabled with
+        --no-worktree-deps-source.
         """
         from .deps_source import DepsSource
 
@@ -384,6 +414,25 @@ class ProjectOps(object):
             if env:
                 paths = [p for p in env.split(os.pathsep) if p]
 
+        # Auto-detect a parent git worktree only when the user supplied no
+        # explicit deps-source. Explicit sources always win.
+        auto = False
+        if not paths and not getattr(args, "no_worktree_deps_source", False) \
+                and proj_info is not None:
+            from .git_worktree import detect_main_worktree
+            main = detect_main_worktree(self.root_dir)
+            if main is not None:
+                cand = os.path.join(main, proj_info.deps_dir)
+                if os.path.isdir(cand):
+                    paths = [cand]
+                    auto = True
+                    note("git worktree detected: sourcing unchanged packages "
+                         "from main worktree (%s)" % cand)
+                    if not os.path.isfile(os.path.join(cand, "package-lock.json")):
+                        note("  main worktree has no package-lock.json; packages "
+                             "will be re-fetched (run 'ivpm update' there first "
+                             "to enable reuse)")
+
         if not paths:
             return
 
@@ -391,10 +440,13 @@ class ProjectOps(object):
             if not os.path.isdir(p):
                 fatal("--deps-source path is not a directory: %s" % p)
 
+        # Auto-detected worktree sources are lock-verified (never trusted by
+        # name): a divergent branch dependency must fall through to a fetch.
         trust = bool(getattr(args, "trust_deps_source", False))
         mode = getattr(args, "deps_source_mode", None) or "link"
         update_info.deps_source = DepsSource.from_args(paths, trust=trust)
         update_info.deps_source_mode = mode
+        update_info.deps_source_auto = auto
 
     def _init(self, dep_set : str = None, cli_overrides=None) -> Tuple['ProjInfo', str, str]:
         from .proj_info import ProjInfo

@@ -5,6 +5,22 @@ Troubleshooting
 Common Issues and Solutions
 ============================
 
+Reading Error Messages
+----------------------
+
+IVPM reports problems in your ``ivpm.yaml`` with a compiler-style
+``file:line:col`` location, for example::
+
+    ivpm.yaml:3:3: fatal: Unknown tag 'bogus_key' at package level ...
+      bogus_key: 1
+      ^
+
+The location points at the exact key or value that caused the problem, and the
+caret (``^``) marks the column.  Warnings and errors are always shown,
+regardless of ``--log-level``, and IVPM exits non-zero without a Python
+traceback when it stops on an error.  See :doc:`diagnostics` for the full
+reference on severities, rich vs. plain output, and more examples.
+
 Installation Issues
 -------------------
 
@@ -856,4 +872,5 @@ See Also
 - :doc:`getting_started` - Basic usage
 - :doc:`handlers` - Handler documentation
 - :doc:`workflows` - Common workflows
+- :doc:`git_worktrees` - Worktree-specific behavior and troubleshooting
 - :doc:`reference` - Command reference

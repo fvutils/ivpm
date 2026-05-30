@@ -1,5 +1,3 @@
-
-pyyaml
-jsonschema
-
--e git+ssh://git@github.com/mballance/pyyaml-srcinfo-loader.git#egg=pyyaml-srcinfo-loader
+# Development requirements.
+# (pyyaml-srcinfo-loader removed: source-location loading is now in-tree under
+#  ivpm.yamlsrc)

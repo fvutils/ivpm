@@ -45,6 +45,12 @@ If you just want network avoidance across multiple workspaces, the shared
 the *source of truth* for a package is "whatever is in that other
 ``packages/`` over there."
 
+.. note::
+
+   If you work with **git worktrees**, IVPM configures a deps-source
+   automatically: a linked worktree reuses the main worktree's ``packages/``
+   with no flags required. See :doc:`git_worktrees`.
+
 Quickstart
 ==========
 
@@ -131,8 +137,14 @@ What Does *Not* Go Through Deps-Source
 
 - ``dir:`` and ``file:`` packages -- already user-supplied paths with no
   caching identity.
-- Editable git checkouts (``cache: false``) -- the user explicitly wants a
-  hackable clone, not a foreign symlink.
+
+Git packages *are* eligible regardless of their ``cache`` setting, including
+editable checkouts (``cache: false`` or ``cache`` omitted): if a parent entry
+matches the requested identity, the package is linked (or copied) from the
+parent. With lock-verified matching this only happens when the resolved commit
+matches, so a divergent version still falls through to a fresh clone. Use
+``--deps-source-mode=copy`` when you need the local checkout to be independent
+of the parent's.
 
 Lock-File Representation
 ========================
