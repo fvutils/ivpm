@@ -25,7 +25,11 @@ from .pkg_info.pkg_compile_flags import PkgCompileFlags
 from .pkg_info.pkg_info import PkgInfo
 from .pkg_info.pkg_info_rgy import PkgInfoRgy
 from .utils import load_project_package_info
-import ivpm.setup
+# Note: ivpm.setup is intentionally *not* imported here. It depends on
+# setuptools (a build-time dependency), which is not required to run the
+# ivpm CLI and is not part of requirements.txt. Importing it eagerly breaks
+# `python -m ivpm` in a minimal venv (e.g. bootstrap.sh). Projects that need
+# the setup wrapper import it directly via `from ivpm.setup import setup`.
 
 from .package import Package
 from .project_ops_info import ProjectUpdateInfo
