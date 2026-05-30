@@ -1,2 +1,8 @@
+# Runtime dependencies required to run the ivpm CLI from source (bootstrap.sh).
+# Keep in sync with [project].dependencies in pyproject.toml.
+httpx>=0.28.1,<1.0
 pyyaml
-requests
+rich
+setuptools
+toposort
+tomli>=2.0; python_version < '3.11'
