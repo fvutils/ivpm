@@ -359,7 +359,8 @@ class TestPackagesEnvrcPatching(TestBase):
 
         envrc_path = os.path.join(ui.deps_dir, "packages.envrc")
         self.assertTrue(os.path.isfile(envrc_path))
-        content = open(envrc_path).read()
+        with open(envrc_path) as f:
+            content = f.read()
         self.assertIn(_NODE_SENTINEL_BEGIN, content)
         self.assertIn(_NODE_SENTINEL_END, content)
         self.assertIn("source_env ./node/export.envrc", content)
@@ -373,7 +374,8 @@ class TestPackagesEnvrcPatching(TestBase):
         _patch_packages_envrc_node(deps_dir)
         _patch_packages_envrc_node(deps_dir)
 
-        content = open(os.path.join(deps_dir, "packages.envrc")).read()
+        with open(os.path.join(deps_dir, "packages.envrc")) as f:
+            content = f.read()
         self.assertEqual(content.count(_NODE_SENTINEL_BEGIN), 1)
         self.assertEqual(content.count(_NODE_SENTINEL_END), 1)
 
@@ -397,7 +399,8 @@ class TestNvmrc(TestBase):
 
         nvmrc = os.path.join(ui.deps_dir, "node", ".nvmrc")
         self.assertTrue(os.path.isfile(nvmrc))
-        self.assertEqual(open(nvmrc).read().strip(), "20")
+        with open(nvmrc) as f:
+            self.assertEqual(f.read().strip(), "20")
 
     def test_N17_nvmrc_not_written_when_absent(self):
         """N17: No version: → no .nvmrc file."""

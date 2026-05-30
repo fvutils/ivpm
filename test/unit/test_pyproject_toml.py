@@ -233,7 +233,8 @@ class TestPT06RawSpec(TestBase):
 
         req_file = os.path.join(self.testdir, "req.txt")
         handler._write_requirements_txt(self.testdir, [p], req_file)
-        content = open(req_file).read()
+        with open(req_file) as f:
+            content = f.read()
         self.assertIn("mypackage[extra]>=1.0; python_version>='3.8'", content)
 
 

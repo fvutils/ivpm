@@ -247,7 +247,9 @@ class PtyRunner:
     def _run_pipe(self) -> int:
         """Fallback: run with pipes (no prompt detection)."""
         env = self.env if self.env is not None else os.environ.copy()
-        proc = subprocess.Popen(
+        # Popen as a context manager closes the stdout pipe (and waits) on exit,
+        # avoiding a ResourceWarning when the object is garbage-collected.
+        with subprocess.Popen(
             self.cmd,
             cwd=self.cwd,
             env=env,
@@ -255,10 +257,9 @@ class PtyRunner:
             stderr=subprocess.STDOUT,
             text=True,
             errors="replace",
-        )
-        for line in proc.stdout:
-            self._all_output.append(line)
-            if self.output_callback:
-                self.output_callback(line)
-        proc.wait()
+        ) as proc:
+            for line in proc.stdout:
+                self._all_output.append(line)
+                if self.output_callback:
+                    self.output_callback(line)
         return proc.returncode

@@ -923,16 +923,18 @@ class PackageHandlerPython(PackageHandler):
             return result.returncode, []
 
         captured_lines = []
-        proc = subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True,
-                                errors="replace")
-        for raw_line in proc.stdout:
-            line = raw_line.rstrip()
-            captured_lines.append(line)
-            msg = self._parse_installer_line(line, use_uv)
-            if msg and task is not None:
-                task.progress(msg)
-        proc.wait()
+        # Use Popen as a context manager so the stdout pipe is closed (and the
+        # process waited on) on exit -- otherwise the lingering pipe triggers a
+        # ResourceWarning when the Popen object is garbage-collected.
+        with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
+                              stderr=subprocess.STDOUT, text=True,
+                              errors="replace") as proc:
+            for raw_line in proc.stdout:
+                line = raw_line.rstrip()
+                captured_lines.append(line)
+                msg = self._parse_installer_line(line, use_uv)
+                if msg and task is not None:
+                    task.progress(msg)
         return proc.returncode, captured_lines
 
     @staticmethod
