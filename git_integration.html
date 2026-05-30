@@ -20,7 +20,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Inspecting Dependencies (show deps)" href="show_deps.html" />
+    <link rel="next" title="Git Worktrees" href="git_worktrees.html" />
     <link rel="prev" title="Development Workflows" href="workflows.html" /> 
 </head>
 
@@ -51,6 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
@@ -129,12 +130,15 @@
 <li class="toctree-l3"><a class="reference internal" href="#submodule-issues">Submodule Issues</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#worktrees">Worktrees</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
@@ -823,10 +827,18 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
 </div>
 </section>
 </section>
+<section id="worktrees">
+<h2>Worktrees<a class="headerlink" href="#worktrees" title="Link to this heading"></a></h2>
+<p>When you check out a branch into a linked <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">worktree</span></code>, IVPM automatically
+reuses the already-materialized packages from your main worktree – unchanged
+dependencies resolve from local disk instead of being re-cloned, with no
+configuration required. See <a class="reference internal" href="git_worktrees.html"><span class="doc">Git Worktrees</span></a> for the full story.</p>
+</section>
 <section id="see-also">
 <h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> - Complete development workflows</p></li>
+<li><p><a class="reference internal" href="git_worktrees.html"><span class="doc">Git Worktrees</span></a> - Accelerated updates inside linked git worktrees</p></li>
 <li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> - Git package configuration</p></li>
 <li><p><a class="reference internal" href="getting_started.html"><span class="doc">Getting Started with IVPM</span></a> - Basic Git operations</p></li>
 </ul>
@@ -838,7 +850,7 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="workflows.html" class="btn btn-neutral float-left" title="Development Workflows" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="show_deps.html" class="btn btn-neutral float-right" title="Inspecting Dependencies (show deps)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="git_worktrees.html" class="btn btn-neutral float-right" title="Git Worktrees" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

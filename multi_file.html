@@ -1,0 +1,284 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Splitting ivpm.yaml Across Files &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+    <link rel="shortcut icon" href="_static/favicon.svg"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Variables" href="variables.html" />
+    <link rel="prev" title="Dependency Sets" href="dependency_sets.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+              <img src="_static/ivpm-logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#why-split-a-file">Why Split a File</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#the-include-key">The <code class="docutils literal notranslate"><span class="pre">include:</span></code> Key</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#merge-rules">Merge Rules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recommended-convention">Recommended Convention</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#errors">Errors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#beyond-includes-dep-set-factories">Beyond Includes: Dep-Set Factories</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deps_source.html">Deps-Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
+<li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/multi_file.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="splitting-ivpm-yaml-across-files">
+<h1>Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files<a class="headerlink" href="#splitting-ivpm-yaml-across-files" title="Link to this heading"></a></h1>
+<p>A single <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> mixes several audiences and lifecycles: project
+identity, admin/handler configuration, and the dependency lists that
+developers touch day to day.  The <code class="docutils literal notranslate"><span class="pre">include:</span></code> key lets you split these
+concerns across multiple files while still presenting IVPM with one logical
+<code class="docutils literal notranslate"><span class="pre">package:</span></code> definition.</p>
+<p>For pulling a dependency set out of a <em>remote</em> <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, see the
+<a class="reference internal" href="#multi-file-factory"><span class="std std-ref">dep-set factory</span></a> note at the end of this page.</p>
+<section id="why-split-a-file">
+<h2>Why Split a File<a class="headerlink" href="#why-split-a-file" title="Link to this heading"></a></h2>
+<p>Different parts of an <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> change at very different rates and are
+often owned by different people:</p>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Concern</p></th>
+<th class="head"><p>Who edits it</p></th>
+<th class="head"><p>How often</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Handler/runtime config (<code class="docutils literal notranslate"><span class="pre">with</span></code>, <code class="docutils literal notranslate"><span class="pre">vars</span></code>,</p></td>
+<td><p>Project admin / tooling</p></td>
+<td><p>Rarely</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">paths</span></code>, <code class="docutils literal notranslate"><span class="pre">env</span></code>)</p></td>
+<td><p>owner</p></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p>Dependency lists (<code class="docutils literal notranslate"><span class="pre">dep-sets[*].deps</span></code>)</p></td>
+<td><p>Developers</p></td>
+<td><p>Frequently</p></td>
+</tr>
+<tr class="row-odd"><td><p>Project identity (<code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">version</span></code>)</p></td>
+<td><p>Project owner</p></td>
+<td><p>Rarely</p></td>
+</tr>
+</tbody>
+</table>
+<p>A common goal is to keep admin/header settings <em>out</em> of the file developers
+routinely edit when adding or bumping packages.  <code class="docutils literal notranslate"><span class="pre">include:</span></code> makes that
+possible without inventing a second schema – every file is just a partial
+<code class="docutils literal notranslate"><span class="pre">package:</span></code> body.</p>
+</section>
+<section id="the-include-key">
+<h2>The <code class="docutils literal notranslate"><span class="pre">include:</span></code> Key<a class="headerlink" href="#the-include-key" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">include:</span></code> is a list of file paths, resolved <strong>relative to the including
+file</strong>.  Each included file is parsed as a partial <code class="docutils literal notranslate"><span class="pre">package:</span></code> body and
+merged into the includer:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># ivpm.yaml  -- developer-edited; PRs land here</span>
+<span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
+<span class="w">  </span><span class="nt">include</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm.admin.yaml</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pyyaml</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+</pre></div>
+</div>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># ivpm.admin.yaml  -- CODEOWNERS-protected</span>
+<span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">python</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">venv</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">project</span>
+<span class="w">  </span><span class="nt">vars</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">tool_ver</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.2.3&quot;</span>
+<span class="w">  </span><span class="nt">env</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PROJECT_ROOT</span>
+<span class="w">      </span><span class="nt">path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">.</span>
+</pre></div>
+</div>
+<p>Includes may themselves include other files; nesting is flattened before any
+merge happens.  Variable (<code class="docutils literal notranslate"><span class="pre">${{var}}</span></code>) resolution runs <strong>after</strong> the full
+merge, so an included file may reference a variable defined by the includer.</p>
+</section>
+<section id="merge-rules">
+<h2>Merge Rules<a class="headerlink" href="#merge-rules" title="Link to this heading"></a></h2>
+<p>The including file is always <strong>local</strong> and wins on conflict.  “Local wins”
+applies transitively: the file nearest the root overrides values from files it
+pulls in.</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">name</span></code>, <code class="docutils literal notranslate"><span class="pre">version</span></code> – May <strong>not</strong> be set by an include; identity is
+anchored to the root file.  An include that sets either is an error.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">type</span></code> – May be set by an include (it is configuration, not identity).
+On conflict the root wins.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dep-sets</span></code> – Merged <strong>by name</strong>.  A dep-set name defined in two files is
+an <strong>error</strong> (reporting both locations).  <code class="docutils literal notranslate"><span class="pre">deps</span></code> are never concatenated
+across files – each dep-set has exactly one owning file.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">with</span></code>, <code class="docutils literal notranslate"><span class="pre">vars</span></code> – Deep-merged.  On scalar conflict, the includer wins.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">paths</span></code> – Deep-merged as a map; leaf lists append.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">env</span></code>, <code class="docutils literal notranslate"><span class="pre">env-sets</span></code>, <code class="docutils literal notranslate"><span class="pre">setup-deps</span></code> – List-append (the include’s items
+follow the local items).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">deps-dir</span></code>, <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> and other scalars – Local wins; adopted
+from the include only if the includer does not set them.</p></li>
+</ul>
+<p>Source locations are preserved across files, so error messages still point at
+the correct <code class="docutils literal notranslate"><span class="pre">file:line:column</span></code> – even when the conflicting values come from
+different files.</p>
+</section>
+<section id="recommended-convention">
+<h2>Recommended Convention<a class="headerlink" href="#recommended-convention" title="Link to this heading"></a></h2>
+<p>Split along the admin/developer seam and protect the admin file with
+CODEOWNERS:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm.yaml          # developer-edited: identity + dep-sets, includes the admin file
+ivpm.admin.yaml    # CODEOWNERS-protected: with/vars/paths/env
+</pre></div>
+</div>
+<p>Developers add and bump packages in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> without touching – or
+needing review authority over – the handler/environment configuration in
+<code class="docutils literal notranslate"><span class="pre">ivpm.admin.yaml</span></code>.</p>
+</section>
+<section id="errors">
+<h2>Errors<a class="headerlink" href="#errors" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><strong>Cyclic include</strong> – a file that (transitively) includes itself is fatal.
+Two files reached by independent paths (a diamond) are allowed; only a true
+cycle is rejected.</p></li>
+<li><p><strong>Duplicate dep-set</strong> – the same dep-set name defined in two included files
+(or twice within one file) is fatal, reporting both locations.</p></li>
+<li><p><strong>Identity in an include</strong> – an include that sets <code class="docutils literal notranslate"><span class="pre">name</span></code> or <code class="docutils literal notranslate"><span class="pre">version</span></code>
+is fatal.</p></li>
+<li><p><strong>Missing include file</strong> – a referenced path that does not exist is fatal.</p></li>
+</ul>
+</section>
+<section id="beyond-includes-dep-set-factories">
+<span id="multi-file-factory"></span><h2>Beyond Includes: Dep-Set Factories<a class="headerlink" href="#beyond-includes-dep-set-factories" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">include:</span></code> composes files on the <strong>local filesystem</strong> into one package
+definition.  A related, complementary mechanism – a package <em>source</em> that
+pulls a named dep-set out of a <strong>remote</strong> <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> – is described in
+<a class="reference internal" href="package_types.html#ivpm-yaml-factory"><span class="std std-ref">ivpm.yaml (Dep-Set Factory)</span></a> (<a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a>).  Use <code class="docutils literal notranslate"><span class="pre">include:</span></code> for file
+composition within a project, and the <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">ivpm.yaml</span></code> source to consume a
+dep-set published elsewhere.</p>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> – defining dep-sets and <code class="docutils literal notranslate"><span class="pre">uses:</span></code> inheritance</p></li>
+<li><p><a class="reference internal" href="variables.html"><span class="doc">Variables</span></a> – <code class="docutils literal notranslate"><span class="pre">${{var}}</span></code> resolution across merged files</p></li>
+<li><p><a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> – the update pipeline</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dependency_sets.html" class="btn btn-neutral float-left" title="Dependency Sets" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="variables.html" class="btn btn-neutral float-right" title="Variables" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

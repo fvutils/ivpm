@@ -722,9 +722,18 @@ Submodule Issues
     $ git submodule update --init --recursive
     $ cd ../..
 
+Worktrees
+=========
+
+When you check out a branch into a linked ``git worktree``, IVPM automatically
+reuses the already-materialized packages from your main worktree -- unchanged
+dependencies resolve from local disk instead of being re-cloned, with no
+configuration required. See :doc:`git_worktrees` for the full story.
+
 See Also
 ========
 
 - :doc:`workflows` - Complete development workflows
+- :doc:`git_worktrees` - Accelerated updates inside linked git worktrees
 - :doc:`package_types` - Git package configuration
 - :doc:`getting_started` - Basic Git operations

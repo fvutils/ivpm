@@ -51,6 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
@@ -59,6 +60,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#key-properties">Key Properties</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#lock-file-format">Lock File Format</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#dep-set-factory-sources-ivpm-sources">Dep-Set Factory Sources (<code class="docutils literal notranslate"><span class="pre">ivpm_sources</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#change-detection">Change Detection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#reproduction-mode">Reproduction Mode</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ci-cd-reproducibility-pattern">CI/CD Reproducibility Pattern</a></li>
@@ -74,9 +76,11 @@
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
@@ -225,7 +229,45 @@ package.</p>
 <dt><code class="docutils literal notranslate"><span class="pre">reproducible</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">true</span></code> for packages that can be restored on any machine.
 <code class="docutils literal notranslate"><span class="pre">false</span></code> for <code class="docutils literal notranslate"><span class="pre">dir</span></code> and <code class="docutils literal notranslate"><span class="pre">file</span></code> packages (local paths).</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">from_ivpm_source</span></code> <em>(optional)</em></dt><dd><p>Present only on packages contributed by a <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">ivpm.yaml</span></code> dep-set
+factory.  Records the factory’s <code class="docutils literal notranslate"><span class="pre">&quot;&lt;url&gt;#&lt;dep-set&gt;&quot;</span></code> so <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">deps</span></code>
+can explain where the dependency came from.  See <a class="reference internal" href="package_types.html#ivpm-yaml-factory"><span class="std std-ref">ivpm.yaml (Dep-Set Factory)</span></a>.</p>
+</dd>
 </dl>
+</section>
+<section id="dep-set-factory-sources-ivpm-sources">
+<h2>Dep-Set Factory Sources (<code class="docutils literal notranslate"><span class="pre">ivpm_sources</span></code>)<a class="headerlink" href="#dep-set-factory-sources-ivpm-sources" title="Link to this heading"></a></h2>
+<p>A <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">ivpm.yaml</span></code> dependency (a <a class="reference internal" href="package_types.html#ivpm-yaml-factory"><span class="std std-ref">dep-set factory</span></a>)
+contributes deps but has <strong>no packages-dir representation</strong>, so it is not listed
+under <code class="docutils literal notranslate"><span class="pre">packages</span></code>.  Instead, the lock file records it under a top-level
+<code class="docutils literal notranslate"><span class="pre">ivpm_sources</span></code> map keyed by the factory <code class="docutils literal notranslate"><span class="pre">url</span></code>:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;packages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;pyyaml&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pypi&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;version_resolved&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;6.0.1&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;resolved_by&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;core-tools&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;from_ivpm_source&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/tools.yaml#core&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;ivpm_sources&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;https://example.com/tools.yaml&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;src&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;ivpm.yaml&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;core&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;fingerprint&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;sha256:1a2b3c…&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;reproducible&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;virtual&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Each contributed leaf (e.g. <code class="docutils literal notranslate"><span class="pre">pyyaml</span></code> above) appears in the normal <code class="docutils literal notranslate"><span class="pre">packages</span></code>
+map with a <code class="docutils literal notranslate"><span class="pre">from_ivpm_source</span></code> provenance field.  The <code class="docutils literal notranslate"><span class="pre">fingerprint</span></code> is the
+factory’s resolved etag / last-modified, or a content <code class="docutils literal notranslate"><span class="pre">sha256</span></code> — it lets a
+re-resolve detect that the factory’s dep-set membership changed upstream even
+though each leaf re-pins independently.</p>
 </section>
 <section id="change-detection">
 <h2>Change Detection<a class="headerlink" href="#change-detection" title="Link to this heading"></a></h2>

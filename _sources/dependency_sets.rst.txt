@@ -133,6 +133,29 @@ and ``test-framework``.  Running ``ivpm update -d default`` installs only
             src: pypi
           # inherits core-lib (from base via dev) and pytest (from dev)
 
+Including Dep-Sets From Other Files
+-----------------------------------
+
+``uses:`` composes dep-sets *within a single file*.  To define a dep-set in a
+**separate file** and merge it into your project, use the ``include:`` key --
+see :doc:`multi_file`.  The two mechanisms are complementary:
+
+- ``include:`` is **file composition** -- it merges partial ``package:`` bodies
+  (including whole dep-sets) from sibling files.  Dep-sets merge by name, and a
+  name defined in two files is an error.
+- ``uses:`` is **dep-set inheritance** -- it copies packages from one dep-set
+  into another.  It operates after includes are merged, so a dep-set may
+  ``uses:`` a base contributed by an included file.
+
+There is also a third, network-facing mechanism: a ``src: ivpm.yaml``
+dependency (a *dep-set factory*) pulls a named dep-set out of a **remote**
+``ivpm.yaml`` and folds it into the consuming dep-set.  In short:
+
+- ``uses:`` -- inheritance **within a file**.
+- ``include:`` -- composition **across local files** (see :doc:`multi_file`).
+- ``src: ivpm.yaml`` -- consuming a dep-set **published elsewhere** (see
+  :ref:`ivpm-yaml-factory` in :doc:`package_types`).
+
 Using Dependency Sets
 =====================
 

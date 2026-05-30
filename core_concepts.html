@@ -60,6 +60,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
@@ -71,9 +72,11 @@
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
 </ul>
@@ -228,7 +231,9 @@ maintain different profiles for different scenarios:</p>
 </div>
 <p>Common uses: separating dev from release dependencies, creating different
 build-target profiles, and controlling which sub-dependencies get loaded.</p>
-<p>For complete dependency set documentation, see <a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a>.</p>
+<p>For complete dependency set documentation, see <a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a>.
+To split dep-sets and admin/header config across multiple files, see
+<a class="reference internal" href="multi_file.html"><span class="doc">Splitting ivpm.yaml Across Files</span></a>.</p>
 </section>
 <section id="recursive-sub-dependencies">
 <h2>Recursive Sub-Dependencies<a class="headerlink" href="#recursive-sub-dependencies" title="Link to this heading"></a></h2>

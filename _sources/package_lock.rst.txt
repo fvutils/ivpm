@@ -128,6 +128,48 @@ Fields common to all entries:
     ``true`` for packages that can be restored on any machine.
     ``false`` for ``dir`` and ``file`` packages (local paths).
 
+``from_ivpm_source`` *(optional)*
+    Present only on packages contributed by a ``src: ivpm.yaml`` dep-set
+    factory.  Records the factory's ``"<url>#<dep-set>"`` so ``ivpm show deps``
+    can explain where the dependency came from.  See :ref:`ivpm-yaml-factory`.
+
+Dep-Set Factory Sources (``ivpm_sources``)
+==========================================
+
+A ``src: ivpm.yaml`` dependency (a :ref:`dep-set factory <ivpm-yaml-factory>`)
+contributes deps but has **no packages-dir representation**, so it is not listed
+under ``packages``.  Instead, the lock file records it under a top-level
+``ivpm_sources`` map keyed by the factory ``url``:
+
+.. code-block:: json
+
+    {
+      "packages": {
+        "pyyaml": {
+          "src": "pypi",
+          "version_resolved": "6.0.1",
+          "resolved_by": "core-tools",
+          "from_ivpm_source": "https://example.com/tools.yaml#core",
+          "reproducible": true
+        }
+      },
+      "ivpm_sources": {
+        "https://example.com/tools.yaml": {
+          "src": "ivpm.yaml",
+          "dep_set": "core",
+          "fingerprint": "sha256:1a2b3c…",
+          "reproducible": true,
+          "virtual": true
+        }
+      }
+    }
+
+Each contributed leaf (e.g. ``pyyaml`` above) appears in the normal ``packages``
+map with a ``from_ivpm_source`` provenance field.  The ``fingerprint`` is the
+factory's resolved etag / last-modified, or a content ``sha256`` — it lets a
+re-resolve detect that the factory's dep-set membership changed upstream even
+though each leaf re-pins independently.
+
 Change Detection
 ================
 

@@ -741,9 +741,25 @@ Scenario 4: Cleaning Up Stale Dependencies
 
     # Remove packages directory
     $ rm -rf packages/
-    
+
     # Recreate from scratch
     $ ivpm update
+
+Scenario 5: Parallel Branches with Git Worktrees
+-------------------------------------------------
+
+Work on a second branch without disturbing your main checkout. IVPM reuses the
+main worktree's already-fetched packages automatically:
+
+.. code-block:: bash
+
+    # From your main, already-updated workspace
+    $ git worktree add ../myws-feature feature-branch
+    $ cd ../myws-feature
+    $ ivpm update    # unchanged packages linked from the main worktree; no re-clone
+
+See :doc:`git_worktrees` for details, including how diverging dependencies and
+editable packages are handled.
 
 Best Practices
 ==============
@@ -765,6 +781,7 @@ See Also
 - :doc:`getting_started` - Initial setup and basic workflows
 - :doc:`handlers` - How handlers process packages
 - :doc:`git_integration` - Git-specific commands and workflows
+- :doc:`git_worktrees` - Accelerated updates inside linked git worktrees
 - :doc:`python_packages` - Python package management
 - :doc:`caching` - Using cache for better performance
 - :doc:`package_lock` - Package lock file and reproducible workspaces

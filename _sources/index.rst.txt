@@ -24,6 +24,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    core_concepts
    handlers
    dependency_sets
+   multi_file
    variables
    package_types
    caching
@@ -35,9 +36,11 @@ One YAML file.  One command.  A complete, self-contained workspace.
    environment_paths
    workflows
    git_integration
+   git_worktrees
    show_deps
    integrations
    extending_ivpm
+   diagnostics
    troubleshooting
    reference
 

@@ -1,0 +1,376 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git Worktrees &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+    <link rel="shortcut icon" href="_static/favicon.svg"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Inspecting Dependencies (show deps)" href="show_deps.html" />
+    <link rel="prev" title="Git Integration" href="git_integration.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+              <img src="_static/ivpm-logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deps_source.html">Deps-Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Git Worktrees</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#why-worktrees-need-a-hand">Why Worktrees Need a Hand</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#quickstart">Quickstart</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-it-works">How It Works</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#detection">Detection</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#lock-verified-reuse">Lock-Verified Reuse</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#what-gets-shared">What Gets Shared</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#working-on-diverging-dependencies">Working on Diverging Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#controlling-the-behavior">Controlling the Behavior</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#inspecting-provenance">Inspecting Provenance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#lifecycle-and-cleanup">Lifecycle and Cleanup</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#non-git-and-ci">Non-Git and CI</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Git Worktrees</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/git_worktrees.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="git-worktrees">
+<h1>Git Worktrees<a class="headerlink" href="#git-worktrees" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>A <strong>git worktree</strong> lets you check out more than one branch of the same
+repository at once, each in its own directory, while sharing a single <code class="docutils literal notranslate"><span class="pre">.git</span></code>
+history. You create one with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>../myproj-feature<span class="w"> </span>feature-branch
+</pre></div>
+</div>
+<p>This is ideal for working on a feature branch without disturbing your main
+checkout – no stashing, no second clone, no duplicated git history.</p>
+<p>IVPM makes worktrees even better: when you run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> inside a linked
+worktree, it automatically reuses the <strong>already-materialized packages from your
+main worktree</strong> instead of re-cloning and re-downloading everything. Packages
+that your branch hasn’t changed resolve from local disk; only the packages your
+branch actually bumped are fetched.</p>
+</section>
+<section id="why-worktrees-need-a-hand">
+<h2>Why Worktrees Need a Hand<a class="headerlink" href="#why-worktrees-need-a-hand" title="Link to this heading"></a></h2>
+<p>IVPM’s deps-dir (<code class="docutils literal notranslate"><span class="pre">packages/</span></code> by default) is almost always <strong>git-ignored</strong> –
+it holds fetched dependencies, not source you commit. So a freshly created
+worktree starts with <em>no</em> <code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory at all, even though
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> is present (it is tracked).</p>
+<p>A naive <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> in the new worktree would therefore re-resolve every
+dependency from scratch: cloning git repos, downloading archives, and rebuilding
+the Python virtual environment – often minutes of work – even though a complete
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> for nearly the same dependency set already exists in the sibling
+main worktree.</p>
+<p>IVPM closes this gap automatically.</p>
+</section>
+<section id="quickstart">
+<h2>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>~/proj/myws<span class="w">                 </span><span class="c1"># main workspace, already `ivpm update`-d</span>
+git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>../myws-feature<span class="w"> </span>feature-branch
+<span class="nb">cd</span><span class="w"> </span>../myws-feature
+ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> runs in the worktree, it prints:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>git worktree detected: sourcing unchanged packages from main worktree (/home/you/proj/myws/packages)
+</pre></div>
+</div>
+<p>Unchanged packages are linked from the main worktree’s <code class="docutils literal notranslate"><span class="pre">packages/</span></code> instantly;
+anything your branch changed is fetched normally. No flags required.</p>
+</section>
+<section id="how-it-works">
+<h2>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading"></a></h2>
+<section id="detection">
+<h3>Detection<a class="headerlink" href="#detection" title="Link to this heading"></a></h3>
+<p>IVPM identifies a <em>linked</em> worktree using git’s own plumbing: in a linked
+worktree <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">rev-parse</span> <span class="pre">--git-dir</span></code> differs from
+<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">rev-parse</span> <span class="pre">--git-common-dir</span></code> (in the main worktree they are equal). The
+main worktree’s path is the first entry of <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">worktree</span> <span class="pre">list</span></code>. See
+<a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> for more on IVPM’s git handling.</p>
+</section>
+<section id="lock-verified-reuse">
+<h3>Lock-Verified Reuse<a class="headerlink" href="#lock-verified-reuse" title="Link to this heading"></a></h3>
+<p>Reuse is <strong>verified</strong>, not blind. For each package, IVPM resolves the identity
+your branch asks for (e.g. a git commit) and compares it against the main
+worktree’s <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code>:</p>
+<ul class="simple">
+<li><p><strong>Match</strong> – the package is unchanged on your branch, so <code class="docutils literal notranslate"><span class="pre">packages/&lt;pkg&gt;</span></code> is
+linked to the main worktree’s copy. No fetch.</p></li>
+<li><p><strong>No match</strong> – your branch pins a different version, so IVPM falls through to
+the shared cache / remote and fetches the correct version.</p></li>
+</ul>
+<p>This is exactly the behavior you want from a worktree: reuse everything you
+didn’t touch, fetch what you did. See <a class="reference internal" href="deps_source.html"><span class="doc">Deps-Source</span></a> (“How Matching Works”)
+and <a class="reference internal" href="package_lock.html"><span class="doc">Package Lock File</span></a> for details.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Worktree auto-detection always uses lock-verified matching. It never enables
+<code class="docutils literal notranslate"><span class="pre">--trust-deps-source</span></code> (trust-by-name), because that could silently link the
+main worktree’s version of a package your branch deliberately changed.</p>
+</div>
+</section>
+<section id="what-gets-shared">
+<h3>What Gets Shared<a class="headerlink" href="#what-gets-shared" title="Link to this heading"></a></h3>
+<p>Lock-verified matching decides this per package, and it does the right thing for
+the worktree use case:</p>
+<ul class="simple">
+<li><p><strong>Cacheable packages</strong> (<code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code>) are read-only mirrors – in either
+worktree they point into the same shared <a class="reference internal" href="caching.html"><span class="doc">cache</span></a> anyway, so
+linking is free and safe.</p></li>
+<li><p><strong>Editable packages</strong> (<code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code> or <code class="docutils literal notranslate"><span class="pre">cache</span></code> omitted) are shared
+<em>only when your branch resolves to the same version as the main worktree</em>. If
+your branch pins a different commit/tag, the version won’t match and you get
+your own independent clone (see <a class="reference internal" href="#working-on-diverging-dependencies">Working on Diverging Dependencies</a> below).</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>When an editable package <em>is</em> shared, <code class="docutils literal notranslate"><span class="pre">packages/&lt;pkg&gt;</span></code> in the worktree is a
+symlink to the <strong>same on-disk clone</strong> as the main worktree – they share one
+working copy, one branch, one index. Edits and <code class="docutils literal notranslate"><span class="pre">git</span></code> operations on that
+package are visible in both worktrees. This is usually what you want for a
+dependency you are co-developing (a single source of truth). If you need an
+independent copy, use <code class="docutils literal notranslate"><span class="pre">--deps-source-mode=copy</span></code>, or pin the package to a
+different version on your branch so it falls through to its own clone.</p>
+</div>
+</section>
+</section>
+<section id="working-on-diverging-dependencies">
+<h2>Working on Diverging Dependencies<a class="headerlink" href="#working-on-diverging-dependencies" title="Link to this heading"></a></h2>
+<p>The headline benefit: create a worktree to try a dependency bump, and IVPM
+fetches <em>only</em> the changed package while reusing everything else.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>worktree<span class="w"> </span>add<span class="w"> </span>../myws-bump<span class="w"> </span>main
+<span class="nb">cd</span><span class="w"> </span>../myws-bump
+<span class="c1"># edit ivpm.yaml: bump `mylib` to a newer commit/tag</span>
+ivpm<span class="w"> </span>update
+<span class="c1">#   mylib        -&gt; fetched fresh (branch pins a new commit)</span>
+<span class="c1">#   everything else -&gt; linked from the main worktree</span>
+</pre></div>
+</div>
+</section>
+<section id="controlling-the-behavior">
+<h2>Controlling the Behavior<a class="headerlink" href="#controlling-the-behavior" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 40.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Effect</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><em>(default)</em></p></td>
+<td><p>Auto-detect the parent worktree and reuse via lock-verified linking.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--no-worktree-deps-source</span></code></p></td>
+<td><p>Disable auto-detection entirely; resolve as if standalone.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--deps-source</span> <span class="pre">PATH</span></code> / <code class="docutils literal notranslate"><span class="pre">IVPM_DEPS_SOURCE</span></code></p></td>
+<td><p>Take precedence over auto-detection (auto only fills the gap).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--deps-source-mode=copy</span></code></p></td>
+<td><p>Copy instead of symlink, for full physical isolation from the main tree.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="inspecting-provenance">
+<h2>Inspecting Provenance<a class="headerlink" href="#inspecting-provenance" title="Link to this heading"></a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code> annotates packages that were reused from the main worktree with
+<code class="docutils literal notranslate"><span class="pre">(auto:</span> <span class="pre">worktree)</span></code> (versus <code class="docutils literal notranslate"><span class="pre">(deps-source)</span></code> for a user-supplied
+<code class="docutils literal notranslate"><span class="pre">--deps-source</span></code>):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>✓  mylib                          (detached @ 9f3a1c2)  9f3a1c2  clean
+~  somedata (auto: worktree)      (dir)
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> treats worktree-sourced packages as read-only mirrors and reports
+them <code class="docutils literal notranslate"><span class="pre">SKIPPED</span></code> – their source of truth is the main worktree, not upstream.</p>
+</section>
+<section id="lifecycle-and-cleanup">
+<h2>Lifecycle and Cleanup<a class="headerlink" href="#lifecycle-and-cleanup" title="Link to this heading"></a></h2>
+<p>Remove a worktree with git as usual:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>worktree<span class="w"> </span>remove<span class="w"> </span>../myws-feature
+</pre></div>
+</div>
+<p>The worktree’s <code class="docutils literal notranslate"><span class="pre">packages/</span></code> entries are symlinks into the main tree (or
+independent copies under <code class="docutils literal notranslate"><span class="pre">copy</span></code> mode), so removing the worktree just deletes
+those links; the main worktree is untouched.</p>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If you delete or move the <strong>main</strong> worktree while a linked worktree still
+references it, that worktree’s symlinks will dangle. Re-run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>
+in the affected worktree to rematerialize (it will fetch fresh, or pick up a
+new main worktree if one exists).</p>
+</div>
+</section>
+<section id="non-git-and-ci">
+<h2>Non-Git and CI<a class="headerlink" href="#non-git-and-ci" title="Link to this heading"></a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This feature is purely opportunistic. In a directory that is not a git
+repository, or on a system where git is not installed, detection is a silent
+no-op – <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> behaves exactly as it always has, with no errors and
+no extra output. IVPM never requires git for its own operation; git is only
+needed to fetch <code class="docutils literal notranslate"><span class="pre">git:</span></code> packages.</p>
+</div>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 45.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Symptom</p></th>
+<th class="head"><p>Likely cause / fix</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Worktree re-fetched everything</p></td>
+<td><p>The main worktree was never updated, has no <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code>, or your
+branch diverged on most packages. Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> in the main
+worktree first.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Want to disable reuse for one run</p></td>
+<td><p>Pass <code class="docutils literal notranslate"><span class="pre">--no-worktree-deps-source</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p>Need an independent copy of a reused package</p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">--deps-source-mode=copy</span></code>, or pin the package to a different
+version on your branch so it falls through to its own clone.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Edits to a reused package appeared in the main tree</p></td>
+<td><p>Expected: a package whose version matched the main worktree is shared by
+symlink (one working copy for both trees). Use <code class="docutils literal notranslate"><span class="pre">copy</span></code> mode for
+isolation, or pin a different version on your branch.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="deps_source.html"><span class="doc">Deps-Source</span></a> – the underlying mechanism worktree detection builds on.</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> – the shared cache that backs cacheable packages.</p></li>
+<li><p><a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> – IVPM’s broader git handling.</p></li>
+<li><p><a class="reference internal" href="package_lock.html"><span class="doc">Package Lock File</span></a> – how IVPM records and verifies resolved identity.</p></li>
+<li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> – other day-to-day development workflows.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="git_integration.html" class="btn btn-neutral float-left" title="Git Integration" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="show_deps.html" class="btn btn-neutral float-right" title="Inspecting Dependencies (show deps)" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
