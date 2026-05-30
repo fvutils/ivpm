@@ -1,4 +1,8 @@
 
+# 2.10.0
+- Add support for multi-file ivpm.yaml descriptions
+- Add support for git worktrees
+
 # 2.9.0
 - Add 'show deps' sub-command
 
