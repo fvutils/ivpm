@@ -206,6 +206,11 @@ class PackageGhRls(PackageHttp):
         forced_ext = None
 
         assets = rls.get("assets", [])
+        # Drop checksum/signature companion files (e.g. foo.tar.gz.sha256, foo.tar.gz.asc).
+        # Their names embed the archive's platform tags, so the asset-selection heuristics
+        # would otherwise treat them as downloadable binaries.
+        assets = [a for a in assets if not self._is_checksum_or_sig(
+            a.get("name") or os.path.basename(a.get("browser_download_url", "")))]
         if self.file is not None:
             # Filter assets to those whose name starts with the basename or matches it as a pattern
             filtered = [
@@ -686,6 +691,18 @@ class PackageGhRls(PackageHttp):
             if any(k in nm for k in ("macos", "darwin", "osx", "windows", "win64", "win32", "win")):
                 return True
         return False
+
+    # Extensions used for checksum/signature companion files that sit alongside
+    # the real release archives and must never be selected for download/unpack.
+    _CHECKSUM_SIG_EXTS = (
+        ".sha256", ".sha512", ".sha1", ".sha", ".md5",
+        ".asc", ".sig", ".sign", ".pem", ".minisig", ".cert",
+    )
+
+    def _is_checksum_or_sig(self, name):
+        """Return True if the asset name is a checksum or signature companion file."""
+        n = (name or "").lower()
+        return n.endswith(self._CHECKSUM_SIG_EXTS)
 
     def _filter_valid_assets(self, assets):
         """Filter out assets with broken untagged URLs (draft artifacts that weren't re-published)."""
