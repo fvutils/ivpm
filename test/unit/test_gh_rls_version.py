@@ -182,5 +182,43 @@ class TestGhRlsVersion(unittest.TestCase):
         self.assertIsNotNone(sel)
         self.assertEqual(sel["tag_name"], "v5.3.4")
 
+class TestGhRlsChecksumFiltering(unittest.TestCase):
+    """Checksum/signature companion assets must never be selected for download.
+
+    Regression test: nextpnr-bin releases ship a `.tar.gz.sha256` next to each
+    `.tar.gz`.  The platform tag embedded in the checksum file's name made it a
+    selection candidate, and a version tie let it win over the real archive,
+    producing 'unsupported archive type .sha256'.
+    """
+
+    def _assets(self, *names):
+        return [{"name": n, "browser_download_url": "http://example/" + n} for n in names]
+
+    def test_is_checksum_or_sig(self):
+        pkg = PackageGhRls("dummy")
+        for n in ("foo.tar.gz.sha256", "FOO.TAR.GZ.SHA512", "foo.tar.gz.asc",
+                  "foo.zip.md5", "foo.sig", "foo.minisig"):
+            self.assertTrue(pkg._is_checksum_or_sig(n), n)
+        for n in ("foo.tar.gz", "foo.zip", "foo.tar.xz", "manifest.json"):
+            self.assertFalse(pkg._is_checksum_or_sig(n), n)
+
+    def test_select_linux_asset_skips_checksum(self):
+        pkg = PackageGhRls("dummy")
+        ver = "0.10.20260604"
+        names = [
+            "manifest.json",
+            "nextpnr-bin-manylinux_2_28_x86_64-%s.tar.gz" % ver,
+            "nextpnr-bin-manylinux_2_28_x86_64-%s.tar.gz.sha256" % ver,
+            "nextpnr-bin-manylinux_2_34_x86_64-%s.tar.gz" % ver,
+            "nextpnr-bin-manylinux_2_34_x86_64-%s.tar.gz.sha256" % ver,
+        ]
+        assets = [a for a in self._assets(*names) if not pkg._is_checksum_or_sig(a["name"])]
+        # glibc 2.39 -> newest eligible manylinux (2.34), and never a .sha256
+        sel = pkg._select_linux_asset(assets, "x86_64", (2, 39))
+        self.assertIsNotNone(sel)
+        self.assertEqual(sel["name"], "nextpnr-bin-manylinux_2_34_x86_64-%s.tar.gz" % ver)
+        self.assertFalse(pkg._is_checksum_or_sig(sel["name"]))
+
+
 if __name__ == "__main__":
     unittest.main()
