@@ -1,0 +1,12 @@
+## blink.lpf — minimal ECP5 pin constraints for blink.v
+## Pin numbers below are placeholders for a CABGA381 part; adjust to your board.
+LOCATE COMP "clk"   SITE "A9";
+LOCATE COMP "rst_n" SITE "B9";
+LOCATE COMP "led"   SITE "A11";
+
+IOBUF PORT "clk"   IO_TYPE=LVCMOS33;
+IOBUF PORT "rst_n" IO_TYPE=LVCMOS33;
+IOBUF PORT "led"   IO_TYPE=LVCMOS33;
+
+## Constrain the input clock to 50 MHz so nextpnr reports timing against it.
+FREQUENCY PORT "clk" 50 MHZ;

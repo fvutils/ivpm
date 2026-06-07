@@ -1,0 +1,16 @@
+# IVPM-generated artifacts
+/packages/
+/.agents/
+/.claude/
+/ivpm.lock
+/ivpm.json
+
+# SymbiYosys formal work directories
+/blink_formal_*/
+
+# Synthesis / place-and-route outputs
+*.json
+*.asc
+*.bin
+*.pcf
+*.log

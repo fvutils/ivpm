@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://fvutils.github.io/ivpm/ivpm.json
+#
+# Agent-Skills Integration Example
+# =================================
+# This project fetches pre-built EDA tool binaries (yosys + nextpnr) from the
+# EDAPack GitHub-release feed and wires the *agent skills* that ship with those
+# tools into Claude.
+#
+#   ivpm update
+#
+# After `ivpm update`, IVPM populates:
+#   .agents/skills/   — agent-neutral skill links (for any skills-aware agent)
+#   .claude/skills/   — Claude-specific links (because agents.claude: true below)
+#
+# Each link points at a directory containing a SKILL.md, so Claude Code running
+# in this directory automatically discovers the yosys and nextpnr skills.
+
+package:
+  name: ivpm-agent-skills-example
+
+  with:
+    agents:
+      # Mirror every discovered skill into .claude/skills/ as well as
+      # .agents/skills/ so Claude Code picks them up automatically.
+      claude: true
+
+  dep-sets:
+  - name: default
+    deps:
+
+    # ---- yosys: RTL synthesis -------------------------------------------
+    # The yosys-bin release tarball *bundles* its agent skills under skills/.
+    # IVPM auto-discovers them (no extra config) and links yosys, sby and
+    # sv2v into .agents/skills/ and .claude/skills/.
+    - name: yosys-bin
+      src: gh-rls
+      url: https://github.com/edapack/yosys-bin
+      cache: true
+
+    # ---- nextpnr: place-and-route ---------------------------------------
+    # The nextpnr-bin release delivers the place-and-route binaries
+    # (nextpnr-ice40, nextpnr-ecp5, ...) on PATH.
+    - name: nextpnr-bin
+      src: gh-rls
+      url: https://github.com/edapack/nextpnr-bin
+      cache: true
+
+    - name: verilator
+      url: https://github.com/edapack/verilator-bin
+      src: gh-rls
+      cache: true
