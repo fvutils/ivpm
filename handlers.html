@@ -177,7 +177,7 @@ root callback (filtered by <code class="docutils literal notranslate"><span clas
 <p>IVPM ships six built-in handlers.  They run in phase order (direnv → modules
 → python → node/agents → fusesoc) so that the environment is configured
 before Python packages are installed, and the Python venv is ready before the
-agents handler queries <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points.
+agents handler queries <code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> entry-points.
 They are registered via entry points in IVPM’s own <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> and run on every
 <code class="docutils literal notranslate"><span class="pre">update</span></code> and <code class="docutils literal notranslate"><span class="pre">clone</span></code> invocation.</p>
 <div class="admonition tip">
@@ -391,15 +391,15 @@ under <code class="docutils literal notranslate"><span class="pre">&lt;package-r
 </ol>
 <p>Both locations are checked; a package may contribute multiple skills this way.</p>
 </li>
-<li><p><strong>Python ``ivpm.skill`` entry-points</strong> (Python packages only)</p>
+<li><p><strong>Python ``agent.skills`` entry-points</strong> (Python packages only)</p>
 <p>Python packages installed into the project’s managed virtual environment may
-register skills via the <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> <a class="reference external" href="https://packaging.python.org/en/latest/specifications/entry-points/">entry-point group</a>.  The Python
+register skills via the <code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> <a class="reference external" href="https://packaging.python.org/en/latest/specifications/entry-points/">entry-point group</a>.  The Python
 handler queries this group after installing all packages, and the agents
 handler processes the results.</p>
 <p>Each entry-point must be a callable that returns either a single path
 (<code class="docutils literal notranslate"><span class="pre">str</span></code>) or a list of paths to <strong>directories containing</strong> <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code>:</p>
 <div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="c1"># pyproject.toml of the skill-providing Python package</span>
-<span class="k">[project.entry-points.</span><span class="s2">&quot;ivpm.skill&quot;</span><span class="k">]</span>
+<span class="k">[project.entry-points.</span><span class="s2">&quot;agent.skills&quot;</span><span class="k">]</span>
 <span class="n">my-skill</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;mypkg.skills:get_skill_dir&quot;</span>
 </pre></div>
 </div>
@@ -426,7 +426,7 @@ and are skipped.  This mechanism is independent of the package having an
 <li><p>Create <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> directory if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> OR if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>
 already exists</p></li>
 <li><p>Process skills gathered from dependencies (mechanisms 1–3 above) and from
-<code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> Python entry-points (mechanism 4)</p></li>
+<code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> Python entry-points (mechanism 4)</p></li>
 <li><p>For each skill, create a relative symlink (or copy as fallback) with a
 human-readable name derived from its source directory</p></li>
 <li><p>Dependency skills are named as <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;-&lt;dir&gt;</span></code> (or just <code class="docutils literal notranslate"><span class="pre">&lt;package&gt;</span></code> for a
@@ -579,7 +579,7 @@ other build systems.</p>
 <td><p>5</p></td>
 <td><p>Python venv and package install</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">setup.py</span></code> / <code class="docutils literal notranslate"><span class="pre">pyproject.toml</span></code> / <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">pypi</span></code></p></td>
-<td><p>Creates venv, installs packages; queries <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points</p></td>
+<td><p>Creates venv, installs packages; queries <code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> entry-points</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">packages/python/</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">node</span></code></p></td>
@@ -592,7 +592,7 @@ other build systems.</p>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">agents</span></code></p></td>
 <td><p>6</p></td>
 <td><p>Skill file discovery and symlinking</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> at root, under <code class="docutils literal notranslate"><span class="pre">skills/</span></code>, declared paths, or <code class="docutils literal notranslate"><span class="pre">ivpm.skill</span></code> entry-points</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> at root, under <code class="docutils literal notranslate"><span class="pre">skills/</span></code>, declared paths, or <code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> entry-points</p></td>
 <td><p>Creates symlinks to skills</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code></p></td>
 </tr>
