@@ -440,9 +440,14 @@ def main(project_dir=None):
 
     try:
         args.func(args)
-    except SrcLoaderError:
-        # Diagnostics were already rendered when emitted; exit cleanly with a
-        # non-zero status and no traceback.
+    except SrcLoaderError as e:
+        # Diagnostics emitted through the reporter are already rendered.
+        # However, some paths (e.g. raw YAML parse errors) may raise
+        # SrcLoaderError without going through the reporter. Detect that
+        # case and print the message so the user is never left with a
+        # silent exit.
+        if not e.diagnostics:
+            print(str(e), file=sys.stderr)
         sys.exit(1)
 
 if __name__ == "__main__":

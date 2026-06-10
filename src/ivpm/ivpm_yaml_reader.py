@@ -6,7 +6,7 @@ Created on Jun 8, 2021
 import difflib
 import os
 from typing import Dict, List
-from .yamlsrc import SrcInfo, load as yaml_load
+from .yamlsrc import SrcInfo, SrcLoaderError, load as yaml_load
 from .package import Package
 from .env_spec import EnvSpec
 
@@ -146,7 +146,20 @@ class IvpmYamlReader(object):
         _visited = set(_visited)
         _visited.add(os.path.realpath(name))
 
-        data = yaml_load(fp, name=name)
+        try:
+            data = yaml_load(fp, name=name)
+        except SrcLoaderError as e:
+            # Route YAML parse errors through the diagnostic reporter
+            # so they are rendered (plain or TUI) before propagating.
+            # Extract the raw problem text to avoid duplicating the
+            # location prefix that fatal() adds from e.srcinfo.
+            problem = e.message
+            si = e.srcinfo
+            if si is not None:
+                loc_prefix = str(si) + ": "
+                if problem.startswith(loc_prefix):
+                    problem = problem[len(loc_prefix):]
+            fatal(problem, si)
 
         if data is None:
             fatal("Empty ivpm.yaml file %s" % name)

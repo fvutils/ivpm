@@ -77,7 +77,7 @@ Built-in Handlers
 IVPM ships six built-in handlers.  They run in phase order (direnv → modules
 → python → node/agents → fusesoc) so that the environment is configured
 before Python packages are installed, and the Python venv is ready before the
-agents handler queries ``ivpm.skill`` entry-points.
+agents handler queries ``agent.skills`` entry-points.
 They are registered via entry points in IVPM's own ``pyproject.toml`` and run on every
 ``update`` and ``clone`` invocation.
 
@@ -355,10 +355,10 @@ Runs for every non-PyPI package.  Discovers skill files using one of four method
 
    Both locations are checked; a package may contribute multiple skills this way.
 
-4. **Python ``ivpm.skill`` entry-points** (Python packages only)
+4. **Python ``agent.skills`` entry-points** (Python packages only)
 
    Python packages installed into the project's managed virtual environment may
-   register skills via the ``ivpm.skill`` `entry-point group`_.  The Python
+   register skills via the ``agent.skills`` `entry-point group`_.  The Python
    handler queries this group after installing all packages, and the agents
    handler processes the results.
 
@@ -368,7 +368,7 @@ Runs for every non-PyPI package.  Discovers skill files using one of four method
    .. code-block:: toml
 
        # pyproject.toml of the skill-providing Python package
-       [project.entry-points."ivpm.skill"]
+       [project.entry-points."agent.skills"]
        my-skill = "mypkg.skills:get_skill_dir"
 
    .. code-block:: python
@@ -398,7 +398,7 @@ Runs when at least one valid skill file was found.  Steps:
 2. Create ``.claude/skills/`` directory if ``claude: true`` OR if ``.claude/``
    already exists
 3. Process skills gathered from dependencies (mechanisms 1–3 above) and from
-   ``ivpm.skill`` Python entry-points (mechanism 4)
+   ``agent.skills`` Python entry-points (mechanism 4)
 4. For each skill, create a relative symlink (or copy as fallback) with a
    human-readable name derived from its source directory
 5. Dependency skills are named as ``<package>-<dir>`` (or just ``<package>`` for a
@@ -576,7 +576,7 @@ Handler Summary
      - 5
      - Python venv and package install
      - ``setup.py`` / ``pyproject.toml`` / ``src: pypi``
-     - Creates venv, installs packages; queries ``ivpm.skill`` entry-points
+     - Creates venv, installs packages; queries ``agent.skills`` entry-points
      - ``packages/python/``
    * - ``node``
      - 6
@@ -587,7 +587,7 @@ Handler Summary
    * - ``agents``
      - 6
      - Skill file discovery and symlinking
-     - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``ivpm.skill`` entry-points
+     - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``agent.skills`` entry-points
      - Creates symlinks to skills
      - ``.agents/skills/``, ``.claude/skills/``
    * - ``fusesoc``

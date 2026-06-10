@@ -1,4 +1,7 @@
 
+# 2.11.0
+- Correct error-handling issue leading to silent exit of '1'
+
 # 2.10.0
 - Add support for multi-file ivpm.yaml descriptions
 - Add support for git worktrees
