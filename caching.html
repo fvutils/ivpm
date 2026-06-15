@@ -62,6 +62,8 @@
 <li class="toctree-l3"><a class="reference internal" href="#initializing-a-cache-directory">Initializing a Cache Directory</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#how-caching-is-resolved">How Caching Is Resolved</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#customizing-caching-site-config">Customizing Caching (Site Config)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cache-organization">Cache Organization</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#package-caching">Package Caching</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#enabling-caching-for-packages">Enabling Caching for Packages</a></li>
@@ -252,6 +254,80 @@ sudo<span class="w"> </span>chown<span class="w"> </span>:developers<span class=
 </div>
 <p>This ensures new files inherit the group ownership of the cache directory.</p>
 </section>
+</section>
+<section id="how-caching-is-resolved">
+<h2>How Caching Is Resolved<a class="headerlink" href="#how-caching-is-resolved" title="Link to this heading"></a></h2>
+<p>Internally, IVPM does not ask <em>“where is the cache directory?”</em> — it asks the
+site configuration for a <strong>cache provider</strong> for the current session. This keeps
+all caching intelligence in one place instead of scattered through each package
+type.</p>
+<ul class="simple">
+<li><p><strong>The configuration always returns a provider</strong> — never a bare path and never
+<code class="docutils literal notranslate"><span class="pre">None</span></code>. When caching is disabled it returns a <em>null provider</em> whose every
+lookup reports the dependency <strong>uncacheable</strong>, so there is no
+“is the cache configured?” special-casing in package code.</p></li>
+<li><p><strong>One provider per ``ivpm update`` run.</strong> A single provider is created once,
+is aware of the root project, and serves every dependency. For each
+dependency it answers two questions: <em>is this dependency cacheable?</em> (caching
+enabled <strong>and</strong> the dependency’s <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> flag set) and <em>is this
+version a hit, a miss, or uncacheable?</em></p></li>
+</ul>
+<p>The user-visible resolution order is unchanged:</p>
+<ol class="arabic simple">
+<li><p>The <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> environment variable (an empty value disables caching).</p></li>
+<li><p>Otherwise, the site default (<code class="docutils literal notranslate"><span class="pre">get_default_cache_dir()</span></code> — see below).</p></li>
+<li><p>Otherwise, caching is disabled (the null provider).</p></li>
+</ol>
+<p>A dependency with <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> but no resolved cache directory falls back to
+a full editable clone and is reported in the update summary, exactly as before.</p>
+</section>
+<section id="customizing-caching-site-config">
+<h2>Customizing Caching (Site Config)<a class="headerlink" href="#customizing-caching-site-config" title="Link to this heading"></a></h2>
+<p>Sites can customize caching by installing an <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> package that
+provides a <code class="xref py py-class docutils literal notranslate"><span class="pre">SiteConfig</span></code> subclass. The simplest override
+sets the default cache directory:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># ivpm_site_config/__init__.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.site_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SiteConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MySiteConfig</span><span class="p">(</span><span class="n">SiteConfig</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;/shared/ivpm-cache&quot;</span>   <span class="c1"># return &quot;&quot; to disable by default</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_ivpm_install_args</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;ivpm&quot;</span><span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_config</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">SiteConfig</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">MySiteConfig</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>For full control — per-dependency routing, an alternate backend, or selectively
+disabling caching for some packages — override <code class="docutils literal notranslate"><span class="pre">get_cache_provider</span></code> directly.
+It receives a <code class="xref py py-class docutils literal notranslate"><span class="pre">CacheContext</span></code> (root project name,
+version, directory, and <code class="docutils literal notranslate"><span class="pre">deps_dir</span></code>) and must return a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">CacheProvider</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.site_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SiteConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.cache_provider</span><span class="w"> </span><span class="kn">import</span> <span class="n">NullCacheProvider</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MySiteConfig</span><span class="p">(</span><span class="n">SiteConfig</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_cache_provider</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">context</span><span class="p">):</span>
+        <span class="n">provider</span> <span class="o">=</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">get_cache_provider</span><span class="p">(</span><span class="n">context</span><span class="p">)</span>
+        <span class="c1"># Example: never cache an internal, fast-moving package</span>
+        <span class="k">class</span><span class="w"> </span><span class="nc">_Routed</span><span class="p">(</span><span class="nb">type</span><span class="p">(</span><span class="n">provider</span><span class="p">)):</span>
+            <span class="k">def</span><span class="w"> </span><span class="nf">is_cacheable</span><span class="p">(</span><span class="n">self_</span><span class="p">,</span> <span class="n">pkg</span><span class="p">):</span>
+                <span class="k">if</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">pkg</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="o">==</span> <span class="s2">&quot;internal-wip&quot;</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="kc">False</span>
+                <span class="k">return</span> <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">is_cacheable</span><span class="p">(</span><span class="n">pkg</span><span class="p">)</span>
+        <span class="n">provider</span><span class="o">.</span><span class="vm">__class__</span> <span class="o">=</span> <span class="n">_Routed</span>
+        <span class="k">return</span> <span class="n">provider</span>
+</pre></div>
+</div>
+<p>A site config that overrides only <code class="docutils literal notranslate"><span class="pre">get_default_cache_dir()</span></code> keeps working
+unchanged — the default <code class="docutils literal notranslate"><span class="pre">get_cache_provider()</span></code> is built on top of it.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Patched dependencies (a future feature) layer on this same provider seam, so
+no configuration changes will be required to benefit from it.</p>
+</div>
 </section>
 <section id="cache-organization">
 <h2>Cache Organization<a class="headerlink" href="#cache-organization" title="Link to this heading"></a></h2>
