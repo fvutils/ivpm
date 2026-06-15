@@ -29,7 +29,7 @@ from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
 from ..utils import note, fatal
-from ..cache import Cache, is_github_url, parse_github_url
+from ..cache import is_github_url, parse_github_url
 
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
 
@@ -202,40 +202,39 @@ class PackageGit(PackageURL):
             fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
         
         self.resolved_commit = commit_hash
-        
-        cache = update_info.cache
-        if cache is None:
-            cache = Cache()
-        
-        # If cache is not properly configured, fall back to full clone
-        if not cache.is_enabled():
+
+        provider = update_info.get_cache_provider()
+        result = provider.lookup(self, commit_hash)
+
+        # If this dependency is not cacheable (no cache dir resolved),
+        # fall back to a full editable clone.
+        if result.is_disabled:
             update_info.report_cache_unconfigured()
             return self._update_full_clone(update_info, pkg_dir)
-        
-        # Check if this version is cached
-        if cache.has_version(self.name, commit_hash):
-            # Cache hit - symlink to deps
+
+        # Cache hit - symlink to deps
+        if result.is_hit:
             note("Cache hit for %s at %s" % (self.name, commit_hash[:12]))
-            cache.link_to_deps(self.name, commit_hash, update_info.deps_dir)
+            provider.materialize(self, commit_hash)
             update_info.report_cache_hit()
             return ProjInfo.mkFromProj(pkg_dir)
-        
+
         # Cache miss - clone without history
         note("Cache miss for %s - cloning" % self.name)
         update_info.report_cache_miss()
-        
+
         # Clone to a temporary location first
         temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
         if os.path.exists(temp_dir):
             import shutil
             shutil.rmtree(temp_dir)
-        
+
         self._clone_to_dir(update_info, temp_dir, depth=1)
-        
+
         # Store in cache and link
-        cache.store_version(self.name, commit_hash, temp_dir)
-        cache.link_to_deps(self.name, commit_hash, update_info.deps_dir)
-        
+        provider.store(self, commit_hash, temp_dir)
+        provider.materialize(self, commit_hash)
+
         return ProjInfo.mkFromProj(pkg_dir)
 
     def _update_no_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:

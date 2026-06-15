@@ -6,7 +6,7 @@ Cache management commands for IVPM
 import os
 import stat
 import sys
-from ..cache import Cache
+from ..cache import DirectoryCacheStore
 from ..msg import note
 
 
@@ -75,7 +75,7 @@ class CmdCache:
             print(f"Error: Cache directory does not exist: {cache_dir}", file=sys.stderr)
             sys.exit(1)
         
-        cache = Cache(cache_dir)
+        cache = DirectoryCacheStore(cache_dir)
         info = cache.get_cache_info()
         
         print(f"Cache directory: {cache_dir}")
@@ -107,7 +107,7 @@ class CmdCache:
             print(f"Error: Cache directory does not exist: {cache_dir}", file=sys.stderr)
             sys.exit(1)
         
-        cache = Cache(cache_dir)
+        cache = DirectoryCacheStore(cache_dir)
         removed = cache.clean_older_than(args.days)
         
         print(f"Removed {removed} cache entries older than {args.days} days")

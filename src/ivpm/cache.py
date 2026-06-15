@@ -32,30 +32,26 @@ class CacheResult:
     cache_path: Optional[str] = None
 
 
-class Cache:
-    """Manages the IVPM package cache.
-    
+class DirectoryCacheStore:
+    """Filesystem mechanics for a cache rooted at a directory.
+
     The cache is organized by package name, with version-specific
     subdirectories. For git packages, the version is the commit hash.
     For HTTP packages, the version is derived from the Last-Modified
     header or ETag.
+
+    The store is always constructed with an explicit ``cache_dir``;
+    resolving the env/site defaults (and the "disabled" decision) is the
+    job of the cache provider / site config, not the store.
     """
-    
-    def __init__(self, cache_dir: Optional[str] = None):
-        if cache_dir is not None:
-            self.cache_dir = cache_dir
-        else:
-            env_val = os.environ.get("IVPM_CACHE")
-            if env_val is not None:
-                self.cache_dir = env_val
-            else:
-                default = get_site_config().get_default_cache_dir()
-                self.cache_dir = default if default else None
-    
+
+    def __init__(self, cache_dir: str):
+        self.cache_dir = cache_dir
+
     def is_enabled(self) -> bool:
         """Check if the cache is properly configured and enabled."""
         return self.cache_dir is not None
-    
+
     def get_package_cache_dir(self, package_name: str) -> str:
         """Get the cache directory for a specific package."""
         return os.path.join(self.cache_dir, package_name)
@@ -303,6 +299,28 @@ class Cache:
             os.chmod(path, self._DIR_MODE)
         except OSError:
             pass
+
+
+class Cache(DirectoryCacheStore):
+    """Deprecated alias for :class:`DirectoryCacheStore`.
+
+    Retained for one release to protect external importers.  Unlike the
+    store, it still resolves the cache location (explicit ``cache_dir`` →
+    ``IVPM_CACHE`` → site default → ``None``) and tolerates a ``None``
+    directory, reporting it as disabled via :meth:`is_enabled`.  New code
+    should construct a provider via ``SiteConfig.get_cache_provider`` and
+    let the store be created with an explicit directory.
+    """
+
+    def __init__(self, cache_dir: Optional[str] = None):
+        if cache_dir is None:
+            env_val = os.environ.get("IVPM_CACHE")
+            if env_val is not None:
+                cache_dir = env_val
+            else:
+                default = get_site_config().get_default_cache_dir()
+                cache_dir = default if default else None
+        super().__init__(cache_dir)
 
 
 def is_github_url(url: str) -> bool:

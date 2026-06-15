@@ -28,7 +28,6 @@ from .package_file import PackageFile
 from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note
 from ..package import SourceType2Ext
-from ..cache import Cache
 
 class PackageHttp(PackageFile):
 
@@ -108,22 +107,22 @@ class PackageHttp(PackageFile):
         # Get version from URL metadata
         version = self._get_url_version(self.url)
         
-        cache = update_info.cache
-        if cache is None:
-            cache = Cache()
-        
-        # If cache is not properly configured, fall back to no cache
-        if not cache.is_enabled():
+        provider = update_info.get_cache_provider()
+        result = provider.lookup(self, version)
+
+        # If this dependency is not cacheable (no cache dir resolved),
+        # fall back to a read-only download without the shared cache.
+        if result.is_disabled:
             update_info.report_cache_unconfigured()
             return self._update_no_cache_readonly(update_info, pkg_dir)
-        
+
         # Check if this version is cached
-        if cache.has_version(self.name, version):
+        if result.is_hit:
             note("Cache hit for %s at version %s" % (self.name, version))
-            cache.link_to_deps(self.name, version, update_info.deps_dir)
+            provider.materialize(self, version)
             update_info.report_cache_hit()
             return
-        
+
         # Cache miss - download and unpack
         note("Cache miss for %s - downloading" % self.name)
         update_info.report_cache_miss()
@@ -149,9 +148,9 @@ class PackageHttp(PackageFile):
             os.unlink(pkg_path)
         
         # Store in cache and link
-        cache.store_version(self.name, version, temp_dir)
-        cache.link_to_deps(self.name, version, update_info.deps_dir)
-    
+        provider.store(self, version, temp_dir)
+        provider.materialize(self, version)
+
     def _update_no_cache_readonly(self, update_info: ProjectUpdateInfo, pkg_dir: str):
         """Download and make read-only (cache=False)."""
         note("loading package %s (no cache, read-only)" % self.name)

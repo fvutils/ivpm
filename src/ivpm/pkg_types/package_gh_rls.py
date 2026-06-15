@@ -31,7 +31,6 @@ import shutil
 import dataclasses as dc
 from typing import Optional
 from ..proj_info import ProjInfo
-from ..cache import Cache
 from ..utils import note
 from .package_http import PackageHttp
 
@@ -299,17 +298,16 @@ class PackageGhRls(PackageHttp):
         norm_arch = self._normalize_arch(sysname, machine)
         version = f"{release_tag}_{sysname}_{norm_arch}"
 
-        cache = update_info.cache
-        if cache is None:
-            cache = Cache()
+        provider = update_info.get_cache_provider()
+        result = provider.lookup(self, version)
 
-        if not cache.is_enabled():
+        if result.is_disabled:
             update_info.report_cache_unconfigured()
             return self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
 
-        if cache.has_version(self.name, version):
+        if result.is_hit:
             note("Cache hit for %s at version %s" % (self.name, version))
-            cache.link_to_deps(self.name, version, update_info.deps_dir)
+            provider.materialize(self, version)
             update_info.report_cache_hit()
             return
 
@@ -331,8 +329,8 @@ class PackageGhRls(PackageHttp):
         self._install(download_dst, temp_dir)
         os.unlink(download_dst)
 
-        cache.store_version(self.name, version, temp_dir)
-        cache.link_to_deps(self.name, version, update_info.deps_dir)
+        provider.store(self, version, temp_dir)
+        provider.materialize(self, version)
 
     def _update_no_cache_readonly(self, update_info, pkg_dir, file_url, forced_ext):
         """Download and make read-only (cache=False)."""

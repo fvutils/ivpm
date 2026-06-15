@@ -1,4 +1,15 @@
 
+# Unreleased
+- Internal: the site configuration now returns a *cache provider* for the
+  session (`SiteConfig.get_cache_provider`) instead of a bare cache location.
+  A disabled cache is a real null provider, and one provider serves every
+  dependency. The `Cache` class is renamed to `DirectoryCacheStore`, with a
+  deprecated `Cache` alias kept for one release. No change to user-facing cache
+  modes (`cache: true/false`/unspecified), the on-disk cache layout, or
+  `IVPM_CACHE` semantics. Site configs may override `get_cache_provider` for
+  per-dependency routing; overriding only `get_default_cache_dir()` keeps
+  working unchanged.
+
 # 2.11.0
 - Correct error-handling issue leading to silent exit of '1'
 
