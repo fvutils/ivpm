@@ -66,9 +66,9 @@ class ProjectStatusResult(object):
 @dc.dataclass
 class ProjectUpdateInfo(ProjectOpsInfo):
     project_name : Optional[str] = None
+    project_version : Optional[str] = None
     force_py_install : bool = False
     skip_venv : bool = False
-    cache: Optional['Cache'] = None
     cache_hits: int = 0
     cache_misses: int = 0
     total_packages: int = 0
@@ -92,6 +92,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
     modules_interface: Optional['ModulesInterface'] = None  # lazily populated by PackageModule.update()
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
+    _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None
     _current_cache_hit: Optional[bool] = None
@@ -104,6 +105,25 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         if self._tui_ref is not None and hasattr(self._tui_ref, "make_prompt_callback"):
             return self._tui_ref.make_prompt_callback()
         return None
+
+    def get_cache_provider(self):
+        """Return the session cache provider, creating it on first use.
+
+        The provider is scoped to this session (root project + deps_dir) and
+        serves every dependency; the dependency is passed to its methods.
+        Memoized so all packages in a session share one provider instance.
+        """
+        if self._cache_provider is None:
+            from .cache_provider import CacheContext
+            from .site_config import get_site_config
+            ctx = CacheContext(
+                root_name=self.project_name,
+                root_version=self.project_version,
+                root_dir=self.project_dir,
+                deps_dir=self.deps_dir,
+            )
+            self._cache_provider = get_site_config().get_cache_provider(ctx)
+        return self._cache_provider
 
     def report_cache_unconfigured(self):
         """Record that a package had cache=True but IVPM_CACHE was not set."""

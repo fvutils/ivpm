@@ -109,6 +109,86 @@ For **shared environments** where multiple users access the cache, use the
 
 This ensures new files inherit the group ownership of the cache directory.
 
+How Caching Is Resolved
+=======================
+
+Internally, IVPM does not ask *"where is the cache directory?"* — it asks the
+site configuration for a **cache provider** for the current session. This keeps
+all caching intelligence in one place instead of scattered through each package
+type.
+
+- **The configuration always returns a provider** — never a bare path and never
+  ``None``. When caching is disabled it returns a *null provider* whose every
+  lookup reports the dependency **uncacheable**, so there is no
+  "is the cache configured?" special-casing in package code.
+- **One provider per ``ivpm update`` run.** A single provider is created once,
+  is aware of the root project, and serves every dependency. For each
+  dependency it answers two questions: *is this dependency cacheable?* (caching
+  enabled **and** the dependency's ``cache: true`` flag set) and *is this
+  version a hit, a miss, or uncacheable?*
+
+The user-visible resolution order is unchanged:
+
+1. The ``IVPM_CACHE`` environment variable (an empty value disables caching).
+2. Otherwise, the site default (``get_default_cache_dir()`` — see below).
+3. Otherwise, caching is disabled (the null provider).
+
+A dependency with ``cache: true`` but no resolved cache directory falls back to
+a full editable clone and is reported in the update summary, exactly as before.
+
+Customizing Caching (Site Config)
+=================================
+
+Sites can customize caching by installing an ``ivpm_site_config`` package that
+provides a :class:`~ivpm.site_config.SiteConfig` subclass. The simplest override
+sets the default cache directory:
+
+.. code-block:: python
+
+   # ivpm_site_config/__init__.py
+   from ivpm.site_config import SiteConfig
+
+   class MySiteConfig(SiteConfig):
+       def get_default_cache_dir(self) -> str:
+           return "/shared/ivpm-cache"   # return "" to disable by default
+
+       def get_ivpm_install_args(self) -> list:
+           return ["ivpm"]
+
+   def get_config() -> SiteConfig:
+       return MySiteConfig()
+
+For full control — per-dependency routing, an alternate backend, or selectively
+disabling caching for some packages — override ``get_cache_provider`` directly.
+It receives a :class:`~ivpm.cache_provider.CacheContext` (root project name,
+version, directory, and ``deps_dir``) and must return a
+:class:`~ivpm.cache_provider.CacheProvider`:
+
+.. code-block:: python
+
+   from ivpm.site_config import SiteConfig
+   from ivpm.cache_provider import NullCacheProvider
+
+   class MySiteConfig(SiteConfig):
+       def get_cache_provider(self, context):
+           provider = super().get_cache_provider(context)
+           # Example: never cache an internal, fast-moving package
+           class _Routed(type(provider)):
+               def is_cacheable(self_, pkg):
+                   if getattr(pkg, "name", None) == "internal-wip":
+                       return False
+                   return super().is_cacheable(pkg)
+           provider.__class__ = _Routed
+           return provider
+
+A site config that overrides only ``get_default_cache_dir()`` keeps working
+unchanged — the default ``get_cache_provider()`` is built on top of it.
+
+.. note::
+
+   Patched dependencies (a future feature) layer on this same provider seam, so
+   no configuration changes will be required to benefit from it.
+
 Cache Organization
 ==================
 

@@ -102,6 +102,16 @@ class ProjectOps(object):
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
             updater = PackageUpdater(deps_dir, pkg_handler, args=args)
 
+            # Plumb root-project info onto the updater's update_info (the
+            # instance packages receive) so the session cache provider knows
+            # who is making the references.
+            updater.update_info.project_name    = proj_info.name
+            updater.update_info.project_version = proj_info.version
+            updater.update_info.project_dir     = self.root_dir
+            # Construct the session cache provider eagerly, before parallel
+            # package loads, so the memoized getter never races.
+            updater.update_info.get_cache_provider()
+
             # Configure deps-source on update_info (if any was requested, or
             # auto-detected from a parent git worktree)
             self._configure_deps_source(updater.update_info, args, proj_info)

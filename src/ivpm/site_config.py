@@ -38,7 +38,10 @@ and exposes it via a module-level ``get_config()`` function::
 If no ``ivpm_site_config`` module is found, ``DefaultSiteConfig`` is used.
 """
 import os
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .cache_provider import CacheContext, CacheProvider
 
 
 class SiteConfig:
@@ -47,12 +50,45 @@ class SiteConfig:
     Subclass this and install as ``ivpm_site_config`` to override defaults.
     """
 
+    def get_cache_provider(self, context: 'CacheContext') -> 'CacheProvider':
+        """Return the cache provider for one session. Never ``None``.
+
+        Returns a :class:`~ivpm.cache_provider.NullCacheProvider` when
+        caching is disabled, otherwise a
+        :class:`~ivpm.cache_provider.DirectoryCacheProvider` rooted at the
+        resolved cache directory.
+
+        The default implementation is built on :meth:`get_default_cache_dir`,
+        so a site config that overrides only ``get_default_cache_dir`` keeps
+        working unchanged.  Override this method directly for per-dependency
+        routing or an alternate backend.
+        """
+        from .cache_provider import DirectoryCacheProvider, NullCacheProvider
+        cache_dir = self._resolve_cache_dir()
+        if not cache_dir:
+            return NullCacheProvider(context)
+        from .cache import DirectoryCacheStore
+        return DirectoryCacheProvider(context, DirectoryCacheStore(cache_dir))
+
+    def _resolve_cache_dir(self) -> Optional[str]:
+        """Resolve the cache directory: ``IVPM_CACHE`` wins, then the
+        (overridable) site default.  Returns ``None`` when caching is
+        disabled."""
+        env_val = os.environ.get("IVPM_CACHE")
+        if env_val is not None:
+            return env_val or None
+        default = self.get_default_cache_dir()
+        return default or None
+
     def get_default_cache_dir(self) -> str:
         """Return the default IVPM cache directory path.
 
         Return an empty string ``""`` to disable caching by default.
         The ``IVPM_CACHE`` environment variable and any explicit ``cache_dir``
         argument still take priority over this value.
+
+        Retained for backward compatibility: the default
+        :meth:`get_cache_provider` consults this.
         """
         raise NotImplementedError
 

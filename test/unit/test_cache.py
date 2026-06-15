@@ -378,11 +378,19 @@ class TestCacheUnconfigured(TestBase):
         super().setUp()
         # Ensure IVPM_CACHE is NOT set for these tests
         self._saved_cache = os.environ.pop("IVPM_CACHE", None)
-        # Simulate no site config default so the cache is truly disabled
+        # Simulate no site config default so the cache is truly disabled.
+        # Use a real SiteConfig subclass (not a MagicMock) so the default
+        # get_cache_provider() runs and yields a NullCacheProvider.
         from ivpm.site_config import SiteConfig
-        _no_cache_cfg = MagicMock(spec=SiteConfig)
-        _no_cache_cfg.get_default_cache_dir.return_value = ""
-        self._site_config_patcher = patch("ivpm.cache.get_site_config", return_value=_no_cache_cfg)
+
+        class _NoCacheConfig(SiteConfig):
+            def get_default_cache_dir(self):
+                return ""
+            def get_ivpm_install_args(self):
+                return ["ivpm"]
+
+        self._site_config_patcher = patch(
+            "ivpm.site_config.get_site_config", return_value=_NoCacheConfig())
         self._site_config_patcher.start()
 
     def tearDown(self):
