@@ -82,6 +82,8 @@ class ProjInfo():
 
         self.name = None
         self.version = None
+        # Optional one-line summary from 'package.description'
+        self.description = None
         # This should be set to the dep-set specified by the 'dep' 
         # statement or on the command-line
         self.default_dep_set = None

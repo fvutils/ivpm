@@ -84,3 +84,14 @@ class TestCliHelp(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         self.assertIn("-v", result.stdout)
         self.assertIn("--verbose", result.stdout)
+
+    def test_update_accepts_from_and_deps_dir(self):
+        result = _run("update", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--from", result.stdout)
+        self.assertIn("--deps-dir", result.stdout)
+
+    def test_show_deps_accepts_from(self):
+        result = _run("show", "deps", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--from", result.stdout)

@@ -36,6 +36,34 @@ Define dependency sets in your ``ivpm.yaml``:
             - name: test-framework
               url: https://github.com/org/test-framework.git
 
+Descriptions
+------------
+
+Both the ``package`` and individual dep-sets accept an optional ``description``
+string — a one-line summary of what the package/catalog offers and what each
+dep-set installs:
+
+.. code-block:: yaml
+
+    package:
+      name: acme-tools
+      description: Curated EDA toolchain bundles for the Acme flow
+      dep-sets:
+        - name: default
+          description: Minimal set — simulator + waveform viewer
+          deps:
+            - name: sim
+              url: https://github.com/acme/sim.git
+        - name: gui-tools
+          description: Adds the GUI debugger and schematic viewer
+          deps:
+            - name: debugger
+              url: https://github.com/acme/debugger.git
+
+Descriptions are purely informational. The package-level ``description`` is
+shown by ``ivpm show deps`` (tree view and ``--json``); dep-set descriptions
+make a manifest self-documenting for anyone browsing the available sets.
+
 Standard Names
 --------------
 

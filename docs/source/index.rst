@@ -24,6 +24,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    core_concepts
    handlers
    dependency_sets
+   remote_catalogs
    multi_file
    variables
    package_types

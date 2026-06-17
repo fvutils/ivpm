@@ -3,6 +3,7 @@ Created on Jun 22, 2021
 
 @author: mballance
 '''
+import functools
 import logging
 import os
 import sys
@@ -10,7 +11,7 @@ import shutil
 import subprocess
 from typing import List
 from ivpm.msg import note, fatal, warning
-from ivpm.site_config import get_site_config
+from ivpm.site_config import get_site_config, resolve_git_auth_order
 from pathlib import Path
 
 _logger = logging.getLogger("ivpm.utils")
@@ -21,6 +22,100 @@ def is_filesystem_root(path):
     Works on both Unix (``/``) and Windows (``C:\\``, ``D:\\``, etc.).
     """
     return os.path.dirname(path) == path
+
+
+def https_to_ssh_url(url):
+    """Convert an ``https://host/path`` URL to ``git@host:path`` (SSH) form.
+
+    Leaves ``file://`` URLs, already-SSH (``git@``/``ssh://``) URLs, and
+    non-URL local paths unchanged.
+    """
+    delim = url.find("://")
+    if delim < 0:
+        # local path or already in git@host:path form
+        return url
+    protocol = url[:delim]
+    if protocol == "file":
+        return url
+    rest = url[delim + 3:]
+    first_sl = rest.find("/")
+    if first_sl < 0:
+        return url
+    return "git@" + rest[:first_sl] + ":" + rest[first_sl + 1:]
+
+
+def url_host(url):
+    """Return the host portion of an ``scheme://[user@]host[:port]/...`` URL.
+
+    Returns ``None`` for non-URL paths and ``git@host:path`` SSH forms.
+    """
+    delim = url.find("://")
+    if delim < 0:
+        return None
+    rest = url[delim + 3:]
+    sl = rest.find("/")
+    hostpart = rest if sl < 0 else rest[:sl]
+    at = hostpart.find("@")
+    if at >= 0:
+        hostpart = hostpart[at + 1:]
+    return hostpart.split(":")[0] or None
+
+
+@functools.lru_cache(maxsize=None)
+def gh_auth_available(host):
+    """True when the GitHub CLI (``gh``) is installed and authenticated for *host*.
+
+    Cached per-host so a multi-package update only probes ``gh`` once per host.
+    Used to decide whether an https git URL can be cloned as-is (letting gh's
+    credential helper authenticate) instead of being rewritten to SSH.
+    """
+    if not host:
+        return False
+    try:
+        r = subprocess.run(
+            ["gh", "auth", "status", "--hostname", host],
+            capture_output=True, text=True, timeout=10)
+        return r.returncode == 0
+    except FileNotFoundError:
+        return False
+    except Exception:
+        return False
+
+
+def resolve_clone_url(url, ssh_pref, auth_order=None):
+    """Resolve the URL to actually clone.
+
+    *ssh_pref* is an explicit override (per-package option / CLI flag):
+      * ``True``  -- force rewrite of https URLs to git@host:path (SSH).
+      * ``False`` -- use the URL exactly as written (https/anonymous).
+      * ``None``  -- no explicit override; consult *auth_order*.
+
+    *auth_order* is the ordered list of methods to try (``gh``/``ssh``/``https``);
+    when ``None`` it is resolved per-host from the site-config rules /
+    ``IVPM_GIT_AUTH_ORDER`` / the default order.  The first applicable method
+    wins; ``ssh``/``https`` always apply.  If the order yields nothing, fall
+    back to the SSH rewrite (the historical default).
+    """
+    if ssh_pref is True:
+        return https_to_ssh_url(url)
+    if ssh_pref is False:
+        return url
+
+    host = url_host(url)
+    if auth_order is None:
+        auth_order = resolve_git_auth_order(host)
+
+    for method in auth_order:
+        m = method.strip().lower()
+        if m == "gh":
+            if gh_auth_available(host):
+                return url
+        elif m == "ssh":
+            return https_to_ssh_url(url)
+        elif m in ("https", "anonymous"):
+            return url
+        # unknown tokens are ignored
+    return https_to_ssh_url(url)
 
 
 def get_venv_bindir(python_dir):

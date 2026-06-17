@@ -16,15 +16,19 @@
 #* limitations under the License.
 #*
 #****************************************************************************
+import logging
 import os
 import subprocess
 import time
 
-from ..utils import fatal
+from ..utils import fatal, resolve_clone_url, url_host
+from ..site_config import resolve_git_auth_order, loaded_config_paths
 from ..project_ops import ProjectOps
 from ..variables import parse_definitions
 from ..update_event import UpdateEvent, UpdateEventType, UpdateEventDispatcher
 from ..update_tui import create_update_tui, RichUpdateTUI
+
+_logger = logging.getLogger("ivpm.cmd_clone")
 
 
 class CmdClone(object):
@@ -91,29 +95,105 @@ class CmdClone(object):
                 fatal("Dependency set '%s' specified but no ivpm.yaml exists in cloned project" % dep_set)
             # No ivpm.yaml and no dep_set specified - just skip update
 
-    def _clone_git(self, src, target_dir, args, event_dispatcher, suppress_output):
-        # Construct clone URL. Convert to SSH form unless anonymous requested
-        url = src
-        use_anonymous = getattr(args, 'anonymous', False)
+    def _transport(self, url):
+        """Classify a clone URL's transport: 'ssh', 'https', 'local', or 'other'."""
+        if url.startswith("git@") or url.startswith("ssh://"):
+            return "ssh"
+        if url.startswith("https://") or url.startswith("http://"):
+            return "https"
+        if url.startswith("file://") or "://" not in url:
+            return "local"
+        return "other"
 
-        if not use_anonymous:
-            # Convert https/http URLs to git@host:path form; keep file: and local paths
-            if '://' in src:
-                proto = src.split('://', 1)[0]
-                if proto != 'file':
-                    rest = src.split('://', 1)[1]
-                    # Transform host/path to git@host:path
-                    first_sl = rest.find('/')
-                    if first_sl != -1:
-                        host = rest[:first_sl]
-                        path = rest[first_sl+1:]
-                        url = f"git@{host}:{path}"
-            elif src.startswith('git@'):
-                url = src
+    def _run(self, cmd, timeout=15):
+        """Run a diagnostic command, returning (ok, combined_output)."""
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+            out = (r.stdout or "") + (r.stderr or "")
+            return r.returncode == 0, out.strip()
+        except FileNotFoundError:
+            return False, "%s: not found" % cmd[0]
+        except Exception as e:
+            return False, "%s: %s" % (cmd[0], e)
+
+    def _log_auth_debug(self, src, url, ssh_pref=None, auth_order=None):
+        """Log authentication diagnostics for the clone at DEBUG level.
+
+        Reports how the URL was selected (forced flag vs. auth order) plus the
+        effective transport and the credentials relevant to it: SSH agent/keys
+        for git@ URLs, gh and git credential helpers for https.  Visible with
+        ``--log-level DEBUG``; the (sub)process probes only run when debug
+        logging is actually enabled.
+        """
+        if not _logger.isEnabledFor(logging.DEBUG):
+            return
+
+        transport = self._transport(url)
+        lines = ["clone auth debug:",
+                 "  requested src : %s" % src,
+                 "  effective url : %s" % url,
+                 "  transport     : %s" % transport]
+        if ssh_pref is True:
+            lines.append("  selection     : forced SSH (--ssh)")
+        elif ssh_pref is False:
+            lines.append("  selection     : forced HTTPS (--anonymous)")
+        else:
+            order = auth_order or resolve_git_auth_order(url_host(src))
+            lines.append("  auth order    : %s" % ", ".join(order))
+            configs = loaded_config_paths()
+            if configs:
+                lines.append("  config files  : %s" % ", ".join(configs))
+
+        if transport == "ssh":
+            lines.append("  SSH_AUTH_SOCK : %s" % os.environ.get("SSH_AUTH_SOCK", "(not set)"))
+            ok, out = self._run(["ssh-add", "-l"], timeout=10)
+            if ok:
+                lines.append("  ssh-agent keys:")
+                lines.extend("    %s" % ln for ln in out.splitlines())
             else:
-                # local path - leave as-is
-                url = src
-        
+                lines.append("  ssh-agent keys: none / agent unavailable (%s)" % out)
+            sshdir = os.path.expanduser("~/.ssh")
+            found = []
+            if os.path.isdir(sshdir):
+                for n in ("id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"):
+                    if os.path.isfile(os.path.join(sshdir, n)):
+                        found.append(n)
+            lines.append("  ~/.ssh keys   : %s" % (", ".join(found) if found else "(none found)"))
+            # Connectivity probe for the well-known forges (auth returns non-zero by design)
+            host = url[4:].split(":", 1)[0] if url.startswith("git@") else None
+            if host in ("github.com", "gitlab.com"):
+                _, out = self._run(["ssh", "-o", "BatchMode=yes",
+                                    "-o", "StrictHostKeyChecking=accept-new",
+                                    "-T", "git@%s" % host], timeout=15)
+                lines.append("  ssh -T %s:" % host)
+                lines.extend("    %s" % ln for ln in out.splitlines())
+        elif transport == "https":
+            _, out = self._run(["gh", "auth", "status"], timeout=15)
+            lines.append("  gh auth status:")
+            lines.extend("    %s" % ln for ln in (out.splitlines() or ["(no output)"]))
+            _, helpers = self._run(["git", "config", "--get-all", "credential.helper"], timeout=10)
+            lines.append("  credential.helper: %s" % (helpers.replace("\n", ", ") if helpers else "(none configured)"))
+            if not helpers:
+                lines.append("    hint: run 'gh auth setup-git' to use your gh token for https clones")
+        else:
+            lines.append("  (no auth required for %s transport)" % transport)
+
+        _logger.debug("\n".join(lines))
+
+    def _clone_git(self, src, target_dir, args, event_dispatcher, suppress_output):
+        # Resolve the clone URL.  Explicit --ssh / --anonymous force a
+        # transport; otherwise the configured git auth order (gh/ssh/https)
+        # decides — by default preferring gh when authenticated, else SSH.
+        ssh_pref = None
+        if getattr(args, 'ssh', False):
+            ssh_pref = True
+        elif getattr(args, 'anonymous', False):
+            ssh_pref = False
+        auth_order = getattr(args, 'git_auth_order', None)
+        url = resolve_clone_url(src, ssh_pref, auth_order)
+
+        self._log_auth_debug(src, url, ssh_pref, auth_order)
+
         # Signal clone start
         clone_start_time = time.time()
         event_dispatcher.dispatch(UpdateEvent(

@@ -27,6 +27,7 @@ from .cmds.cmd_snapshot import CmdSnapshot
 from .cmds.cmd_status import CmdStatus
 from .cmds.cmd_sync import CmdSync
 from .show.cmd_show import CmdShow
+from .site_config import parse_git_auth_order
 
 
 def get_share_dir():
@@ -144,8 +145,13 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     clone_cmd = subparser.add_parser("clone",
         help="Create a new workspace from a Git URL or path")
     clone_cmd.add_argument("src", help="Source URL or path to clone")
+    clone_cmd.add_argument("--ssh", dest="ssh", action="store_true",
+        help="Force SSH: rewrite an https:// URL to git@host:path form before cloning")
     clone_cmd.add_argument("-a", "--anonymous", dest="anonymous", action="store_true",
-        help="Clone anonymously (HTTPS); default converts to SSH when applicable")
+        help="Force HTTPS: clone the URL as written (do not rewrite to SSH)")
+    clone_cmd.add_argument("--git-auth-order", dest="git_auth_order",
+        type=parse_git_auth_order, default=None,
+        help="Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
     clone_cmd.add_argument("-b", "--branch", dest="branch",
         help="Target branch; checks out existing or creates new")
     clone_cmd.add_argument("workspace_dir", nargs="?",
@@ -177,9 +183,14 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Uses dependencies from specified dep-set instead of default")
     update_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=None,
         help="Maximum number of parallel package fetches (default: number of CPU cores)")
-    update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous", 
+    update_cmd.add_argument("--ssh", dest="ssh", action="store_true",
+        help="Force SSH: rewrite https:// git URLs to git@host:path form before cloning")
+    update_cmd.add_argument("-a", "--anonymous-git", dest="anonymous",
         action="store_true",
-        help="Clones git repositories in 'anonymous' mode")
+        help="Force HTTPS: clone git URLs as written (do not rewrite to SSH)")
+    update_cmd.add_argument("--git-auth-order", dest="git_auth_order",
+        type=parse_git_auth_order, default=None,
+        help="Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
     update_cmd.add_argument("--skip-py-install", "--py-skip-install",
         help="Skip installation of Python packages",
         action="store_true")
@@ -200,6 +211,13 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Inherit system site-packages in the virtual environment (default: isolated)")
     update_cmd.add_argument("--lock-file", dest="lock_file", default=None,
         help="Reproduce workspace from a package-lock.json file (ignores ivpm.yaml)")
+    update_cmd.add_argument("--from", dest="from_manifest", default=None,
+        metavar="PATH-OR-URL",
+        help="Drive the update from an external manifest (path or URL) instead "
+             "of the cwd ivpm.yaml; resolved deps land in the current directory")
+    update_cmd.add_argument("--deps-dir", dest="deps_dir_override", default=None,
+        metavar="DIR",
+        help="Directory to populate (overrides manifest 'deps-dir'; default: packages)")
     update_cmd.add_argument("--deps-source", dest="deps_source", action="append",
         default=None, metavar="PATH",
         help="Search PATH (a sibling deps/ dir) before the shared cache. Repeatable.")
@@ -330,6 +348,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Emit a Graphviz DOT graph of the dependency relationships")
     show_deps_cmd.add_argument("-o", "--output", dest="output", default=None,
         help="Write output to FILE instead of stdout (useful with --dot)")
+    show_deps_cmd.add_argument("--from", dest="from_manifest", default=None,
+        metavar="PATH-OR-URL",
+        help="Browse an external manifest's catalog (descriptions + dep-sets) "
+             "without fetching dependencies")
 
     _finalize_subparser_help(show_subparser)
 

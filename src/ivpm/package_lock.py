@@ -165,6 +165,7 @@ def write_lock(
     deps_dir: str,
     all_pkgs,
     handler_contributions: Optional[dict] = None,
+    source_manifest: Optional[dict] = None,
 ) -> None:
     """Write ``<deps_dir>/package-lock.json`` atomically.
 
@@ -173,6 +174,10 @@ def write_lock(
 
     *handler_contributions* is an optional dict of extra top-level keys
     contributed by post-processing handlers (e.g. ``{"python_packages": {...}}``).
+
+    *source_manifest* is an optional ``{"from": ..., "dep_set": ...}`` record
+    written when the workspace was driven by ``ivpm update --from`` (an external
+    manifest), so the workspace can be re-resolved without a local ivpm.yaml.
     """
     packages = {}
     ivpm_sources = {}
@@ -196,6 +201,9 @@ def write_lock(
         "generated": datetime.now(timezone.utc).isoformat(),
         "packages": packages,
     }
+
+    if source_manifest:
+        lock["source_manifest"] = source_manifest
 
     if ivpm_sources:
         lock["ivpm_sources"] = ivpm_sources
