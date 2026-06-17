@@ -8,21 +8,24 @@
 #
 #   ivpm update
 #
-# After `ivpm update`, IVPM populates:
+# After `ivpm update`, IVPM populates (by default):
 #   .agents/skills/   — agent-neutral skill links (for any skills-aware agent)
-#   .claude/skills/   — Claude-specific links (because agents.claude: true below)
+#   .claude/skills/   — Claude Code links (enabled by default; set claude: false to skip)
+#   .cursor/skills/   — Cursor links (enabled by default; set cursor: false to skip)
 #
-# Each link points at a directory containing a SKILL.md, so Claude Code running
-# in this directory automatically discovers the yosys and nextpnr skills.
+# Each link points at a directory containing a SKILL.md, so an agent running in
+# this directory automatically discovers the yosys and nextpnr skills.
+#
+# The `.claude`/`.cursor` mirrors are opt-out: they are populated by default.
+# Uncomment the block below only to disable one of them.
 
 package:
   name: ivpm-agent-skills-example
 
-  with:
-    agents:
-      # Mirror every discovered skill into .claude/skills/ as well as
-      # .agents/skills/ so Claude Code picks them up automatically.
-      claude: true
+  # with:
+  #   agents:
+  #     claude: false   # don't create .claude/skills/
+  #     cursor: false   # don't create .cursor/skills/
 
   dep-sets:
   - name: default
@@ -31,7 +34,7 @@ package:
     # ---- yosys: RTL synthesis -------------------------------------------
     # The yosys-bin release tarball *bundles* its agent skills under skills/.
     # IVPM auto-discovers them (no extra config) and links yosys, sby and
-    # sv2v into .agents/skills/ and .claude/skills/.
+    # sv2v into .agents/skills/, .claude/skills/ and .cursor/skills/.
     - name: yosys-bin
       src: gh-rls
       url: https://github.com/edapack/yosys-bin

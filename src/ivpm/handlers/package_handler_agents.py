@@ -34,6 +34,14 @@ _logger = logging.getLogger("ivpm.handlers.package_handler_agents")
 _FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 _FIELD_RE = re.compile(r"^(\w[\w-]*):\s*(.+)$", re.MULTILINE)
 
+# Agent-tool mirror targets in addition to the always-present .agents/skills/.
+# Each is opt-out (default-on) via package.with.agents; an explicit False
+# (e.g. claude: false) always skips that target. (config_key, subdir).
+_TOOL_TARGETS = (
+    ("claude", os.path.join(".claude", "skills")),
+    ("cursor", os.path.join(".cursor", "skills")),
+)
+
 
 def _parse_frontmatter(path: str) -> Optional[Dict[str, str]]:
     """Return a dict of frontmatter fields, or None on failure."""
@@ -110,7 +118,8 @@ class PackageHandlerAgents(PackageHandler):
                 "containing each dependency's SKILL.md. "
                 "Symlinks are relative when the target is inside the project tree, "
                 "absolute otherwise. "
-                "When claude: true is set under package.with.agents, also mirrors to .claude/skills/. "
+                "By default also mirrors skills to .claude/skills/ and .cursor/skills/; "
+                "disable either with claude: false / cursor: false under package.with.agents. "
                 "Falls back to directory copy on platforms without symlink support. "
                 "Skill paths support glob patterns (e.g. skills/**/SKILL.md). "
                 "Python packages may register skills via the 'agent.skills' entry-point group "
@@ -158,12 +167,14 @@ class PackageHandlerAgents(PackageHandler):
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         project_dir = update_info.project_dir or os.path.dirname(update_info.deps_dir)
         agents_cfg = update_info.handler_configs.get("agents", {}) or {}
-        do_claude = bool(agents_cfg.get("claude", False))
 
+        # .agents/skills/ is always populated and must stay targets[0] (used as
+        # the symlink-support probe location below). Each tool target is
+        # opt-out: enabled by default, skipped only when set to a false value.
         targets = [os.path.join(project_dir, ".agents", "skills")]
-        claude_skills_dir = os.path.join(project_dir, ".claude", "skills")
-        if do_claude or os.path.exists(os.path.join(project_dir, ".claude")):
-            targets.append(claude_skills_dir)
+        for cfg_key, subdir in _TOOL_TARGETS:
+            if bool(agents_cfg.get(cfg_key, True)):
+                targets.append(os.path.join(project_dir, subdir))
 
         # Remove entries created by the previous run before writing new ones
         self._remove_managed(project_dir, self._prev_state)
@@ -210,15 +221,20 @@ class PackageHandlerAgents(PackageHandler):
 
         total = len(assigned)
         from ..utils import note
-        note("Populated .agents/skills/ with %d skill(s) (%s)" % (
-            total, "symlinks" if use_symlinks else "copies"))
+        note("Populated %d skill(s) into %d target(s) (%s)" % (
+            total, len(targets), "symlinks" if use_symlinks else "copies"))
 
     def get_state_entries(self) -> dict:
         """Persist created entry names so the next run can clean them up."""
         if not self._managed_names:
             return {}
-        # Store same names for both targets; _remove_managed checks what exists
-        return {"agents_skills": self._managed_names, "claude_skills": self._managed_names}
+        # Persist a key for *every* tool target (not just the enabled ones) so
+        # that disabling a tool after a prior enabled run still triggers cleanup
+        # of its now-orphaned entries. _remove_managed checks what exists.
+        state = {"agents_skills": self._managed_names}
+        for cfg_key, _ in _TOOL_TARGETS:
+            state["%s_skills" % cfg_key] = self._managed_names
+        return state
 
     # ------------------------------------------------------------------ #
 
@@ -462,8 +478,9 @@ class PackageHandlerAgents(PackageHandler):
     @staticmethod
     def _remove_managed(project_dir: str, prev_state: dict):
         """Remove symlinks/copies written by the previous run."""
-        for key, subdir in (("agents_skills", ".agents/skills"),
-                             ("claude_skills", ".claude/skills")):
+        pairs = [("agents_skills", os.path.join(".agents", "skills"))]
+        pairs += [("%s_skills" % cfg_key, subdir) for cfg_key, subdir in _TOOL_TARGETS]
+        for key, subdir in pairs:
             names = prev_state.get(key, [])
             if not names:
                 continue
