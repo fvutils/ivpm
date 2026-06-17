@@ -339,8 +339,9 @@ root phase.</p>
 <p><strong>Purpose</strong></p>
 <p>Packages can provide skill files (<code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code>) that describe capabilities or
 instructions for AI agents.  The agents handler discovers these skill files and
-creates organized symlinks in <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> and optionally <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>
-for use by AI tools.</p>
+creates organized symlinks in <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> and, by default, the
+tool-specific <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> and <code class="docutils literal notranslate"><span class="pre">.cursor/skills/</span></code> directories for use by
+AI tools.  The tool-specific mirrors are <em>opt-out</em> — see <strong>Configuration</strong> below.</p>
 <p><strong>Skill File Format</strong></p>
 <p>Each skill file must contain YAML frontmatter with at least <code class="docutils literal notranslate"><span class="pre">name:</span></code> and
 <code class="docutils literal notranslate"><span class="pre">description:</span></code> fields:</p>
@@ -424,8 +425,10 @@ and are skipped.  This mechanism is independent of the package having an
 <p>Runs when at least one valid skill file was found.  Steps:</p>
 <ol class="arabic simple">
 <li><p>Create <code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code> directory</p></li>
-<li><p>Create <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> directory if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> OR if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>
-already exists</p></li>
+<li><p>Create the <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> and <code class="docutils literal notranslate"><span class="pre">.cursor/skills/</span></code> directories by
+default; skip either one when <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">false</span></code> / <code class="docutils literal notranslate"><span class="pre">cursor:</span> <span class="pre">false</span></code> is set.
+An explicit <code class="docutils literal notranslate"><span class="pre">false</span></code> always wins, even if the corresponding directory
+already exists.</p></li>
 <li><p>Process skills gathered from dependencies (mechanisms 1–3 above) and from
 <code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> Python entry-points (mechanism 4)</p></li>
 <li><p>For each skill, create a relative symlink (or copy as fallback) with a
@@ -438,13 +441,24 @@ parent directories, such as <code class="docutils literal notranslate"><span cla
 <li><p>Remove stale entries from previous runs</p></li>
 </ol>
 <p><strong>Configuration (``ivpm.yaml``)</strong></p>
-<p>Project-level settings under <code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code>:</p>
+<p>Project-level settings under <code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code>.  Mirroring into the
+tool-specific directories is <em>opt-out</em> — both <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> and
+<code class="docutils literal notranslate"><span class="pre">.cursor/skills/</span></code> are populated by default.  Set a key to <code class="docutils literal notranslate"><span class="pre">false</span></code> to skip
+that tool:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-project</span>
 <span class="w">  </span><span class="nt">with</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">agents</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">claude</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># Create .claude/skills/ in addition to .agents/skills/</span>
+<span class="w">      </span><span class="nt">claude</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># default — set false to skip .claude/skills/</span>
+<span class="w">      </span><span class="nt">cursor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># default — set false to skip .cursor/skills/</span>
 </pre></div>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Behavior change.</strong>  Earlier releases treated <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> as
+<em>opt-in</em> (created only when <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> was set, or when <code class="docutils literal notranslate"><span class="pre">.claude/</span></code>
+already existed).  It is now created by default.  Projects that relied on
+<code class="docutils literal notranslate"><span class="pre">.claude/</span></code> <em>not</em> being created must set <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">false</span></code> explicitly.</p>
 </div>
 <p>Package-declared skill paths under <code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
@@ -473,15 +487,19 @@ directories within the package.</p></li>
 <li><p><strong>Fallback</strong>: On platforms without symlink support, falls back to copying the
 <code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> file and any companion directories (<code class="docutils literal notranslate"><span class="pre">scripts/</span></code>, <code class="docutils literal notranslate"><span class="pre">references/</span></code>,
 <code class="docutils literal notranslate"><span class="pre">assets/</span></code>).</p></li>
-<li><p><strong>`.claude` directory</strong>: Always populates if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code>. Also populates
-automatically if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> directory already exists (useful for projects
-that have manually created it).</p></li>
-<li><p><strong>Stale cleanup</strong>: Removes entries from previous runs before writing new ones.</p></li>
+<li><p><strong>Tool-specific directories</strong>: <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code> and <code class="docutils literal notranslate"><span class="pre">.cursor/skills/</span></code> are
+populated by default (opt-out).  Set <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">false</span></code> / <code class="docutils literal notranslate"><span class="pre">cursor:</span> <span class="pre">false</span></code>
+under <code class="docutils literal notranslate"><span class="pre">package.with.agents</span></code> to skip a given tool; an explicit <code class="docutils literal notranslate"><span class="pre">false</span></code>
+always wins, even when the directory already exists.</p></li>
+<li><p><strong>Stale cleanup</strong>: Removes entries from previous runs before writing new ones.
+This includes entries in a tool directory that was populated by an earlier run
+but is now disabled.</p></li>
 </ul>
 <p><strong>Output:</strong></p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/&lt;package&gt;</span></code> — symlink(s) to skill directories</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">.claude/skills/&lt;package&gt;</span></code> — same, if <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">true</span></code> or if <code class="docutils literal notranslate"><span class="pre">.claude/</span></code> exists</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.claude/skills/&lt;package&gt;</span></code> — same, unless <code class="docutils literal notranslate"><span class="pre">claude:</span> <span class="pre">false</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.cursor/skills/&lt;package&gt;</span></code> — same, unless <code class="docutils literal notranslate"><span class="pre">cursor:</span> <span class="pre">false</span></code></p></li>
 </ul>
 </section>
 <section id="modules-handler-modules">
@@ -595,7 +613,7 @@ other build systems.</p>
 <td><p>Skill file discovery and symlinking</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">SKILL.md</span></code> at root, under <code class="docutils literal notranslate"><span class="pre">skills/</span></code>, declared paths, or <code class="docutils literal notranslate"><span class="pre">agent.skills</span></code> entry-points</p></td>
 <td><p>Creates symlinks to skills</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.agents/skills/</span></code>, <code class="docutils literal notranslate"><span class="pre">.claude/skills/</span></code>, <code class="docutils literal notranslate"><span class="pre">.cursor/skills/</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fusesoc</span></code></p></td>
 <td><p>10</p></td>

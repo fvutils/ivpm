@@ -127,7 +127,10 @@ set of mixed dependencies benefits from IVPM.
 
       with:
         agents:
+          # .claude/skills/ and .cursor/skills/ are populated by default;
+          # set either to false to opt out.
           claude: true
+          cursor: true
 
       dep-sets:
         - name: default-dev
