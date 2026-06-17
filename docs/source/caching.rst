@@ -139,13 +139,15 @@ a full editable clone and is reported in the update summary, exactly as before.
 Customizing Caching (Site Config)
 =================================
 
-Sites can customize caching by installing an ``ivpm_site_config`` package that
-provides a :class:`~ivpm.site_config.SiteConfig` subclass. The simplest override
-sets the default cache directory:
+Sites can customize caching by shipping a :class:`~ivpm.site_config.SiteConfig`
+subclass. The recommended way is an **extension** that declares an
+``ivpm.site_config`` entry point (see :doc:`extending_ivpm`); the legacy
+``ivpm_site_config`` module is also still honored. The simplest override sets the
+default cache directory:
 
 .. code-block:: python
 
-   # ivpm_site_config/__init__.py
+   # src/acme_ivpm/site_config.py
    from ivpm.site_config import SiteConfig
 
    class MySiteConfig(SiteConfig):
@@ -155,8 +157,14 @@ sets the default cache directory:
        def get_ivpm_install_args(self) -> list:
            return ["ivpm"]
 
-   def get_config() -> SiteConfig:
-       return MySiteConfig()
+.. code-block:: toml
+
+   # pyproject.toml of the extension package
+   [project.entry-points."ivpm.site_config"]
+   acme = "acme_ivpm.site_config:MySiteConfig"
+
+Run ``ivpm show site-config`` to confirm the config is registered and to see the
+resolved cache directory it applies.
 
 For full control — per-dependency routing, an alternate backend, or selectively
 disabling caching for some packages — override ``get_cache_provider`` directly.

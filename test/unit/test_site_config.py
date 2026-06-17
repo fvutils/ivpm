@@ -9,6 +9,7 @@ _ROOTDIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 sys.path.insert(0, os.path.join(_ROOTDIR, "src"))
 
 from ivpm.site_config import DefaultSiteConfig, SiteConfig, get_site_config, reset_site_config
+from ivpm.site_config_rgy import SiteConfigRgy
 from ivpm.cache import Cache
 
 
@@ -95,6 +96,136 @@ class TestGetSiteConfig(unittest.TestCase):
         reset_site_config()
         cfg2 = get_site_config()
         self.assertIsNot(cfg1, cfg2)
+
+
+# ---------------------------------------------------------------------------
+# SiteConfigRgy — registration, ordering, and override resolution
+# ---------------------------------------------------------------------------
+
+class _CfgA(SiteConfig):
+    """Config A."""
+    def get_default_cache_dir(self): return "/a"
+    def get_ivpm_install_args(self): return ["a"]
+
+
+class _CfgB(SiteConfig):
+    """Config B."""
+    def get_default_cache_dir(self): return "/b"
+    def get_ivpm_install_args(self): return ["b"]
+
+
+class TestSiteConfigRgy(unittest.TestCase):
+
+    def setUp(self):
+        # A fresh registry instance, not the inst() singleton, so we control
+        # exactly what is registered. Clear the name-override env var and the
+        # config-file name lookup so active_name() falls through to ordering.
+        self.rgy = SiteConfigRgy()
+        self._env = patch.dict(os.environ, {}, clear=False)
+        self._env.start()
+        os.environ.pop("IVPM_SITE_CONFIG_NAME", None)
+        self._file = patch("ivpm.site_config._file_site_config_name", return_value=None)
+        self._file.start()
+
+    def tearDown(self):
+        self._file.stop()
+        self._env.stop()
+
+    def test_last_registered_wins(self):
+        self.rgy.register("default", DefaultSiteConfig)
+        self.rgy.register("a", _CfgA)
+        self.rgy.register("b", _CfgB)
+        self.assertEqual(self.rgy.active_name(), "b")
+        self.assertIsInstance(self.rgy.get_active(), _CfgB)
+
+    def test_get_active_is_cached(self):
+        self.rgy.register("a", _CfgA)
+        self.assertIs(self.rgy.get_active(), self.rgy.get_active())
+
+    def test_reregister_moves_to_end(self):
+        self.rgy.register("a", _CfgA)
+        self.rgy.register("b", _CfgB)
+        self.rgy.register("a", _CfgA)  # re-register -> becomes last
+        self.assertEqual(self.rgy.active_name(), "a")
+
+    def test_env_override_selects_by_name(self):
+        self.rgy.register("a", _CfgA)
+        self.rgy.register("b", _CfgB)
+        os.environ["IVPM_SITE_CONFIG_NAME"] = "a"
+        self.assertEqual(self.rgy.active_name(), "a")
+        self.assertIsInstance(self.rgy.get_active(), _CfgA)
+
+    def test_unknown_env_override_falls_back_to_last(self):
+        self.rgy.register("a", _CfgA)
+        self.rgy.register("b", _CfgB)
+        os.environ["IVPM_SITE_CONFIG_NAME"] = "does-not-exist"
+        self.assertEqual(self.rgy.active_name(), "b")
+
+    def test_config_file_override_selects_by_name(self):
+        self.rgy.register("a", _CfgA)
+        self.rgy.register("b", _CfgB)
+        self._file.stop()
+        with patch("ivpm.site_config._file_site_config_name", return_value="a"):
+            self.assertEqual(self.rgy.active_name(), "a")
+        self._file.start()  # keep tearDown balanced
+
+    def test_env_override_beats_config_file(self):
+        self.rgy.register("a", _CfgA)
+        self.rgy.register("b", _CfgB)
+        os.environ["IVPM_SITE_CONFIG_NAME"] = "b"
+        self._file.stop()
+        with patch("ivpm.site_config._file_site_config_name", return_value="a"):
+            self.assertEqual(self.rgy.active_name(), "b")
+        self._file.start()
+
+    def test_factory_callable_supported(self):
+        self.rgy.register("fn", lambda: _CfgA())
+        self.assertIsInstance(self.rgy.get_active(), _CfgA)
+
+    def test_site_config_infos_flags_active(self):
+        self.rgy.register("default", DefaultSiteConfig)
+        self.rgy.register("a", _CfgA, origin="acme.plugin", provider="acme", version="1.0")
+        infos = self.rgy.site_config_infos()
+        by_name = {i.name: i for i in infos}
+        self.assertFalse(by_name["default"].active)
+        self.assertTrue(by_name["a"].active)
+        self.assertEqual(by_name["a"].origin, "acme.plugin")
+        self.assertEqual(by_name["a"].provider, "acme")
+        self.assertEqual(by_name["a"].version, "1.0")
+        # description derives from the class docstring's first line
+        self.assertEqual(by_name["a"].description, "Config A.")
+
+
+class TestSiteConfigRgyDiscovery(unittest.TestCase):
+    """The inst() singleton always provides at least the 'default' config."""
+
+    def setUp(self):
+        reset_site_config()
+        sys.modules.pop("ivpm_site_config", None)
+
+    def tearDown(self):
+        reset_site_config()
+        sys.modules.pop("ivpm_site_config", None)
+
+    def test_default_always_registered_first(self):
+        with patch.dict(sys.modules, {"ivpm_site_config": None}):
+            reset_site_config()
+            rgy = SiteConfigRgy.inst()
+        self.assertEqual(rgy.names()[0], "default")
+        self.assertIn("default", rgy.names())
+
+    def test_legacy_module_registered_and_active(self):
+        """An importable ivpm_site_config module overrides 'default'."""
+        cfg = _CfgA()
+        mock_module = MagicMock()
+        mock_module.get_config.return_value = cfg
+        with patch.dict(sys.modules, {"ivpm_site_config": mock_module}):
+            with patch("ivpm.site_config._file_site_config_name", return_value=None):
+                reset_site_config()
+                os.environ.pop("IVPM_SITE_CONFIG_NAME", None)
+                rgy = SiteConfigRgy.inst()
+                self.assertIn("ivpm_site_config", rgy.names())
+                self.assertIs(get_site_config(), cfg)
 
 
 # ---------------------------------------------------------------------------

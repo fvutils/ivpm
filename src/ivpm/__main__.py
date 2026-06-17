@@ -353,6 +353,16 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Browse an external manifest's catalog (descriptions + dep-sets) "
              "without fetching dependencies")
 
+    show_config_cmd = show_subparser.add_parser("site-config",
+        aliases=["config"],
+        help="Show registered site configurations and the active effective settings")
+    show_config_cmd.add_argument("name", nargs="?",
+        help="Show detailed info for this site config (omit to list all)")
+    show_config_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_config_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+
     _finalize_subparser_help(show_subparser)
 
     show_cmd.set_defaults(func=CmdShow())

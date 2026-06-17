@@ -110,3 +110,17 @@ class HandlerInfo(RegistryEntryInfo):
     # Human-readable list of CLI options this handler adds, e.g.:
     # ["update: --py-uv", "update: --py-pip"]
     cli_options: List[str] = dc.field(default_factory=list)
+
+
+@dc.dataclass
+class SiteConfigInfo(RegistryEntryInfo):
+    """Self-description for a registered site configuration (in SiteConfigRgy).
+
+    ``active`` flags the one config the registry currently resolves to (see
+    SiteConfigRgy.get_active).  ``settings`` holds the effective values that
+    config would apply (cache dir, ivpm install args, git auth order); it is
+    populated lazily by the ``ivpm show site-config`` renderer rather than at
+    registration time.
+    """
+    active: bool = False
+    settings: dict = dc.field(default_factory=dict)

@@ -259,6 +259,39 @@ class TestShowCLI(unittest.TestCase):
         self.assertIn("types", data)
         self.assertIn("handlers", data)
 
+    def test_show_site_config_list_no_rich(self):
+        out, rc = _run("show", "site-config", "--no-rich")
+        self.assertEqual(rc, 0)
+        self.assertIn("default", out)
+        self.assertIn("Effective settings", out)
+
+    def test_show_config_alias(self):
+        out, rc = _run("show", "config", "--no-rich")
+        self.assertEqual(rc, 0)
+        self.assertIn("default", out)
+
+    def test_show_site_config_detail_no_rich(self):
+        out, rc = _run("show", "site-config", "default", "--no-rich")
+        self.assertEqual(rc, 0)
+        self.assertIn("default", out)
+        self.assertIn("git auth order", out)
+
+    def test_show_site_config_unknown_exits_1(self):
+        out, rc = _run("show", "site-config", "does-not-exist", check=False)
+        self.assertEqual(rc, 1)
+
+    def test_show_site_config_json(self):
+        out, rc = _run("show", "site-config", "--json")
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        self.assertIn("configs", data)
+        self.assertIn("diagnostics", data)
+        names = [c["name"] for c in data["configs"]]
+        self.assertIn("default", names)
+        self.assertEqual(data["diagnostics"]["active"], "default")
+        # exactly one config is flagged active
+        self.assertEqual(sum(1 for c in data["configs"] if c["active"]), 1)
+
     def test_show_schema(self):
         out, rc = _run("show", "--schema")
         self.assertEqual(rc, 0)

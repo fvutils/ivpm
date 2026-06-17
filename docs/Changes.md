@@ -1,4 +1,7 @@
 
+# 2.13.1
+- Added a new extension point for applying site configs
+
 # 2.13.0
 - Internal: the site configuration now returns a *cache provider* for the
   session (`SiteConfig.get_cache_provider`) instead of a bare cache location.

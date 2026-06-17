@@ -42,6 +42,9 @@ class CmdShow:
         elif sub == "deps":
             from .show_deps import ShowDeps
             ShowDeps()(args)
+        elif sub in ("site-config", "config"):
+            from .show_config import ShowConfig
+            ShowConfig()(args)
         else:
             # No sub-command: show all three categories
             _show_all(args)

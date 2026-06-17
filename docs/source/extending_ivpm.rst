@@ -387,8 +387,90 @@ by IVPM's own test suite:
             self.assertEqual(pkg.pkg_type, "my-type")
 
 
+Contributing a Site Configuration
+=================================
+
+A **site configuration** lets an organization override IVPM's defaults --
+the cache directory, how IVPM installs itself into new virtual environments,
+and the default git authentication order. The recommended way to ship one is as
+an **extension** that declares an ``ivpm.site_config`` entry point. This composes
+cleanly with a stock install: users ``pip install ivpm`` as normal, then install
+your extension to enforce site policy -- no patched ``site_config.py`` and no
+reserved module name.
+
+Write a :class:`~ivpm.site_config.SiteConfig` subclass and override only the
+methods you care about:
+
+.. code-block:: python
+
+    # src/acme_ivpm/site_config.py
+    from ivpm.site_config import SiteConfig
+
+    class AcmeSiteConfig(SiteConfig):
+        """Acme Corp site policy."""
+
+        def get_default_cache_dir(self) -> str:
+            return "/opt/acme/ivpm-cache"      # return "" to disable caching
+
+        def get_ivpm_install_args(self) -> list:
+            return ["/opt/acme/ivpm-custom.whl"]   # install IVPM from an internal wheel
+
+        def get_default_git_auth_order(self) -> list:
+            return ["ssh"]                     # never use gh on the corporate network
+
+Register it via the ``ivpm.site_config`` entry-point group:
+
+.. code-block:: toml
+
+    [project.entry-points."ivpm.site_config"]
+    acme = "acme_ivpm.site_config:AcmeSiteConfig"
+
+The entry-point target may be a ``SiteConfig`` **subclass** (instantiated on
+demand) or a zero-argument **callable** that returns a ``SiteConfig`` instance.
+
+.. note::
+
+   The historical ``ivpm_site_config`` module (a top-level package exposing a
+   ``get_config()`` function) is still honored, but the entry-point group above
+   is preferred because it does not require owning a specific module name and is
+   discovered the same way as every other IVPM extension.
+
+Selecting the active config
+---------------------------
+
+IVPM resolves a *single* active site config from everything registered:
+``DefaultSiteConfig`` first, then a legacy ``ivpm_site_config`` module, then
+each ``ivpm.site_config`` entry point. By default the **last-registered** config
+wins, so installing one extension is enough to take over -- the common case.
+
+When more than one config is registered, pin the active one by name (use
+``ivpm show site-config`` to see the registered names):
+
+* the ``IVPM_SITE_CONFIG_NAME`` environment variable (highest priority), or
+* a top-level ``site-config: <name>`` key in a user or site config file
+  (``~/.config/ivpm/config.yaml`` or ``/etc/ivpm/config.yaml``).
+
+A name that matches no registered config is ignored with a warning, and
+resolution falls back to last-registered.
+
+Inspecting what is registered
+-----------------------------
+
+After installing your extension, run::
+
+    ivpm show site-config
+
+to list every registered config (the active one is flagged), and the
+**effective settings** the active config applies -- resolved cache directory,
+``ivpm`` install arguments, git auth order, and the config files that were
+loaded. ``ivpm show site-config <name>`` shows the detail for one config, and
+``--json`` emits the same information for tooling.
+
+
 See Also
 ========
 
 - :doc:`handlers` -- Built-in handler documentation and the handler summary table
 - :doc:`package_types` -- Package source types and content types
+- :doc:`caching` -- Customizing the cache through a site configuration
+- :doc:`git_integration` -- Site-managed git authentication defaults

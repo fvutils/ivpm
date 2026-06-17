@@ -18,24 +18,36 @@
 #****************************************************************************
 """Site-level configuration for IVPM.
 
-Site administrators can override IVPM's defaults by installing a separate
-``ivpm_site_config`` Python package that provides a ``SiteConfig`` subclass
-and exposes it via a module-level ``get_config()`` function::
+A site can override IVPM's defaults by registering a ``SiteConfig`` subclass.
+There are two mechanisms, both resolved through
+:class:`~ivpm.site_config_rgy.SiteConfigRgy`:
 
-    # ivpm_site_config/__init__.py
+**Preferred — an entry-point extension.**  Ship a package that declares an
+``ivpm.site_config`` entry point.  This composes cleanly with vanilla IVPM:
+install IVPM, then install the extension to enforce site policy::
+
+    # acme_ivpm/site_config.py
     from ivpm.site_config import SiteConfig
 
-    class MySiteConfig(SiteConfig):
+    class AcmeSiteConfig(SiteConfig):
         def get_default_cache_dir(self) -> str:
-            return ""  # disable caching
+            return "/opt/acme/ivpm-cache"
 
         def get_ivpm_install_args(self) -> list:
-            return ["/opt/site/ivpm-custom.whl"]
+            return ["/opt/acme/ivpm-custom.whl"]
 
-    def get_config() -> SiteConfig:
-        return MySiteConfig()
+    # pyproject.toml
+    # [project.entry-points."ivpm.site_config"]
+    # acme = "acme_ivpm.site_config:AcmeSiteConfig"
 
-If no ``ivpm_site_config`` module is found, ``DefaultSiteConfig`` is used.
+**Legacy — an ``ivpm_site_config`` module.**  A package providing a module named
+``ivpm_site_config`` with a ``get_config()`` function returning a ``SiteConfig``
+is still honored.
+
+If neither is present, ``DefaultSiteConfig`` is used.  When more than one config
+is registered the last-registered one wins by default; pin a specific one with
+the ``IVPM_SITE_CONFIG_NAME`` env var or a ``site-config: <name>`` config-file
+key.  Use ``ivpm show site-config`` to see what is registered and which is active.
 """
 import fnmatch
 import logging
@@ -48,6 +60,7 @@ _logger = logging.getLogger("ivpm.site_config")
 
 if TYPE_CHECKING:
     from .cache_provider import CacheContext, CacheProvider
+    from .show.info_types import SiteConfigInfo
 
 
 # Ordered git auth methods tried for an https URL that has no explicit
@@ -145,6 +158,19 @@ class SiteConfig:
         """
         return []
 
+    def site_config_info(self) -> 'SiteConfigInfo':
+        """Return this config's self-description for ``ivpm show site-config``.
+
+        The registry overlays the registered ``name`` and provenance
+        (``origin``/``provider``/``version``) afterward, so subclasses only
+        need to supply a ``description`` (and optionally ``notes``).  The
+        default derives the description from the class docstring's first line.
+        """
+        from .show.info_types import SiteConfigInfo
+        doc = (self.__class__.__doc__ or "").strip()
+        description = doc.splitlines()[0].strip() if doc else self.__class__.__name__
+        return SiteConfigInfo(name=self.__class__.__name__, description=description)
+
 
 class DefaultSiteConfig(SiteConfig):
     """Default site configuration shipped with IVPM.
@@ -164,26 +190,18 @@ class DefaultSiteConfig(SiteConfig):
         return ["ivpm"]
 
 
-# Module-level singleton — populated on first call to get_site_config().
-_site_config: Optional[SiteConfig] = None
-
-
 def get_site_config() -> SiteConfig:
     """Return the active site configuration.
 
-    On the first call this function attempts ``import ivpm_site_config`` and
-    calls its ``get_config()`` function.  If that import fails the
-    ``DefaultSiteConfig`` is used.  The result is cached so the import is
-    only attempted once per process.
+    The active config is resolved by :class:`~ivpm.site_config_rgy.SiteConfigRgy`
+    from everything registered there: ``DefaultSiteConfig``, a legacy
+    ``ivpm_site_config`` module, and any ``ivpm.site_config`` entry-point
+    plugins.  By default the last-registered config wins; see the registry for
+    the ``IVPM_SITE_CONFIG_NAME`` / ``site-config:`` overrides.  The resolved
+    instance is cached by the registry for the process lifetime.
     """
-    global _site_config
-    if _site_config is None:
-        try:
-            import ivpm_site_config  # type: ignore[import]
-            _site_config = ivpm_site_config.get_config()
-        except (ImportError, AttributeError):
-            _site_config = DefaultSiteConfig()
-    return _site_config
+    from .site_config_rgy import SiteConfigRgy
+    return SiteConfigRgy.inst().get_active()
 
 
 def parse_git_auth_order(value) -> List[str]:
@@ -204,6 +222,7 @@ def parse_git_auth_order(value) -> List[str]:
 # --------------------------------------------------------------------------
 #
 # Both files share the same schema; recognized keys today:
+#   site-config: acme                  # pin the active registered site config
 #   git-auth-order: [gh, ssh]          # default order for unmatched hosts
 #   git-auth:                          # host-glob -> order rules
 #     - host: "*.internal.corp"
@@ -298,6 +317,19 @@ def _file_default_order() -> Optional[List[str]]:
     return None
 
 
+def _file_site_config_name() -> Optional[str]:
+    """First ``site-config`` name found across the config files (user first).
+
+    Used by :class:`~ivpm.site_config_rgy.SiteConfigRgy` to let a user/site
+    config file pin which registered site config is active.
+    """
+    for path, data in _load_config_files():
+        name = data.get("site-config")
+        if name:
+            return str(name).strip()
+    return None
+
+
 def resolve_git_auth_order(host: Optional[str] = None) -> List[str]:
     """Resolve the active git auth order for *host*.
 
@@ -328,7 +360,8 @@ def resolve_git_auth_order(host: Optional[str] = None) -> List[str]:
 
 
 def reset_site_config() -> None:
-    """Reset the cached site config singleton and config-file cache (for tests)."""
-    global _site_config, _config_files
-    _site_config = None
+    """Reset the site-config registry and config-file cache (for tests)."""
+    global _config_files
     _config_files = None
+    from .site_config_rgy import SiteConfigRgy
+    SiteConfigRgy._reset()
