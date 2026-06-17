@@ -403,10 +403,12 @@ def main(project_dir=None):
             elif hasattr(mod, "ivpm_options"):
                 options_ext.append(mod)
             elif hasattr(mod, "ivpm_pkgtype"):
+                from .show.info_types import ep_registration_kwargs
+                prov = ep_registration_kwargs(p)
                 pkg_types = []
                 getattr(mod, "ivpm_pkgtype")(pkg_types)
                 for pt in pkg_types:
-                    PkgTypeRgy.inst().register(pt[0], pt[1], pt[2] if len(pt) > 2 else "")
+                    PkgTypeRgy.inst().register(pt[0], pt[1], pt[2] if len(pt) > 2 else "", **prov)
         except Exception as e:
             print("Error: caught exception while loading IVPM extension %s (%s)" %(
                 p.name,

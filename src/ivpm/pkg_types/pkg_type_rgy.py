@@ -51,14 +51,18 @@ class PkgTypeRgy(object):
     def getSrcTypes(self):
         return self.src2fact_m.keys()
 
-    def register(self, src: str, f: Callable, info: Union[str, 'PkgSourceInfo'] = "", origin: str = "built-in"):
+    def register(self, src: str, f: Callable, info: Union[str, 'PkgSourceInfo'] = "",
+                 origin: str = "built-in", version: str = None, provider: str = None):
         """Register a package source factory.
 
         ``info`` may be a bare description string (backward-compatible) or a
         ``PkgSourceInfo`` instance.  When a string is given it is auto-wrapped into a
         minimal ``PkgSourceInfo`` with no parameter documentation.  ``origin`` is
         recorded in the info object and shown by ``ivpm show source`` to indicate
-        whether the source is built-in or from a plugin entry point.
+        whether the source is built-in or from a plugin entry point.  ``version``
+        (when given) overrides any value on ``info``; ``provider`` only fills in
+        when ``info`` did not already declare one, so an author-supplied provider
+        label in ``source_info()`` takes precedence over the distribution name.
         """
         from ..show.info_types import PkgSourceInfo
         if src in self.src2fact_m.keys():
@@ -72,6 +76,10 @@ class PkgTypeRgy(object):
             info = PkgSourceInfo(name=src, description=info, origin=origin)
         else:
             info.origin = origin
+        if version is not None:
+            info.version = version
+        if provider is not None and info.provider is None:
+            info.provider = provider
         self.src2fact_m[src] = (f, info)
 
     def getSourceInfo(self, src: str) -> 'PkgSourceInfo':
@@ -96,6 +104,32 @@ class PkgTypeRgy(object):
         self.register("package.json", PackagePackageJson.create, PackagePackageJson.source_info())
         self.register("pyproject.toml", PackagePyprojectToml.create, PackagePyprojectToml.source_info())
         self.register("ivpm.yaml", PackageIvpmYaml.create, PackageIvpmYaml.source_info())
+
+        # Discover plugin-provided sources via the 'ivpm.sources' entry-point group.
+        # Each entry point resolves to a package class exposing create() and
+        # source_info(), mirroring the built-in registrations above.  (Third-party
+        # sources may also still be registered through the legacy ivpm.ext /
+        # ivpm_pkgtype hook handled in __main__.)
+        self._load_plugins()
+
+    def _load_plugins(self):
+        import logging
+        import sys
+        if sys.version_info < (3, 10):
+            from importlib_metadata import entry_points
+        else:
+            from importlib.metadata import entry_points
+        from ..show.info_types import ep_registration_kwargs
+        _logger = logging.getLogger("ivpm.pkg_types.pkg_type_rgy")
+
+        for ep in entry_points(group="ivpm.sources"):
+            try:
+                cls = ep.load()
+                info = cls.source_info()
+                self.register(info.name, cls.create, info, **ep_registration_kwargs(ep))
+                _logger.debug("Loaded source '%s' from entry point", info.name)
+            except Exception as e:
+                _logger.warning("Failed to load source entry point '%s': %s", ep.name, e)
 
     @classmethod
     def inst(cls):

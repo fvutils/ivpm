@@ -37,19 +37,41 @@ class PkgContentTypeRgy:
 
     def __init__(self):
         self._types = {}
+        # name -> (origin, version, provider) recorded at registration time
+        self._meta = {}
 
-    def register(self, content_type: PkgContentType):
+    def register(self, content_type: PkgContentType, origin: str = "built-in",
+                 version: str = None, provider: str = None):
+        """Register a content type.
+
+        ``origin`` distinguishes built-ins from plugin entry points; ``provider``
+        (the distribution supplying the type) and ``version`` are optional and
+        surfaced by ``ivpm show type``.  They are recorded here and overlaid onto
+        the type's own ``content_type_info()`` by :meth:`info`.
+        """
         name = content_type.name
         if name in self._types:
             raise Exception("Duplicate registration of content type '%s'" % name)
         _logger.debug("Registering content type: %s", name)
         self._types[name] = content_type
+        self._meta[name] = (origin, version, provider)
 
     def has(self, name: str) -> bool:
         return name in self._types
 
     def get(self, name: str) -> PkgContentType:
         return self._types[name]
+
+    def info(self, name: str) -> 'ContentTypeInfo':
+        """Return the type's ContentTypeInfo with registration provenance applied."""
+        info = self._types[name].content_type_info()
+        origin, version, provider = self._meta.get(name, ("built-in", None, None))
+        info.origin = origin
+        if version is not None:
+            info.version = version
+        if provider is not None and info.provider is None:
+            info.provider = provider
+        return info
 
     def names(self) -> list:
         return sorted(self._types.keys())
@@ -60,14 +82,15 @@ class PkgContentTypeRgy:
         self.register(ModuleContentType())
         self.register(NodeContentType())
 
-        # Future: scan entry_points(group='ivpm.content_types') here
+        # Scan entry_points(group='ivpm.content_types') for plugin-provided types
         try:
             from importlib.metadata import entry_points
+            from .show.info_types import ep_registration_kwargs
             eps = entry_points(group="ivpm.content_types")
             for ep in eps:
                 try:
                     ct = ep.load()
-                    self.register(ct())
+                    self.register(ct(), **ep_registration_kwargs(ep))
                     _logger.debug("Loaded content type from entry_point: %s", ep.name)
                 except Exception as e:
                     _logger.warning("Failed to load content type entry_point '%s': %s", ep.name, e)

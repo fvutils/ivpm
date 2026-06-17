@@ -31,10 +31,28 @@ class PackageHandlerRgy(object):
 
     def __init__(self):
         self.handlers = []
+        # handler class -> (origin, version, provider) recorded at registration time
+        self._meta = {}
 
-    def addHandler(self, h):
+    def addHandler(self, h, origin: str = "built-in", version: str = None, provider: str = None):
         _logger.debug("Handler: %s", h.name)
         self.handlers.append(h)
+        self._meta[h] = (origin, version, provider)
+
+    def handler_info(self, cls) -> 'HandlerInfo':
+        """Return cls.handler_info() with registration provenance applied."""
+        info = cls.handler_info()
+        origin, version, provider = self._meta.get(cls, ("built-in", None, None))
+        info.origin = origin
+        if version is not None:
+            info.version = version
+        if provider is not None and info.provider is None:
+            info.provider = provider
+        return info
+
+    def handler_infos(self) -> list:
+        """Return HandlerInfo for all registered handlers, provenance applied."""
+        return [self.handler_info(h) for h in self.handlers]
 
     def _load(self):
         # Discover handlers via entry points (built-ins registered via pyproject.toml)
@@ -42,6 +60,7 @@ class PackageHandlerRgy(object):
             from importlib_metadata import entry_points
         else:
             from importlib.metadata import entry_points
+        from ..show.info_types import ep_registration_kwargs
 
         seen = set()
         for ep in entry_points(group="ivpm.handlers"):
@@ -51,7 +70,7 @@ class PackageHandlerRgy(object):
             try:
                 cls = ep.load()
                 _logger.debug("Loaded handler '%s' from entry point", ep.name)
-                self.addHandler(cls)
+                self.addHandler(cls, **ep_registration_kwargs(ep))
             except Exception as e:
                 _logger.warning("Failed to load handler '%s': %s", ep.name, e)
 

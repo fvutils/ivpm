@@ -44,6 +44,50 @@ class RegistryEntryInfo:
     params: List[ParamInfo] = dc.field(default_factory=list)
     notes: str = ""
     origin: str = "built-in"  # "built-in" | entry-point name (e.g. "mypkg.ext")
+    # Distribution that provides this entry, and its version. Populated
+    # automatically for entry-point plugins (from the providing package's
+    # metadata) and may also be passed explicitly at registration time.
+    provider: Optional[str] = None
+    version: Optional[str] = None
+
+
+# Distribution name of IVPM itself. IVPM's own sources/types/handlers are
+# registered through the same entry-point groups as third-party plugins, so we
+# recognise this provider and keep those entries flagged as "built-in".
+IVPM_DIST = "ivpm"
+
+
+def ep_provenance(ep):
+    """Return ``(provider, version)`` for an entry point's distributing package.
+
+    Used to auto-populate ``provider``/``version`` on registry entries loaded
+    from entry points.  Returns ``(None, None)`` when the distribution metadata
+    is unavailable (e.g. an entry point synthesized without a backing dist).
+    """
+    dist = getattr(ep, "dist", None)
+    if dist is None:
+        return (None, None)
+    provider = getattr(dist, "name", None)
+    if provider is None:
+        try:
+            provider = dist.metadata["Name"]
+        except Exception:
+            provider = None
+    version = getattr(dist, "version", None)
+    return (provider, version)
+
+
+def ep_registration_kwargs(ep) -> dict:
+    """Map an entry point to ``origin``/``version``/``provider`` registration kwargs.
+
+    Entries provided by IVPM itself yield an empty dict so the registry's
+    built-in defaults apply; third-party plugins yield their distribution name
+    as both ``origin`` and ``provider`` along with the distribution ``version``.
+    """
+    provider, version = ep_provenance(ep)
+    if not provider or provider == IVPM_DIST:
+        return {}
+    return {"origin": provider, "version": version, "provider": provider}
 
 
 @dc.dataclass

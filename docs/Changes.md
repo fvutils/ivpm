@@ -1,5 +1,5 @@
 
-# Unreleased
+# 2.13.0
 - Internal: the site configuration now returns a *cache provider* for the
   session (`SiteConfig.get_cache_provider`) instead of a bare cache location.
   A disabled cache is a real null provider, and one provider serves every
@@ -9,6 +9,9 @@
   `IVPM_CACHE` semantics. Site configs may override `get_cache_provider` for
   per-dependency routing; overriding only `get_default_cache_dir()` keeps
   working unchanged.
+- Added support for a remote ivpm.yaml file
+- Updated the extension mechanism to allow providers to report version/provenance
+
 
 # 2.11.0
 - Correct error-handling issue leading to silent exit of '1'

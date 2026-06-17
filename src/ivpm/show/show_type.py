@@ -25,7 +25,7 @@ import sys
 def _get_all_type_infos():
     from ..pkg_content_type_rgy import PkgContentTypeRgy
     rgy = PkgContentTypeRgy.inst()
-    return [rgy.get(n).content_type_info() for n in rgy.names()]
+    return [rgy.info(n) for n in rgy.names()]
 
 
 def _get_type_info(name: str):
@@ -33,7 +33,7 @@ def _get_type_info(name: str):
     rgy = PkgContentTypeRgy.inst()
     if not rgy.has(name):
         return None
-    return rgy.get(name).content_type_info()
+    return rgy.info(name)
 
 
 def _any_plugins(infos) -> bool:
@@ -76,6 +76,10 @@ def _rich_detail(info):
     console.print(f"\n[bold cyan]Type:[/] [bold]{info.name}[/]")
     if info.origin != "built-in":
         console.print(f"[dim]Origin:[/] {info.origin}")
+    if info.provider and info.provider != info.origin:
+        console.print(f"[dim]Provider:[/] {info.provider}")
+    if info.version:
+        console.print(f"[dim]Version:[/] {info.version}")
     console.print(f"[bold]Description:[/] {info.description}\n")
 
     if info.params:
@@ -121,6 +125,10 @@ def _plain_detail(info):
     print(f"Type:        {info.name}")
     if info.origin != "built-in":
         print(f"Origin:      {info.origin}")
+    if info.provider and info.provider != info.origin:
+        print(f"Provider:    {info.provider}")
+    if info.version:
+        print(f"Version:     {info.version}")
     print(f"Description: {info.description}")
     if info.params:
         print("\nWith-parameters:")

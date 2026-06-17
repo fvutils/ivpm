@@ -77,6 +77,10 @@ def _rich_detail(info):
     console.print(f"\n[bold cyan]Source:[/] [bold]{info.name}[/]")
     if info.origin != "built-in":
         console.print(f"[dim]Origin:[/] {info.origin}")
+    if info.provider and info.provider != info.origin:
+        console.print(f"[dim]Provider:[/] {info.provider}")
+    if info.version:
+        console.print(f"[dim]Version:[/] {info.version}")
     console.print(f"[bold]Description:[/] {info.description}\n")
 
     if info.params:
@@ -125,6 +129,10 @@ def _plain_detail(info):
     print(f"Source:      {info.name}")
     if info.origin != "built-in":
         print(f"Origin:      {info.origin}")
+    if info.provider and info.provider != info.origin:
+        print(f"Provider:    {info.provider}")
+    if info.version:
+        print(f"Version:     {info.version}")
     print(f"Description: {info.description}")
     if info.params:
         print("\nParameters:")

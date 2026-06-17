@@ -24,13 +24,12 @@ import sys
 
 def _get_all_handler_infos():
     from ..handlers.package_handler_rgy import PackageHandlerRgy
-    return [h.handler_info() for h in PackageHandlerRgy.inst().handlers]
+    return PackageHandlerRgy.inst().handler_infos()
 
 
 def _get_handler_info(name: str):
     from ..handlers.package_handler_rgy import PackageHandlerRgy
-    for h in PackageHandlerRgy.inst().handlers:
-        info = h.handler_info()
+    for info in PackageHandlerRgy.inst().handler_infos():
         if info.name == name:
             return info
     return None
@@ -75,6 +74,10 @@ def _rich_detail(info):
     console.print(f"\n[bold cyan]Handler:[/] [bold]{info.name}[/]  [dim](phase {info.phase})[/]")
     if info.origin != "built-in":
         console.print(f"[dim]Origin:[/] {info.origin}")
+    if info.provider and info.provider != info.origin:
+        console.print(f"[dim]Provider:[/] {info.provider}")
+    if info.version:
+        console.print(f"[dim]Version:[/] {info.version}")
     console.print(f"[bold]Description:[/] {info.description}\n")
 
     if info.conditions:
@@ -117,6 +120,10 @@ def _plain_detail(info):
     print(f"Phase:       {info.phase}")
     if info.origin != "built-in":
         print(f"Origin:      {info.origin}")
+    if info.provider and info.provider != info.origin:
+        print(f"Provider:    {info.provider}")
+    if info.version:
+        print(f"Version:     {info.version}")
     print(f"Description: {info.description}")
     if info.conditions:
         print(f"Activation:  {info.conditions}")
