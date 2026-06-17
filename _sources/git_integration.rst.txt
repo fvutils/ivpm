@@ -12,52 +12,155 @@ upstream sources.
 Clone Options
 =============
 
-SSH vs HTTPS
-------------
+Authentication and Transport
+----------------------------
 
-By default, IVPM converts HTTPS URLs to SSH format for authenticated access:
+When cloning a Git dependency, IVPM chooses between **SSH**
+(``git@host:path``) and **HTTPS** (``https://host/path``) per host using a
+configurable *auth order*.  The HTTPS form lets a credential helper -- most
+commonly the GitHub CLI (``gh``) -- authenticate, while the SSH form relies on
+your SSH key / agent.
+
+An auth order is a list of methods, tried left to right; the first applicable
+one wins:
+
+``gh``
+    Clone the ``https://`` URL **as written** *if* ``gh`` is installed and
+    authenticated for that host (its credential helper does the auth).
+    Skipped when ``gh`` is absent or not logged in.
+
+``ssh``
+    Rewrite the URL to ``git@host:path``.  Always applicable (terminal).
+
+``https``
+    Clone the ``https://`` URL exactly as written.  Always applicable
+    (terminal).
+
+The default order is ``gh, ssh``: prefer ``gh`` when it can authenticate the
+host, otherwise fall back to SSH (the historical behavior).  A machine without
+``gh`` therefore behaves exactly as before.  ``file://`` URLs and non-URL local
+paths are never rewritten.
+
+The ``gh auth status`` probe is cached per host, so an update fetching many
+dependencies from one host only runs ``gh`` once.
+
+Forcing a transport
+-------------------
+
+Per-package in ``ivpm.yaml``:
 
 .. code-block:: yaml
 
     deps:
       - name: my-lib
         url: https://github.com/org/my-lib.git
-        # Actually clones as: git@github.com:org/my-lib.git
+        ssh: true          # force SSH: git@github.com:org/my-lib.git
 
-**Why SSH?**
+      - name: other-lib
+        url: https://github.com/org/other-lib.git
+        ssh: false         # force HTTPS exactly as written
 
-- No password prompts
-- Uses your SSH key
-- Better for frequent operations
-- Standard for development
+``ssh: true`` forces SSH; ``ssh: false`` forces the URL as written.  The legacy
+``anonymous: true`` also forces the URL as written; ``anonymous: false`` no
+longer forces SSH -- it defers to the auth order (use ``ssh: true`` to force
+SSH).
 
-Anonymous (HTTPS) Cloning
---------------------------
-
-Force HTTPS cloning (no SSH key required):
-
-**Per-package:**
-
-.. code-block:: yaml
-
-    deps:
-      - name: my-lib
-        url: https://github.com/org/my-lib.git
-        anonymous: true
-
-**Command-line:**
+Command-line (applies to both ``clone`` and ``update``):
 
 .. code-block:: bash
 
-    $ ivpm update -a
-    $ ivpm clone -a https://github.com/org/project.git
+    $ ivpm clone --ssh https://github.com/org/project.git        # force SSH
+    $ ivpm clone --anonymous https://github.com/org/project.git  # force HTTPS
+    $ ivpm clone --git-auth-order gh,https https://github.com/org/project.git
 
-**Use cases:**
+Configuring the auth order
+--------------------------
 
-- CI/CD without SSH keys
-- Public repositories
-- One-time checkouts
-- Read-only access
+Without a per-package or CLI override, the order is resolved per host.  Full
+precedence, most specific first:
+
+1. Per-package ``ssh:`` / ``anonymous:``.
+2. CLI ``--ssh`` / ``--anonymous``.
+3. CLI ``--git-auth-order gh,ssh,https`` (flat, this invocation only).
+4. A host-glob rule from the config files / site config -- first match wins
+   across: user file, then site file, then the ``ivpm_site_config`` package.
+5. Default order: ``IVPM_GIT_AUTH_ORDER`` env, then the user config file, then
+   the site config file, then the built-in default (``gh, ssh``).
+
+A matching host rule beats the flat ``IVPM_GIT_AUTH_ORDER`` -- the env var is
+the default for *unmatched* hosts.  ``--git-auth-order`` is flat and bypasses
+host matching for that one command.
+
+Config files
+~~~~~~~~~~~~
+
+Two declarative files share one schema and are checked **user first, then
+site** (a user rule overrides a site rule; the first ``git-auth-order`` found
+wins):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 53 35
+
+   * - Scope
+     - Default path
+     - Override env
+   * - User
+     - ``$XDG_CONFIG_HOME/ivpm/config.yaml`` (else ``~/.config/ivpm/config.yaml``)
+     - ``IVPM_USER_CONFIG``
+   * - Site
+     - ``/etc/ivpm/config.yaml``
+     - ``IVPM_SITE_CONFIG``
+
+.. code-block:: yaml
+
+    # Default order for hosts without a matching rule (optional)
+    git-auth-order: [gh, ssh]
+
+    # Per-host rules, most specific first; host is an fnmatch glob (optional)
+    git-auth:
+      - host: "*.internal.corp"   # internal GHE/GitLab -> always SSH
+        order: [ssh]
+      - host: "github.com"        # public GitHub -> gh, fall back to SSH
+        order: [gh, ssh]
+
+Missing files are ignored.  A malformed file (bad YAML, or a top level that is
+not a mapping) is logged at ``WARNING`` and skipped -- it never aborts a clone.
+
+Org-managed defaults
+~~~~~~~~~~~~~~~~~~~~~
+
+Sites that ship an ``ivpm_site_config`` package can set defaults
+programmatically (the lowest-priority rule source; the files layer on top):
+
+.. code-block:: python
+
+    from ivpm.site_config import SiteConfig
+
+    class MySiteConfig(SiteConfig):
+        def get_default_git_auth_order(self):
+            return ["gh", "ssh"]
+
+        def get_git_auth_rules(self):
+            return [
+                ("*.internal.corp", ["ssh"]),
+                ("github.com",      ["gh", "ssh"]),
+            ]
+
+    def get_config():
+        return MySiteConfig()
+
+Diagnostics
+~~~~~~~~~~~
+
+Run a clone with ``--log-level DEBUG`` to see how the transport was chosen --
+the effective URL, the resolved auth order, the loaded config files, and the
+relevant credentials (SSH agent/keys for ``git@``; ``gh auth status`` and the
+git credential helper for ``https``):
+
+.. code-block:: bash
+
+    $ ivpm clone --log-level DEBUG https://github.com/org/project.git
 
 URL Formats
 -----------
@@ -66,18 +169,18 @@ IVPM supports multiple Git URL formats:
 
 .. code-block:: yaml
 
-    # HTTPS (converted to SSH by default)
+    # HTTPS (transport chosen by the auth order: default gh, else SSH)
     - name: lib1
       url: https://github.com/org/lib1.git
-    
+
     # SSH (used directly)
     - name: lib2
       url: git@github.com:org/lib2.git
-    
-    # File protocol (local)
+
+    # File protocol (local; never rewritten)
     - name: lib3
       url: file:///path/to/repo.git
-    
+
     # Git protocol
     - name: lib4
       url: git://github.com/org/lib4.git

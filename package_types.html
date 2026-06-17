@@ -51,6 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remote_catalogs.html">Remote Catalogs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Package Types &amp; Sources</a><ul>
@@ -170,7 +171,12 @@
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">depth</span></code></dt><dd><p>Clone depth for shallow clones (e.g., <code class="docutils literal notranslate"><span class="pre">depth:</span> <span class="pre">1</span></code>)</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">anonymous</span></code></dt><dd><p>Use HTTPS instead of SSH (default: false, converts to SSH)</p>
+<dt><code class="docutils literal notranslate"><span class="pre">ssh</span></code></dt><dd><p>Force SSH: rewrite the <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL to <code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code> form
+(overrides the auth order). <code class="docutils literal notranslate"><span class="pre">ssh:</span> <span class="pre">false</span></code> forces the URL as written.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">anonymous</span></code></dt><dd><p>Legacy knob: <code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">true</span></code> clones the URL as written;
+<code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">false</span></code> defers to the auth order (use <code class="docutils literal notranslate"><span class="pre">ssh:</span> <span class="pre">true</span></code> to force
+SSH). See <a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> for transport selection.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (see <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a>)</p>
 </dd>
@@ -196,7 +202,7 @@
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
 <span class="w">  </span><span class="nt">depth</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 
-<span class="c1"># Anonymous clone (HTTPS, no SSH key needed)</span>
+<span class="c1"># Force HTTPS as written (no SSH rewrite)</span>
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
 <span class="w">  </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
@@ -209,8 +215,11 @@
 </pre></div>
 </div>
 <p><strong>Submodules:</strong> Automatically initialized if <code class="docutils literal notranslate"><span class="pre">.gitmodules</span></code> is present.</p>
-<p><strong>URL conversion:</strong> By default, HTTPS URLs are converted to SSH format
-(<code class="docutils literal notranslate"><span class="pre">git&#64;github.com:org/repo.git</span></code>) unless <code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">true</span></code> is set.</p>
+<p><strong>URL transport:</strong> By default IVPM picks the transport per host via the <em>auth
+order</em> – it clones an <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL as-is when <code class="docutils literal notranslate"><span class="pre">gh</span></code> is authenticated for
+the host, otherwise rewrites it to SSH (<code class="docutils literal notranslate"><span class="pre">git&#64;github.com:org/repo.git</span></code>). Use
+<code class="docutils literal notranslate"><span class="pre">ssh:</span> <span class="pre">true</span></code> to force SSH or <code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">true</span></code> to force HTTPS. See
+<a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a>.</p>
 </section>
 <section id="pypi-pypi">
 <h3>PyPI (<code class="docutils literal notranslate"><span class="pre">pypi</span></code>)<a class="headerlink" href="#pypi-pypi" title="Link to this heading"></a></h3>
@@ -950,39 +959,43 @@ one package definition, while <code class="docutils literal notranslate"><span c
 <td><p>integer</p></td>
 <td><p>Git clone depth</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">anonymous</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ssh</span></code></p></td>
 <td><p>boolean</p></td>
-<td><p>Use HTTPS for Git</p></td>
+<td><p>Force SSH (rewrite https to <a class="reference external" href="mailto:git&#37;&#52;&#48;host">git<span>&#64;</span>host</a>:path)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cache</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anonymous</span></code></p></td>
+<td><p>boolean</p></td>
+<td><p>Force HTTPS as written (legacy; false defers to auth order)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cache</span></code></p></td>
 <td><p>boolean</p></td>
 <td><p>Enable caching</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">deps</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">deps</span></code></p></td>
 <td><p>string</p></td>
 <td><p>“skip” to skip sub-dependencies</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dep-set</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dep-set</span></code></p></td>
 <td><p>string</p></td>
 <td><p>Sub-package dependency set</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">link</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">link</span></code></p></td>
 <td><p>boolean</p></td>
 <td><p>Symlink (true) or copy (false) for dir</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unpack</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">unpack</span></code></p></td>
 <td><p>boolean</p></td>
 <td><p>Unpack archives</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
 <td><p>string</p></td>
 <td><p>GitHub Release asset filename</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">prerelease</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">prerelease</span></code></p></td>
 <td><p>boolean</p></td>
 <td><p>Include GitHub prereleases</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">source</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">source</span></code></p></td>
 <td><p>boolean</p></td>
 <td><p>Force source archive for gh-rls</p></td>
 </tr>

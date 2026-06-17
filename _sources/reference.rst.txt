@@ -224,8 +224,16 @@ Create a new workspace from a Git repository.
 
 **Options:**
 
+``--ssh``
+    Force SSH: rewrite an ``https://`` URL to ``git@host:path`` form
+
 ``-a, --anonymous``
-    Clone anonymously over HTTPS (no SSH)
+    Force HTTPS: clone the URL as written (do not rewrite to SSH)
+
+``--git-auth-order <list>``
+    Comma-separated git auth order to try (``gh,ssh,https``); overrides
+    ``IVPM_GIT_AUTH_ORDER`` and the config files for this invocation.
+    See :doc:`git_integration` for how the transport is selected.
 
 ``-b, --branch <name>``
     Checkout branch; create if doesn't exist
@@ -259,7 +267,7 @@ Create a new workspace from a Git repository.
     # Specific branch
     $ ivpm clone -b develop https://github.com/org/project.git
     
-    # Anonymous clone with dep-set
+    # Force HTTPS (as-written) clone with dep-set
     $ ivpm clone -a -d default https://github.com/org/project.git
     
     # Use uv for package management
@@ -631,8 +639,15 @@ Fetch dependencies and initialize environment.
 ``-j, --jobs <n>``
     Parallel package fetches (default: CPU count)
 
+``--ssh``
+    Force SSH: rewrite ``https://`` git URLs to ``git@host:path`` form
+
 ``-a, --anonymous-git``
-    Clone Git repos anonymously (HTTPS)
+    Force HTTPS: clone git URLs as written (do not rewrite to SSH)
+
+``--git-auth-order <list>``
+    Comma-separated git auth order to try (``gh,ssh,https``); overrides
+    ``IVPM_GIT_AUTH_ORDER`` and the config files for this invocation.
 
 ``--skip-py-install``
     Skip Python package installation
@@ -660,6 +675,23 @@ Fetch dependencies and initialize environment.
     is not read for packages; the lock file supplies the complete package
     list at pinned resolved versions.  See :doc:`package_lock`.
 
+``--from <path-or-url>``
+    Drive the update from an external manifest — a local path, a ``file://``
+    URL, or an ``http(s)://`` URL — instead of the cwd ``ivpm.yaml``.  Resolved
+    dependencies land in the current directory (under the deps directory).  The
+    external manifest is **not** copied locally; instead the resolved
+    ``package-lock.json`` records a ``source_manifest`` pointing back at it (see
+    :doc:`package_lock`).  It is an error to use ``--from`` when the target
+    directory already has its own ``ivpm.yaml`` (a workspace has exactly one
+    driving manifest), or together with ``--lock-file``.  Remote (URL) manifests
+    may not use ``include:``.  Combine with ``-d`` to pick a dependency set.
+
+``--deps-dir <dir>``
+    Directory to populate, overriding the manifest's ``deps-dir`` (default:
+    ``packages``).  Useful with ``--from`` to place an external manifest's
+    resolved workspace under a chosen name without editing the upstream
+    manifest.
+
 ``--refresh-all``
     Re-fetch all packages regardless of the existing ``package-lock.json``
     state.  Use when you want to pull upstream changes without changing
@@ -677,7 +709,7 @@ Fetch dependencies and initialize environment.
     # Specific dependency set
     $ ivpm update -d default
     
-    # Anonymous Git clones
+    # Force HTTPS (as-written) git clones
     $ ivpm update -a
     
     # Parallel downloads
@@ -691,6 +723,12 @@ Fetch dependencies and initialize environment.
     
     # Reproduce exact workspace from a committed lock file
     $ ivpm update --lock-file ./ivpm.lock
+
+    # Install a dependency set from a published catalog into the cwd
+    $ ivpm update --from https://example.com/acme/ivpm.yaml -d gui-tools
+
+    # Place the resolved workspace under a chosen directory
+    $ ivpm update --from ./catalog.yaml --deps-dir vendor
 
     # Re-fetch all packages (pull upstream changes)
     $ ivpm update --refresh-all

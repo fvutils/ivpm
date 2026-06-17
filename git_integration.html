@@ -51,6 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remote_catalogs.html">Remote Catalogs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
@@ -65,8 +66,14 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Git Integration</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#clone-options">Clone Options</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ssh-vs-https">SSH vs HTTPS</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#anonymous-https-cloning">Anonymous (HTTPS) Cloning</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#authentication-and-transport">Authentication and Transport</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#forcing-a-transport">Forcing a transport</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#configuring-the-auth-order">Configuring the auth order</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#config-files">Config files</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#org-managed-defaults">Org-managed defaults</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#diagnostics">Diagnostics</a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#url-formats">URL Formats</a></li>
 </ul>
 </li>
@@ -177,50 +184,151 @@ upstream sources.</p>
 </section>
 <section id="clone-options">
 <h2>Clone Options<a class="headerlink" href="#clone-options" title="Link to this heading"></a></h2>
-<section id="ssh-vs-https">
-<h3>SSH vs HTTPS<a class="headerlink" href="#ssh-vs-https" title="Link to this heading"></a></h3>
-<p>By default, IVPM converts HTTPS URLs to SSH format for authenticated access:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
-<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
-<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
-<span class="w">    </span><span class="c1"># Actually clones as: git@github.com:org/my-lib.git</span>
-</pre></div>
-</div>
-<p><strong>Why SSH?</strong></p>
-<ul class="simple">
-<li><p>No password prompts</p></li>
-<li><p>Uses your SSH key</p></li>
-<li><p>Better for frequent operations</p></li>
-<li><p>Standard for development</p></li>
-</ul>
+<section id="authentication-and-transport">
+<h3>Authentication and Transport<a class="headerlink" href="#authentication-and-transport" title="Link to this heading"></a></h3>
+<p>When cloning a Git dependency, IVPM chooses between <strong>SSH</strong>
+(<code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code>) and <strong>HTTPS</strong> (<code class="docutils literal notranslate"><span class="pre">https://host/path</span></code>) per host using a
+configurable <em>auth order</em>.  The HTTPS form lets a credential helper – most
+commonly the GitHub CLI (<code class="docutils literal notranslate"><span class="pre">gh</span></code>) – authenticate, while the SSH form relies on
+your SSH key / agent.</p>
+<p>An auth order is a list of methods, tried left to right; the first applicable
+one wins:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">gh</span></code></dt><dd><p>Clone the <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL <strong>as written</strong> <em>if</em> <code class="docutils literal notranslate"><span class="pre">gh</span></code> is installed and
+authenticated for that host (its credential helper does the auth).
+Skipped when <code class="docutils literal notranslate"><span class="pre">gh</span></code> is absent or not logged in.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">ssh</span></code></dt><dd><p>Rewrite the URL to <code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code>.  Always applicable (terminal).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">https</span></code></dt><dd><p>Clone the <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL exactly as written.  Always applicable
+(terminal).</p>
+</dd>
+</dl>
+<p>The default order is <code class="docutils literal notranslate"><span class="pre">gh,</span> <span class="pre">ssh</span></code>: prefer <code class="docutils literal notranslate"><span class="pre">gh</span></code> when it can authenticate the
+host, otherwise fall back to SSH (the historical behavior).  A machine without
+<code class="docutils literal notranslate"><span class="pre">gh</span></code> therefore behaves exactly as before.  <code class="docutils literal notranslate"><span class="pre">file://</span></code> URLs and non-URL local
+paths are never rewritten.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">status</span></code> probe is cached per host, so an update fetching many
+dependencies from one host only runs <code class="docutils literal notranslate"><span class="pre">gh</span></code> once.</p>
 </section>
-<section id="anonymous-https-cloning">
-<h3>Anonymous (HTTPS) Cloning<a class="headerlink" href="#anonymous-https-cloning" title="Link to this heading"></a></h3>
-<p>Force HTTPS cloning (no SSH key required):</p>
-<p><strong>Per-package:</strong></p>
+<section id="forcing-a-transport">
+<h3>Forcing a transport<a class="headerlink" href="#forcing-a-transport" title="Link to this heading"></a></h3>
+<p>Per-package in <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">deps</span><span class="p">:</span>
 <span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
 <span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
-<span class="w">    </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">ssh</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># force SSH: git@github.com:org/my-lib.git</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">other-lib</span>
+<span class="w">    </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/other-lib.git</span>
+<span class="w">    </span><span class="nt">ssh</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">         </span><span class="c1"># force HTTPS exactly as written</span>
 </pre></div>
 </div>
-<p><strong>Command-line:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
-$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-a<span class="w"> </span>https://github.com/org/project.git
+<p><code class="docutils literal notranslate"><span class="pre">ssh:</span> <span class="pre">true</span></code> forces SSH; <code class="docutils literal notranslate"><span class="pre">ssh:</span> <span class="pre">false</span></code> forces the URL as written.  The legacy
+<code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">true</span></code> also forces the URL as written; <code class="docutils literal notranslate"><span class="pre">anonymous:</span> <span class="pre">false</span></code> no
+longer forces SSH – it defers to the auth order (use <code class="docutils literal notranslate"><span class="pre">ssh:</span> <span class="pre">true</span></code> to force
+SSH).</p>
+<p>Command-line (applies to both <code class="docutils literal notranslate"><span class="pre">clone</span></code> and <code class="docutils literal notranslate"><span class="pre">update</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--ssh<span class="w"> </span>https://github.com/org/project.git<span class="w">        </span><span class="c1"># force SSH</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--anonymous<span class="w"> </span>https://github.com/org/project.git<span class="w">  </span><span class="c1"># force HTTPS</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--git-auth-order<span class="w"> </span>gh,https<span class="w"> </span>https://github.com/org/project.git
 </pre></div>
 </div>
-<p><strong>Use cases:</strong></p>
-<ul class="simple">
-<li><p>CI/CD without SSH keys</p></li>
-<li><p>Public repositories</p></li>
-<li><p>One-time checkouts</p></li>
-<li><p>Read-only access</p></li>
-</ul>
+</section>
+<section id="configuring-the-auth-order">
+<h3>Configuring the auth order<a class="headerlink" href="#configuring-the-auth-order" title="Link to this heading"></a></h3>
+<p>Without a per-package or CLI override, the order is resolved per host.  Full
+precedence, most specific first:</p>
+<ol class="arabic simple">
+<li><p>Per-package <code class="docutils literal notranslate"><span class="pre">ssh:</span></code> / <code class="docutils literal notranslate"><span class="pre">anonymous:</span></code>.</p></li>
+<li><p>CLI <code class="docutils literal notranslate"><span class="pre">--ssh</span></code> / <code class="docutils literal notranslate"><span class="pre">--anonymous</span></code>.</p></li>
+<li><p>CLI <code class="docutils literal notranslate"><span class="pre">--git-auth-order</span> <span class="pre">gh,ssh,https</span></code> (flat, this invocation only).</p></li>
+<li><p>A host-glob rule from the config files / site config – first match wins
+across: user file, then site file, then the <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> package.</p></li>
+<li><p>Default order: <code class="docutils literal notranslate"><span class="pre">IVPM_GIT_AUTH_ORDER</span></code> env, then the user config file, then
+the site config file, then the built-in default (<code class="docutils literal notranslate"><span class="pre">gh,</span> <span class="pre">ssh</span></code>).</p></li>
+</ol>
+<p>A matching host rule beats the flat <code class="docutils literal notranslate"><span class="pre">IVPM_GIT_AUTH_ORDER</span></code> – the env var is
+the default for <em>unmatched</em> hosts.  <code class="docutils literal notranslate"><span class="pre">--git-auth-order</span></code> is flat and bypasses
+host matching for that one command.</p>
+<section id="config-files">
+<h4>Config files<a class="headerlink" href="#config-files" title="Link to this heading"></a></h4>
+<p>Two declarative files share one schema and are checked <strong>user first, then
+site</strong> (a user rule overrides a site rule; the first <code class="docutils literal notranslate"><span class="pre">git-auth-order</span></code> found
+wins):</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 12.0%" />
+<col style="width: 53.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Scope</p></th>
+<th class="head"><p>Default path</p></th>
+<th class="head"><p>Override env</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>User</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">$XDG_CONFIG_HOME/ivpm/config.yaml</span></code> (else <code class="docutils literal notranslate"><span class="pre">~/.config/ivpm/config.yaml</span></code>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IVPM_USER_CONFIG</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Site</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/etc/ivpm/config.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">IVPM_SITE_CONFIG</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default order for hosts without a matching rule (optional)</span>
+<span class="nt">git-auth-order</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">gh</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ssh</span><span class="p p-Indicator">]</span>
+
+<span class="c1"># Per-host rules, most specific first; host is an fnmatch glob (optional)</span>
+<span class="nt">git-auth</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;*.internal.corp&quot;</span><span class="w">   </span><span class="c1"># internal GHE/GitLab -&gt; always SSH</span>
+<span class="w">    </span><span class="nt">order</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">ssh</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;github.com&quot;</span><span class="w">        </span><span class="c1"># public GitHub -&gt; gh, fall back to SSH</span>
+<span class="w">    </span><span class="nt">order</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">gh</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">ssh</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Missing files are ignored.  A malformed file (bad YAML, or a top level that is
+not a mapping) is logged at <code class="docutils literal notranslate"><span class="pre">WARNING</span></code> and skipped – it never aborts a clone.</p>
+</section>
+<section id="org-managed-defaults">
+<h4>Org-managed defaults<a class="headerlink" href="#org-managed-defaults" title="Link to this heading"></a></h4>
+<p>Sites that ship an <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> package can set defaults
+programmatically (the lowest-priority rule source; the files layer on top):</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.site_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SiteConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MySiteConfig</span><span class="p">(</span><span class="n">SiteConfig</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_default_git_auth_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;gh&quot;</span><span class="p">,</span> <span class="s2">&quot;ssh&quot;</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_git_auth_rules</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="p">(</span><span class="s2">&quot;*.internal.corp&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;ssh&quot;</span><span class="p">]),</span>
+            <span class="p">(</span><span class="s2">&quot;github.com&quot;</span><span class="p">,</span>      <span class="p">[</span><span class="s2">&quot;gh&quot;</span><span class="p">,</span> <span class="s2">&quot;ssh&quot;</span><span class="p">]),</span>
+        <span class="p">]</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">get_config</span><span class="p">():</span>
+    <span class="k">return</span> <span class="n">MySiteConfig</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="diagnostics">
+<h4>Diagnostics<a class="headerlink" href="#diagnostics" title="Link to this heading"></a></h4>
+<p>Run a clone with <code class="docutils literal notranslate"><span class="pre">--log-level</span> <span class="pre">DEBUG</span></code> to see how the transport was chosen –
+the effective URL, the resolved auth order, the loaded config files, and the
+relevant credentials (SSH agent/keys for <code class="docutils literal notranslate"><span class="pre">git&#64;</span></code>; <code class="docutils literal notranslate"><span class="pre">gh</span> <span class="pre">auth</span> <span class="pre">status</span></code> and the
+git credential helper for <code class="docutils literal notranslate"><span class="pre">https</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--log-level<span class="w"> </span>DEBUG<span class="w"> </span>https://github.com/org/project.git
+</pre></div>
+</div>
+</section>
 </section>
 <section id="url-formats">
 <h3>URL Formats<a class="headerlink" href="#url-formats" title="Link to this heading"></a></h3>
 <p>IVPM supports multiple Git URL formats:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># HTTPS (converted to SSH by default)</span>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># HTTPS (transport chosen by the auth order: default gh, else SSH)</span>
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib1</span>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/lib1.git</span>
 
@@ -228,7 +336,7 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib2</span>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git@github.com:org/lib2.git</span>
 
-<span class="c1"># File protocol (local)</span>
+<span class="c1"># File protocol (local; never rewritten)</span>
 <span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lib3</span>
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">file:///path/to/repo.git</span>
 

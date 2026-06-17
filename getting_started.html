@@ -67,6 +67,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remote_catalogs.html">Remote Catalogs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
@@ -155,8 +156,11 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 </div>
 <p><strong>Common options:</strong></p>
 <dl class="simple">
-<dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous</span></code></dt><dd><p>Clone anonymously over HTTPS instead of using SSH. By default,
-HTTPS URLs are converted to SSH form (<code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code>).</p>
+<dt><code class="docutils literal notranslate"><span class="pre">--ssh</span></code></dt><dd><p>Force SSH: rewrite an <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL to <code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code> form.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous</span></code></dt><dd><p>Force HTTPS: clone the URL exactly as written. By default the transport
+is chosen per host by the <em>auth order</em> (<code class="docutils literal notranslate"><span class="pre">gh</span></code> when authenticated, else
+SSH); see <a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a>.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">-b,</span> <span class="pre">--branch</span> <span class="pre">&lt;name&gt;</span></code></dt><dd><p>Checkout the specified branch. If <code class="docutils literal notranslate"><span class="pre">origin/&lt;name&gt;</span></code> exists, it
 will be checked out tracking the remote; otherwise, a new local branch is created.</p>
@@ -178,7 +182,7 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 <span class="c1"># Clone into specific directory with new branch</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>my-workspace<span class="w"> </span>-b<span class="w"> </span>feature/new
 
-<span class="c1"># Clone anonymously and select dependency set</span>
+<span class="c1"># Force HTTPS (as-written) and select dependency set</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-a<span class="w"> </span>https://github.com/org/project<span class="w"> </span>-d<span class="w"> </span>default-dev
 
 <span class="c1"># Clone and use uv for Python package management</span>
@@ -292,6 +296,7 @@ native extensions), see <a class="reference internal" href="python_packages.html
 <li><p><a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> – Understand the update pipeline and mental model</p></li>
 <li><p><a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> – How handlers process packages (Python, Direnv, Agents)</p></li>
 <li><p><a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> – Organize dependencies by profile</p></li>
+<li><p><a class="reference internal" href="remote_catalogs.html"><span class="doc">Remote Catalogs</span></a> – Browse and install dependency sets from a published manifest</p></li>
 <li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> – All dependency attributes and source types</p></li>
 <li><p><a class="reference internal" href="workflows.html"><span class="doc">Development Workflows</span></a> – Common development workflows</p></li>
 <li><p><a class="reference internal" href="troubleshooting.html"><span class="doc">Troubleshooting</span></a> – Solutions to common problems</p></li>

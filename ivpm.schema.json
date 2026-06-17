@@ -36,6 +36,10 @@
 					"type": "string",
 					"description": "Name of the package"
 				},
+				"description": {
+					"type": "string",
+					"description": "One-line summary of what this package/catalog offers"
+				},
 				"version": {
 					"type": "string",
 					"description": "Version of the package"
@@ -93,6 +97,10 @@
 				"name": {
 					"type": "string",
 					"title": "Dependency-set identifier. 'default' and 'default-dev' are builtin names"
+				},
+				"description": {
+					"type": "string",
+					"title": "One-line summary of what this dependency set installs"
 				},
 				"default-dep-set": {
 					"type": "string",
@@ -185,9 +193,13 @@
 					"type": "string",
 					"title": "Version-specification string for Python packages from PyPi or GitHub Releases"
 				},
+				"ssh": {
+					"type": "boolean",
+					"title": "Force SSH: rewrite the https URL to git@host:path form (overrides the auth order)"
+				},
 				"anonymous": {
 					"type": "boolean",
-					"title": "Clone using anonymous (HTTPS) Git instead of SSH"
+					"title": "anonymous:true clones the https URL as written; anonymous:false defers to the auth order (legacy; use ssh:true to force SSH)"
 				},
 				"branch": {
 					"type": "string",

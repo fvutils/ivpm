@@ -54,9 +54,13 @@ Clone Command Options
 
 **Common options:**
 
+``--ssh``
+    Force SSH: rewrite an ``https://`` URL to ``git@host:path`` form.
+
 ``-a, --anonymous``
-    Clone anonymously over HTTPS instead of using SSH. By default,
-    HTTPS URLs are converted to SSH form (``git@host:path``).
+    Force HTTPS: clone the URL exactly as written. By default the transport
+    is chosen per host by the *auth order* (``gh`` when authenticated, else
+    SSH); see :doc:`git_integration`.
 
 ``-b, --branch <name>``
     Checkout the specified branch. If ``origin/<name>`` exists, it
@@ -84,7 +88,7 @@ Clone Command Options
     # Clone into specific directory with new branch
     $ ivpm clone https://github.com/org/project my-workspace -b feature/new
 
-    # Clone anonymously and select dependency set
+    # Force HTTPS (as-written) and select dependency set
     $ ivpm clone -a https://github.com/org/project -d default-dev
 
     # Clone and use uv for Python package management
@@ -216,6 +220,7 @@ Now that you have the basics:
 - :doc:`core_concepts` -- Understand the update pipeline and mental model
 - :doc:`handlers` -- How handlers process packages (Python, Direnv, Agents)
 - :doc:`dependency_sets` -- Organize dependencies by profile
+- :doc:`remote_catalogs` -- Browse and install dependency sets from a published manifest
 - :doc:`package_types` -- All dependency attributes and source types
 - :doc:`workflows` -- Common development workflows
 - :doc:`troubleshooting` -- Solutions to common problems

@@ -51,6 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remote_catalogs.html">Remote Catalogs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
@@ -244,10 +245,19 @@ $<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </spa
 <section id="ssh-authentication-failed">
 <h4>SSH Authentication Failed<a class="headerlink" href="#ssh-authentication-failed" title="Link to this heading"></a></h4>
 <p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">Permission</span> <span class="pre">denied</span> <span class="pre">(publickey)</span></code> when cloning</p>
-<p><strong>Cause:</strong> SSH key not configured or not registered with Git server</p>
+<p><strong>Cause:</strong> SSH key not configured or not registered with Git server, and the
+auth order fell back to SSH for this host.</p>
 <p><strong>Solutions:</strong></p>
 <ol class="arabic">
-<li><p><strong>Use anonymous cloning:</strong></p>
+<li><p><strong>Authenticate with the GitHub CLI</strong> (preferred for HTTPS). When <code class="docutils literal notranslate"><span class="pre">gh</span></code> is
+logged in for the host, the default <code class="docutils literal notranslate"><span class="pre">gh,</span> <span class="pre">ssh</span></code> order clones over HTTPS
+automatically – no SSH key needed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>gh<span class="w"> </span>auth<span class="w"> </span>login
+$<span class="w"> </span>ivpm<span class="w"> </span>update
+</pre></div>
+</div>
+</li>
+<li><p><strong>Force HTTPS (clone the URL as written):</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>-a
 </pre></div>
 </div>
@@ -258,6 +268,8 @@ $<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </spa
 <span class="w">    </span><span class="nt">anonymous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
+<p>See <a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> for the full auth-order model (per-host rules,
+<code class="docutils literal notranslate"><span class="pre">IVPM_GIT_AUTH_ORDER</span></code>, <code class="docutils literal notranslate"><span class="pre">--git-auth-order</span></code>).</p>
 </li>
 <li><p><strong>Configure SSH key:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate key if needed</span>

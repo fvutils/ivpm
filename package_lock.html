@@ -51,6 +51,7 @@
 <li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
 <li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
 <li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remote_catalogs.html">Remote Catalogs</a></li>
 <li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
 <li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
@@ -61,6 +62,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#key-properties">Key Properties</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#lock-file-format">Lock File Format</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#dep-set-factory-sources-ivpm-sources">Dep-Set Factory Sources (<code class="docutils literal notranslate"><span class="pre">ivpm_sources</span></code>)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#external-manifest-source-source-manifest">External Manifest Source (<code class="docutils literal notranslate"><span class="pre">source_manifest</span></code>)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#change-detection">Change Detection</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#reproduction-mode">Reproduction Mode</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#ci-cd-reproducibility-pattern">CI/CD Reproducibility Pattern</a></li>
@@ -268,6 +270,28 @@ map with a <code class="docutils literal notranslate"><span class="pre">from_ivp
 factory’s resolved etag / last-modified, or a content <code class="docutils literal notranslate"><span class="pre">sha256</span></code> — it lets a
 re-resolve detect that the factory’s dep-set membership changed upstream even
 though each leaf re-pins independently.</p>
+</section>
+<section id="external-manifest-source-source-manifest">
+<h2>External Manifest Source (<code class="docutils literal notranslate"><span class="pre">source_manifest</span></code>)<a class="headerlink" href="#external-manifest-source-source-manifest" title="Link to this heading"></a></h2>
+<p>When a workspace is created with <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">--from</span> <span class="pre">&lt;path-or-url&gt;</span></code> (installing
+from an external manifest rather than a local <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>), the external
+manifest is <strong>not</strong> copied into the workspace.  Instead, the lock file records
+where the workspace came from in a top-level <code class="docutils literal notranslate"><span class="pre">source_manifest</span></code> block:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;ivpm_lock_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;source_manifest&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;from&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://example.com/acme/ivpm.yaml&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;dep_set&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gui-tools&quot;</span>
+<span class="w">  </span><span class="p">},</span>
+<span class="w">  </span><span class="nt">&quot;packages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">from</span></code> is the original <code class="docutils literal notranslate"><span class="pre">--from</span></code> argument (path or URL) and <code class="docutils literal notranslate"><span class="pre">dep_set</span></code> is the
+resolved dependency set that was installed.  This makes the workspace
+self-describing without a local manifest: tooling can locate the lock file by
+knowing the deps directory and re-resolve against the recorded source.  The
+field is absent for ordinary (local <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>) workspaces.</p>
 </section>
 <section id="change-detection">
 <h2>Change Detection<a class="headerlink" href="#change-detection" title="Link to this heading"></a></h2>
