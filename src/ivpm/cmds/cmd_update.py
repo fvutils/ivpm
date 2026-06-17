@@ -37,7 +37,9 @@ class CmdUpdate(object):
             lock_file=getattr(args, "lock_file", None),
             refresh_all=getattr(args, "refresh_all", False),
             force=getattr(args, "force", False),
-            cli_overrides=cli_overrides)
+            cli_overrides=cli_overrides,
+            from_manifest=getattr(args, "from_manifest", None),
+            deps_dir_override=getattr(args, "deps_dir_override", None))
 
 
 

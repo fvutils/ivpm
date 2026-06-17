@@ -82,11 +82,21 @@ SSH Authentication Failed
 
 **Problem:** ``Permission denied (publickey)`` when cloning
 
-**Cause:** SSH key not configured or not registered with Git server
+**Cause:** SSH key not configured or not registered with Git server, and the
+auth order fell back to SSH for this host.
 
 **Solutions:**
 
-1. **Use anonymous cloning:**
+1. **Authenticate with the GitHub CLI** (preferred for HTTPS). When ``gh`` is
+   logged in for the host, the default ``gh, ssh`` order clones over HTTPS
+   automatically -- no SSH key needed:
+
+   .. code-block:: bash
+
+       $ gh auth login
+       $ ivpm update
+
+2. **Force HTTPS (clone the URL as written):**
 
    .. code-block:: bash
 
@@ -101,7 +111,10 @@ SSH Authentication Failed
            url: https://github.com/org/package.git
            anonymous: true
 
-2. **Configure SSH key:**
+   See :doc:`git_integration` for the full auth-order model (per-host rules,
+   ``IVPM_GIT_AUTH_ORDER``, ``--git-auth-order``).
+
+3. **Configure SSH key:**
 
    .. code-block:: bash
 
@@ -112,7 +125,7 @@ SSH Authentication Failed
        $ cat ~/.ssh/id_ed25519.pub
        # Copy and add to GitHub Settings → SSH Keys
 
-3. **Test SSH connection:**
+4. **Test SSH connection:**
 
    .. code-block:: bash
 

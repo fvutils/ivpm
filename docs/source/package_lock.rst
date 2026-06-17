@@ -170,6 +170,31 @@ factory's resolved etag / last-modified, or a content ``sha256`` — it lets a
 re-resolve detect that the factory's dep-set membership changed upstream even
 though each leaf re-pins independently.
 
+External Manifest Source (``source_manifest``)
+==============================================
+
+When a workspace is created with ``ivpm update --from <path-or-url>`` (installing
+from an external manifest rather than a local ``ivpm.yaml``), the external
+manifest is **not** copied into the workspace.  Instead, the lock file records
+where the workspace came from in a top-level ``source_manifest`` block:
+
+.. code-block:: json
+
+    {
+      "ivpm_lock_version": 1,
+      "source_manifest": {
+        "from": "https://example.com/acme/ivpm.yaml",
+        "dep_set": "gui-tools"
+      },
+      "packages": { }
+    }
+
+``from`` is the original ``--from`` argument (path or URL) and ``dep_set`` is the
+resolved dependency set that was installed.  This makes the workspace
+self-describing without a local manifest: tooling can locate the lock file by
+knowing the deps directory and re-resolve against the recorded source.  The
+field is absent for ordinary (local ``ivpm.yaml``) workspaces.
+
 Change Detection
 ================
 

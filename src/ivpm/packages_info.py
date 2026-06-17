@@ -30,6 +30,8 @@ class PackagesInfo():
     
     def __init__(self, name):
         self.name = name
+        # Optional one-line summary from the dep-set's 'description'
+        self.description : Optional[str] = None
         # Name of a dep-set in the same file to inherit packages from.
         # Populated during parsing; resolved (merged) before use.
         self.uses : Optional[str] = None

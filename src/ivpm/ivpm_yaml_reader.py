@@ -18,7 +18,7 @@ from ivpm.pkg_content_type import parse_type_field
 
 # Valid keys at the ``package:`` level in ivpm.yaml.
 _KNOWN_PACKAGE_KEYS = {
-    "name", "version", "type", "with",
+    "name", "description", "version", "type", "with",
     "deps-dir", "default-dep-set",
     "dep-sets", "setup-deps",
     "paths", "env", "env-sets",
@@ -46,11 +46,12 @@ class IvpmYamlReader(object):
         self.debug = False
         pass
     
-    def read(self, fp, name, cli_overrides=None, persisted_vars=None) -> 'ProjInfo':
+    def read(self, fp, name, cli_overrides=None, persisted_vars=None,
+             allow_include=True) -> 'ProjInfo':
         from ivpm.proj_info import ProjInfo
 
         ret = ProjInfo(is_src=True)
-        
+
         # File I/O streams have a name field that is read-only.
         # Add a name field to non-I/O streams
         if not hasattr(fp, "name"):
@@ -58,8 +59,10 @@ class IvpmYamlReader(object):
 
         # Load the ``package:`` body, recursively merging any ``include:``
         # files first. Variables are resolved once, post-merge (so an include
-        # may reference variables defined by the includer).
-        pkg = self._load_merged_pkg(fp, name)
+        # may reference variables defined by the includer). ``allow_include`` is
+        # False for remote (URL) manifests, whose includes cannot be resolved
+        # against a local directory.
+        pkg = self._load_merged_pkg(fp, name, allow_include=allow_include)
 
         # Resolve ${{var}} references before any other processing
         pkg, resolved_vars = resolve_variables(
@@ -80,6 +83,8 @@ class IvpmYamlReader(object):
 
         ret.name = pkg["name"]
         ret.resolved_vars = resolved_vars
+        if "description" in pkg.keys():
+            ret.description = pkg["description"]
         if "version" in pkg.keys():
             ret.version = pkg["version"]
         else:
@@ -130,7 +135,7 @@ class IvpmYamlReader(object):
             
         return ret
 
-    def _load_merged_pkg(self, fp, name, _visited=None):
+    def _load_merged_pkg(self, fp, name, _visited=None, allow_include=True):
         """Load ``package:`` from *name*, recursively merging any ``include:``
         files into it. Returns the merged package dict (variables NOT yet
         resolved). Cross-file nodes retain their original ``.srcinfo`` because
@@ -140,6 +145,10 @@ class IvpmYamlReader(object):
         (ancestors of *name*), used to detect cyclic includes. A copy is passed
         down each branch, so a file reached by two independent paths (a diamond)
         is permitted; only a true cycle is fatal.
+
+        *allow_include* is False for remote (URL) manifests: ``include:`` is
+        resolved against the local filesystem, which is meaningless for a file
+        fetched from a URL, so it is rejected with a clear message instead.
         """
         if _visited is None:
             _visited = set()
@@ -166,6 +175,11 @@ class IvpmYamlReader(object):
         if "package" not in data.keys():
             fatal("Missing 'package' section in ivpm.yaml file %s" % name, data)
         pkg = data["package"]
+
+        if "include" in pkg.keys() and not allow_include:
+            fatal("Remote manifests may not use 'include:' (in %s); inline the "
+                  "contents or host a single self-contained manifest" % name,
+                  pkg["include"])
 
         if "include" in pkg.keys():
             includes = pkg["include"]
@@ -399,6 +413,9 @@ class IvpmYamlReader(object):
             seen_ds[str(ds_name)] = ds_ent
             ds = PackagesInfo(ds_name)
             default_dep_set = None
+
+            if "description" in ds_ent.keys():
+                ds.description = ds_ent["description"]
 
             if "uses" in ds_ent.keys():
                 ds.uses = str(ds_ent["uses"])

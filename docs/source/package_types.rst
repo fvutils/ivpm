@@ -45,8 +45,14 @@ Clone from a Git repository. Supports branches, tags, commits, and submodules.
 ``depth``
     Clone depth for shallow clones (e.g., ``depth: 1``)
 
+``ssh``
+    Force SSH: rewrite the ``https://`` URL to ``git@host:path`` form
+    (overrides the auth order). ``ssh: false`` forces the URL as written.
+
 ``anonymous``
-    Use HTTPS instead of SSH (default: false, converts to SSH)
+    Legacy knob: ``anonymous: true`` clones the URL as written;
+    ``anonymous: false`` defers to the auth order (use ``ssh: true`` to force
+    SSH). See :doc:`git_integration` for transport selection.
 
 ``cache``
     Enable caching (see :doc:`caching`)
@@ -75,7 +81,7 @@ Clone from a Git repository. Supports branches, tags, commits, and submodules.
       url: https://github.com/org/my-lib.git
       depth: 1
     
-    # Anonymous clone (HTTPS, no SSH key needed)
+    # Force HTTPS as written (no SSH rewrite)
     - name: my-lib
       url: https://github.com/org/my-lib.git
       anonymous: true
@@ -88,8 +94,11 @@ Clone from a Git repository. Supports branches, tags, commits, and submodules.
 
 **Submodules:** Automatically initialized if ``.gitmodules`` is present.
 
-**URL conversion:** By default, HTTPS URLs are converted to SSH format 
-(``git@github.com:org/repo.git``) unless ``anonymous: true`` is set.
+**URL transport:** By default IVPM picks the transport per host via the *auth
+order* -- it clones an ``https://`` URL as-is when ``gh`` is authenticated for
+the host, otherwise rewrites it to SSH (``git@github.com:org/repo.git``). Use
+``ssh: true`` to force SSH or ``anonymous: true`` to force HTTPS. See
+:doc:`git_integration`.
 
 PyPI (``pypi``)
 ---------------
@@ -876,9 +885,12 @@ All Package Attributes
    * - ``depth``
      - integer
      - Git clone depth
+   * - ``ssh``
+     - boolean
+     - Force SSH (rewrite https to git@host:path)
    * - ``anonymous``
      - boolean
-     - Use HTTPS for Git
+     - Force HTTPS as written (legacy; false defers to auth order)
    * - ``cache``
      - boolean
      - Enable caching

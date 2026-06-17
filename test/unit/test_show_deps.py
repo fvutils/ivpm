@@ -833,3 +833,75 @@ class TestShowDepsCLI(unittest.TestCase):
         self.assertEqual(rc, 0)
         data = json.loads(out)
         self.assertIsInstance(data, list)
+
+
+# ---------------------------------------------------------------------------
+# TestDescriptionField — package/dep-set 'description' parsing + surfacing
+# ---------------------------------------------------------------------------
+
+class TestDescriptionField(unittest.TestCase):
+    """The optional 'description' field on package and dep-sets (Phase 1)."""
+
+    def setUp(self):
+        self._tmpdir = tempfile.TemporaryDirectory()
+        self.tmp = self._tmpdir.name
+
+    def tearDown(self):
+        self._tmpdir.cleanup()
+
+    def _read(self):
+        from ivpm.ivpm_yaml_reader import IvpmYamlReader
+        path = os.path.join(self.tmp, "ivpm.yaml")
+        with open(path) as fp:
+            return IvpmYamlReader().read(fp, path)
+
+    def test_reader_populates_package_and_dep_set_description(self):
+        _make_workspace(self.tmp, """
+            package:
+              name: acme-tools
+              description: Curated EDA toolchain bundles
+              dep-sets:
+              - name: default
+                description: Minimal set
+                deps:
+                - name: pyyaml
+                  src: pypi
+        """)
+        proj = self._read()
+        self.assertEqual(proj.description, "Curated EDA toolchain bundles")
+        self.assertEqual(proj.get_dep_set("default").description, "Minimal set")
+
+    def test_description_is_optional(self):
+        """A manifest without 'description' parses with description == None."""
+        _make_workspace(self.tmp, """
+            package:
+              name: plain
+              dep-sets:
+              - name: default
+                deps:
+                - name: pyyaml
+                  src: pypi
+        """)
+        proj = self._read()
+        self.assertIsNone(proj.description)
+        self.assertIsNone(proj.get_dep_set("default").description)
+
+    def test_loader_and_tree_json_expose_description(self):
+        from ivpm.show.dep_loader import DepLoader
+        from ivpm.show.show_deps import _tree_json
+        _make_workspace(self.tmp, """
+            package:
+              name: acme-tools
+              description: Curated EDA toolchain bundles
+              dep-sets:
+              - name: default
+                deps:
+                - name: pyyaml
+                  src: pypi
+        """)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            graph = DepLoader(self.tmp).load()
+        self.assertEqual(graph.description, "Curated EDA toolchain bundles")
+        data = json.loads(_tree_json(graph))
+        self.assertEqual(data["description"], "Curated EDA toolchain bundles")

@@ -115,3 +115,4 @@ class DepGraph:
     dep_set: str                    # dep-set selected at root
     nodes: List[DepNode]            # top-level dep nodes (flat unique list; tree inside)
     lock_available: bool = True     # False → resolved identity fields will be None
+    description: Optional[str] = None  # root project 'description' (may be None)

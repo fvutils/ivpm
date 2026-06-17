@@ -28,7 +28,7 @@ from typing import Optional
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
-from ..utils import note, fatal
+from ..utils import note, fatal, resolve_clone_url
 from ..cache import is_github_url, parse_github_url
 
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
@@ -41,6 +41,7 @@ class PackageGit(PackageURL):
     tag : str = None
     depth : str = None
     anonymous : bool = None
+    ssh : bool = None  # rewrite https URL to git@host:path form
     resolved_commit : str = None  # actual commit hash after fetch
 
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
@@ -270,35 +271,44 @@ class PackageGit(PackageURL):
             pass
 
 
-    def _get_effective_url(self, update_info: ProjectUpdateInfo = None) -> str:
-        """Return the clone/ls-remote URL, converting to SSH when appropriate.
+    def _ssh_pref(self, update_info: ProjectUpdateInfo = None):
+        """Explicit SSH override as a tri-state (``True``/``False``/``None``).
 
-        The decision is based solely on the ``anonymous`` flag:
-        * ``self.anonymous`` (per-package) takes priority.
-        * ``update_info.args.anonymous`` (global CLI flag) is the fallback.
-        * Default is non-anonymous (SSH).
-
-        ``file://`` URLs are never converted.
+        ``None`` means "no explicit preference — consult the auth order".
+        Resolution (first match wins):
+        * ``self.ssh`` (per-package ``ssh:`` option: true=SSH, false=as-written).
+        * ``self.anonymous`` (legacy per-package knob): ``anonymous: true``
+          forces the URL as written; ``anonymous: false`` no longer forces SSH —
+          it defers to the auth order so ``gh`` can win (use ``ssh: true`` to
+          force SSH).
+        * ``--ssh`` / ``--anonymous`` CLI flags.
         """
-        use_anonymous = False
-        if update_info is not None and update_info.args is not None and hasattr(update_info.args, "anonymous"):
-            use_anonymous = getattr(update_info.args, "anonymous")
-        if self.anonymous is not None:
-            use_anonymous = self.anonymous
+        if self.ssh is not None:
+            return self.ssh
+        if self.anonymous is True:
+            return False
+        # self.anonymous is False/None -> defer to CLI flags / auth order
+        args = update_info.args if update_info is not None else None
+        if args is not None:
+            if getattr(args, "ssh", False):
+                return True
+            if getattr(args, "anonymous", False):
+                return False
+        return None
 
-        if use_anonymous:
-            return self.url
+    def _get_effective_url(self, update_info: ProjectUpdateInfo = None) -> str:
+        """Return the clone/ls-remote URL.
 
-        delim_idx = self.url.find("://")
-        if delim_idx < 0:
-            return self.url
-        protocol = self.url[:delim_idx]
-        if protocol == "file":
-            return self.url
+        Applies any explicit per-package/CLI override; otherwise the configured
+        git auth order (``gh``/``ssh``/``https``) decides whether to use the
+        https URL as-is or rewrite it to git@host:path form.  ``file://`` and
+        non-URL local paths are never converted.
+        """
+        auth_order = None
+        if update_info is not None and update_info.args is not None:
+            auth_order = getattr(update_info.args, "git_auth_order", None)
+        return resolve_clone_url(self.url, self._ssh_pref(update_info), auth_order)
 
-        url = self.url[delim_idx+3:]
-        first_sl_idx = url.find("/")
-        return "git@" + url[:first_sl_idx] + ":" + url[first_sl_idx+1:]
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
         """Clone the repo to the specified directory."""
         cwd = os.getcwd()
@@ -631,7 +641,10 @@ class PackageGit(PackageURL):
 
         if "anonymous" in opts.keys():
             self.anonymous = opts["anonymous"]
-                
+
+        if "ssh" in opts.keys():
+            self.ssh = opts["ssh"]
+
         if "depth" in opts.keys():
             self.depth = opts["depth"]
                 
@@ -685,9 +698,15 @@ class PackageGit(PackageURL):
                 ParamInfo("commit", "Specific commit SHA to check out"),
                 ParamInfo("depth", "Shallow-clone depth (integer)", type_hint="int"),
                 ParamInfo("cache", "Cache mode: true=shared cache+symlink, false=shallow read-only clone, omit=full editable clone", type_hint="bool"),
-                ParamInfo("anonymous", "Clone via HTTPS instead of SSH (overrides global --anonymous-git)", type_hint="bool"),
+                ParamInfo("ssh", "Force SSH: rewrite the https URL to git@host:path form (overrides the auth order)", type_hint="bool"),
+                ParamInfo("anonymous", "Legacy knob: anonymous:true clones https as written; anonymous:false defers to the auth order (use 'ssh' to force SSH)", type_hint="bool"),
             ],
             notes=(
+                "Without an explicit ssh/anonymous override, the configured git auth order decides "
+                "the transport (default 'gh,ssh': use the https URL as-is when gh is authenticated "
+                "for the host, otherwise rewrite to git@host:path).  Per-host rules may be set in the "
+                "site config; override the order globally with IVPM_GIT_AUTH_ORDER or per-invocation "
+                "with --git-auth-order.  "
                 "When cache: true, IVPM resolves the HEAD commit hash, stores the repo in a "
                 "shared cache, and symlinks it read-only into packages/.  "
                 "When cache: false, a shallow clone is made directly in packages/ without caching.  "

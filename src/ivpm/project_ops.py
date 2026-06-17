@@ -49,8 +49,14 @@ class ProjectOps(object):
                lock_file : str = None,
                refresh_all : bool = False,
                force : bool = False,
-               cli_overrides = None):
+               cli_overrides = None,
+               from_manifest : str = None,
+               deps_dir_override : str = None):
         from .update_event import UpdateEvent, UpdateEventType
+
+        if from_manifest is not None and lock_file is not None:
+            fatal("--from and --lock-file are mutually exclusive "
+                  "(both specify an alternate manifest source)")
 
         # Get log level from args for TUI selection
         log_level = getattr(args, 'log_level', 'NONE')
@@ -71,7 +77,10 @@ class ProjectOps(object):
             tui.start()
 
         try:
-            proj_info, deps_dir, dep_set = self._init(dep_set, cli_overrides=cli_overrides)
+            proj_info, deps_dir, dep_set, source_manifest = self._init(
+                dep_set, cli_overrides=cli_overrides,
+                from_manifest=from_manifest,
+                deps_dir_override=deps_dir_override)
 
             _logger.info("Processing root package %s", proj_info.name)
 
@@ -173,9 +182,14 @@ class ProjectOps(object):
             # Signal update complete
             updater.update_info.update_complete()
 
-            # Write package-lock.json with resolved package versions
+            # Write package-lock.json with resolved package versions. When the
+            # workspace was driven by --from, record where it came from so the
+            # workspace is self-describing without a local ivpm.yaml.
+            if source_manifest is not None:
+                source_manifest["dep_set"] = dep_set
             handler_contributions = pkg_handler.get_lock_entries(deps_dir)
-            write_lock(deps_dir, updater.all_pkgs, handler_contributions)
+            write_lock(deps_dir, updater.all_pkgs, handler_contributions,
+                       source_manifest=source_manifest)
 
             # Write ivpm.json with dep-set and handler state
             ivpm_json = {"dep-set": dep_set}
@@ -192,7 +206,7 @@ class ProjectOps(object):
                 tui.stop()
 
     def build(self, dep_set : str = None, args = None, debug : bool = False):
-        proj_info, deps_dir, dep_set = self._init(dep_set)
+        proj_info, deps_dir, dep_set, _ = self._init(dep_set)
 
         dep_set, ds = self._getDepSet(proj_info, dep_set)
 
@@ -460,30 +474,64 @@ class ProjectOps(object):
         update_info.deps_source_mode = mode
         update_info.deps_source_auto = auto
 
-    def _init(self, dep_set : str = None, cli_overrides=None) -> Tuple['ProjInfo', str, str]:
+    def _init(self, dep_set : str = None, cli_overrides=None,
+              from_manifest : str = None,
+              deps_dir_override : str = None) -> Tuple['ProjInfo', str, str, 'dict']:
         from .proj_info import ProjInfo
 
-        # Load persisted variables from a previous run
-        persisted_vars = {}
-        _pre_deps_dir = os.path.join(self.root_dir, "packages")  # default
-        _pre_ivpm_json_path = os.path.join(_pre_deps_dir, "ivpm.json")
-        if os.path.isfile(_pre_ivpm_json_path):
-            try:
-                with open(_pre_ivpm_json_path) as _fp:
-                    _pre_ivpm = json.load(_fp)
-                    persisted_vars = _pre_ivpm.get("vars", {})
-            except Exception:
-                pass
+        # The directory used to look up persisted state precedes knowing the
+        # manifest's own deps-dir; honor an explicit --deps-dir, else "packages".
+        _pre_deps_dir_name = deps_dir_override or "packages"
 
-        proj_info = ProjInfo.mkFromProj(
-            self.root_dir,
-            cli_overrides=cli_overrides,
-            persisted_vars=persisted_vars)
+        source_manifest = None
+
+        if from_manifest is not None:
+            # A workspace has exactly one driving manifest — refuse to shadow a
+            # local ivpm.yaml (see remote-manifest-design.md "Persistence").
+            from .ivpm_yaml_reader import IvpmYamlReader
+            from .remote import fetch_manifest
+
+            if os.path.isfile(os.path.join(self.root_dir, "ivpm.yaml")):
+                fatal("Cannot use --from here: %s already has an ivpm.yaml. "
+                      "Run in another directory, or edit that manifest to "
+                      "reference the external source (%s)." % (
+                          self.root_dir, from_manifest))
+
+            fetched = fetch_manifest(from_manifest)
+            try:
+                with open(fetched.local_path) as fp:
+                    proj_info = IvpmYamlReader().read(
+                        fp, fetched.local_path,
+                        cli_overrides=cli_overrides,
+                        persisted_vars={},      # external manifest: start clean
+                        allow_include=not fetched.is_remote)
+            finally:
+                fetched.cleanup()
+            source_manifest = {"from": fetched.origin}
+        else:
+            # Load persisted variables from a previous run
+            persisted_vars = {}
+            _pre_deps_dir = os.path.join(self.root_dir, _pre_deps_dir_name)
+            _pre_ivpm_json_path = os.path.join(_pre_deps_dir, "ivpm.json")
+            if os.path.isfile(_pre_ivpm_json_path):
+                try:
+                    with open(_pre_ivpm_json_path) as _fp:
+                        _pre_ivpm = json.load(_fp)
+                        persisted_vars = _pre_ivpm.get("vars", {})
+                except Exception:
+                    pass
+
+            proj_info = ProjInfo.mkFromProj(
+                self.root_dir,
+                cli_overrides=cli_overrides,
+                persisted_vars=persisted_vars)
 
         if proj_info is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
-            
-        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
+
+        # Precedence: --deps-dir (CLI) > manifest deps-dir > "packages"
+        deps_dir_name = deps_dir_override or proj_info.deps_dir
+        deps_dir = os.path.join(self.root_dir, deps_dir_name)
 
         ivpm_json = {}
 
@@ -500,7 +548,7 @@ class ProjectOps(object):
             elif dep_set != ivpm_json["dep-set"]:
                 fatal("Attempting to update with a different dep-set than previously used")
 
-        return (proj_info, deps_dir, dep_set)
+        return (proj_info, deps_dir, dep_set, source_manifest)
     
     def _getDepSet(self, proj_info, dep_set):
         if dep_set is None:

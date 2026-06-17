@@ -134,7 +134,7 @@ class DepLoader:
 
     def load(self) -> DepGraph:
         """Build and return the complete DepGraph."""
-        root_name, root_version, root_dep_set, root_declared = self._load_root()
+        root_name, root_version, root_description, root_dep_set, root_declared = self._load_root()
 
         deps_dir = os.path.join(self.project_dir, "packages")
         lock = _load_lock(deps_dir)
@@ -171,6 +171,7 @@ class DepLoader:
             dep_set=root_dep_set,
             nodes=nodes,
             lock_available=lock_available,
+            description=root_description,
         )
 
     # ------------------------------------------------------------------
@@ -178,7 +179,7 @@ class DepLoader:
     # ------------------------------------------------------------------
 
     def _load_root(self):
-        """Parse the root ivpm.yaml; return (name, version, dep_set, dep_names)."""
+        """Parse the root ivpm.yaml; return (name, version, description, dep_set, dep_names)."""
         yaml_path = os.path.join(self.project_dir, "ivpm.yaml")
         if not os.path.isfile(yaml_path):
             raise FileNotFoundError(
@@ -192,6 +193,7 @@ class DepLoader:
         pkg = data.get("package", {}) or {}
         name = pkg.get("name", os.path.basename(self.project_dir))
         version = pkg.get("version")
+        description = pkg.get("description")
         dep_sets = pkg.get("dep-sets", []) or []
 
         # Determine which dep-set to use
@@ -209,7 +211,7 @@ class DepLoader:
                 dep_names = [d["name"] for d in ds.get("deps", []) if "name" in d]
                 break
 
-        return name, version, dep_set, dep_names
+        return name, version, description, dep_set, dep_names
 
     def _build_requesters_index(
         self,

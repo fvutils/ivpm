@@ -22,9 +22,116 @@ import json
 import os
 import sys
 import warnings
+from dataclasses import dataclass, field
 from typing import List, Optional
 
 from .dep_info import DepGraph, DepNode
+
+
+# ---------------------------------------------------------------------------
+# Catalog view (`show deps --from <manifest>`) — declared dep-sets, not the
+# resolved graph. A manifest is fetched and parsed but nothing is installed.
+# ---------------------------------------------------------------------------
+
+@dataclass
+class CatalogDepSet:
+    name: str
+    description: Optional[str]
+    is_default: bool = False
+
+
+@dataclass
+class ManifestCatalog:
+    name: str
+    version: Optional[str]
+    description: Optional[str]
+    default_dep_set: Optional[str]
+    dep_sets: List[CatalogDepSet]
+    origin: str
+
+
+def _build_catalog(proj_info, origin: str) -> ManifestCatalog:
+    """Build a ManifestCatalog from a parsed ProjInfo (the --from manifest)."""
+    # Resolve the default dep-set the way _getDepSet does: explicit
+    # default-dep-set, else the first declared set.
+    names = list(proj_info.dep_set_m.keys())
+    default = proj_info.default_dep_set
+    if default is None and names:
+        default = names[0]
+
+    dep_sets = [
+        CatalogDepSet(
+            name=ds_name,
+            description=getattr(proj_info.dep_set_m[ds_name], "description", None),
+            is_default=(ds_name == default),
+        )
+        for ds_name in names
+    ]
+    return ManifestCatalog(
+        name=proj_info.name,
+        version=proj_info.version,
+        description=proj_info.description,
+        default_dep_set=default,
+        dep_sets=dep_sets,
+        origin=origin,
+    )
+
+
+def _catalog_json(cat: ManifestCatalog) -> str:
+    return json.dumps({
+        "name": cat.name,
+        "version": cat.version,
+        "description": cat.description,
+        "default_dep_set": cat.default_dep_set,
+        "dep_sets": [
+            {"name": d.name, "description": d.description, "default": d.is_default}
+            for d in cat.dep_sets
+        ],
+    }, indent=2)
+
+
+def _catalog_plain(cat: ManifestCatalog) -> None:
+    hdr = cat.name + (f"  v{cat.version}" if cat.version else "")
+    print(hdr)
+    if cat.description:
+        print(f"  {cat.description}")
+    print()
+    print("Dependency sets:")
+    width = max((len(d.name) for d in cat.dep_sets), default=0)
+    for d in cat.dep_sets:
+        marker = " (default)" if d.is_default else ""
+        desc = f"  {d.description}" if d.description else ""
+        print(f"  {d.name:<{width}}{desc}{marker}")
+    print()
+    print(f"Install with:  ivpm update --from {cat.origin} -d <dep-set>")
+
+
+def _catalog_rich(cat: ManifestCatalog) -> None:
+    from rich.console import Console
+    from rich.text import Text
+    console = Console()
+
+    hdr = Text(cat.name, style="bold cyan")
+    if cat.version:
+        hdr.append(f"  v{cat.version}", style="green")
+    console.print(hdr)
+    if cat.description:
+        console.print(Text(f"  {cat.description}", style="italic"))
+    console.print()
+    console.print(Text("Dependency sets:", style="bold"))
+    width = max((len(d.name) for d in cat.dep_sets), default=0)
+    for d in cat.dep_sets:
+        line = Text("  ")
+        line.append(f"{d.name:<{width}}", style="cyan")
+        if d.description:
+            line.append(f"  {d.description}", style=None)
+        if d.is_default:
+            line.append("  (default)", style="dim")
+        console.print(line)
+    console.print()
+    console.print(Text(
+        f"Install with:  ivpm update --from {cat.origin} -d <dep-set>",
+        style="dim"))
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +172,7 @@ def _tree_json(graph: DepGraph) -> str:
     result = {
         "project": graph.project,
         "version": graph.version,
+        "description": graph.description,
         "dep_set": graph.dep_set,
         "deps": [_node_dict(n) for n in graph.nodes],
     }
@@ -133,6 +241,8 @@ def _plain_flat(graph: DepGraph) -> None:
 
 def _plain_tree(graph: DepGraph) -> None:
     print(f"{graph.project}" + (f"  ({graph.dep_set})" if graph.dep_set else ""))
+    if graph.description:
+        print(f"  {graph.description}")
 
     def _print_node(node: DepNode, prefix: str, is_last: bool) -> None:
         connector = "└── " if is_last else "├── "
@@ -241,6 +351,8 @@ def _rich_tree(graph: DepGraph) -> None:
     console = Console()
     root_label = Text(graph.project, style="bold")
     root_label.append(f"  ({graph.dep_set})", style="dim")
+    if graph.description:
+        root_label.append(f"\n{graph.description}", style="italic")
     tree = Tree(root_label)
 
     def _add_node(parent_tree, node: DepNode) -> None:
@@ -436,6 +548,12 @@ class ShowDeps:
         proj_dir = getattr(args, "project_dir", None) or os.getcwd()
         dep_set  = getattr(args, "dep_set", None)
         output   = getattr(args, "output", None)
+        from_manifest = getattr(args, "from_manifest", None)
+
+        # Catalog view: browse an external manifest's dep-sets without fetching.
+        if from_manifest:
+            self._show_catalog(from_manifest, as_json, no_rich, output)
+            return
 
         # Mutual exclusion checks
         if as_tree and name:
@@ -472,6 +590,37 @@ class ShowDeps:
             self._show_flat(graph, as_json, no_rich, output)
 
     # ------------------------------------------------------------------
+
+    def _show_catalog(self, from_manifest: str, as_json: bool,
+                      no_rich: bool, output: Optional[str]) -> None:
+        """Fetch + parse an external manifest and render its catalog."""
+        from ..remote import fetch_manifest
+        from ..ivpm_yaml_reader import IvpmYamlReader
+
+        fetched = fetch_manifest(from_manifest)
+        try:
+            with open(fetched.local_path) as fp:
+                proj_info = IvpmYamlReader().read(
+                    fp, fetched.local_path,
+                    allow_include=not fetched.is_remote)
+        finally:
+            fetched.cleanup()
+
+        catalog = _build_catalog(proj_info, fetched.origin)
+        if as_json:
+            self._write_output(_catalog_json(catalog), output)
+        elif output or no_rich or not sys.stdout.isatty():
+            # Plain text to a captured/redirected sink
+            if output:
+                import io, contextlib
+                buf = io.StringIO()
+                with contextlib.redirect_stdout(buf):
+                    _catalog_plain(catalog)
+                self._write_output(buf.getvalue().rstrip("\n"), output)
+            else:
+                _catalog_plain(catalog)
+        else:
+            _catalog_rich(catalog)
 
     def _write_output(self, text: str, output: Optional[str]) -> None:
         """Write text to a file or stdout."""
