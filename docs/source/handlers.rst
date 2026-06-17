@@ -290,8 +290,9 @@ Creates symlinks (or copies) to per-package skill files for AI coding agents.
 
 Packages can provide skill files (``SKILL.md``) that describe capabilities or
 instructions for AI agents.  The agents handler discovers these skill files and
-creates organized symlinks in ``.agents/skills/`` and optionally ``.claude/skills/``
-for use by AI tools.
+creates organized symlinks in ``.agents/skills/`` and, by default, the
+tool-specific ``.claude/skills/`` and ``.cursor/skills/`` directories for use by
+AI tools.  The tool-specific mirrors are *opt-out* — see **Configuration** below.
 
 **Skill File Format**
 
@@ -395,8 +396,10 @@ Skill paths (for mechanisms 1–3) support glob patterns (e.g.,
 Runs when at least one valid skill file was found.  Steps:
 
 1. Create ``.agents/skills/`` directory
-2. Create ``.claude/skills/`` directory if ``claude: true`` OR if ``.claude/``
-   already exists
+2. Create the ``.claude/skills/`` and ``.cursor/skills/`` directories by
+   default; skip either one when ``claude: false`` / ``cursor: false`` is set.
+   An explicit ``false`` always wins, even if the corresponding directory
+   already exists.
 3. Process skills gathered from dependencies (mechanisms 1–3 above) and from
    ``agent.skills`` Python entry-points (mechanism 4)
 4. For each skill, create a relative symlink (or copy as fallback) with a
@@ -410,7 +413,10 @@ Runs when at least one valid skill file was found.  Steps:
 
 **Configuration (``ivpm.yaml``)**
 
-Project-level settings under ``package.with.agents``:
+Project-level settings under ``package.with.agents``.  Mirroring into the
+tool-specific directories is *opt-out* — both ``.claude/skills/`` and
+``.cursor/skills/`` are populated by default.  Set a key to ``false`` to skip
+that tool:
 
 .. code-block:: yaml
 
@@ -418,7 +424,15 @@ Project-level settings under ``package.with.agents``:
       name: my-project
       with:
         agents:
-          claude: true          # Create .claude/skills/ in addition to .agents/skills/
+          claude: true          # default — set false to skip .claude/skills/
+          cursor: true          # default — set false to skip .cursor/skills/
+
+.. note::
+
+   **Behavior change.**  Earlier releases treated ``.claude/skills/`` as
+   *opt-in* (created only when ``claude: true`` was set, or when ``.claude/``
+   already existed).  It is now created by default.  Projects that relied on
+   ``.claude/`` *not* being created must set ``claude: false`` explicitly.
 
 Package-declared skill paths under ``package.with.agents``:
 
@@ -452,15 +466,19 @@ Or via consumer dep-entry:
 - **Fallback**: On platforms without symlink support, falls back to copying the
   ``SKILL.md`` file and any companion directories (``scripts/``, ``references/``,
   ``assets/``).
-- **`.claude` directory**: Always populates if ``claude: true``. Also populates
-  automatically if ``.claude/`` directory already exists (useful for projects
-  that have manually created it).
+- **Tool-specific directories**: ``.claude/skills/`` and ``.cursor/skills/`` are
+  populated by default (opt-out).  Set ``claude: false`` / ``cursor: false``
+  under ``package.with.agents`` to skip a given tool; an explicit ``false``
+  always wins, even when the directory already exists.
 - **Stale cleanup**: Removes entries from previous runs before writing new ones.
+  This includes entries in a tool directory that was populated by an earlier run
+  but is now disabled.
 
 **Output:**
 
 - ``.agents/skills/<package>`` — symlink(s) to skill directories
-- ``.claude/skills/<package>`` — same, if ``claude: true`` or if ``.claude/`` exists
+- ``.claude/skills/<package>`` — same, unless ``claude: false``
+- ``.cursor/skills/<package>`` — same, unless ``cursor: false``
 
 
 .. _handler-modules:
@@ -589,7 +607,7 @@ Handler Summary
      - Skill file discovery and symlinking
      - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``agent.skills`` entry-points
      - Creates symlinks to skills
-     - ``.agents/skills/``, ``.claude/skills/``
+     - ``.agents/skills/``, ``.claude/skills/``, ``.cursor/skills/``
    * - ``fusesoc``
      - 10
      - FuseSoC core library mapping

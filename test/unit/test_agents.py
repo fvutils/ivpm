@@ -85,14 +85,14 @@ class TestAgents(TestBase):
                         "SKILL.md should be accessible through the symlink")
 
     # ------------------------------------------------------------------ #
-    # Claude mirroring                                                     #
+    # Tool mirroring (.claude / .cursor) — opt-out, default-on            #
     # ------------------------------------------------------------------ #
 
-    def test_claude_false_default(self):
-        """claude: absent → .claude/ not created."""
+    def test_claude_default_on(self):
+        """claude: absent → .claude/skills/ populated by default (opt-out)."""
         self.mkFile("ivpm.yaml", """
         package:
-            name: test_agents_no_claude
+            name: test_agents_claude_default
             dep-sets:
                 - name: default-dev
                   deps:
@@ -102,8 +102,9 @@ class TestAgents(TestBase):
         """)
         self.ivpm_update(skip_venv=True)
 
-        claude_dir = os.path.join(self.testdir, ".claude")
-        self.assertFalse(os.path.isdir(claude_dir), ".claude/ should not be created")
+        claude_link = os.path.join(self.testdir, ".claude", "skills", "agents_leaf1")
+        self.assertTrue(os.path.exists(claude_link),
+                        ".claude/skills/agents_leaf1 should be created by default")
 
     def test_claude_true(self):
         """claude: true → both .agents/skills/ and .claude/skills/ populated."""
@@ -126,6 +127,154 @@ class TestAgents(TestBase):
         claude_link = os.path.join(self.testdir, ".claude", "skills", "agents_leaf1")
         self.assertTrue(os.path.exists(agents_link), ".agents/skills/agents_leaf1 should exist")
         self.assertTrue(os.path.exists(claude_link), ".claude/skills/agents_leaf1 should exist")
+
+    def test_claude_false_optout(self):
+        """claude: false → .agents/skills/ populated but .claude/ not created."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_no_claude
+            with:
+                agents:
+                    claude: false
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        agents_link = os.path.join(self.testdir, ".agents", "skills", "agents_leaf1")
+        claude_dir = os.path.join(self.testdir, ".claude")
+        self.assertTrue(os.path.exists(agents_link), ".agents/skills/agents_leaf1 should exist")
+        self.assertFalse(os.path.isdir(claude_dir),
+                         ".claude/ should not be created when claude: false")
+
+    def test_cursor_default_on(self):
+        """cursor: absent → .cursor/skills/ populated by default (opt-out)."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_cursor_default
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        cursor_link = os.path.join(self.testdir, ".cursor", "skills", "agents_leaf1")
+        self.assertTrue(os.path.exists(cursor_link),
+                        ".cursor/skills/agents_leaf1 should be created by default")
+
+    def test_cursor_false_optout(self):
+        """cursor: false → .cursor/ not created, .agents and .claude present."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_no_cursor
+            with:
+                agents:
+                    cursor: false
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        agents_link = os.path.join(self.testdir, ".agents", "skills", "agents_leaf1")
+        claude_link = os.path.join(self.testdir, ".claude", "skills", "agents_leaf1")
+        cursor_dir = os.path.join(self.testdir, ".cursor")
+        self.assertTrue(os.path.exists(agents_link), ".agents/skills/agents_leaf1 should exist")
+        self.assertTrue(os.path.exists(claude_link), ".claude/skills/agents_leaf1 should exist")
+        self.assertFalse(os.path.isdir(cursor_dir),
+                         ".cursor/ should not be created when cursor: false")
+
+    def test_all_tools_populated(self):
+        """Defaults → .agents, .claude and .cursor all mirror the same skill."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_all_tools
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        for tool in (".agents", ".claude", ".cursor"):
+            link = os.path.join(self.testdir, tool, "skills", "agents_leaf1")
+            self.assertTrue(os.path.exists(link),
+                            "%s/skills/agents_leaf1 should exist" % tool)
+
+    def test_explicit_false_wins_over_existing_dir(self):
+        """Pre-existing .claude/ + claude: false → .claude/skills/ not populated."""
+        # Manually create a .claude/ directory before the update
+        os.makedirs(os.path.join(self.testdir, ".claude"), exist_ok=True)
+
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_false_wins
+            with:
+                agents:
+                    claude: false
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        claude_skills = os.path.join(self.testdir, ".claude", "skills")
+        self.assertFalse(os.path.exists(claude_skills),
+                         ".claude/skills/ must not be populated when claude: false, "
+                         "even if .claude/ already exists")
+
+    def test_stale_cleanup_after_disable(self):
+        """Disabling a tool on a re-run removes its previously created entries."""
+        # First run: defaults → .cursor/skills/ created
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_disable
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        cursor_link = os.path.join(self.testdir, ".cursor", "skills", "agents_leaf1")
+        self.assertTrue(os.path.exists(cursor_link),
+                        ".cursor/skills/agents_leaf1 should exist after first run")
+
+        # Second run: cursor disabled → its prior entry must be cleaned up
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_disable
+            with:
+                agents:
+                    cursor: false
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        self.assertFalse(os.path.exists(cursor_link),
+                         "stale .cursor/skills/agents_leaf1 should be removed after disable")
 
     # ------------------------------------------------------------------ #
     # No skills → no directory                                            #
