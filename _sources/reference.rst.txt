@@ -408,6 +408,8 @@ the current project's resolved dependency graph.
     ivpm show src     [--json] [--no-rich] [<name>]   # alias for source
     ivpm show type    [--json] [--no-rich] [<name>]
     ivpm show handler [--json] [--no-rich] [<name>]
+    ivpm show site-config [--json] [--no-rich] [<name>]
+    ivpm show config      [--json] [--no-rich] [<name>]   # alias for site-config
     ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [<name>]
 
 **Sub-commands:**
@@ -423,6 +425,14 @@ the current project's resolved dependency graph.
 ``handler`` *[name]*
     List all registered package handlers, or show full details for a specific
     handler including activation conditions and CLI options.
+
+``site-config`` / ``config`` *[name]*
+    List all registered site configurations (the active one is flagged) and the
+    effective settings the active config applies -- resolved cache directory,
+    ``ivpm`` install arguments, git auth order, and the config files that were
+    loaded. With *name*, show the detail for one config. See
+    :doc:`extending_ivpm` for how to contribute a site config and how the active
+    one is selected.
 
 ``deps`` *[name]*
     Show the resolved dependency graph for the current project (or the project
@@ -447,7 +457,7 @@ the current project's resolved dependency graph.
 ``--no-rich``
     Plain text output without terminal colours or tables.
 
-**Options (show / show source / type / handler):**
+**Options (show / show source / type / handler / site-config):**
 
 ``--json``
     Emit JSON output instead of Rich/plain text. Useful for scripting.
@@ -502,6 +512,9 @@ the current project's resolved dependency graph.
 
     # Full detail for the Python handler
     $ ivpm show handler python --no-rich
+
+    # List registered site configs + the active effective settings
+    $ ivpm show site-config --no-rich
 
     # Dump complete registry schema
     $ ivpm show --schema

@@ -295,9 +295,13 @@ not a mapping) is logged at <code class="docutils literal notranslate"><span cla
 </section>
 <section id="org-managed-defaults">
 <h4>Org-managed defaults<a class="headerlink" href="#org-managed-defaults" title="Link to this heading"></a></h4>
-<p>Sites that ship an <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> package can set defaults
-programmatically (the lowest-priority rule source; the files layer on top):</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.site_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SiteConfig</span>
+<p>Sites can set auth defaults programmatically with a
+<code class="xref py py-class docutils literal notranslate"><span class="pre">SiteConfig</span></code> subclass (the lowest-priority rule source;
+the config files layer on top). The recommended way to ship one is an
+<strong>extension</strong> that declares an <code class="docutils literal notranslate"><span class="pre">ivpm.site_config</span></code> entry point (see
+<a class="reference internal" href="extending_ivpm.html"><span class="doc">Writing Custom Handlers</span></a>); the legacy <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> module is also honored.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># src/acme_ivpm/site_config.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.site_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SiteConfig</span>
 
 <span class="k">class</span><span class="w"> </span><span class="nc">MySiteConfig</span><span class="p">(</span><span class="n">SiteConfig</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_default_git_auth_order</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -308,11 +312,16 @@ programmatically (the lowest-priority rule source; the files layer on top):</p>
             <span class="p">(</span><span class="s2">&quot;*.internal.corp&quot;</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;ssh&quot;</span><span class="p">]),</span>
             <span class="p">(</span><span class="s2">&quot;github.com&quot;</span><span class="p">,</span>      <span class="p">[</span><span class="s2">&quot;gh&quot;</span><span class="p">,</span> <span class="s2">&quot;ssh&quot;</span><span class="p">]),</span>
         <span class="p">]</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">get_config</span><span class="p">():</span>
-    <span class="k">return</span> <span class="n">MySiteConfig</span><span class="p">()</span>
 </pre></div>
 </div>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="c1"># pyproject.toml of the extension package</span>
+<span class="k">[project.entry-points.</span><span class="s2">&quot;ivpm.site_config&quot;</span><span class="k">]</span>
+<span class="n">acme</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;acme_ivpm.site_config:MySiteConfig&quot;</span>
+</pre></div>
+</div>
+<p>Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">site-config</span></code> to confirm the config is registered and to see the
+resolved auth order it applies. When several site configs are installed, pin one
+with <code class="docutils literal notranslate"><span class="pre">IVPM_SITE_CONFIG_NAME</span></code> or a <code class="docutils literal notranslate"><span class="pre">site-config:</span> <span class="pre">&lt;name&gt;</span></code> config-file key.</p>
 </section>
 <section id="diagnostics">
 <h4>Diagnostics<a class="headerlink" href="#diagnostics" title="Link to this heading"></a></h4>

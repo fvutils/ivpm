@@ -82,6 +82,11 @@
 <li class="toctree-l2"><a class="reference internal" href="#complete-example">Complete Example</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#handler-ordering">Handler Ordering</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#testing-your-handler">Testing Your Handler</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#contributing-a-site-configuration">Contributing a Site Configuration</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#selecting-the-active-config">Selecting the active config</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#inspecting-what-is-registered">Inspecting what is registered</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
@@ -438,11 +443,83 @@ by IVPM’s own test suite:</p>
 </pre></div>
 </div>
 </section>
+<section id="contributing-a-site-configuration">
+<h2>Contributing a Site Configuration<a class="headerlink" href="#contributing-a-site-configuration" title="Link to this heading"></a></h2>
+<p>A <strong>site configuration</strong> lets an organization override IVPM’s defaults –
+the cache directory, how IVPM installs itself into new virtual environments,
+and the default git authentication order. The recommended way to ship one is as
+an <strong>extension</strong> that declares an <code class="docutils literal notranslate"><span class="pre">ivpm.site_config</span></code> entry point. This composes
+cleanly with a stock install: users <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">ivpm</span></code> as normal, then install
+your extension to enforce site policy – no patched <code class="docutils literal notranslate"><span class="pre">site_config.py</span></code> and no
+reserved module name.</p>
+<p>Write a <code class="xref py py-class docutils literal notranslate"><span class="pre">SiteConfig</span></code> subclass and override only the
+methods you care about:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># src/acme_ivpm/site_config.py</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.site_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">SiteConfig</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">AcmeSiteConfig</span><span class="p">(</span><span class="n">SiteConfig</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Acme Corp site policy.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_default_cache_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;/opt/acme/ivpm-cache&quot;</span>      <span class="c1"># return &quot;&quot; to disable caching</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_ivpm_install_args</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;/opt/acme/ivpm-custom.whl&quot;</span><span class="p">]</span>   <span class="c1"># install IVPM from an internal wheel</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_default_git_auth_order</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;ssh&quot;</span><span class="p">]</span>                     <span class="c1"># never use gh on the corporate network</span>
+</pre></div>
+</div>
+<p>Register it via the <code class="docutils literal notranslate"><span class="pre">ivpm.site_config</span></code> entry-point group:</p>
+<div class="highlight-toml notranslate"><div class="highlight"><pre><span></span><span class="k">[project.entry-points.</span><span class="s2">&quot;ivpm.site_config&quot;</span><span class="k">]</span>
+<span class="n">acme</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;acme_ivpm.site_config:AcmeSiteConfig&quot;</span>
+</pre></div>
+</div>
+<p>The entry-point target may be a <code class="docutils literal notranslate"><span class="pre">SiteConfig</span></code> <strong>subclass</strong> (instantiated on
+demand) or a zero-argument <strong>callable</strong> that returns a <code class="docutils literal notranslate"><span class="pre">SiteConfig</span></code> instance.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The historical <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> module (a top-level package exposing a
+<code class="docutils literal notranslate"><span class="pre">get_config()</span></code> function) is still honored, but the entry-point group above
+is preferred because it does not require owning a specific module name and is
+discovered the same way as every other IVPM extension.</p>
+</div>
+<section id="selecting-the-active-config">
+<h3>Selecting the active config<a class="headerlink" href="#selecting-the-active-config" title="Link to this heading"></a></h3>
+<p>IVPM resolves a <em>single</em> active site config from everything registered:
+<code class="docutils literal notranslate"><span class="pre">DefaultSiteConfig</span></code> first, then a legacy <code class="docutils literal notranslate"><span class="pre">ivpm_site_config</span></code> module, then
+each <code class="docutils literal notranslate"><span class="pre">ivpm.site_config</span></code> entry point. By default the <strong>last-registered</strong> config
+wins, so installing one extension is enough to take over – the common case.</p>
+<p>When more than one config is registered, pin the active one by name (use
+<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">site-config</span></code> to see the registered names):</p>
+<ul class="simple">
+<li><p>the <code class="docutils literal notranslate"><span class="pre">IVPM_SITE_CONFIG_NAME</span></code> environment variable (highest priority), or</p></li>
+<li><p>a top-level <code class="docutils literal notranslate"><span class="pre">site-config:</span> <span class="pre">&lt;name&gt;</span></code> key in a user or site config file
+(<code class="docutils literal notranslate"><span class="pre">~/.config/ivpm/config.yaml</span></code> or <code class="docutils literal notranslate"><span class="pre">/etc/ivpm/config.yaml</span></code>).</p></li>
+</ul>
+<p>A name that matches no registered config is ignored with a warning, and
+resolution falls back to last-registered.</p>
+</section>
+<section id="inspecting-what-is-registered">
+<h3>Inspecting what is registered<a class="headerlink" href="#inspecting-what-is-registered" title="Link to this heading"></a></h3>
+<p>After installing your extension, run:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">site</span><span class="o">-</span><span class="n">config</span>
+</pre></div>
+</div>
+<p>to list every registered config (the active one is flagged), and the
+<strong>effective settings</strong> the active config applies – resolved cache directory,
+<code class="docutils literal notranslate"><span class="pre">ivpm</span></code> install arguments, git auth order, and the config files that were
+loaded. <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">site-config</span> <span class="pre">&lt;name&gt;</span></code> shows the detail for one config, and
+<code class="docutils literal notranslate"><span class="pre">--json</span></code> emits the same information for tooling.</p>
+</section>
+</section>
 <section id="see-also">
 <h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
 <ul class="simple">
 <li><p><a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> – Built-in handler documentation and the handler summary table</p></li>
 <li><p><a class="reference internal" href="package_types.html"><span class="doc">Package Types &amp; Sources</span></a> – Package source types and content types</p></li>
+<li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> – Customizing the cache through a site configuration</p></li>
+<li><p><a class="reference internal" href="git_integration.html"><span class="doc">Git Integration</span></a> – Site-managed git authentication defaults</p></li>
 </ul>
 </section>
 </section>

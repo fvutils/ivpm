@@ -130,11 +130,15 @@ not a mapping) is logged at ``WARNING`` and skipped -- it never aborts a clone.
 Org-managed defaults
 ~~~~~~~~~~~~~~~~~~~~~
 
-Sites that ship an ``ivpm_site_config`` package can set defaults
-programmatically (the lowest-priority rule source; the files layer on top):
+Sites can set auth defaults programmatically with a
+:class:`~ivpm.site_config.SiteConfig` subclass (the lowest-priority rule source;
+the config files layer on top). The recommended way to ship one is an
+**extension** that declares an ``ivpm.site_config`` entry point (see
+:doc:`extending_ivpm`); the legacy ``ivpm_site_config`` module is also honored.
 
 .. code-block:: python
 
+    # src/acme_ivpm/site_config.py
     from ivpm.site_config import SiteConfig
 
     class MySiteConfig(SiteConfig):
@@ -147,8 +151,15 @@ programmatically (the lowest-priority rule source; the files layer on top):
                 ("github.com",      ["gh", "ssh"]),
             ]
 
-    def get_config():
-        return MySiteConfig()
+.. code-block:: toml
+
+    # pyproject.toml of the extension package
+    [project.entry-points."ivpm.site_config"]
+    acme = "acme_ivpm.site_config:MySiteConfig"
+
+Run ``ivpm show site-config`` to confirm the config is registered and to see the
+resolved auth order it applies. When several site configs are installed, pin one
+with ``IVPM_SITE_CONFIG_NAME`` or a ``site-config: <name>`` config-file key.
 
 Diagnostics
 ~~~~~~~~~~~
