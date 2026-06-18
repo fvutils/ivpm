@@ -418,7 +418,12 @@ class IvpmYamlReader(object):
                 ds.description = ds_ent["description"]
 
             if "uses" in ds_ent.keys():
-                ds.uses = str(ds_ent["uses"])
+                # 'uses' may name a single base dep-set or a list of them.
+                uses = ds_ent["uses"]
+                if isinstance(uses, (list, tuple)):
+                    ds.uses = [str(u) for u in uses]
+                else:
+                    ds.uses = [str(uses)]
 
             if "default-dep-set" in ds_ent.keys():
                 default_dep_set = ds_ent["default-dep-set"]
@@ -434,9 +439,10 @@ class IvpmYamlReader(object):
 
     def _resolve_dep_set_inheritance(self, info: 'ProjInfo'):
         """
-        Merge inherited packages for every dep-set that declares a 'uses' base.
-        The current dep-set's packages win on name collision.
-        Detects cycles and unknown base names.
+        Merge inherited packages for every dep-set that declares one or more
+        'uses' bases. Bases are merged left-to-right (a later base overrides an
+        earlier one), then the current dep-set's own packages win on name
+        collision. Detects cycles and unknown base names.
         """
         dep_set_m = info.dep_set_m
         resolved = set()
@@ -445,28 +451,31 @@ class IvpmYamlReader(object):
             if name in resolved:
                 return
             ds = dep_set_m[name]
-            if ds.uses is None:
+            if not ds.uses:
                 resolved.add(name)
                 return
             if name in visiting:
                 cycle = " -> ".join(list(visiting) + [name])
                 fatal("Cyclic dep-set inheritance detected: %s" % cycle)
-            base_name = ds.uses
-            if base_name not in dep_set_m:
-                fatal(
-                    "dep-set '%s' references unknown base dep-set '%s'"
-                    % (name, base_name))
+
             visiting.add(name)
-            resolve(base_name, visiting)
+            merged_pkgs = {}
+            merged_opts = {}
+            for base_name in ds.uses:
+                if base_name not in dep_set_m:
+                    fatal(
+                        "dep-set '%s' references unknown base dep-set '%s'"
+                        % (name, base_name))
+                resolve(base_name, visiting)
+                base_ds = dep_set_m[base_name]
+                # Accumulate bases in declared order; later bases win.
+                merged_pkgs.update(base_ds.packages)
+                merged_opts.update(base_ds.options)
             visiting.discard(name)
 
-            base_ds = dep_set_m[base_name]
-            # Start with base packages, then let current overwrite
-            merged_pkgs = base_ds.packages.copy()
+            # Finally, the current dep-set's own entries override the bases.
             merged_pkgs.update(ds.packages)
             ds.packages = merged_pkgs
-
-            merged_opts = base_ds.options.copy()
             merged_opts.update(ds.options)
             ds.options = merged_opts
 

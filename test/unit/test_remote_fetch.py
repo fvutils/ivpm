@@ -77,9 +77,18 @@ class TestFetchManifestLocal(unittest.TestCase):
         self.assertFalse(fetched.is_remote)
         self.assertEqual(fetched.local_path, self.path)
 
-    def test_directory_is_rejected(self):
+    def test_directory_resolves_to_ivpm_yaml(self):
+        # A directory is treated as a location containing ivpm.yaml.
+        fetched = fetch_manifest(self.dir)
+        self.assertFalse(fetched.is_remote)
+        self.assertEqual(fetched.local_path, self.path)
+        self.assertEqual(fetched.origin, self.path)
+
+    def test_directory_without_manifest_is_rejected(self):
+        empty = tempfile.TemporaryDirectory()
+        self.addCleanup(empty.cleanup)
         with self.assertRaises(SrcLoaderError):
-            fetch_manifest(self.dir)
+            fetch_manifest(empty.name)
 
     def test_missing_path_is_rejected(self):
         with self.assertRaises(SrcLoaderError):
@@ -101,6 +110,40 @@ class TestFetchManifestRemote(unittest.TestCase):
         self.assertFalse(os.path.isfile(tmp))
         # idempotent
         fetched.cleanup()
+
+    def test_http_bare_url_appends_ivpm_yaml(self):
+        seen = {}
+
+        def _fake(url, *a, **kw):
+            seen["url"] = url
+            resp = mock.MagicMock()
+            resp.status = 200
+            resp.read.return_value = _MANIFEST.encode()
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = False
+            return resp
+
+        with mock.patch("urllib.request.urlopen", _fake):
+            fetched = fetch_manifest("https://edapack.github.io")
+        self.assertEqual(seen["url"], "https://edapack.github.io/ivpm.yaml")
+        self.assertTrue(fetched.is_remote)
+        self.assertEqual(fetched.origin, "https://edapack.github.io/ivpm.yaml")
+
+    def test_http_trailing_slash_appends_ivpm_yaml(self):
+        seen = {}
+
+        def _fake(url, *a, **kw):
+            seen["url"] = url
+            resp = mock.MagicMock()
+            resp.status = 200
+            resp.read.return_value = _MANIFEST.encode()
+            resp.__enter__.return_value = resp
+            resp.__exit__.return_value = False
+            return resp
+
+        with mock.patch("urllib.request.urlopen", _fake):
+            fetch_manifest("https://edapack.github.io/sub/")
+        self.assertEqual(seen["url"], "https://edapack.github.io/sub/ivpm.yaml")
 
     def test_http_non_200_is_fatal(self):
         with _mock_urlopen(status=404):

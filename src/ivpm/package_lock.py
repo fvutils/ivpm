@@ -175,9 +175,11 @@ def write_lock(
     *handler_contributions* is an optional dict of extra top-level keys
     contributed by post-processing handlers (e.g. ``{"python_packages": {...}}``).
 
-    *source_manifest* is an optional ``{"from": ..., "dep_set": ...}`` record
-    written when the workspace was driven by ``ivpm update --from`` (an external
-    manifest), so the workspace can be re-resolved without a local ivpm.yaml.
+    *source_manifest* is an optional record written when the workspace was
+    driven by ``ivpm update --from`` (an external manifest), so it can be
+    re-resolved without a local ivpm.yaml. It carries ``from`` plus the
+    installed dep-set(s): ``dep_set`` for a single set, or ``dep_sets`` (a list)
+    when several were installed at once.
     """
     packages = {}
     ivpm_sources = {}

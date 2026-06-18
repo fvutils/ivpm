@@ -113,8 +113,11 @@
 					"title": "One-line summary of what this dependency set installs"
 				},
 				"uses": {
-					"type": "string",
-					"title": "Name of another dep-set in this file to use as a base. Non-overlapping packages are inherited; packages defined in this dep-set override those from the base."
+					"type": ["string", "array"],
+					"items": {
+						"type": "string"
+					},
+					"title": "Name (or list of names) of other dep-set(s) in this file to use as a base. Non-overlapping packages are inherited; later bases override earlier ones, and packages defined in this dep-set override those from the bases."
 				},
 				"default-dep-set": {
 					"type": "string",

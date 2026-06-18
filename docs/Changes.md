@@ -1,4 +1,7 @@
 
+# 2.14.0
+- Extended support for remote manifest support
+
 # 2.13.1
 - Added a new extension point for applying site configs
 

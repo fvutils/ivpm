@@ -84,6 +84,20 @@ class TestUpdateFrom(unittest.TestCase):
              "--skip-py-install", cwd=self.work)
         self.assertEqual(self._lock()["source_manifest"]["dep_set"], "gui-tools")
 
+    def test_multiple_dep_sets_repeated(self):
+        _run("update", "--from", self.catalog, "-d", "default", "-d", "gui-tools",
+             "--skip-py-install", cwd=self.work)
+        sm = self._lock()["source_manifest"]
+        # Multiple sets are recorded as a list; the singular key is omitted.
+        self.assertEqual(sm["dep_sets"], ["default", "gui-tools"])
+        self.assertNotIn("dep_set", sm)
+
+    def test_multiple_dep_sets_comma_separated(self):
+        _run("update", "--from", self.catalog, "-d", "default,gui-tools",
+             "--skip-py-install", cwd=self.work)
+        self.assertEqual(
+            self._lock()["source_manifest"]["dep_sets"], ["default", "gui-tools"])
+
     def test_unknown_dep_set_errors(self):
         _, rc, err = _run("update", "--from", self.catalog, "-d", "nope",
                           "--skip-py-install", cwd=self.work, check=False)

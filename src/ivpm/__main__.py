@@ -179,8 +179,11 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Set variable VAR to VALUE, overriding the default in vars:")
     update_cmd.add_argument("-p", "--project-dir", dest="project_dir",
         help="Specifies the project directory to use (default: cwd)")
-    update_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
-        help="Uses dependencies from specified dep-set instead of default")
+    update_cmd.add_argument("-d", "--dep-set", dest="dep_set", action="append",
+        metavar="DEP-SET",
+        help="Uses dependencies from specified dep-set instead of default. "
+             "May be repeated (or comma-separated) to install several dep-sets "
+             "at once, e.g. -d default -d gui-tools")
     update_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=None,
         help="Maximum number of parallel package fetches (default: number of CPU cores)")
     update_cmd.add_argument("--ssh", dest="ssh", action="store_true",
@@ -213,8 +216,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Reproduce workspace from a package-lock.json file (ignores ivpm.yaml)")
     update_cmd.add_argument("--from", dest="from_manifest", default=None,
         metavar="PATH-OR-URL",
-        help="Drive the update from an external manifest (path or URL) instead "
-             "of the cwd ivpm.yaml; resolved deps land in the current directory")
+        help="Drive the update from an external manifest instead of the cwd "
+             "ivpm.yaml; resolved deps land in the current directory. Accepts a "
+             "manifest file, or a directory/URL containing ivpm.yaml "
+             "(e.g. https://edapack.github.io)")
     update_cmd.add_argument("--deps-dir", dest="deps_dir_override", default=None,
         metavar="DIR",
         help="Directory to populate (overrides manifest 'deps-dir'; default: packages)")
@@ -351,7 +356,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_deps_cmd.add_argument("--from", dest="from_manifest", default=None,
         metavar="PATH-OR-URL",
         help="Browse an external manifest's catalog (descriptions + dep-sets) "
-             "without fetching dependencies")
+             "without fetching dependencies. Accepts a manifest file, or a "
+             "directory/URL containing ivpm.yaml (e.g. https://edapack.github.io)")
 
     show_config_cmd = show_subparser.add_parser("site-config",
         aliases=["config"],

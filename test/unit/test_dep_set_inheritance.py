@@ -153,6 +153,99 @@ package:
         self.assertIn("lib_a",  dev.packages)
         self.assertIn("pytest", dev.packages)
 
+    def test_multiple_bases(self):
+        """'uses' as a list composes packages from every named base."""
+        proj = _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: sim
+      deps:
+        - name: lib_sim
+          src: pypi
+    - name: gui
+      deps:
+        - name: lib_gui
+          src: pypi
+    - name: everything
+      uses: [sim, gui]
+      deps:
+        - name: lib_extra
+          src: pypi
+""")
+        everything = proj.get_dep_set("everything")
+        self.assertIn("lib_sim",   everything.packages)
+        self.assertIn("lib_gui",   everything.packages)
+        self.assertIn("lib_extra", everything.packages)
+        # Bases themselves are untouched
+        self.assertNotIn("lib_gui", proj.get_dep_set("sim").packages)
+
+    def test_multiple_bases_later_wins(self):
+        """When two bases define the same package, the later base wins."""
+        proj = _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: stable
+      deps:
+        - name: mylib
+          url: https://github.com/org/mylib.git
+          branch: stable
+    - name: edge
+      deps:
+        - name: mylib
+          url: https://github.com/org/mylib.git
+          branch: edge
+    - name: combined
+      uses: [stable, edge]
+      deps: []
+""")
+        combined = proj.get_dep_set("combined")
+        self.assertEqual(combined.packages["mylib"].branch, "edge")
+
+    def test_multiple_bases_own_deps_win(self):
+        """The dep-set's own deps override every base."""
+        proj = _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: a
+      deps:
+        - name: mylib
+          url: https://github.com/org/mylib.git
+          branch: from-a
+    - name: b
+      deps:
+        - name: mylib
+          url: https://github.com/org/mylib.git
+          branch: from-b
+    - name: c
+      uses: [a, b]
+      deps:
+        - name: mylib
+          url: https://github.com/org/mylib.git
+          branch: from-c
+""")
+        self.assertEqual(proj.get_dep_set("c").packages["mylib"].branch, "from-c")
+
+    def test_multi_base_cycle_error(self):
+        """A cycle through one of several bases is still detected."""
+        with self.assertRaises(Exception) as ctx:
+            _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: set_a
+      uses: [set_b]
+      deps: []
+    - name: set_b
+      uses: [other, set_a]
+      deps: []
+    - name: other
+      deps: []
+""")
+        self.assertIn("Cyclic", str(ctx.exception))
+
     def test_unknown_base_error(self):
         """Referencing a non-existent base dep-set raises a clear exception."""
         with self.assertRaises(Exception) as ctx:

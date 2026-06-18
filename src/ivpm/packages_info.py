@@ -32,9 +32,10 @@ class PackagesInfo():
         self.name = name
         # Optional one-line summary from the dep-set's 'description'
         self.description : Optional[str] = None
-        # Name of a dep-set in the same file to inherit packages from.
-        # Populated during parsing; resolved (merged) before use.
-        self.uses : Optional[str] = None
+        # Names of dep-set(s) in the same file to inherit packages from.
+        # Populated during parsing (always a list, even for a single base);
+        # resolved (merged) before use.
+        self.uses : Optional[List[str]] = None
         self.packages : Dict[str,Package] = {}
         
         # Map of package name to set of packages

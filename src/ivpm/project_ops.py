@@ -42,7 +42,7 @@ class ProjectOps(object):
     debug : bool = False
 
     def update(self,
-               dep_set : str = None,
+               dep_set=None,   # str | List[str] | None — one or more dep-sets
                force_py_install : bool = False,
                skip_venv : bool = False,
                args = None,
@@ -77,7 +77,7 @@ class ProjectOps(object):
             tui.start()
 
         try:
-            proj_info, deps_dir, dep_set, source_manifest = self._init(
+            proj_info, deps_dir, dep_sets, source_manifest = self._init(
                 dep_set, cli_overrides=cli_overrides,
                 from_manifest=from_manifest,
                 deps_dir_override=deps_dir_override)
@@ -97,7 +97,7 @@ class ProjectOps(object):
                 lock_reader = IvpmLockReader(lock_file)
                 ds = lock_reader.build_packages_info()
             else:
-                dep_set, ds = self._getDepSet(proj_info, dep_set)
+                dep_sets, ds = self._getDepSets(proj_info, dep_sets)
 
                 # Change detection: compare current specs against existing lock
                 if not refresh_all and not force:
@@ -183,16 +183,24 @@ class ProjectOps(object):
             updater.update_info.update_complete()
 
             # Write package-lock.json with resolved package versions. When the
-            # workspace was driven by --from, record where it came from so the
-            # workspace is self-describing without a local ivpm.yaml.
+            # workspace was driven by --from, record where it came from (and
+            # which dep-set(s) were installed) so the workspace is
+            # self-describing without a local ivpm.yaml.
             if source_manifest is not None:
-                source_manifest["dep_set"] = dep_set
+                if dep_sets is not None and len(dep_sets) > 1:
+                    source_manifest["dep_sets"] = list(dep_sets)
+                elif dep_sets:
+                    source_manifest["dep_set"] = dep_sets[0]
             handler_contributions = pkg_handler.get_lock_entries(deps_dir)
             write_lock(deps_dir, updater.all_pkgs, handler_contributions,
                        source_manifest=source_manifest)
 
-            # Write ivpm.json with dep-set and handler state
-            ivpm_json = {"dep-set": dep_set}
+            # Write ivpm.json with dep-set(s) and handler state. "dep-set"
+            # always names the primary set (back-compat); "dep-sets" records the
+            # full list when more than one was installed.
+            ivpm_json = {"dep-set": dep_sets[0] if dep_sets else None}
+            if dep_sets is not None and len(dep_sets) > 1:
+                ivpm_json["dep-sets"] = list(dep_sets)
             if proj_info.resolved_vars:
                 ivpm_json["vars"] = proj_info.resolved_vars
             state_contributions = pkg_handler.get_state_entries()
@@ -206,8 +214,9 @@ class ProjectOps(object):
                 tui.stop()
 
     def build(self, dep_set : str = None, args = None, debug : bool = False):
-        proj_info, deps_dir, dep_set, _ = self._init(dep_set)
+        proj_info, deps_dir, dep_sets, _ = self._init(dep_set)
 
+        dep_set = dep_sets[0] if dep_sets else None
         dep_set, ds = self._getDepSet(proj_info, dep_set)
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
@@ -474,10 +483,19 @@ class ProjectOps(object):
         update_info.deps_source_mode = mode
         update_info.deps_source_auto = auto
 
-    def _init(self, dep_set : str = None, cli_overrides=None,
+    def _init(self, dep_set=None, cli_overrides=None,
               from_manifest : str = None,
-              deps_dir_override : str = None) -> Tuple['ProjInfo', str, str, 'dict']:
+              deps_dir_override : str = None) -> Tuple['ProjInfo', str, List[str], 'dict']:
         from .proj_info import ProjInfo
+
+        # Normalize the requested dep-set(s) to a list (or None for "default").
+        # Callers may pass a single name (build), a list (update), or None.
+        if dep_set is None:
+            req_dep_sets = None
+        elif isinstance(dep_set, str):
+            req_dep_sets = [dep_set]
+        else:
+            req_dep_sets = list(dep_set)
 
         # The directory used to look up persisted state precedes knowing the
         # manifest's own deps-dir; honor an explicit --deps-dir, else "packages".
@@ -542,13 +560,21 @@ class ProjectOps(object):
                 except Exception as e:
                     warning("failed to read ivpm.json: %s" % str(e))
 
-        if "dep-set" in ivpm_json.keys():
-            if dep_set is None:
-                dep_set = ivpm_json["dep-set"]
-            elif dep_set != ivpm_json["dep-set"]:
+        # Recover the dep-set(s) recorded by a previous run. "dep-sets" (list)
+        # takes precedence over the legacy single "dep-set" key.
+        persisted_dep_sets = None
+        if "dep-sets" in ivpm_json.keys():
+            persisted_dep_sets = list(ivpm_json["dep-sets"])
+        elif ivpm_json.get("dep-set") is not None:
+            persisted_dep_sets = [ivpm_json["dep-set"]]
+
+        if persisted_dep_sets is not None:
+            if req_dep_sets is None:
+                req_dep_sets = persisted_dep_sets
+            elif set(req_dep_sets) != set(persisted_dep_sets):
                 fatal("Attempting to update with a different dep-set than previously used")
 
-        return (proj_info, deps_dir, dep_set, source_manifest)
+        return (proj_info, deps_dir, req_dep_sets, source_manifest)
     
     def _getDepSet(self, proj_info, dep_set):
         if dep_set is None:
@@ -564,5 +590,34 @@ class ProjectOps(object):
             raise Exception("Dep-set %s is not present" % dep_set)
         else:
             ds = proj_info.dep_set_m[dep_set]
-        
+
         return dep_set, ds
+
+    def _getDepSets(self, proj_info, dep_sets):
+        """Resolve one or more requested dep-sets into a single PackagesInfo.
+
+        Returns ``(names, ds)`` where *names* is the ordered list of resolved
+        dep-set names and *ds* is the dep-set to install. With a single
+        selection (or the default) the manifest's own PackagesInfo is returned
+        unchanged; with several, their packages are merged into one.
+        """
+        from .packages_info import PackagesInfo
+
+        if not dep_sets:
+            name, ds = self._getDepSet(proj_info, None)
+            return [name], ds
+
+        if len(dep_sets) == 1:
+            name, ds = self._getDepSet(proj_info, dep_sets[0])
+            return [name], ds
+
+        merged = PackagesInfo("+".join(dep_sets))
+        for name in dep_sets:
+            _, ds = self._getDepSet(proj_info, name)
+            # Later dep-sets win on name collisions; a shared package pulled by
+            # more than one set is installed once.
+            merged.packages.update(ds.packages)
+            merged.setup_deps.update(ds.setup_deps)
+            merged.options.update(ds.options)
+
+        return list(dep_sets), merged

@@ -24,9 +24,17 @@ class CmdUpdate(object):
             _logger.info("project_dir not specified; using working directory")
             args.project_dir = os.getcwd()
 
+        # --dep-set is repeatable (action="append") and each value may itself
+        # be a comma-separated list, so flatten into an ordered, de-duplicated
+        # list of dep-set names. None means "use the catalog/manifest default".
         ds_name = None
-        if hasattr(args, "dep_set") and args.dep_set is not None:
-            ds_name = args.dep_set
+        if getattr(args, "dep_set", None):
+            ds_name = []
+            for val in args.dep_set:
+                for name in val.split(","):
+                    name = name.strip()
+                    if name and name not in ds_name:
+                        ds_name.append(name)
 
         cli_overrides = parse_definitions(getattr(args, 'definitions', []))
 

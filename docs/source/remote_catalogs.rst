@@ -90,6 +90,32 @@ used):
     # Place the resolved workspace under ./vendor instead
     $ ivpm update --from ./acme/ivpm.yaml --deps-dir vendor
 
+Several dep-sets can be installed at once — repeat ``-d`` or give a
+comma-separated list. Their packages are merged into the one workspace (a
+package pulled by more than one set is installed once):
+
+.. code-block:: bash
+
+    $ ivpm update --from ./acme/ivpm.yaml -d default -d gui-tools
+    $ ivpm update --from ./acme/ivpm.yaml -d default,gui-tools
+
+When more than one set is installed, the ``source_manifest`` block records them
+under a ``dep_sets`` list (rather than the singular ``dep_set``).
+
+``--from`` may name the manifest file directly (``.../ivpm.yaml``) or just the
+directory or host that contains it, in which case ``ivpm.yaml`` is looked for
+within that location:
+
+.. code-block:: bash
+
+    # Equivalent to --from https://edapack.github.io/ivpm.yaml
+    $ ivpm update --from https://edapack.github.io
+
+    # Equivalent to --from ./acme/ivpm.yaml
+    $ ivpm update --from ./acme
+
+This works as long as ``<location>/ivpm.yaml`` exists.
+
 The external manifest is **not** copied into your workspace. Instead, the
 resolved ``package-lock.json`` records a ``source_manifest`` block naming the
 ``--from`` source and the installed dep-set, so the workspace is self-describing

@@ -89,6 +89,9 @@ across multiple sets.
 - If the same package name appears in both, the **child's definition wins**.
 - Inheritance is resolved at parse time, so there is no runtime overhead.
 - Chains of any depth are supported (``a`` uses ``b`` uses ``c`` …).
+- A dep-set may name **several bases** (``uses: [a, b]``); they are merged
+  left-to-right, so a later base overrides an earlier one and the child's own
+  deps override them all.
 - Cycles are detected and raise an error.
 - Definition order does not matter; the base may be defined after the child.
 
@@ -160,6 +163,31 @@ and ``test-framework``.  Running ``ivpm update -d default`` installs only
           - name: coverage
             src: pypi
           # inherits core-lib (from base via dev) and pytest (from dev)
+
+**Composing several dep-sets** — a dep-set can pull from more than one base by
+giving ``uses`` a list.  This is the manifest-level counterpart to installing
+several sets at once on the command line (``ivpm update -d sim -d gui``):
+
+.. code-block:: yaml
+
+    dep-sets:
+      - name: sim
+        deps:
+          - name: simulator
+            src: pypi
+
+      - name: gui
+        deps:
+          - name: waveform-viewer
+            src: pypi
+
+      - name: everything
+        uses: [sim, gui]   # merges both sets
+        deps: []
+
+Running ``ivpm update -d everything`` installs ``simulator`` and
+``waveform-viewer``.  A package shared by ``sim`` and ``gui`` is installed once;
+if their definitions differ, the later base in the list (``gui``) wins.
 
 Including Dep-Sets From Other Files
 -----------------------------------
