@@ -32,6 +32,9 @@ class PackagesInfo():
         self.name = name
         # Optional one-line summary from the dep-set's 'description'
         self.description : Optional[str] = None
+        # Optional explicit classification ("package" | "collection") from the
+        # dep-set's 'kind'. None -> inferred from dep count / name / 'uses'.
+        self.kind : Optional[str] = None
         # Names of dep-set(s) in the same file to inherit packages from.
         # Populated during parsing (always a list, even for a single base);
         # resolved (merged) before use.

@@ -114,5 +114,79 @@ class TestShowDepsFrom(unittest.TestCase):
         self.assertEqual(os.listdir(self.work), [])
 
 
+_CATALOG_HIER = textwrap.dedent("""
+    package:
+      name: edapack
+      description: Catalog
+      dep-sets:
+        - name: verilator
+          description: Verilator simulator
+          deps:
+            - name: verilator
+              src: pypi
+        - name: yosys
+          description: Yosys synthesis
+          deps:
+            - name: yosys
+              src: pypi
+        - name: flow.asic
+          description: ASIC flow
+          deps:
+            - name: yosys
+              src: pypi
+            - name: openroad
+              src: pypi
+        - name: sim.rtl
+          description: RTL sim via references
+          uses: [verilator, yosys]
+""")
+
+
+class TestShowDepsFromHierarchy(unittest.TestCase):
+
+    def setUp(self):
+        self._cat = tempfile.TemporaryDirectory()
+        self.catalog = os.path.join(self._cat.name, "catalog.yaml")
+        with open(self.catalog, "w") as f:
+            f.write(_CATALOG_HIER)
+        self._work = tempfile.TemporaryDirectory()
+        self.work = self._work.name
+
+    def tearDown(self):
+        self._cat.cleanup()
+        self._work.cleanup()
+
+    def test_classification_and_grouping_json(self):
+        out, rc, _ = _run("show", "deps", "--from", self.catalog, "--json",
+                          cwd=self.work)
+        self.assertEqual(rc, 0)
+        sets = {d["name"]: d for d in json.loads(out)["dep_sets"]}
+
+        # Single-package, undotted -> package
+        self.assertEqual(sets["verilator"]["kind"], "package")
+        self.assertEqual(sets["verilator"]["category_path"], [])
+
+        # Dotted / multi-package -> collection, with namespace + leaf list
+        self.assertEqual(sets["flow.asic"]["kind"], "collection")
+        self.assertEqual(sets["flow.asic"]["category_path"], ["flow"])
+        self.assertEqual(sets["flow.asic"]["contains"], ["openroad", "yosys"])
+
+        # 'uses'-only collection: leaves come from the referenced dep-sets
+        self.assertEqual(sets["sim.rtl"]["kind"], "collection")
+        self.assertEqual(sets["sim.rtl"]["uses"], ["verilator", "yosys"])
+        self.assertEqual(sets["sim.rtl"]["contains"], ["verilator", "yosys"])
+
+    def test_text_groups_packages_and_collections(self):
+        out, rc, _ = _run("show", "deps", "--from", self.catalog, "--no-rich",
+                          cwd=self.work)
+        self.assertEqual(rc, 0)
+        self.assertIn("Packages", out)
+        self.assertIn("Collections", out)
+        # Packages section precedes Collections section
+        self.assertLess(out.index("Packages"), out.index("Collections"))
+        # Collection leaves are surfaced
+        self.assertIn("openroad, yosys", out)
+
+
 if __name__ == "__main__":
     unittest.main()

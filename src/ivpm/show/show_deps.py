@@ -38,6 +38,9 @@ class CatalogDepSet:
     name: str
     description: Optional[str]
     is_default: bool = False
+    kind: str = "collection"                # "package" | "collection"
+    contains: List[str] = field(default_factory=list)  # leaf package names
+    uses: List[str] = field(default_factory=list)       # referenced base dep-sets
 
 
 @dataclass
@@ -50,6 +53,66 @@ class ManifestCatalog:
     origin: str
 
 
+def _classify_kind(ds_name: str, info) -> str:
+    """Classify a dep-set as a 'package' (single installable tool) or a
+    'collection' (curated multi-tool bundle).
+
+    An explicit 'kind:' on the dep-set wins. Otherwise we infer: a dep-set
+    that pulls from other dep-sets ('uses'), uses a dotted/namespaced name, or
+    bundles more than one package is a collection; everything else (the common
+    single-tool dep-set) is a package.
+    """
+    explicit = getattr(info, "kind", None)
+    if explicit in ("package", "collection"):
+        return explicit
+    if getattr(info, "uses", None):
+        return "collection"
+    if "." in ds_name:
+        return "collection"
+    if len(info.packages) <= 1:
+        return "package"
+    return "collection"
+
+
+def _category_path(name: str) -> List[str]:
+    """Namespace segments preceding the leaf label (e.g. flow.fpga.ice40 -> [flow, fpga])."""
+    segs = name.split(".")
+    return segs[:-1]
+
+
+def _sub_label(name: str) -> str:
+    """Display label within a collection's top-level category group.
+
+    flow.asic -> 'asic', flow.fpga.ice40 -> 'fpga.ice40', undotted -> the name.
+    """
+    segs = name.split(".")
+    return ".".join(segs[1:]) if len(segs) > 1 else name
+
+
+def _partition(cat: ManifestCatalog):
+    """Split the catalog into (packages, collections), each sorted by name."""
+    packages = sorted((d for d in cat.dep_sets if d.kind == "package"),
+                      key=lambda d: d.name)
+    collections = sorted((d for d in cat.dep_sets if d.kind != "package"),
+                         key=lambda d: d.name)
+    return packages, collections
+
+
+def _group_collections(collections: List[CatalogDepSet]):
+    """Group collections by top-level category. Returns ordered
+    [(category_or_None, [dep_sets]), …]; undotted names land under None."""
+    groups: dict = {}
+    order: List = []
+    for ds in collections:
+        segs = ds.name.split(".")
+        top = segs[0] if len(segs) > 1 else None
+        if top not in groups:
+            groups[top] = []
+            order.append(top)
+        groups[top].append(ds)
+    return [(t, groups[t]) for t in order]
+
+
 def _build_catalog(proj_info, origin: str) -> ManifestCatalog:
     """Build a ManifestCatalog from a parsed ProjInfo (the --from manifest)."""
     # Resolve the default dep-set the way _getDepSet does: explicit
@@ -59,14 +122,19 @@ def _build_catalog(proj_info, origin: str) -> ManifestCatalog:
     if default is None and names:
         default = names[0]
 
-    dep_sets = [
-        CatalogDepSet(
+    dep_sets = []
+    for ds_name in names:
+        info = proj_info.dep_set_m[ds_name]
+        dep_sets.append(CatalogDepSet(
             name=ds_name,
-            description=getattr(proj_info.dep_set_m[ds_name], "description", None),
+            description=getattr(info, "description", None),
             is_default=(ds_name == default),
-        )
-        for ds_name in names
-    ]
+            kind=_classify_kind(ds_name, info),
+            # 'uses' bases are merged into .packages during parsing, so this
+            # captures the full leaf set whether declared inline or referenced.
+            contains=sorted(info.packages.keys()),
+            uses=list(info.uses) if getattr(info, "uses", None) else [],
+        ))
     return ManifestCatalog(
         name=proj_info.name,
         version=proj_info.version,
@@ -84,7 +152,15 @@ def _catalog_json(cat: ManifestCatalog) -> str:
         "description": cat.description,
         "default_dep_set": cat.default_dep_set,
         "dep_sets": [
-            {"name": d.name, "description": d.description, "default": d.is_default}
+            {
+                "name": d.name,
+                "description": d.description,
+                "default": d.is_default,
+                "kind": d.kind,
+                "category_path": _category_path(d.name) if d.kind != "package" else [],
+                "contains": d.contains,
+                "uses": d.uses,
+            }
             for d in cat.dep_sets
         ],
     }, indent=2)
@@ -96,13 +172,34 @@ def _catalog_plain(cat: ManifestCatalog) -> None:
     if cat.description:
         print(f"  {cat.description}")
     print()
-    print("Dependency sets:")
-    width = max((len(d.name) for d in cat.dep_sets), default=0)
-    for d in cat.dep_sets:
-        marker = " (default)" if d.is_default else ""
-        desc = f"  {d.description}" if d.description else ""
-        print(f"  {d.name:<{width}}{desc}{marker}")
-    print()
+
+    packages, collections = _partition(cat)
+
+    if packages:
+        print("Packages  (install one: ivpm update --from <manifest> -d <name>)")
+        width = max(len(d.name) for d in packages)
+        for d in packages:
+            marker = " (default)" if d.is_default else ""
+            desc = f"  {d.description}" if d.description else ""
+            print(f"  {d.name:<{width}}{desc}{marker}")
+        print()
+
+    if collections:
+        print("Collections  (curated bundles)")
+        grouped = _group_collections(collections)
+        lwidth = max((len(_sub_label(d.name))
+                      for _, members in grouped for d in members), default=0)
+        for top, members in grouped:
+            indent = "    " if top is not None else "  "
+            if top is not None:
+                print(f"  {top}")
+            for d in members:
+                marker = " (default)" if d.is_default else ""
+                desc = f"  {d.description}" if d.description else ""
+                contains = f"  -> {', '.join(d.contains)}" if d.contains else ""
+                print(f"{indent}{_sub_label(d.name):<{lwidth}}{desc}{contains}{marker}")
+        print()
+
     print(f"Install with:  ivpm update --from {cat.origin} -d <dep-set>")
 
 
@@ -118,17 +215,46 @@ def _catalog_rich(cat: ManifestCatalog) -> None:
     if cat.description:
         console.print(Text(f"  {cat.description}", style="italic"))
     console.print()
-    console.print(Text("Dependency sets:", style="bold"))
-    width = max((len(d.name) for d in cat.dep_sets), default=0)
-    for d in cat.dep_sets:
-        line = Text("  ")
-        line.append(f"{d.name:<{width}}", style="cyan")
-        if d.description:
-            line.append(f"  {d.description}", style=None)
-        if d.is_default:
-            line.append("  (default)", style="dim")
-        console.print(line)
-    console.print()
+
+    packages, collections = _partition(cat)
+
+    if packages:
+        console.print(Text("Packages", style="bold underline"), end="")
+        console.print(Text("  (install one: ivpm update --from <manifest> -d <name>)",
+                           style="dim"))
+        width = max(len(d.name) for d in packages)
+        for d in packages:
+            line = Text("  ")
+            line.append(f"{d.name:<{width}}", style="cyan")
+            if d.description:
+                line.append(f"  {d.description}")
+            if d.is_default:
+                line.append("  (default)", style="dim")
+            console.print(line)
+        console.print()
+
+    if collections:
+        console.print(Text("Collections", style="bold underline"), end="")
+        console.print(Text("  (curated bundles)", style="dim"))
+        grouped = _group_collections(collections)
+        lwidth = max((len(_sub_label(d.name))
+                      for _, members in grouped for d in members), default=0)
+        for top, members in grouped:
+            indent = "    " if top is not None else "  "
+            if top is not None:
+                console.print(Text(f"  {top}", style="magenta"))
+            for d in members:
+                line = Text(indent)
+                line.append(f"{_sub_label(d.name):<{lwidth}}", style="cyan")
+                if d.description:
+                    line.append(f"  {d.description}")
+                if d.contains:
+                    line.append(f"  → {', '.join(d.contains)}", style="green")
+                if d.is_default:
+                    line.append("  (default)", style="dim")
+                console.print(line)
+        console.print()
+
     console.print(Text(
         f"Install with:  ivpm update --from {cat.origin} -d <dep-set>",
         style="dim"))

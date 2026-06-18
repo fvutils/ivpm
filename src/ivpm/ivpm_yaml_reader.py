@@ -403,8 +403,8 @@ class IvpmYamlReader(object):
                 fatal("Dependency set is not a dict", ds_ent)
             if "name" not in ds_ent.keys():
                 fatal("No name associated with dependency set", ds_ent)
-            if "deps" not in ds_ent.keys():
-                fatal("No 'deps' entry in dependency set", ds_ent)
+            if "deps" not in ds_ent.keys() and "uses" not in ds_ent.keys():
+                fatal("Dependency set must have a 'deps' or 'uses' entry", ds_ent)
 
             ds_name = ds_ent["name"]
             if str(ds_name) in seen_ds:
@@ -417,6 +417,11 @@ class IvpmYamlReader(object):
             if "description" in ds_ent.keys():
                 ds.description = ds_ent["description"]
 
+            if "kind" in ds_ent.keys():
+                # Optional explicit classification ("package" | "collection").
+                # Absent -> inferred downstream from dep count / name / 'uses'.
+                ds.kind = str(ds_ent["kind"])
+
             if "uses" in ds_ent.keys():
                 # 'uses' may name a single base dep-set or a list of them.
                 uses = ds_ent["uses"]
@@ -428,11 +433,13 @@ class IvpmYamlReader(object):
             if "default-dep-set" in ds_ent.keys():
                 default_dep_set = ds_ent["default-dep-set"]
 
-            deps = ds_ent["deps"]
-            
+            # 'deps' is optional for 'uses'-only (compound) dep-sets, which
+            # inherit all their packages from one or more base dep-sets.
+            deps = ds_ent.get("deps", [])
+
             if not isinstance(deps, list):
                 fatal("deps is not a list", deps)
-            self.read_deps(ds, ds_ent["deps"], default_dep_set)
+            self.read_deps(ds, deps, default_dep_set)
             info.set_dep_set(ds.name, ds)
 
         self._resolve_dep_set_inheritance(info)

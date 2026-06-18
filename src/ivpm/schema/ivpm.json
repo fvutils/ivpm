@@ -112,6 +112,11 @@
 					"type": "string",
 					"title": "One-line summary of what this dependency set installs"
 				},
+				"kind": {
+					"type": "string",
+					"enum": ["package", "collection"],
+					"title": "Optional classification for catalog views ('ivpm show deps --from'). 'package' is a single installable tool; 'collection' is a curated multi-tool bundle. Inferred from dep count / dotted name / 'uses' when omitted."
+				},
 				"uses": {
 					"type": ["string", "array"],
 					"items": {
