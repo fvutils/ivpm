@@ -183,6 +183,26 @@ $<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </sp
 $<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--from<span class="w"> </span>./acme/ivpm.yaml<span class="w"> </span>--deps-dir<span class="w"> </span>vendor
 </pre></div>
 </div>
+<p>Several dep-sets can be installed at once — repeat <code class="docutils literal notranslate"><span class="pre">-d</span></code> or give a
+comma-separated list. Their packages are merged into the one workspace (a
+package pulled by more than one set is installed once):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--from<span class="w"> </span>./acme/ivpm.yaml<span class="w"> </span>-d<span class="w"> </span>default<span class="w"> </span>-d<span class="w"> </span>gui-tools
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--from<span class="w"> </span>./acme/ivpm.yaml<span class="w"> </span>-d<span class="w"> </span>default,gui-tools
+</pre></div>
+</div>
+<p>When more than one set is installed, the <code class="docutils literal notranslate"><span class="pre">source_manifest</span></code> block records them
+under a <code class="docutils literal notranslate"><span class="pre">dep_sets</span></code> list (rather than the singular <code class="docutils literal notranslate"><span class="pre">dep_set</span></code>).</p>
+<p><code class="docutils literal notranslate"><span class="pre">--from</span></code> may name the manifest file directly (<code class="docutils literal notranslate"><span class="pre">.../ivpm.yaml</span></code>) or just the
+directory or host that contains it, in which case <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> is looked for
+within that location:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Equivalent to --from https://edapack.github.io/ivpm.yaml</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--from<span class="w"> </span>https://edapack.github.io
+
+<span class="c1"># Equivalent to --from ./acme/ivpm.yaml</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </span>--from<span class="w"> </span>./acme
+</pre></div>
+</div>
+<p>This works as long as <code class="docutils literal notranslate"><span class="pre">&lt;location&gt;/ivpm.yaml</span></code> exists.</p>
 <p>The external manifest is <strong>not</strong> copied into your workspace. Instead, the
 resolved <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code> records a <code class="docutils literal notranslate"><span class="pre">source_manifest</span></code> block naming the
 <code class="docutils literal notranslate"><span class="pre">--from</span></code> source and the installed dep-set, so the workspace is self-describing

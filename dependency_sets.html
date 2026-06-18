@@ -206,6 +206,9 @@ across multiple sets.</p>
 <li><p>If the same package name appears in both, the <strong>child’s definition wins</strong>.</p></li>
 <li><p>Inheritance is resolved at parse time, so there is no runtime overhead.</p></li>
 <li><p>Chains of any depth are supported (<code class="docutils literal notranslate"><span class="pre">a</span></code> uses <code class="docutils literal notranslate"><span class="pre">b</span></code> uses <code class="docutils literal notranslate"><span class="pre">c</span></code> …).</p></li>
+<li><p>A dep-set may name <strong>several bases</strong> (<code class="docutils literal notranslate"><span class="pre">uses:</span> <span class="pre">[a,</span> <span class="pre">b]</span></code>); they are merged
+left-to-right, so a later base overrides an earlier one and the child’s own
+deps override them all.</p></li>
 <li><p>Cycles are detected and raise an error.</p></li>
 <li><p>Definition order does not matter; the base may be defined after the child.</p></li>
 </ul>
@@ -271,6 +274,28 @@ and <code class="docutils literal notranslate"><span class="pre">test-framework<
 <span class="w">      </span><span class="c1"># inherits core-lib (from base via dev) and pytest (from dev)</span>
 </pre></div>
 </div>
+<p><strong>Composing several dep-sets</strong> — a dep-set can pull from more than one base by
+giving <code class="docutils literal notranslate"><span class="pre">uses</span></code> a list.  This is the manifest-level counterpart to installing
+several sets at once on the command line (<code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">sim</span> <span class="pre">-d</span> <span class="pre">gui</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sim</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">simulator</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gui</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">waveform-viewer</span>
+<span class="w">        </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pypi</span>
+
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">everything</span>
+<span class="w">    </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">sim</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">gui</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># merges both sets</span>
+<span class="w">    </span><span class="nt">deps</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+</pre></div>
+</div>
+<p>Running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">-d</span> <span class="pre">everything</span></code> installs <code class="docutils literal notranslate"><span class="pre">simulator</span></code> and
+<code class="docutils literal notranslate"><span class="pre">waveform-viewer</span></code>.  A package shared by <code class="docutils literal notranslate"><span class="pre">sim</span></code> and <code class="docutils literal notranslate"><span class="pre">gui</span></code> is installed once;
+if their definitions differ, the later base in the list (<code class="docutils literal notranslate"><span class="pre">gui</span></code>) wins.</p>
 </section>
 <section id="including-dep-sets-from-other-files">
 <h3>Including Dep-Sets From Other Files<a class="headerlink" href="#including-dep-sets-from-other-files" title="Link to this heading"></a></h3>
