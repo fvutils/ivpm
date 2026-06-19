@@ -680,10 +680,10 @@ that need no install step.</p>
 <section id="ivpm-yaml-dep-set-factory">
 <span id="ivpm-yaml-factory"></span><h3>ivpm.yaml (Dep-Set Factory)<a class="headerlink" href="#ivpm-yaml-dep-set-factory" title="Link to this heading"></a></h3>
 <p>A <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">ivpm.yaml</span></code> dependency is a <strong>dep-set factory</strong>: it reads a referenced
-<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, selects one of <em>its</em> dep-sets, and folds those packages into the
-consuming dep-set.  Unlike every other source, a factory installs <strong>no content
-of its own</strong> — it has no packages-dir representation.  It is purely a source of
-dependency definitions.</p>
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>, selects one (or more) of <em>its</em> dep-sets, and folds those packages
+into the consuming dep-set.  Unlike every other source, a factory installs <strong>no
+content of its own</strong> — it has no packages-dir representation.  It is purely a
+source of dependency definitions.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-pkg</span>
 <span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
@@ -704,9 +704,26 @@ dependency’s <code class="docutils literal notranslate"><span class="pre">name
 <li><p><code class="docutils literal notranslate"><span class="pre">url</span></code> <em>(required)</em> — <code class="docutils literal notranslate"><span class="pre">http(s)</span></code> URL or a local path (<code class="docutils literal notranslate"><span class="pre">file://</span></code> or
 relative) of the factory <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>.  Relative paths resolve against the
 file that declares the dependency.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">dep-set</span></code> <em>(optional)</em> — the dep-set to pull from the factory.  Defaults to
-the <strong>consuming dep-set’s name</strong>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dep-set</span></code> <em>(optional)</em> — the dep-set to pull from the factory, <strong>or a list
+of dep-set names to merge</strong> (see below).  Defaults to the <strong>consuming
+dep-set’s name</strong>.</p></li>
 </ul>
+<p><strong>Merging multiple dep-sets.</strong> <code class="docutils literal notranslate"><span class="pre">dep-set</span></code> may name a list instead of a single
+dep-set.  All listed dep-sets are folded into the consumer as one union:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">tools</span>
+<span class="w">  </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm.yaml</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://example.com/tools.yaml</span>
+<span class="w">  </span><span class="nt">dep-set</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">core</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">extras</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">dev</span><span class="p p-Indicator">]</span><span class="w">          </span><span class="c1"># merge three dep-sets</span>
+</pre></div>
+</div>
+<p>Every named dep-set must exist in the referenced file, or the resolve is
+<strong>fatal</strong>.  Merging is <strong>left-to-right</strong>: on a package-name collision, a
+later-listed dep-set overrides an earlier one (matching the <code class="docutils literal notranslate"><span class="pre">uses:</span></code>
+inheritance semantics — see <a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a>).  Each contributed leaf
+still records the <em>specific</em> dep-set it came from in its <code class="docutils literal notranslate"><span class="pre">from_ivpm_source</span></code>
+provenance (<code class="docutils literal notranslate"><span class="pre">&quot;&lt;url&gt;#&lt;dep-set&gt;&quot;</span></code>), so a merged install remains fully
+traceable.  In <a class="reference internal" href="package_lock.html"><span class="doc">Package Lock File</span></a>, the <code class="docutils literal notranslate"><span class="pre">ivpm_sources</span></code> entry records the
+authored list verbatim (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;dep_set&quot;:</span> <span class="pre">[&quot;core&quot;,</span> <span class="pre">&quot;extras&quot;,</span> <span class="pre">&quot;dev&quot;]</span></code>).</p>
 <p><strong>No packages-dir representation.</strong> The factory is a <em>virtual</em> node: nothing is
 checked out under <code class="docutils literal notranslate"><span class="pre">packages/</span></code> for it, and it does not appear in <code class="docutils literal notranslate"><span class="pre">ivpm</span>
 <span class="pre">status</span></code> or <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">sync</span></code> (it has no working tree to act on).  What <em>is</em> tracked
@@ -976,8 +993,8 @@ one package definition, while <code class="docutils literal notranslate"><span c
 <td><p>“skip” to skip sub-dependencies</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dep-set</span></code></p></td>
-<td><p>string</p></td>
-<td><p>Sub-package dependency set</p></td>
+<td><p>string or list</p></td>
+<td><p>Sub-package dependency set (a list merges several; <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">ivpm.yaml</span></code> only)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">link</span></code></p></td>
 <td><p>boolean</p></td>

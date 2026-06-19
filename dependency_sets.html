@@ -311,8 +311,8 @@ into another.  It operates after includes are merged, so a dep-set may
 <code class="docutils literal notranslate"><span class="pre">uses:</span></code> a base contributed by an included file.</p></li>
 </ul>
 <p>There is also a third, network-facing mechanism: a <code class="docutils literal notranslate"><span class="pre">src:</span> <span class="pre">ivpm.yaml</span></code>
-dependency (a <em>dep-set factory</em>) pulls a named dep-set out of a <strong>remote</strong>
-<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> and folds it into the consuming dep-set.  In short:</p>
+dependency (a <em>dep-set factory</em>) pulls one or more named dep-sets out of a
+<strong>remote</strong> <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> and folds them into the consuming dep-set.  In short:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">uses:</span></code> – inheritance <strong>within a file</strong>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">include:</span></code> – composition <strong>across local files</strong> (see <a class="reference internal" href="multi_file.html"><span class="doc">Splitting ivpm.yaml Across Files</span></a>).</p></li>

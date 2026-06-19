@@ -204,8 +204,8 @@ see :doc:`multi_file`.  The two mechanisms are complementary:
   ``uses:`` a base contributed by an included file.
 
 There is also a third, network-facing mechanism: a ``src: ivpm.yaml``
-dependency (a *dep-set factory*) pulls a named dep-set out of a **remote**
-``ivpm.yaml`` and folds it into the consuming dep-set.  In short:
+dependency (a *dep-set factory*) pulls one or more named dep-sets out of a
+**remote** ``ivpm.yaml`` and folds them into the consuming dep-set.  In short:
 
 - ``uses:`` -- inheritance **within a file**.
 - ``include:`` -- composition **across local files** (see :doc:`multi_file`).

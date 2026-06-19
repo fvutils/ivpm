@@ -629,10 +629,10 @@ ivpm.yaml (Dep-Set Factory)
 ---------------------------
 
 A ``src: ivpm.yaml`` dependency is a **dep-set factory**: it reads a referenced
-``ivpm.yaml``, selects one of *its* dep-sets, and folds those packages into the
-consuming dep-set.  Unlike every other source, a factory installs **no content
-of its own** — it has no packages-dir representation.  It is purely a source of
-dependency definitions.
+``ivpm.yaml``, selects one (or more) of *its* dep-sets, and folds those packages
+into the consuming dep-set.  Unlike every other source, a factory installs **no
+content of its own** — it has no packages-dir representation.  It is purely a
+source of dependency definitions.
 
 .. code-block:: yaml
 
@@ -656,8 +656,28 @@ dependency's ``name``.
 - ``url`` *(required)* — ``http(s)`` URL or a local path (``file://`` or
   relative) of the factory ``ivpm.yaml``.  Relative paths resolve against the
   file that declares the dependency.
-- ``dep-set`` *(optional)* — the dep-set to pull from the factory.  Defaults to
-  the **consuming dep-set's name**.
+- ``dep-set`` *(optional)* — the dep-set to pull from the factory, **or a list
+  of dep-set names to merge** (see below).  Defaults to the **consuming
+  dep-set's name**.
+
+**Merging multiple dep-sets.** ``dep-set`` may name a list instead of a single
+dep-set.  All listed dep-sets are folded into the consumer as one union:
+
+.. code-block:: yaml
+
+    - name: tools
+      src: ivpm.yaml
+      url: https://example.com/tools.yaml
+      dep-set: [core, extras, dev]          # merge three dep-sets
+
+Every named dep-set must exist in the referenced file, or the resolve is
+**fatal**.  Merging is **left-to-right**: on a package-name collision, a
+later-listed dep-set overrides an earlier one (matching the ``uses:``
+inheritance semantics — see :doc:`dependency_sets`).  Each contributed leaf
+still records the *specific* dep-set it came from in its ``from_ivpm_source``
+provenance (``"<url>#<dep-set>"``), so a merged install remains fully
+traceable.  In :doc:`package_lock`, the ``ivpm_sources`` entry records the
+authored list verbatim (e.g. ``"dep_set": ["core", "extras", "dev"]``).
 
 **No packages-dir representation.** The factory is a *virtual* node: nothing is
 checked out under ``packages/`` for it, and it does not appear in ``ivpm
@@ -898,8 +918,8 @@ All Package Attributes
      - string
      - "skip" to skip sub-dependencies
    * - ``dep-set``
-     - string
-     - Sub-package dependency set
+     - string or list
+     - Sub-package dependency set (a list merges several; ``src: ivpm.yaml`` only)
    * - ``link``
      - boolean
      - Symlink (true) or copy (false) for dir
