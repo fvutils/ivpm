@@ -170,6 +170,100 @@ class TestFactoryExpansion(_FactoryTestBase):
         self.assertIn("pyyaml", all_pkgs.keys())
 
 
+class TestFactoryMultiDepSet(_FactoryTestBase):
+
+    def _multi_factory(self, dep_set_attr):
+        factory = self._write("tools.yaml",
+            "package:\n"
+            "  name: tools-factory\n"
+            "  dep-sets:\n"
+            "    - name: core\n"
+            "      deps:\n"
+            "        - name: pyyaml\n"
+            "          src: pypi\n"
+            "    - name: extras\n"
+            "      deps:\n"
+            "        - name: jinja2\n"
+            "          src: pypi\n"
+            "    - name: dev\n"
+            "      deps:\n"
+            "        - name: pytest\n"
+            "          src: pypi\n")
+        consumer = self._write("ivpm.yaml",
+            "package:\n"
+            "  name: consumer\n"
+            "  dep-sets:\n"
+            "    - name: default\n"
+            "      deps:\n"
+            "        - name: core-tools\n"
+            "          src: ivpm.yaml\n"
+            "          url: %s\n"
+            "          %s\n" % (factory, dep_set_attr))
+        return factory, consumer
+
+    def test_multiple_dep_sets_merge(self):
+        """A list of dep-set names folds the union of all their leaves into the
+        consumer; each leaf records the specific dep-set it came from."""
+        factory, consumer = self._multi_factory("dep-set: [core, extras, dev]")
+        ds = self._read_dep_set(consumer)
+        updater, all_pkgs = self._run_update(ds)
+
+        for leaf in ("pyyaml", "jinja2", "pytest"):
+            self.assertIn(leaf, all_pkgs.keys())
+            self.assertEqual(all_pkgs[leaf].resolved_by, "core-tools")
+
+        self.assertEqual(all_pkgs["pyyaml"].from_ivpm_source, "%s#core" % factory)
+        self.assertEqual(all_pkgs["jinja2"].from_ivpm_source, "%s#extras" % factory)
+        self.assertEqual(all_pkgs["pytest"].from_ivpm_source, "%s#dev" % factory)
+
+    def test_multiple_dep_sets_lock_records_list(self):
+        """The authored list is recorded verbatim in ivpm_sources, not the
+        synthetic merged name used internally."""
+        factory, consumer = self._multi_factory("dep-set: [core, extras]")
+        ds = self._read_dep_set(consumer)
+        updater, all_pkgs = self._run_update(ds)
+
+        write_lock(self.deps_dir, all_pkgs)
+        lock = read_lock(os.path.join(self.deps_dir, "package-lock.json"))
+        self.assertEqual(lock["ivpm_sources"][factory]["dep_set"], ["core", "extras"])
+
+    def test_later_dep_set_overrides_earlier(self):
+        """On package-name collision the later-listed dep-set wins."""
+        factory = self._write("tools.yaml",
+            "package:\n"
+            "  name: tools-factory\n"
+            "  dep-sets:\n"
+            "    - name: a\n"
+            "      deps:\n"
+            "        - name: shared\n"
+            "          src: pypi\n"
+            "    - name: b\n"
+            "      deps:\n"
+            "        - name: shared\n"
+            "          src: pypi\n")
+        consumer = self._write("ivpm.yaml",
+            "package:\n"
+            "  name: consumer\n"
+            "  dep-sets:\n"
+            "    - name: default\n"
+            "      deps:\n"
+            "        - name: core-tools\n"
+            "          src: ivpm.yaml\n"
+            "          url: %s\n"
+            "          dep-set: [a, b]\n" % factory)
+        ds = self._read_dep_set(consumer)
+        updater, all_pkgs = self._run_update(ds)
+        # 'b' is listed last, so its 'shared' wins.
+        self.assertEqual(all_pkgs["shared"].from_ivpm_source, "%s#b" % factory)
+
+    def test_missing_in_list_is_fatal(self):
+        """If any name in the list is absent from the factory -> fatal."""
+        factory, consumer = self._multi_factory("dep-set: [core, nonexistent]")
+        ds = self._read_dep_set(consumer)
+        with self.assertRaises(SrcLoaderError):
+            self._run_update(ds)
+
+
 class TestFactoryErrors(_FactoryTestBase):
 
     def test_missing_dep_set_is_fatal(self):

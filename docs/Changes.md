@@ -1,6 +1,10 @@
 
 # 2.14.0
 - Extended support for remote manifest support
+- A `src: ivpm.yaml` dep-set factory's `dep-set:` may now name a list of
+  dep-sets to merge (e.g. `dep-set: [core, extras, dev]`). Later-listed
+  dep-sets override earlier ones on package-name collision, and each leaf
+  records the specific dep-set it came from.
 
 # 2.13.1
 - Added a new extension point for applying site configs

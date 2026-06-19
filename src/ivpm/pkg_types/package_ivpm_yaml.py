@@ -20,11 +20,19 @@
 ``src: ivpm.yaml`` — a *dep-set factory* package source.
 
 A factory dependency does not install any content of its own.  It fetches a
-referenced ``ivpm.yaml`` (over http(s) or from a local path), selects one of
-its dep-sets, and folds those packages into the consumer's dep-set.  The
-existing updater recursion does the folding: the factory's ``update()`` returns
-a ``ProjInfo`` and the main loop queues ``proj_info.get_dep_set(pkg.dep_set)``
-as new dependencies (``package_updater.py``).
+referenced ``ivpm.yaml`` (over http(s) or from a local path), selects one (or
+more) of its dep-sets, and folds those packages into the consumer's dep-set.
+The existing updater recursion does the folding: the factory's ``update()``
+returns a ``ProjInfo`` and the main loop queues
+``proj_info.get_dep_set(pkg.dep_set)`` as new dependencies
+(``package_updater.py``).
+
+``dep-set:`` may name a single dep-set or a list of them
+(``dep-set: [core, extras, dev]``).  When several are requested they are merged
+into one synthetic dep-set before folding; on package-name collision a
+later-listed dep-set overrides an earlier one (matching the ``uses:``
+inheritance semantics).  Each contributed leaf still records the *specific*
+dep-set it came from via ``from_ivpm_source``.
 
 The factory node therefore has **no packages-dir representation** — it is a
 *virtual* node (``virtual = True``).  It is recorded in ``package-lock.json``
@@ -47,6 +55,12 @@ class PackageIvpmYaml(PackageURL):
     # in the lock's ``ivpm_sources`` entry so a re-resolve can detect that the
     # factory's dep-set membership changed upstream.
     resolved_fingerprint: str = None
+
+    # The dep-set(s) requested by the consumer, as authored (a single name or a
+    # list). Preserved verbatim for the lock entry / spec_matches_lock, since
+    # update() rewrites ``dep_set`` to a synthetic merged name when several are
+    # requested. None until update() runs.
+    requested_dep_set: object = None
 
     # Virtual: this node contributes deps but occupies no packages-dir slot.
     virtual = True
@@ -86,6 +100,7 @@ class PackageIvpmYaml(PackageURL):
 
     def update(self, update_info: ProjectUpdateInfo) -> 'ProjInfo':
         from ..ivpm_yaml_reader import IvpmYamlReader
+        from ..packages_info import PackagesInfo
 
         # The factory YAML is cacheable; it occupies no packages-dir slot.
         update_info.report_package(cacheable=True)
@@ -93,6 +108,16 @@ class PackageIvpmYaml(PackageURL):
         if self.url is None:
             fatal("Package '%s' (src: ivpm.yaml) requires a 'url:' @ %s" % (
                 self.name, getlocstr(self)))
+
+        # Normalize the requested dep-set(s) to a list. 'dep-set:' may be a
+        # single name (the common case) or a list of names to merge. Preserve
+        # the authored value for the lock entry before we possibly rewrite
+        # ``dep_set`` to a synthetic merged name below.
+        self.requested_dep_set = self.dep_set
+        if isinstance(self.dep_set, (list, tuple)):
+            dep_set_names = [str(d) for d in self.dep_set]
+        else:
+            dep_set_names = [str(self.dep_set)]
 
         # Cycle guard: a factory may not (transitively) reference itself.
         canon = self._canonical_url()
@@ -106,15 +131,36 @@ class PackageIvpmYaml(PackageURL):
         with open(local_yaml) as fp:
             proj = IvpmYamlReader().read(fp, local_yaml)
 
-        # Stamp provenance on the leaves of the selected dep-set, and propagate
-        # the include chain to any leaf that is itself a factory.
-        if proj.has_dep_set(self.dep_set):
-            child_chain = tuple(chain) + (canon,)
-            origin = "%s#%s" % (self.url, self.dep_set)
-            for leaf in proj.get_dep_set(self.dep_set).packages.values():
+        # All requested dep-sets must exist in the referenced manifest.
+        missing = [d for d in dep_set_names if not proj.has_dep_set(d)]
+        if missing:
+            fatal("Package '%s' (src: ivpm.yaml): referenced ivpm.yaml '%s' has "
+                  "no dep-set(s): %s @ %s" % (
+                      self.name, self.url, ", ".join(missing), getlocstr(self)))
+
+        # Stamp provenance on the leaves of each selected dep-set (recording the
+        # specific dep-set each came from), and propagate the include chain to
+        # any leaf that is itself a factory.
+        child_chain = tuple(chain) + (canon,)
+        for dsname in dep_set_names:
+            origin = "%s#%s" % (self.url, dsname)
+            for leaf in proj.get_dep_set(dsname).packages.values():
                 leaf.from_ivpm_source = origin
                 if getattr(leaf, "src_type", None) == "ivpm.yaml":
                     leaf._ivpm_source_chain = child_chain
+
+        # A single dep-set folds directly (``dep_set`` already names it). For
+        # several, synthesize one merged dep-set and point ``dep_set`` at it so
+        # the updater folds exactly one set. Merge left-to-right: a later-listed
+        # dep-set overrides an earlier one on package-name collision.
+        if len(dep_set_names) > 1:
+            merged_name = "__ivpm_merged__:" + ",".join(dep_set_names)
+            merged = PackagesInfo(merged_name)
+            for dsname in dep_set_names:
+                for leaf in proj.get_dep_set(dsname).packages.values():
+                    merged.packages[leaf.name] = leaf
+            proj.set_dep_set(merged_name, merged)
+            self.dep_set = merged_name
 
         return proj
 
@@ -167,13 +213,21 @@ class PackageIvpmYaml(PackageURL):
 
     # -- lock-file representation -------------------------------------------
 
+    def _lock_dep_set(self):
+        """The dep-set value to record in the lock: the authored single name or
+        list (``requested_dep_set``), falling back to ``dep_set`` when update()
+        has not run (e.g. unit tests that build an entry directly)."""
+        if self.requested_dep_set is not None:
+            return self.requested_dep_set
+        return self.dep_set
+
     def get_lock_entry(self):
         # Virtual: emitted under the lock's ``ivpm_sources`` map, not the
         # normal ``packages`` map (see package_lock.write_lock).
         return {
             "src": "ivpm.yaml",
             "url": self.url,
-            "dep_set": self.dep_set,
+            "dep_set": self._lock_dep_set(),
             "fingerprint": self.resolved_fingerprint,
             "reproducible": True,
             "virtual": True,
@@ -182,7 +236,7 @@ class PackageIvpmYaml(PackageURL):
     def spec_matches_lock(self, lock_entry):
         return (
             self.url == lock_entry.get("url")
-            and self.dep_set == lock_entry.get("dep_set")
+            and self._lock_dep_set() == lock_entry.get("dep_set")
         )
 
     @classmethod
@@ -195,8 +249,9 @@ class PackageIvpmYaml(PackageURL):
             params=[
                 ParamInfo("url", "http(s) URL or local path of the factory ivpm.yaml",
                           required=True, type_hint="url"),
-                ParamInfo("dep-set", "Name of the dep-set to pull from the factory "
-                          "(default: the consuming dep-set's name)"),
+                ParamInfo("dep-set", "Name of the dep-set to pull from the factory, "
+                          "or a list of names to merge (later overrides earlier). "
+                          "Default: the consuming dep-set's name"),
             ],
         )
 
