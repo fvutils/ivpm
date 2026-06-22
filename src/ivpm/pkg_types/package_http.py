@@ -208,6 +208,10 @@ class PackageHttp(PackageFile):
         with open(dest, "wb") as f:
             f.write(r.content)
             
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"sha256"}
+
     @staticmethod
     def create(name, opts, si) -> 'PackageHttp':
         pkg = PackageHttp(name)

@@ -206,11 +206,19 @@ class CmdClone(object):
         try:
             git_cmd = ["git", "clone", url, target_dir]
             if suppress_output:
-                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                from ..git_progress import run_git_with_progress
+                def _on_progress(msg):
+                    event_dispatcher.dispatch(UpdateEvent(
+                        event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
+                        package_name="[clone]",
+                        task_id="git:[clone]",
+                        task_name="git",
+                        task_message=msg))
+                rc = run_git_with_progress(git_cmd + ["--progress"], on_progress=_on_progress)
             else:
-                status = subprocess.run(git_cmd)
-            
-            if status.returncode != 0:
+                rc = subprocess.run(git_cmd).returncode
+
+            if rc != 0:
                 event_dispatcher.dispatch(UpdateEvent(
                     event_type=UpdateEventType.PACKAGE_ERROR,
                     package_name="[clone]",

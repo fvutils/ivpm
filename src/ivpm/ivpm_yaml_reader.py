@@ -33,21 +33,6 @@ _KNOWN_PYTHON_WITH_KEYS = {"venv", "system-site-packages", "pre-release"}
 # Valid keys inside ``package.with.node:``.
 _KNOWN_NODE_WITH_KEYS = {"manager", "version", "env"}
 
-# Valid keys on an individual dependency entry (a member of a dep-set's
-# ``deps:`` list). Aggregated across the source types' ``process_options`` and
-# the direct reads in ``read_deps``. Note the singular ``dep-set`` (which also
-# accepts a list, to merge several sets from a referenced ivpm.yaml) — a plural
-# ``dep-sets`` here is a common typo and would otherwise be silently ignored.
-_KNOWN_DEP_KEYS = {
-    "name", "url", "src", "pypi", "type", "with", "agents",
-    "dep-set", "deps",
-    "anonymous", "branch", "cache", "commit", "depth", "dev", "extras",
-    "file", "include", "link", "module", "optional", "path", "prerelease",
-    "resolve-root", "root", "source", "ssh", "tag", "unpack", "version",
-    "vlnv",
-}
-
-
 def _suggest(unknown: str, valid) -> str:
     """Return a hint string when *unknown* is close to a known key, or ''."""
     matches = difflib.get_close_matches(unknown, valid, n=1, cutoff=0.6)
@@ -516,16 +501,6 @@ class IvpmYamlReader(object):
             if "name" not in d.keys():
                 fatal("Missing 'name' key in dependency", si)
 
-            for key in d.keys():
-                if key not in _KNOWN_DEP_KEYS:
-                    hint = _suggest(key, _KNOWN_DEP_KEYS)
-                    fatal(
-                        "Unknown tag '%s' on dependency '%s' @ %s.%s"
-                        " Valid tags: %s" % (
-                            key, d["name"], getlocstr(d), hint,
-                            ", ".join(sorted(_KNOWN_DEP_KEYS))),
-                        key)
-
             if d["name"] in ret.keys():
                 pkg1 = ret[d["name"]]
                 fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (
@@ -572,6 +547,21 @@ class IvpmYamlReader(object):
                         d["name"], src, getlocstr(d),
                         ", ".join(pt_rgy.getSrcTypes())), d)
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
+
+            # Validate keys against the *source-specific* accepted set. Each
+            # provider declares the options it understands via dep_keys(), so a
+            # key valid for one source (e.g. git's 'branch') is rejected on a
+            # source that ignores it. The package source itself owns the policy.
+            valid_keys = pkg.dep_keys()
+            for key in d.keys():
+                if key not in valid_keys:
+                    hint = _suggest(key, valid_keys)
+                    fatal(
+                        "Unknown tag '%s' on dependency '%s' (src: %s) @ %s.%s"
+                        " Valid tags: %s" % (
+                            key, d["name"], src, getlocstr(d), hint,
+                            ", ".join(sorted(valid_keys))),
+                        key)
 
             # Resolve content type from 'type:' field (string, dict, or list form).
             # 'with:' is no longer supported; options are now inline in the type dict.

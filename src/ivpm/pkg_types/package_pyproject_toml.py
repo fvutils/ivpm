@@ -40,6 +40,10 @@ class PackagePyprojectToml(Package):
     toml_path: str = None
     include: list = dc.field(default_factory=lambda: ["dependencies"])
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"url", "path", "include"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "pyproject.toml"

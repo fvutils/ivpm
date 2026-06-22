@@ -381,6 +381,10 @@ class PackageFuseSoC(Package):
             pass
         return (0,)  # fallback for unparseable versions
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"vlnv"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "fusesoc"

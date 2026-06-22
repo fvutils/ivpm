@@ -28,12 +28,16 @@ class PackageURL(Package):
     url : str = None
     cache : Optional[bool] = None  # True/False/None (unspecified)
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"url", "cache"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
-        
+
         if "url" in opts.keys():
             self.url = opts["url"]
-        
+
         if "cache" in opts.keys():
             self.cache = bool(opts["cache"])
 

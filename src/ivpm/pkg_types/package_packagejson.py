@@ -33,6 +33,10 @@ class PackagePackageJson(Package):
     url: str = None
     json_path: str = None
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"url", "path"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "package.json"

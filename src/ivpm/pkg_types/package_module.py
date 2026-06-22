@@ -71,6 +71,10 @@ class PackageModule(Package):
     root_override: str = None       # explicit root: from YAML
     resolve_root: bool = False      # opt-in module-show parsing
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"module", "version", "root", "resolve-root"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "module"

@@ -124,6 +124,29 @@ class Package(object):
     # (Plain class attribute, not a dataclass field -- it is identity, not data.)
     virtual = False
 
+    # Option keys accepted on a dependency entry regardless of which source it
+    # selects. These are consumed by the reader (IvpmYamlReader.read_deps) or by
+    # Package.process_options, not by any single source provider. Each source
+    # provider extends this set in dep_keys() with the options it understands.
+    _BASE_DEP_KEYS = frozenset({
+        "name",     # dependency name (required)
+        "src",      # explicit source-type selector
+        "type",     # content-type field
+        "with",     # deprecated; reader emits a targeted migration error
+        "agents",   # per-dep agents configuration
+        "dep-set",  # which dep-set to pull from the sub-package
+        "deps",     # 'skip' to suppress dependency processing
+    })
+
+    @classmethod
+    def dep_keys(cls) -> Set[str]:
+        """Return the set of option keys this source accepts on a dependency
+        entry. The reader rejects any key not in this set, so validation is
+        context-sensitive: a git dep and a pypi dep accept different options.
+        Source providers override and extend via ``super().dep_keys() | {...}``,
+        mirroring the ``process_options`` override chain."""
+        return set(Package._BASE_DEP_KEYS)
+
     def build(self, pkgs_info):
         pass
 

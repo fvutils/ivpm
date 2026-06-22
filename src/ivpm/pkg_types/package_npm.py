@@ -30,6 +30,10 @@ class PackageNpm(Package):
     dev: bool = False
     optional: bool = False
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"version", "dev", "optional"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "npm"

@@ -100,6 +100,10 @@ class PackageFile(PackageURL):
         with ZipFile(pkg_src, 'r') as zipObj:
             zipObj.extractall(pkg_path)
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"unpack"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
 

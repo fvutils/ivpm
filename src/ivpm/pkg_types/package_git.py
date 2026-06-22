@@ -30,6 +30,8 @@ from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
 from ..utils import note, fatal, resolve_clone_url
 from ..cache import is_github_url, parse_github_url
+from ..git_progress import run_git_with_progress
+from ..update_event import UpdateEvent, UpdateEventType
 
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
 
@@ -309,6 +311,40 @@ class PackageGit(PackageURL):
             auth_order = getattr(update_info.args, "git_auth_order", None)
         return resolve_clone_url(self.url, self._ssh_pref(update_info), auth_order)
 
+    def _emit_progress(self, update_info: ProjectUpdateInfo, message: str):
+        """Forward a git progress message to this package's TUI row."""
+        dispatcher = getattr(update_info, "event_dispatcher", None)
+        if dispatcher is None:
+            return
+        dispatcher.dispatch(UpdateEvent(
+            event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
+            package_name=self.name,
+            task_id="git:%s" % self.name,
+            task_name="git",
+            task_message=message,
+        ))
+
+    def _run_git(self, git_cmd, update_info: ProjectUpdateInfo, cwd=None, progress=False) -> int:
+        """Run a git command, returning its exit code.
+
+        In Rich TUI mode (``suppress_output``) git's output is captured rather
+        than printed.  When ``progress`` is set and an event dispatcher is
+        available, git's per-phase percentages are streamed to the package's
+        TUI row (e.g. "Receiving objects 42%").  Outside TUI mode git's native
+        output is left untouched.
+        """
+        if update_info.suppress_output:
+            dispatcher = getattr(update_info, "event_dispatcher", None)
+            if progress and dispatcher is not None:
+                return run_git_with_progress(
+                    list(git_cmd) + ["--progress"],
+                    cwd=cwd,
+                    on_progress=lambda m: self._emit_progress(update_info, m))
+            return subprocess.run(
+                git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                cwd=cwd).returncode
+        return subprocess.run(git_cmd, cwd=cwd).returncode
+
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
         """Clone the repo to the specified directory.
 
@@ -340,37 +376,29 @@ class PackageGit(PackageURL):
 
         _logger.debug("git_cmd: %s", str(git_cmd))
 
-        # Suppress output when in Rich TUI mode
-        if update_info.suppress_output:
-            status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            status = subprocess.run(git_cmd)
+        # Stream fetch progress to the TUI when output is suppressed
+        rc = self._run_git(git_cmd, update_info, progress=True)
 
-        if status.returncode != 0:
+        if rc != 0:
             fatal("Git command \"%s\" failed" % str(git_cmd))
 
         # Checkout a specific commit
         if self.commit is not None:
             git_cmd = ["git", "reset", "--hard", self.commit]
             _logger.debug("git_cmd: %s", str(git_cmd))
-            if update_info.suppress_output:
-                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=target_dir)
-            else:
-                status = subprocess.run(git_cmd, cwd=target_dir)
+            rc = self._run_git(git_cmd, update_info, cwd=target_dir)
 
-            if status.returncode != 0:
+            if rc != 0:
                 fatal("Git command \"%s\" failed" % str(git_cmd))
 
 
         # TODO: Existence of .gitmodules should trigger this
         if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
             sys.stdout.flush()
+            self._emit_progress(update_info, "updating submodules")
             git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
             _logger.debug("git_cmd: %s", str(git_cmd))
-            if update_info.suppress_output:
-                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=target_dir)
-            else:
-                status = subprocess.run(git_cmd, cwd=target_dir)
+            rc = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
 
     def _make_readonly(self, path: str):
         """Make all files in a directory tree read-only."""
@@ -632,6 +660,11 @@ class PackageGit(PackageURL):
             commits_behind=behind,
         )
     
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {
+            "branch", "commit", "tag", "depth", "anonymous", "ssh"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "git"

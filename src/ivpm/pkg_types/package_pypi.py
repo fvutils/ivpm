@@ -29,6 +29,11 @@ class PackagePyPi(Package):
     resolved_version : str = None  # actual installed version after pip install
     extras : list = None  # PEP 508 extras, e.g. ["litellm"] -> package[litellm]
 
+    @classmethod
+    def dep_keys(cls):
+        # 'pypi' is the selector key the reader uses to pick this source.
+        return super().dep_keys() | {"pypi", "version", "extras"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
 

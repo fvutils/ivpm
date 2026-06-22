@@ -60,12 +60,16 @@ class PackageDir(PackageURL):
 
         return super().update(update_info)
     
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"link"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
         self.src_type = "dir"
 
         if "link" in opts.keys():
-            self.link = bool(opts["link"]) 
+            self.link = bool(opts["link"])
 
     @staticmethod
     def create(name, opts, si) -> 'PackageDir':

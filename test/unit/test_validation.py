@@ -235,6 +235,73 @@ package:
         self.assertIsNotNone(info.python_config)
 
 
+class TestDepKeyValidation(unittest.TestCase):
+    """Dependency-key validation is context-sensitive: each package source
+    declares the keys it accepts via dep_keys(), so a key valid for one source
+    may be rejected on another."""
+
+    def _deps_yaml(self, dep_block):
+        return ("""
+package:
+  name: mypkg
+  dep-sets:
+    - name: default
+      deps:
+%s
+""" % dep_block)
+
+    def test_git_specific_key_accepted(self):
+        """A git dep accepts git-only keys (branch/commit/tag/depth)."""
+        info = _parse(self._deps_yaml(
+            "        - name: foo\n"
+            "          url: https://github.com/x/y.git\n"
+            "          branch: main\n"
+            "          depth: 1\n"))
+        self.assertIn("foo", info.dep_set_m["default"].keys())
+
+    def test_git_key_rejected_on_pypi_source(self):
+        """A git-only key (branch) must be rejected on a pypi dependency."""
+        _assert_fatal(self, self._deps_yaml(
+            "        - name: foo\n"
+            "          pypi: true\n"
+            "          branch: main\n"),
+            "branch",
+            "src: pypi",   # the error names the resolved source
+            "Valid tags",
+        )
+
+    def test_pypi_specific_key_accepted(self):
+        """A pypi dep accepts pypi-only keys (version/extras)."""
+        info = _parse(self._deps_yaml(
+            "        - name: foo\n"
+            "          pypi: true\n"
+            "          version: '>=1.0'\n"
+            "          extras: [bar]\n"))
+        self.assertIn("foo", info.dep_set_m["default"].keys())
+
+    def test_unknown_dep_key_close_match_suggested(self):
+        """A typo'd git key triggers a source-specific close-match suggestion."""
+        _assert_fatal(self, self._deps_yaml(
+            "        - name: foo\n"
+            "          url: https://github.com/x/y.git\n"
+            "          brnch: main\n"),
+            "brnch",
+            "branch",   # close match within the git key set
+        )
+
+    def test_unknown_dep_key_has_loc(self):
+        """The dep-key error carries a file:line source location."""
+        yaml_text = self._deps_yaml(
+            "        - name: foo\n"
+            "          url: https://github.com/x/y.git\n"
+            "          bogus: 1\n")
+        with self.assertRaises(Exception) as ctx:
+            _parse(yaml_text, "proj.yaml")
+        m = str(ctx.exception)
+        self.assertIn("bogus", m)
+        self.assertIn("proj.yaml:", m)
+
+
 class TestErrorLocations(unittest.TestCase):
     """Validation errors carry a file:line:col source location."""
 

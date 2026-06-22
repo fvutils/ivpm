@@ -58,6 +58,10 @@ class PackageGhRls(PackageHttp):
     source : bool = False  # Whether to force fetching source archive instead of binary
     resolved_version : str = None  # actual release tag after fetch
 
+    @classmethod
+    def dep_keys(cls):
+        return super().dep_keys() | {"version", "file", "prerelease", "source"}
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
 
