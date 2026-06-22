@@ -117,6 +117,7 @@ class ProjectOps(object):
             updater.update_info.project_name    = proj_info.name
             updater.update_info.project_version = proj_info.version
             updater.update_info.project_dir     = self.root_dir
+            updater.update_info.disable_cache   = getattr(args, "no_cache", False)
             # Construct the session cache provider eagerly, before parallel
             # package loads, so the memoized getter never races.
             updater.update_info.get_cache_provider()

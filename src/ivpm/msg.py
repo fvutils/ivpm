@@ -83,6 +83,11 @@ def use_sink(sink) -> object:
 # Diagnostic emitters (back-compatible: msg may be a plain string; loc optional)
 # --------------------------------------------------------------------------
 
+def info(msg, loc=None):
+    # Always shown, regardless of TUI verbosity level.
+    _reporter.info(msg, loc)
+
+
 def note(msg, loc=None):
     _reporter.note(msg, loc)
 

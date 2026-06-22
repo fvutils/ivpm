@@ -241,6 +241,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--force", dest="force",
         action="store_true", default=False,
         help="Suppress safety errors during refresh; implies --refresh-all")
+    update_cmd.add_argument("--no-cache", dest="no_cache",
+        action="store_true", default=False,
+        help="Disable the cache for this update; forces a null cache provider")
     update_cmd.add_argument("-v", "--verbose", action="count", default=0,
         help="Increase transcript output detail (-v: activity, -vv: subprocess lines)")
     subcommands["update"] = update_cmd

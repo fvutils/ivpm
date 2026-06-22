@@ -93,6 +93,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     modules_interface: Optional['ModulesInterface'] = None  # lazily populated by PackageModule.update()
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)
+    disable_cache: bool = False  # When True, force a null cache provider (--no-cache)
     _current_package_start: Optional[float] = None
     _current_package_name: Optional[str] = None
     _current_cache_hit: Optional[bool] = None
@@ -115,14 +116,19 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         """
         if self._cache_provider is None:
             from .cache_provider import CacheContext
-            from .site_config import get_site_config
             ctx = CacheContext(
                 root_name=self.project_name,
                 root_version=self.project_version,
                 root_dir=self.project_dir,
                 deps_dir=self.deps_dir,
             )
-            self._cache_provider = get_site_config().get_cache_provider(ctx)
+            if self.disable_cache:
+                # --no-cache overrides the configured provider entirely.
+                from .cache_provider import NullCacheProvider
+                self._cache_provider = NullCacheProvider(ctx)
+            else:
+                from .site_config import get_site_config
+                self._cache_provider = get_site_config().get_cache_provider(ctx)
         return self._cache_provider
 
     def report_cache_unconfigured(self):

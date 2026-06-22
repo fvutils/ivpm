@@ -53,6 +53,9 @@ __all__ = [
 
 
 class Severity(enum.IntEnum):
+    # INFO sits below the suppression ladder: it is informational output the
+    # user always wants to see, so sinks emit it regardless of min_severity.
+    INFO = -1
     NOTE = 0
     WARNING = 1
     ERROR = 2
@@ -150,6 +153,7 @@ class RichSink(DiagnosticSink):
     """
 
     _STYLE = {
+        Severity.INFO: "green",
         Severity.NOTE: "cyan",
         Severity.WARNING: "yellow",
         Severity.ERROR: "red",
@@ -162,7 +166,8 @@ class RichSink(DiagnosticSink):
 
     def emit(self, diag):
         from rich.text import Text
-        if diag.severity < self.min_severity:
+        # INFO is always shown, regardless of the verbosity threshold.
+        if diag.severity is not Severity.INFO and diag.severity < self.min_severity:
             return
         text = diag.format(excerpt=_want_excerpt(diag))
         # Text(...) avoids interpreting any '['/']' in the message as markup.
@@ -204,6 +209,10 @@ class DiagnosticReporter(object):
             raise SrcLoaderError(diag.loc_message(), [diag], srcinfo=diag.srcinfo)
 
     # -- convenience emitters --------------------------------------------
+    def info(self, message, loc=None):
+        # Always shown, regardless of sink verbosity threshold.
+        self.emit(Diagnostic(Severity.INFO, message, loc))
+
     def note(self, message, loc=None):
         self.emit(Diagnostic(Severity.NOTE, message, loc))
 
