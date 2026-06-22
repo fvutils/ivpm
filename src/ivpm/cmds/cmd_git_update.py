@@ -26,10 +26,9 @@ class CmdGitUpdate(object):
         for dir in os.listdir(packages_dir):
             if os.path.isdir(os.path.join(packages_dir, dir, ".git")):
                 print("Package: " + dir)
-                cwd = os.getcwd()
-                os.chdir(packages_dir + "/" + dir)
+                pkg_dir = os.path.join(packages_dir, dir)
                 try:
-                    branch = subprocess.check_output(["git", "branch"])
+                    branch = subprocess.check_output(["git", "branch"], cwd=pkg_dir)
                 except Exception as e:
                     print("Note: Failed to get branch of package \"" + dir + "\"")
                     continue
@@ -47,13 +46,12 @@ class CmdGitUpdate(object):
                 if branch is None:
                     raise Exception("Failed to identify branch")
 
-                status = subprocess.run(["git", "fetch"])
+                status = subprocess.run(["git", "fetch"], cwd=pkg_dir)
                 if status.returncode != 0:
                     fatal("Failed to run git fetch on package %s" % dir)
-                status = subprocess.run(["git", "merge", "origin/" + branch])
+                status = subprocess.run(["git", "merge", "origin/" + branch], cwd=pkg_dir)
                 if status.returncode != 0:
                     fatal("Failed to run git merge origin/%s on package %s" % (branch, dir))
-                os.chdir(cwd)
             elif os.path.isdir(packages_dir + "/" + dir):
                 print("Note: skipping non-Git package \"" + dir + "\"")
                 sys.stdout.flush()        

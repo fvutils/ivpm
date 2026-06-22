@@ -26,6 +26,7 @@ from typing import Dict, List, Optional
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
+from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_fusesoc")
 
@@ -181,7 +182,7 @@ class PackageHandlerFuseSoC(PackageHandler):
     description        = "Discovers .core dirs from deps; generates fusesoc-cores.envrc and fusesoc-cores.txt"
     leaf_when          = None
     root_when          = None
-    phase              = 10   # after direnv (phase=0)
+    phase              = HandlerPhase.INTEGRATE
     conditions_summary = (
         "leaf: all non-PyPI packages; "
         "root: always (cleans stale entries even when no cores are present)"

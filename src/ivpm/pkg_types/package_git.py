@@ -310,19 +310,20 @@ class PackageGit(PackageURL):
         return resolve_clone_url(self.url, self._ssh_pref(update_info), auth_order)
 
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
-        """Clone the repo to the specified directory."""
-        cwd = os.getcwd()
+        """Clone the repo to the specified directory.
+
+        Uses subprocess cwd= rather than os.chdir() so that parallel fetches
+        do not corrupt one another's working directory (chdir is process-global).
+        """
         parent_dir = os.path.dirname(target_dir)
-        target_name = os.path.basename(target_dir)
-        
+
         if not os.path.isdir(parent_dir):
             os.makedirs(parent_dir)
-        
-        os.chdir(parent_dir)
+
         sys.stdout.flush()
 
         git_cmd = ["git", "clone"]
-    
+
         if depth is not None:
             git_cmd.extend(["--depth", str(depth)])
 
@@ -333,47 +334,43 @@ class PackageGit(PackageURL):
         _logger.debug("Clone URL: %s", url)
         git_cmd.append(url)
 
-        # Clone to the target directory name
-        git_cmd.append(target_name)
-        
+        # Clone directly to the full target directory. git creates the
+        # destination (and any missing leading dirs) for us.
+        git_cmd.append(target_dir)
+
         _logger.debug("git_cmd: %s", str(git_cmd))
-        
+
         # Suppress output when in Rich TUI mode
         if update_info.suppress_output:
             status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             status = subprocess.run(git_cmd)
-        os.chdir(cwd)
-    
+
         if status.returncode != 0:
             fatal("Git command \"%s\" failed" % str(git_cmd))
 
-        # Checkout a specific commit            
+        # Checkout a specific commit
         if self.commit is not None:
-            os.chdir(target_dir)
             git_cmd = ["git", "reset", "--hard", self.commit]
             _logger.debug("git_cmd: %s", str(git_cmd))
             if update_info.suppress_output:
-                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=target_dir)
             else:
-                status = subprocess.run(git_cmd)
-        
+                status = subprocess.run(git_cmd, cwd=target_dir)
+
             if status.returncode != 0:
                 fatal("Git command \"%s\" failed" % str(git_cmd))
-            os.chdir(cwd)
-        
-    
+
+
         # TODO: Existence of .gitmodules should trigger this
         if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
-            os.chdir(target_dir)
             sys.stdout.flush()
             git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
             _logger.debug("git_cmd: %s", str(git_cmd))
             if update_info.suppress_output:
-                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                status = subprocess.run(git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, cwd=target_dir)
             else:
-                status = subprocess.run(git_cmd)
-            os.chdir(cwd)
+                status = subprocess.run(git_cmd, cwd=target_dir)
 
     def _make_readonly(self, path: str):
         """Make all files in a directory tree read-only."""

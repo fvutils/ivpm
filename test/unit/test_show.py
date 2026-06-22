@@ -250,6 +250,27 @@ class TestShowCLI(unittest.TestCase):
         self.assertEqual(rc, 0)
         data = json.loads(out)
         self.assertIsInstance(data, list)
+        # Phase is now a named string and constraint fields are present.
+        by_name = {d["name"]: d for d in data}
+        self.assertEqual(by_name["python"]["phase"], "install")
+        self.assertIn("run_after", by_name["modules"])
+        self.assertIn("direnv", by_name["modules"]["run_after"])
+
+    def test_show_handler_order_no_rich(self):
+        out, rc = _run("show", "handler", "--order", "--no-rich")
+        self.assertEqual(rc, 0)
+        # direnv before modules; install before integrate.
+        self.assertLess(out.index("direnv"), out.index("modules"))
+        self.assertLess(out.index("python"), out.index("fusesoc"))
+
+    def test_show_handler_order_json(self):
+        out, rc = _run("show", "handler", "--order", "--json")
+        self.assertEqual(rc, 0)
+        data = json.loads(out)
+        names = [d["name"] for d in data]
+        self.assertEqual(
+            names,
+            ["direnv", "modules", "node", "python", "agents", "dv-flow", "fusesoc"])
 
     def test_show_all_json(self):
         out, rc = _run("show", "--json")

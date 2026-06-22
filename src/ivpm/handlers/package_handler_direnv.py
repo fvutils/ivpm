@@ -24,6 +24,7 @@ from typing import Dict
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
+from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_direnv")
 
@@ -33,7 +34,7 @@ class PackageHandlerDirenv(PackageHandler):
     description        = "Collects envrc files from packages and generates a combined packages.envrc"
     leaf_when          = None
     root_when          = None
-    phase              = 0
+    phase              = HandlerPhase.ENVIRONMENT
     conditions_summary = "leaf: non-PyPI packages with export.envrc, or with direnv.envrc specified in package.with; root: only when at least one such package is present"
 
     @classmethod

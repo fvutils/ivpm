@@ -96,10 +96,9 @@ class CmdSnapshot(object):
             pkg : Package = pkgs_info[key]
             
             if pkg.src_type == SourceType.Git:
-                cwd = os.getcwd()
-                os.chdir(pkg.path)
-                status = subprocess.check_output(["git", "show", "--oneline", "-s"])
-                
+                status = subprocess.check_output(["git", "show", "--oneline", "-s"],
+                                                 cwd=pkg.path)
+
                 status = status.decode()
 
                 if status.find('(') != -1:
@@ -110,8 +109,6 @@ class CmdSnapshot(object):
                     fatal("failed to decode git-show output %s" % status)
                 
                 pkg.version = hash
-                
-                os.chdir(cwd)
 
     def _remove_git_dirs(self, path):
         if os.path.isdir(os.path.join(path, ".git")):

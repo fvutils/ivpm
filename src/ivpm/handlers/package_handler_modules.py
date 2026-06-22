@@ -28,6 +28,7 @@ from typing import Dict
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
+from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_modules")
 
@@ -43,7 +44,8 @@ class PackageHandlerModules(PackageHandler):
     description        = "Generates module load statements into modules.envrc"
     leaf_when          = None        # inspect every package
     root_when          = None        # always run on_root_post_load
-    phase              = 1           # after direnv (0), before python (5)
+    phase              = HandlerPhase.ENVIRONMENT
+    run_after          = ["direnv"]  # we patch packages.envrc, which direnv writes
     conditions_summary = "Active when any package carries ModuleTypeData"
 
     # pkg_name -> module specifier (e.g. "gcc/15.2.0")

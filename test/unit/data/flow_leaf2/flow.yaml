@@ -1,0 +1,6 @@
+
+package:
+  name: uvm.util
+  tasks:
+  - name: compile
+    uses: std.Message

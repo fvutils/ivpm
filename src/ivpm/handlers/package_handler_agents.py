@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Tuple
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
+from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_agents")
 
@@ -99,7 +100,9 @@ class PackageHandlerAgents(PackageHandler):
     description        = "Creates .agents/skills/ symlinks (or copies) for deps that provide SKILL.md files"
     leaf_when          = None
     root_when          = None
-    phase              = 6   # after python handler (phase=5) so venv is available for entrypoint discovery
+    # INTEGRATE runs after INSTALL (the phase barrier), so the python venv is
+    # already populated when we discover agent.skills entry-points.
+    phase              = HandlerPhase.INTEGRATE
     conditions_summary = (
         "leaf: all non-PyPI packages; "
         "root: always (cleans stale entries even when no skills are present)"

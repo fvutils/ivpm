@@ -27,6 +27,7 @@ from typing import ClassVar, List, Optional
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..update_event import UpdateEvent, UpdateEventType
+from .handler_phases import HandlerPhase
 
 
 class HandlerFatalError(Exception):
@@ -99,8 +100,17 @@ class PackageHandler(object):
     # --- Handler metadata (ClassVar — override in subclasses with plain assignment) ---
     name:               ClassVar[Optional[str]] = None
     description:        ClassVar[Optional[str]] = None
-    phase:              ClassVar[int]  = 0
+    # Named phase (HandlerPhase value); a legacy int is also accepted and mapped
+    # to a named phase. See ivpm.handlers.handler_order.
+    phase:              ClassVar = HandlerPhase.INTEGRATE
     conditions_summary: ClassVar[Optional[str]] = None  # human-readable activation conditions
+
+    # Relative root-phase ordering constraints. Each entry is a handler name
+    # (e.g. "python") or a phase reference "phase:<name>" (e.g. "phase:install").
+    # run_after:  these must run before me;  run_before:  I must run before these.
+    # Resolved together with `phase` by ivpm.handlers.handler_order.resolve_order.
+    run_after:   ClassVar[List[str]] = []
+    run_before:  ClassVar[List[str]] = []
 
     # leaf_when: list of callable(pkg: Package) -> bool, or None (always active as leaf)
     leaf_when:   ClassVar[Optional[List]] = None

@@ -499,10 +499,11 @@ class TestHandlerMetadata(unittest.TestCase):
         self.assertEqual(type(h).description, "Test handler")
         self.assertEqual(type(h).phase, 5)
 
-    def test_default_phase_zero(self):
+    def test_default_phase_is_integrate(self):
+        from ivpm.handlers.handler_phases import HandlerPhase
         class DefaultHandler(PackageHandler):
             pass
-        self.assertEqual(type(DefaultHandler()).phase, 0)
+        self.assertEqual(type(DefaultHandler()).phase, HandlerPhase.INTEGRATE)
 
     def test_default_leaf_when_none(self):
         class DefaultHandler(PackageHandler):

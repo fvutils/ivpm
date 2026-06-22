@@ -1,0 +1,6 @@
+
+package:
+  name: hdl.sim.vcs
+  tasks:
+  - name: build
+    uses: std.Message

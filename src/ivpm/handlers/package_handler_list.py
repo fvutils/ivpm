@@ -20,11 +20,11 @@
 #*
 #****************************************************************************
 import dataclasses as dc
-from itertools import groupby
 from typing import List
 
 from ivpm.package import Package
 from .package_handler import PackageHandler
+from .handler_order import resolve_order
 
 @dc.dataclass
 class PackageHandlerList(PackageHandler):
@@ -46,12 +46,10 @@ class PackageHandlerList(PackageHandler):
             h.on_root_pre_load(update_info)
 
     def on_root_post_load(self, update_info):
-        """Evaluate root_when, sort passing handlers by phase, then call each."""
+        """Evaluate root_when, resolve handler order, then call each in order."""
         passing = [h for h in self.handlers if self._root_conditions_pass(h)]
-        passing.sort(key=lambda h: type(h).phase)
-        for _phase, grp in groupby(passing, key=lambda h: type(h).phase):
-            for h in grp:
-                h.on_root_post_load(update_info)
+        for h in resolve_order(passing):
+            h.on_root_post_load(update_info)
 
     # ------------------------------------------------------------------ #
     # Leaf callbacks                                                       #

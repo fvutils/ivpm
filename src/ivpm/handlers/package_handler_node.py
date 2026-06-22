@@ -29,6 +29,7 @@ from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note, fatal
 from ..pkg_content_type import NodeTypeData
 from .package_handler import PackageHandler
+from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_node")
 
@@ -153,7 +154,7 @@ class PackageHandlerNode(PackageHandler):
     description:        ClassVar[str]            = "Installs Node.js packages into the managed node environment"
     leaf_when:          ClassVar[Optional[List]] = None
     root_when:          ClassVar[Optional[List]] = None
-    phase:              ClassVar[int]            = 6   # after python (5), before fusesoc (10)
+    phase:              ClassVar[str]            = HandlerPhase.INSTALL
     conditions_summary: ClassVar[str]            = ("leaf: all packages; "
                                                      "root: always (skips if no Node packages and no node config)")
 

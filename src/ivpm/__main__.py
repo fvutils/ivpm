@@ -330,6 +330,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="List registered package handlers (post-fetch processing hooks)")
     show_handler_cmd.add_argument("name", nargs="?",
         help="Show detailed info for this handler (omit to list all)")
+    show_handler_cmd.add_argument("--order", action="store_true", default=False,
+        help="Show the resolved root-phase execution order of all handlers")
     show_handler_cmd.add_argument("--json", action="store_true", default=False,
         help="Emit JSON output")
     show_handler_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,

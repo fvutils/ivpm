@@ -20,10 +20,9 @@ def download_ivpm(packages_dir):
     if os.path.isdir(packages_dir) == False:
         os.makedirs(packages_dir)
        
-    cwd = os.getcwd()
-    os.chdir(packages_dir)
-    status = os.system("git clone https://github.com/mballance/ivpm.git")
-    os.chdir(cwd);
+    status = subprocess.run(
+        ["git", "clone", "https://github.com/mballance/ivpm.git"],
+        cwd=packages_dir)
 
 def main():
     scripts_dir = os.path.dirname(os.path.realpath(__file__))

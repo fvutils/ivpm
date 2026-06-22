@@ -38,6 +38,7 @@ from ..package import get_type_data
 
 from ..package import Package, SourceType
 from .package_handler import PackageHandler
+from .handler_phases import HandlerPhase
 # HasType no longer used in root_when (handler self-gates via on_root_post_load)
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_python")
@@ -219,7 +220,7 @@ class PackageHandlerPython(PackageHandler):
     description:        ClassVar[str]            = "Installs Python packages into the managed virtual environment"
     leaf_when:          ClassVar[Optional[List]] = None               # always inspect every package
     root_when:          ClassVar[Optional[List]] = None               # always run root; early-exit below handles no-python projects
-    phase:              ClassVar[int]            = 5   # after direnv (phase=0), before fusesoc (phase=10)
+    phase:              ClassVar[str]            = HandlerPhase.INSTALL
     conditions_summary: ClassVar[str]            = "leaf: all packages; root: always (skips if no Python packages and no python config)"
 
     pkgs_info  : Dict[str,Package] = dc.field(default_factory=dict)
@@ -884,8 +885,6 @@ class PackageHandlerPython(PackageHandler):
             env = os.environ.copy()
             env["PYTHONPATH"] = ps.join(sys.path)
 
-            cwd = os.getcwd()
-            os.chdir(os.path.join(python_dir))
             cmd = [
                 get_venv_python(python_dir),
                 "-m",
@@ -903,14 +902,14 @@ class PackageHandlerPython(PackageHandler):
             returncode, captured_lines = self._run_with_progress(cmd, env=env,
                                                   stdout_arg=stdout_arg,
                                                   stderr_arg=stderr_arg,
-                                                  use_uv=False, task=task)
+                                                  use_uv=False, task=task,
+                                                  cwd=python_dir)
 
             if returncode != 0:
                 detail = _format_installer_error(captured_lines)
                 fatal("failed to install Python packages" + detail)
-            os.chdir(cwd)
 
-    def _run_with_progress(self, cmd, env, stdout_arg, stderr_arg, use_uv, task):
+    def _run_with_progress(self, cmd, env, stdout_arg, stderr_arg, use_uv, task, cwd=None):
         """Run cmd and return (exit_code, captured_lines).
 
         When stdout_arg is PIPE (i.e. task is not None), stream output
@@ -919,7 +918,7 @@ class PackageHandlerPython(PackageHandler):
         Otherwise call subprocess.run() directly and return an empty line list.
         """
         if stdout_arg != subprocess.PIPE:
-            result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg)
+            result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg, cwd=cwd)
             return result.returncode, []
 
         captured_lines = []
@@ -928,7 +927,7 @@ class PackageHandlerPython(PackageHandler):
         # ResourceWarning when the Popen object is garbage-collected.
         with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, text=True,
-                              errors="replace") as proc:
+                              errors="replace", cwd=cwd) as proc:
             for raw_line in proc.stdout:
                 line = raw_line.rstrip()
                 captured_lines.append(line)

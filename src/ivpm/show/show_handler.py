@@ -83,6 +83,13 @@ def _rich_detail(info):
     if info.conditions:
         console.print(f"[bold]Activation:[/] {info.conditions}\n")
 
+    if info.run_after:
+        console.print(f"[bold]Run after:[/] {', '.join(info.run_after)}")
+    if info.run_before:
+        console.print(f"[bold]Run before:[/] {', '.join(info.run_before)}")
+    if info.run_after or info.run_before:
+        console.print()
+
     if info.params:
         table = Table(box=box.SIMPLE, show_header=True, header_style="bold", padding=(0, 1))
         table.add_column("Parameter / Key")
@@ -127,6 +134,10 @@ def _plain_detail(info):
     print(f"Description: {info.description}")
     if info.conditions:
         print(f"Activation:  {info.conditions}")
+    if info.run_after:
+        print(f"Run after:   {', '.join(info.run_after)}")
+    if info.run_before:
+        print(f"Run before:  {', '.join(info.run_before)}")
     if info.params:
         print("\nParameters / Keys:")
         for p in info.params:
@@ -142,6 +153,49 @@ def _plain_detail(info):
 
 
 # ---------------------------------------------------------------------------
+# Resolved order
+# ---------------------------------------------------------------------------
+
+def _get_resolved_order():
+    """Return resolved handler order as a list of (name, phase) tuples."""
+    from ..handlers.package_handler_rgy import PackageHandlerRgy
+    rgy = PackageHandlerRgy.inst()
+    from ..handlers.handler_order import normalize_phase
+    result = []
+    for cls in rgy.resolved_order():
+        try:
+            phase = normalize_phase(cls.phase)
+        except Exception:
+            phase = str(cls.phase)
+        result.append((cls.name or cls.__name__, phase))
+    return result
+
+
+def _render_order(as_json, no_rich):
+    order = _get_resolved_order()
+    if as_json:
+        print(json.dumps(
+            [{"name": n, "phase": p} for n, p in order], indent=2))
+        return
+    if no_rich or not sys.stdout.isatty():
+        for i, (n, p) in enumerate(order, 1):
+            print(f"{i:>2}. {n:<14} ({p})")
+        return
+    from rich.console import Console
+    from rich.table import Table
+    from rich import box
+    console = Console()
+    table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold",
+                  title="Resolved handler order (root phase)")
+    table.add_column("#", style="dim", justify="right")
+    table.add_column("Handler", style="cyan bold")
+    table.add_column("Phase", style="dim")
+    for i, (n, p) in enumerate(order, 1):
+        table.add_row(str(i), n, p)
+    console.print(table)
+
+
+# ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
 
@@ -150,6 +204,10 @@ class ShowHandler:
         name = getattr(args, "name", None)
         as_json = getattr(args, "json", False)
         no_rich = getattr(args, "no_rich", False)
+
+        if getattr(args, "order", False):
+            _render_order(as_json, no_rich)
+            return
 
         if name:
             info = _get_handler_info(name)

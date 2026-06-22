@@ -26,8 +26,9 @@ Every handler participates in up to two phases of the update pipeline:
     Called after *all* packages have been fetched.  Root callbacks see the
     full accumulated state from the leaf phase and perform heavier work:
     creating virtual environments, installing packages, writing generated
-    files, etc.  Root callbacks run sequentially, ordered by each handler's
-    ``phase`` number (lower runs first).
+    files, etc.  Root callbacks run sequentially, in an order computed from
+    each handler's named **phase** and its relative ``run_after`` /
+    ``run_before`` constraints (see `Handler Ordering`_).
 
 Both phases are optional -- a handler may implement only the one(s) it needs.
 
@@ -56,27 +57,33 @@ When you run ``ivpm update``, IVPM executes these stages:
         |            [leaf handlers inspect each package concurrently]
         |
         v
-    3. Process -------- root handlers run in phase order
-        |                  phase 0: direnv (built-in)
-        |                  phase 5: python (built-in)
-        |                  phase 6: agents (built-in)
-        |                  phase N: any third-party handlers
+    3. Process -------- root handlers run in resolved phase order
+        |                  ENVIRONMENT: direnv, modules (built-in)
+        |                  INSTALL:     node, python (built-in)
+        |                  INTEGRATE:   agents, dv-flow, fusesoc (built-in)
+        |                  (third-party handlers slot into these phases)
         |
         v
     4. Lock file ------ handlers contribute entries, lock file written
 
+Phases are **barriers**: all handlers in one phase finish before any handler
+in the next begins (see `Handler Ordering`_).
+
 The ``PackageHandlerList`` dispatcher manages this flow: it forwards each
 fetched package to every handler's leaf callback (filtered by ``leaf_when``
 conditions), accumulates the full package list, then calls each handler's
-root callback (filtered by ``root_when`` conditions) in phase order.
+root callback (filtered by ``root_when`` conditions) in the resolved order.
 
 
 Built-in Handlers
 =================
 
-IVPM ships six built-in handlers.  They run in phase order (direnv → modules
-→ python → node/agents → fusesoc) so that the environment is configured
-before Python packages are installed, and the Python venv is ready before the
+IVPM ships seven built-in handlers.  They resolve to the order
+direnv → modules → node → python → agents → dv-flow → fusesoc: the
+``ENVIRONMENT`` phase (direnv, modules) configures the environment, the
+``INSTALL`` phase (node, python) installs managed packages, and the
+``INTEGRATE`` phase (agents, dv-flow, fusesoc) generates tool-integration
+artifacts.  Because phases are barriers, the Python venv is ready before the
 agents handler queries ``agent.skills`` entry-points.
 They are registered via entry points in IVPM's own ``pyproject.toml`` and run on every
 ``update`` and ``clone`` invocation.
@@ -579,41 +586,84 @@ Handler Summary
      - Root Action
      - Output
    * - ``direnv``
-     - 0
+     - ENVIRONMENT
      - Environment file aggregation
      - ``.envrc`` / ``export.envrc``
      - Writes combined envrc
      - ``packages/packages.envrc``
    * - ``modules``
-     - 1
+     - ENVIRONMENT
      - Environment Modules integration
      - Packages with ``ModuleTypeData``
      - Writes ``module load`` statements
      - ``packages/modules.envrc``
-   * - ``python``
-     - 5
-     - Python venv and package install
-     - ``setup.py`` / ``pyproject.toml`` / ``src: pypi``
-     - Creates venv, installs packages; queries ``agent.skills`` entry-points
-     - ``packages/python/``
    * - ``node``
-     - 6
+     - INSTALL
      - Node.js environment and package install
      - ``package.json`` / ``src: npm``
      - Synthesises ``package.json``, runs npm/pnpm/yarn, links source packages
      - ``packages/node/``
+   * - ``python``
+     - INSTALL
+     - Python venv and package install
+     - ``setup.py`` / ``pyproject.toml`` / ``src: pypi``
+     - Creates venv, installs packages; queries ``agent.skills`` entry-points
+     - ``packages/python/``
    * - ``agents``
-     - 6
+     - INTEGRATE
      - Skill file discovery and symlinking
      - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``agent.skills`` entry-points
      - Creates symlinks to skills
      - ``.agents/skills/``, ``.claude/skills/``, ``.cursor/skills/``
+   * - ``dv-flow``
+     - INTEGRATE
+     - DV-Flow package-map generation
+     - Packages with a root ``flow.yaml``
+     - Writes ``dv-flow-package-map.yaml``
+     - ``packages/dv-flow-package-map.yaml``
    * - ``fusesoc``
-     - 10
+     - INTEGRATE
      - FuseSoC core library mapping
      - ``.core`` files (CAPI-2) or ``with.fusesoc.cores``
      - Writes ``fusesoc-cores.envrc``, ``fusesoc-cores.txt``; optionally updates ``fusesoc.conf``
      - ``packages/fusesoc-cores.*``
+
+
+Handler Ordering
+================
+
+Root callbacks run in an order computed from each handler's **phase** and its
+relative **constraints**.  Built-in and third-party handlers are ordered
+together by the same rules.
+
+Every handler belongs to one of five ordered, barrier-separated phases:
+
+.. code-block:: text
+
+    PREPARE  ->  ENVIRONMENT  ->  INSTALL  ->  INTEGRATE  ->  FINALIZE
+
+Because phases are **barriers**, all handlers in one phase finish before any
+handler in the next begins -- so an ``INTEGRATE`` handler can rely on the
+managed Python venv (built in ``INSTALL``) already existing.
+
+Within or across phases, a handler can declare relative ordering with
+``run_after`` / ``run_before``, each naming another handler or a phase
+(``"phase:install"``).  For example, the ``modules`` handler declares
+``run_after = ["direnv"]`` because it patches the ``packages.envrc`` file that
+``direnv`` writes.  A constraint naming an absent handler is ignored with a
+warning; a constraint that forms a cycle aborts the run with a clear error.
+
+Handlers in the same phase with no constraint between them run in a
+deterministic, reproducible order (by name).
+
+Inspect the resolved order with:
+
+.. code-block:: bash
+
+    $ ivpm show handler --order
+
+See :doc:`extending_ivpm` for how to set ``phase``, ``run_after``, and
+``run_before`` on a custom handler.
 
 
 Discovering Handlers

@@ -83,7 +83,11 @@ class PackageFile(PackageURL):
                         first_slash_link = fi.linkname.find("/")
                         fi.linkname = fi.linkname[first_slash_link+1:]
 
-                tf.extract(fi, path=pkg_path)
+                # filter='data' sanitizes each member (rejects absolute paths,
+                # '..' traversal, and links pointing outside pkg_path). This is
+                # the default in Python 3.14; setting it explicitly silences the
+                # 3.12+ DeprecationWarning and keeps behavior consistent.
+                tf.extract(fi, path=pkg_path, filter='data')
         tf.close()
 
     def _install_zip(self, pkg_src, pkg_path):

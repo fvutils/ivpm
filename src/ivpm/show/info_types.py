@@ -105,8 +105,13 @@ class ContentTypeInfo(RegistryEntryInfo):
 @dc.dataclass
 class HandlerInfo(RegistryEntryInfo):
     """Self-description for a package handler (registered in PackageHandlerRgy)."""
-    phase: int = 0
+    # Named phase (HandlerPhase value). The registry normalizes legacy int
+    # phases to a named phase before rendering.
+    phase: str = ""
     conditions: str = ""
+    # Relative ordering constraints (handler names or "phase:<name>").
+    run_after: List[str] = dc.field(default_factory=list)
+    run_before: List[str] = dc.field(default_factory=list)
     # Human-readable list of CLI options this handler adds, e.g.:
     # ["update: --py-uv", "update: --py-pip"]
     cli_options: List[str] = dc.field(default_factory=list)

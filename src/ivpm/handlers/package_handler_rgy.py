@@ -40,8 +40,18 @@ class PackageHandlerRgy(object):
         self._meta[h] = (origin, version, provider)
 
     def handler_info(self, cls) -> 'HandlerInfo':
-        """Return cls.handler_info() with registration provenance applied."""
+        """Return cls.handler_info() with provenance and ordering info applied."""
+        from .handler_order import normalize_phase
         info = cls.handler_info()
+        # Normalize phase to a named phase (maps legacy ints) and surface the
+        # relative ordering constraints regardless of what the handler's own
+        # handler_info() populated.
+        try:
+            info.phase = normalize_phase(cls.phase)
+        except Exception:
+            info.phase = str(cls.phase)
+        info.run_after = list(getattr(cls, "run_after", None) or [])
+        info.run_before = list(getattr(cls, "run_before", None) or [])
         origin, version, provider = self._meta.get(cls, ("built-in", None, None))
         info.origin = origin
         if version is not None:
@@ -49,6 +59,16 @@ class PackageHandlerRgy(object):
         if provider is not None and info.provider is None:
             info.provider = provider
         return info
+
+    def resolved_order(self) -> list:
+        """Return registered handler classes in resolved root-phase order.
+
+        This is the *static* order (no root_when filtering, since there is no
+        run context). Used by 'ivpm show handler --order'.
+        """
+        from .handler_order import resolve_order
+        instances = [h_t() for h_t in self.handlers]
+        return [type(h) for h in resolve_order(instances)]
 
     def handler_infos(self) -> list:
         """Return HandlerInfo for all registered handlers, provenance applied."""

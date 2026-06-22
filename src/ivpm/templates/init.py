@@ -37,11 +37,9 @@ if os.path.isfile(os.path.join(snapshot_dir, "python_pkgs.txt")):
         print("Error: failed to upgrade pip")
         sys.exit(1)
 
-    cwd = os.getcwd()        
-    os.chdir(snapshot_dir)
-    cmd = [venv_python, "-m", "pip", "install", "-r", 
+    cmd = [venv_python, "-m", "pip", "install", "-r",
            os.path.join(snapshot_dir, "python_pkgs.txt")]
-    status = subprocess.run(cmd)
+    status = subprocess.run(cmd, cwd=snapshot_dir)
     
     if status.returncode != 0:
         print("Error: failed to install packages from snapshot")
