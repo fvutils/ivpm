@@ -40,9 +40,16 @@ class PackageHandlerList(PackageHandler):
     # ------------------------------------------------------------------ #
 
     def on_root_pre_load(self, update_info):
-        """Clear accumulated state and call on_root_pre_load on all handlers."""
+        """Clear accumulated state and call on_root_pre_load on all handlers.
+
+        Handlers are dispatched in resolved phase order (same ordering used by
+        on_root_post_load) so a handler's `phase` controls its pre-load
+        position too. root_when is *not* applied here: it evaluates the
+        accumulated package list, which is empty before any package is fetched,
+        so every handler receives on_root_pre_load unconditionally.
+        """
         self._all_pkgs = []
-        for h in self.handlers:
+        for h in resolve_order(self.handlers):
             h.on_root_pre_load(update_info)
 
     def on_root_post_load(self, update_info):

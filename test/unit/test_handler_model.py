@@ -24,6 +24,7 @@ from unittest.mock import MagicMock, call
 from ivpm.handlers.package_handler import PackageHandler, HandlerFatalError, TaskHandle
 from ivpm.handlers.package_handler_list import PackageHandlerList
 from ivpm.handlers.handler_conditions import ALWAYS, HasType, HasSourceType
+from ivpm.handlers.handler_phases import HandlerPhase
 from ivpm.update_event import UpdateEventType
 
 
@@ -352,6 +353,32 @@ class TestPackageHandlerList(unittest.TestCase):
         hl = self._make_list(CondHandler())
         hl.on_root_pre_load(FakeUpdateInfo())
         self.assertEqual(pre_called, ["pre"])
+
+    def test_pre_load_phase_ordering(self):
+        """on_root_pre_load dispatches in resolved phase order, not registration order."""
+        order = []
+
+        class HandlerA(PackageHandler):
+            phase = HandlerPhase.FINALIZE   # last
+            def on_root_pre_load(self, update_info):
+                order.append("A")
+
+        class HandlerB(PackageHandler):
+            phase = HandlerPhase.PREPARE    # first
+            def on_root_pre_load(self, update_info):
+                order.append("B")
+
+        class HandlerC(PackageHandler):
+            phase = HandlerPhase.INSTALL    # middle
+            def on_root_pre_load(self, update_info):
+                order.append("C")
+
+        # Registered A, B, C — phase order is B, C, A. A naive alphabetical
+        # sort of the phase names ("finalize" < "install" < "prepare") would
+        # give A, C, B, so this locks in canonical-ordinal ordering.
+        hl = self._make_list(HandlerA(), HandlerB(), HandlerC())
+        hl.on_root_pre_load(FakeUpdateInfo())
+        self.assertEqual(order, ["B", "C", "A"])
 
     def test_phase_ordering(self):
         order = []
