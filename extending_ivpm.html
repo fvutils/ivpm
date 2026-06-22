@@ -149,7 +149,7 @@ work such as creating virtual environments or generating toolchain files.</p>
 <p>All handlers extend <code class="docutils literal notranslate"><span class="pre">ivpm.handlers.PackageHandler</span></code>:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dc</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span><span class="p">,</span> <span class="n">HandlerFatalError</span><span class="p">,</span> <span class="n">ALWAYS</span><span class="p">,</span> <span class="n">HasType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span><span class="p">,</span> <span class="n">HandlerFatalError</span><span class="p">,</span> <span class="n">HandlerPhase</span><span class="p">,</span> <span class="n">ALWAYS</span><span class="p">,</span> <span class="n">HasType</span>
 
 <span class="nd">@dc</span><span class="o">.</span><span class="n">dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">MyHandler</span><span class="p">(</span><span class="n">PackageHandler</span><span class="p">):</span>
@@ -157,7 +157,11 @@ work such as creating virtual environments or generating toolchain files.</p>
     <span class="c1"># --- Metadata (class-level, not instance attributes) ---</span>
     <span class="n">name</span><span class="p">:</span>        <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;my-handler&quot;</span>
     <span class="n">description</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;Does something useful&quot;</span>
-    <span class="n">phase</span><span class="p">:</span>       <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>  <span class="o">=</span> <span class="mi">0</span>       <span class="c1"># lower = earlier in root phase</span>
+
+    <span class="c1"># --- Root-phase ordering (see &quot;Handler Ordering&quot; below) ---</span>
+    <span class="n">phase</span><span class="p">:</span>       <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>       <span class="o">=</span> <span class="n">HandlerPhase</span><span class="o">.</span><span class="n">INTEGRATE</span>  <span class="c1"># named phase</span>
+    <span class="n">run_after</span><span class="p">:</span>   <span class="n">ClassVar</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># handler names / &quot;phase:&lt;name&gt;&quot; to run after</span>
+    <span class="n">run_before</span><span class="p">:</span>  <span class="n">ClassVar</span><span class="p">[</span><span class="n">List</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>   <span class="c1"># handler names / &quot;phase:&lt;name&gt;&quot; to run before</span>
 
     <span class="c1"># --- When to activate (see Conditions section below) ---</span>
     <span class="n">leaf_when</span><span class="p">:</span>   <span class="n">ClassVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>   <span class="c1"># None = always run as leaf</span>
@@ -190,9 +194,25 @@ registration. Required.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">description</span></code></dt><dd><p>Human-readable description shown in verbose output.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">phase</span></code></dt><dd><p>Integer ordering key for the <strong>root</strong> phase. Handlers with lower phase
-numbers run first. Leaf phase ordering is determined by package fetch order,
-not by this value. Default: <code class="docutils literal notranslate"><span class="pre">0</span></code>.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">phase</span></code></dt><dd><p>The named <strong>phase</strong> this handler’s root work belongs to – one of the
+<code class="docutils literal notranslate"><span class="pre">HandlerPhase</span></code> values: <code class="docutils literal notranslate"><span class="pre">PREPARE</span></code>, <code class="docutils literal notranslate"><span class="pre">ENVIRONMENT</span></code>, <code class="docutils literal notranslate"><span class="pre">INSTALL</span></code>,
+<code class="docutils literal notranslate"><span class="pre">INTEGRATE</span></code>, <code class="docutils literal notranslate"><span class="pre">FINALIZE</span></code> (run in that order). Default:
+<code class="docutils literal notranslate"><span class="pre">HandlerPhase.INTEGRATE</span></code>. Phases are <strong>barriers</strong>: every handler in one
+phase completes before any handler in the next begins. A legacy integer is
+still accepted and mapped onto a named phase, but new handlers should use a
+<code class="docutils literal notranslate"><span class="pre">HandlerPhase</span></code> value. Leaf phase ordering is determined by package fetch
+order, not by this value. See <a class="reference internal" href="#handler-ordering">Handler Ordering</a>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">run_after</span></code></dt><dd><p>A list of ordering constraints that must run <strong>before</strong> this handler. Each
+entry is either a handler name (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;python&quot;</span></code>) or a phase reference
+(e.g. <code class="docutils literal notranslate"><span class="pre">&quot;phase:install&quot;</span></code>, meaning “after all INSTALL handlers”). A target
+naming a handler that is not installed is ignored with a warning, so it is
+safe to reference optional handlers. Default: <code class="docutils literal notranslate"><span class="pre">[]</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">run_before</span></code></dt><dd><p>Like <code class="docutils literal notranslate"><span class="pre">run_after</span></code>, but these targets must run <strong>after</strong> this handler.
+Accepts handler names and <code class="docutils literal notranslate"><span class="pre">&quot;phase:&lt;name&gt;&quot;</span></code> references (e.g.
+<code class="docutils literal notranslate"><span class="pre">&quot;phase:integrate&quot;</span></code>, meaning “before any INTEGRATE handler”). Default:
+<code class="docutils literal notranslate"><span class="pre">[]</span></code>.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">leaf_when</span></code></dt><dd><p>A list of <strong>leaf conditions</strong> (see below), or <code class="docutils literal notranslate"><span class="pre">None</span></code> to always run as a
 leaf handler. Use <code class="docutils literal notranslate"><span class="pre">[]</span></code> (empty list) to opt out of leaf dispatch entirely.</p>
@@ -361,14 +381,14 @@ FuseSoC <code class="docutils literal notranslate"><span class="pre">.core</span
 <span class="kn">import</span><span class="w"> </span><span class="nn">pathlib</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClassVar</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">Optional</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span><span class="p">,</span> <span class="n">HasType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">ivpm.handlers</span><span class="w"> </span><span class="kn">import</span> <span class="n">PackageHandler</span><span class="p">,</span> <span class="n">HandlerPhase</span><span class="p">,</span> <span class="n">HasType</span>
 
 <span class="nd">@dc</span><span class="o">.</span><span class="n">dataclass</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">FuseSocHandler</span><span class="p">(</span><span class="n">PackageHandler</span><span class="p">):</span>
 
     <span class="n">name</span><span class="p">:</span>        <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;fusesoc&quot;</span>
     <span class="n">description</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="s2">&quot;Collect FuseSoC core libraries&quot;</span>
-    <span class="n">phase</span><span class="p">:</span>       <span class="n">ClassVar</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span>  <span class="o">=</span> <span class="mi">10</span>
+    <span class="n">phase</span><span class="p">:</span>       <span class="n">ClassVar</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>  <span class="o">=</span> <span class="n">HandlerPhase</span><span class="o">.</span><span class="n">INTEGRATE</span>
 
     <span class="c1"># Activate root phase only when FuseSoC packages were detected</span>
     <span class="n">root_when</span><span class="p">:</span>   <span class="n">ClassVar</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="n">List</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span><span class="n">HasType</span><span class="p">(</span><span class="s2">&quot;fusesoc&quot;</span><span class="p">)]</span>
@@ -402,18 +422,45 @@ FuseSoC <code class="docutils literal notranslate"><span class="pre">.core</span
 </section>
 <section id="handler-ordering">
 <h2>Handler Ordering<a class="headerlink" href="#handler-ordering" title="Link to this heading"></a></h2>
-<p>IVPM loads handlers in this order:</p>
-<ol class="arabic simple">
-<li><p>Built-in handlers in phase order: Direnv (phase <code class="docutils literal notranslate"><span class="pre">0</span></code>), Python (phase <code class="docutils literal notranslate"><span class="pre">5</span></code>), Agents (phase <code class="docutils literal notranslate"><span class="pre">6</span></code>)</p></li>
-<li><p>Extension handlers discovered via <code class="docutils literal notranslate"><span class="pre">ivpm.handlers</span></code> entry points, in
-installation order</p></li>
-</ol>
-<p>Within the root phase, handlers with the same phase number run in the order they
-were registered. Leaf callbacks always run concurrently with no guaranteed
-ordering.</p>
-<p>To run after all built-in handlers, use <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">10</span></code> or higher.  To interleave
-between built-ins (e.g., after Python but before Agents), use a phase between
-<code class="docutils literal notranslate"><span class="pre">5</span></code> and <code class="docutils literal notranslate"><span class="pre">6</span></code>.  To run before all built-ins, use a negative phase (rarely needed).</p>
+<p>Root callbacks run in an order computed from two things: each handler’s
+<strong>phase</strong> and its relative <strong>constraints</strong>. Built-in and extension handlers are
+ordered together by the same rules – an extension handler is not forced to run
+after every built-in.</p>
+<p><strong>Phases.</strong> Every handler belongs to one of five ordered, barrier-separated
+phases:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>PREPARE  -&gt;  ENVIRONMENT  -&gt;  INSTALL  -&gt;  INTEGRATE  -&gt;  FINALIZE
+</pre></div>
+</div>
+<p>Because phases are barriers, <em>all</em> handlers in one phase finish before <em>any</em>
+handler in the next starts. A handler in <code class="docutils literal notranslate"><span class="pre">INTEGRATE</span></code> can therefore assume the
+managed Python venv (built in <code class="docutils literal notranslate"><span class="pre">INSTALL</span></code>) already exists, without naming the
+<code class="docutils literal notranslate"><span class="pre">python</span></code> handler explicitly.</p>
+<p><strong>Relative constraints.</strong> Within (or across) phases, use <code class="docutils literal notranslate"><span class="pre">run_after</span></code> /
+<code class="docutils literal notranslate"><span class="pre">run_before</span></code> to order relative to a specific handler or phase:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run after the python handler, whatever phase it lands in:</span>
+<span class="n">phase</span>      <span class="o">=</span> <span class="n">HandlerPhase</span><span class="o">.</span><span class="n">INTEGRATE</span>
+<span class="n">run_after</span>  <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;python&quot;</span><span class="p">]</span>
+
+<span class="c1"># Or relative to a whole phase:</span>
+<span class="n">run_before</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;phase:integrate&quot;</span><span class="p">]</span>   <span class="c1"># finish before any INTEGRATE handler</span>
+</pre></div>
+</div>
+<p>A constraint that names a handler which is not installed is ignored with a
+warning, so referencing an optional handler is safe. Constraints that form a
+cycle (directly, or by contradicting the phase order) abort the run with a
+clear error before any handler executes.</p>
+<p><strong>Tie-break.</strong> Handlers in the same phase with no constraint between them run
+in a deterministic, reproducible order (by name) – never by entry-point load
+order.</p>
+<p><strong>Inspecting the result.</strong> Run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">handler</span> <span class="pre">--order</span></code> to print the fully
+resolved execution order, and <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">show</span> <span class="pre">handler</span> <span class="pre">&lt;name&gt;</span></code> to see a handler’s
+phase and constraints.</p>
+<p>Leaf callbacks always run concurrently with no guaranteed ordering; only the
+root phase is ordered.</p>
+<p>To run after the built-in install step, use <code class="docutils literal notranslate"><span class="pre">phase</span> <span class="pre">=</span> <span class="pre">HandlerPhase.INTEGRATE</span></code>
+(the default).  To run after a <em>specific</em> built-in regardless of its phase, add
+<code class="docutils literal notranslate"><span class="pre">run_after</span> <span class="pre">=</span> <span class="pre">[&quot;python&quot;]</span></code>.  To run before a whole phase, use
+<code class="docutils literal notranslate"><span class="pre">run_before</span> <span class="pre">=</span> <span class="pre">[&quot;phase:integrate&quot;]</span></code>.</p>
 </section>
 <section id="testing-your-handler">
 <h2>Testing Your Handler<a class="headerlink" href="#testing-your-handler" title="Link to this heading"></a></h2>

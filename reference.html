@@ -768,7 +768,7 @@
 <section id="handler">
 <h6>handler<a class="headerlink" href="#handler" title="Link to this heading"></a></h6>
 <p>List registered package handlers (post-fetch processing hooks)</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">handler</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">handler</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">order</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="positional-arguments_repeat11">
@@ -782,6 +782,10 @@
 <section id="named-arguments_repeat17">
 <h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat17" title="Link to this heading"></a></h6>
 <dl class="option-list">
+<dt><kbd>--order</kbd></dt>
+<dd><p>Show the resolved root-phase execution order of all handlers</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>

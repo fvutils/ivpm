@@ -42,7 +42,7 @@ All handlers extend ``ivpm.handlers.PackageHandler``:
 
     import dataclasses as dc
     from typing import ClassVar, List, Optional
-    from ivpm.handlers import PackageHandler, HandlerFatalError, ALWAYS, HasType
+    from ivpm.handlers import PackageHandler, HandlerFatalError, HandlerPhase, ALWAYS, HasType
 
     @dc.dataclass
     class MyHandler(PackageHandler):
@@ -50,7 +50,11 @@ All handlers extend ``ivpm.handlers.PackageHandler``:
         # --- Metadata (class-level, not instance attributes) ---
         name:        ClassVar[str]  = "my-handler"
         description: ClassVar[str]  = "Does something useful"
-        phase:       ClassVar[int]  = 0       # lower = earlier in root phase
+
+        # --- Root-phase ordering (see "Handler Ordering" below) ---
+        phase:       ClassVar[str]       = HandlerPhase.INTEGRATE  # named phase
+        run_after:   ClassVar[List[str]] = []   # handler names / "phase:<name>" to run after
+        run_before:  ClassVar[List[str]] = []   # handler names / "phase:<name>" to run before
 
         # --- When to activate (see Conditions section below) ---
         leaf_when:   ClassVar[Optional[List]] = None   # None = always run as leaf
@@ -86,9 +90,27 @@ Class-level Metadata
     Human-readable description shown in verbose output.
 
 ``phase``
-    Integer ordering key for the **root** phase. Handlers with lower phase
-    numbers run first. Leaf phase ordering is determined by package fetch order,
-    not by this value. Default: ``0``.
+    The named **phase** this handler's root work belongs to -- one of the
+    ``HandlerPhase`` values: ``PREPARE``, ``ENVIRONMENT``, ``INSTALL``,
+    ``INTEGRATE``, ``FINALIZE`` (run in that order). Default:
+    ``HandlerPhase.INTEGRATE``. Phases are **barriers**: every handler in one
+    phase completes before any handler in the next begins. A legacy integer is
+    still accepted and mapped onto a named phase, but new handlers should use a
+    ``HandlerPhase`` value. Leaf phase ordering is determined by package fetch
+    order, not by this value. See `Handler Ordering`_.
+
+``run_after``
+    A list of ordering constraints that must run **before** this handler. Each
+    entry is either a handler name (e.g. ``"python"``) or a phase reference
+    (e.g. ``"phase:install"``, meaning "after all INSTALL handlers"). A target
+    naming a handler that is not installed is ignored with a warning, so it is
+    safe to reference optional handlers. Default: ``[]``.
+
+``run_before``
+    Like ``run_after``, but these targets must run **after** this handler.
+    Accepts handler names and ``"phase:<name>"`` references (e.g.
+    ``"phase:integrate"``, meaning "before any INTEGRATE handler"). Default:
+    ``[]``.
 
 ``leaf_when``
     A list of **leaf conditions** (see below), or ``None`` to always run as a
@@ -298,14 +320,14 @@ FuseSoC ``.core`` files and writes a consolidated library list:
     import pathlib
     from typing import ClassVar, List, Optional
 
-    from ivpm.handlers import PackageHandler, HasType
+    from ivpm.handlers import PackageHandler, HandlerPhase, HasType
 
     @dc.dataclass
     class FuseSocHandler(PackageHandler):
 
         name:        ClassVar[str]  = "fusesoc"
         description: ClassVar[str]  = "Collect FuseSoC core libraries"
-        phase:       ClassVar[int]  = 10
+        phase:       ClassVar[str]  = HandlerPhase.INTEGRATE
 
         # Activate root phase only when FuseSoC packages were detected
         root_when:   ClassVar[Optional[List]] = [HasType("fusesoc")]
@@ -341,19 +363,55 @@ Register it:
 Handler Ordering
 =================
 
-IVPM loads handlers in this order:
+Root callbacks run in an order computed from two things: each handler's
+**phase** and its relative **constraints**. Built-in and extension handlers are
+ordered together by the same rules -- an extension handler is not forced to run
+after every built-in.
 
-1. Built-in handlers in phase order: Direnv (phase ``0``), Python (phase ``5``), Agents (phase ``6``)
-2. Extension handlers discovered via ``ivpm.handlers`` entry points, in
-   installation order
+**Phases.** Every handler belongs to one of five ordered, barrier-separated
+phases:
 
-Within the root phase, handlers with the same phase number run in the order they
-were registered. Leaf callbacks always run concurrently with no guaranteed
-ordering.
+.. code-block:: text
 
-To run after all built-in handlers, use ``phase = 10`` or higher.  To interleave
-between built-ins (e.g., after Python but before Agents), use a phase between
-``5`` and ``6``.  To run before all built-ins, use a negative phase (rarely needed).
+    PREPARE  ->  ENVIRONMENT  ->  INSTALL  ->  INTEGRATE  ->  FINALIZE
+
+Because phases are barriers, *all* handlers in one phase finish before *any*
+handler in the next starts. A handler in ``INTEGRATE`` can therefore assume the
+managed Python venv (built in ``INSTALL``) already exists, without naming the
+``python`` handler explicitly.
+
+**Relative constraints.** Within (or across) phases, use ``run_after`` /
+``run_before`` to order relative to a specific handler or phase:
+
+.. code-block:: python
+
+    # Run after the python handler, whatever phase it lands in:
+    phase      = HandlerPhase.INTEGRATE
+    run_after  = ["python"]
+
+    # Or relative to a whole phase:
+    run_before = ["phase:integrate"]   # finish before any INTEGRATE handler
+
+A constraint that names a handler which is not installed is ignored with a
+warning, so referencing an optional handler is safe. Constraints that form a
+cycle (directly, or by contradicting the phase order) abort the run with a
+clear error before any handler executes.
+
+**Tie-break.** Handlers in the same phase with no constraint between them run
+in a deterministic, reproducible order (by name) -- never by entry-point load
+order.
+
+**Inspecting the result.** Run ``ivpm show handler --order`` to print the fully
+resolved execution order, and ``ivpm show handler <name>`` to see a handler's
+phase and constraints.
+
+Leaf callbacks always run concurrently with no guaranteed ordering; only the
+root phase is ordered.
+
+To run after the built-in install step, use ``phase = HandlerPhase.INTEGRATE``
+(the default).  To run after a *specific* built-in regardless of its phase, add
+``run_after = ["python"]``.  To run before a whole phase, use
+``run_before = ["phase:integrate"]``.
 
 
 Testing Your Handler
