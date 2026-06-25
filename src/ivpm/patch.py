@@ -672,9 +672,9 @@ def _first_editable_apply(update_info, pkg, pkg_dir, base_version, patchset):
 
 _DRIFT_ERROR = (
     "package %s has local modifications beyond its applied patches; refusing to "
-    "re-establish (this would discard your changes).\n"
-    "  - keep your changes:  regenerate the patch file, then 'ivpm patch accept %s'\n"
-    "  - discard them:       'ivpm update --reset %s'  (or remove %s)")
+    "re-establish (this would discard your changes). Your tree is left untouched.\n"
+    "  - to discard the changes and re-establish: remove '%s', then re-run "
+    "'ivpm update'")
 
 
 def reconcile(state, update_info, pkg, pkg_dir, base_version, patchset):
@@ -692,7 +692,7 @@ def reconcile(state, update_info, pkg, pkg_dir, base_version, patchset):
         return ProjInfo.mkFromProj(pkg_dir)
 
     def drift_error():
-        fatal(_DRIFT_ERROR % (pkg.name, pkg.name, pkg.name, pkg_dir))
+        fatal(_DRIFT_ERROR % (pkg.name, pkg_dir))
 
     if kind == PatchState.ABSENT:
         pkg.fetch_pristine(update_info, pkg_dir, base_version)        # row 1/2

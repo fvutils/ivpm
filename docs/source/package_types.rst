@@ -57,6 +57,9 @@ Clone from a Git repository. Supports branches, tags, commits, and submodules.
 ``cache``
     Enable caching (see :doc:`caching`)
 
+``patches``
+    Apply one or more patch files to the checkout (see :doc:`patching`)
+
 **Examples:**
 
 .. code-block:: yaml
@@ -91,6 +94,12 @@ Clone from a Git repository. Supports branches, tags, commits, and submodules.
       url: https://github.com/org/my-lib.git
       branch: v1.0
       cache: true
+
+    # Patched checkout (see :doc:`patching`)
+    - name: my-lib
+      url: https://github.com/org/my-lib.git
+      patches:
+        - patches/my-lib-fix.patch
 
 **Submodules:** Automatically initialized if ``.gitmodules`` is present.
 
@@ -942,6 +951,7 @@ See Also
 - :doc:`core_concepts` - Understanding the package model
 - :doc:`dependency_sets` - Organizing dependencies
 - :doc:`caching` - Caching strategies
+- :doc:`patching` - Applying patch files to dependencies
 - :doc:`python_packages` - Python-specific features
 - :doc:`github_releases` - GitHub Releases details
 - :doc:`handlers` - How handlers process packages (Python, Direnv, Agents)

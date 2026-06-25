@@ -853,7 +853,7 @@ class PackageGit(PackageURL):
                 ParamInfo("tag", "Tag to pin to; disables sync for this package"),
                 ParamInfo("commit", "Specific commit SHA to check out"),
                 ParamInfo("depth", "Shallow-clone depth (integer)", type_hint="int"),
-                ParamInfo("cache", "Cache mode: true=shared cache+symlink, false=shallow read-only clone, omit=full editable clone", type_hint="bool"),
+                ParamInfo("cache", "Cache mode: true=shared cache+symlink (read-only), false=editable clone but never cached, omit=full editable clone", type_hint="bool"),
                 ParamInfo("ssh", "Force SSH: rewrite the https URL to git@host:path form (overrides the auth order)", type_hint="bool"),
                 ParamInfo("anonymous", "Legacy knob: anonymous:true clones https as written; anonymous:false defers to the auth order (use 'ssh' to force SSH)", type_hint="bool"),
             ],
@@ -865,7 +865,8 @@ class PackageGit(PackageURL):
                 "with --git-auth-order.  "
                 "When cache: true, IVPM resolves the HEAD commit hash, stores the repo in a "
                 "shared cache, and symlinks it read-only into packages/.  "
-                "When cache: false, a shallow clone is made directly in packages/ without caching.  "
+                "When cache: false, an editable clone is made directly in packages/ and the shared "
+                "cache is never consulted (history controlled by 'depth:', full by default).  "
                 "Omitting cache produces a full editable clone — the common case for co-developed deps."
             ),
         )

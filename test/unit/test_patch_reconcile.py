@@ -219,7 +219,7 @@ class TestReconcileErrorRows(_GitBase):
         before = _hash_tree(self.pkg_dir)
         with self.assertRaises(Exception) as ctx:
             self.reconcile(desired_patches)
-        self.assertIn("ivpm update --reset", str(ctx.exception))
+        self.assertIn("refusing to re-establish", str(ctx.exception))
         self.assertEqual(_hash_tree(self.pkg_dir), before)   # byte-identical
 
     def test_row9_drift_patchset_change_errors(self):
