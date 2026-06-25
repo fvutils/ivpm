@@ -43,6 +43,39 @@ LOCK_VERSION = 1
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _add_patch_fields(entry: dict, pkg) -> None:
+    """Record patch identity on a lock entry (generic across all source types).
+
+    Applied for every type -- including extension types that supply their own
+    get_lock_entry() -- so a patched dependency always round-trips its patch
+    set. effective_version is recorded by the resolver (which knows the base);
+    here we record the type-independent patch identity.
+    """
+    ps = getattr(pkg, "patchset", None)
+    if ps is None or ps.is_empty:
+        return
+    entry["patches"] = [
+        dict(
+            [("name", s.name), ("md5", s.md5), ("strip", s.strip),
+             ("directory", s.directory)]
+            + ([("tool", s.tool)] if s.tool else [])
+        )
+        for s in ps.specs
+    ]
+    entry["patchset_id"] = ps.patchset_id
+
+
+def _patch_spec_matches(pkg, lock_entry: dict) -> bool:
+    """True if pkg's patch set matches the lock entry's recorded patch identity.
+
+    A change in any patch MD5, the patch order, or set membership changes the
+    patchset_id, so one comparison captures all three. An unpatched pkg matches
+    only an entry with no patchset_id (and vice-versa)."""
+    ps = getattr(pkg, "patchset", None)
+    live_id = None if (ps is None or ps.is_empty) else ps.patchset_id
+    return live_id == lock_entry.get("patchset_id")
+
+
 def _entry_from_pkg(pkg) -> dict:
     """Build a lock-file entry dict from a resolved Package object."""
     src = getattr(pkg, "src_type", None) or ""
@@ -58,6 +91,10 @@ def _entry_from_pkg(pkg) -> dict:
         "dep_set": pkg.dep_set,
         "reproducible": True,
     }
+
+    # Patch identity is cross-cutting -- record it before the type branches so
+    # both the extension-entry path and the built-in path include it.
+    _add_patch_fields(entry, pkg)
 
     # Let extension packages contribute their own lock-entry fields.
     # If get_lock_entry() returns a dict, merge it and skip the
@@ -121,6 +158,11 @@ def _entry_from_pkg(pkg) -> dict:
 def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
     """Return True if the user-specified fields of *pkg* match *lock_entry*."""
     src = getattr(pkg, "src_type", None) or ""
+
+    # A patch-set change (different MD5/order/membership) is a spec change for
+    # every source type -- check it before the type-specific / extension paths.
+    if not _patch_spec_matches(pkg, lock_entry):
+        return False
 
     # Let extension packages handle their own comparison first.
     _ext_result = pkg.spec_matches_lock(lock_entry)

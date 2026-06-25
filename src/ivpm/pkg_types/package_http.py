@@ -31,6 +31,91 @@ from ..package import SourceType2Ext
 
 class PackageHttp(PackageFile):
 
+    def patch_capability(self):
+        # Editable patchable: cache-mode plus in-place rollback by re-extracting
+        # the retained base archive (retain_base / restore_pristine below).
+        # base_version is the ETag/Last-Modified (a patched http dep must resolve
+        # a strong identity -- see the resolver in P4).
+        from ..patch import PatchCapability
+        return PatchCapability.EDITABLE
+
+    def retain_base(self, pkg_dir, base_version, update_info):
+        """Retain the downloaded archive at .ivpm/base<ext> so the pristine tree
+        can be re-extracted offline. ``self._pristine_archive`` is the path to
+        the archive that was just downloaded (set by the editable fetch)."""
+        src = getattr(self, "_pristine_archive", None)
+        if src is None or not os.path.isfile(src):
+            return                       # nothing to retain; restore returns False
+        ext = self.src_type or os.path.splitext(src)[1]
+        ivpm_dir = os.path.join(pkg_dir, ".ivpm")
+        os.makedirs(ivpm_dir, exist_ok=True)
+        dest = os.path.join(ivpm_dir, "base" + ext)
+        import shutil as _sh
+        _sh.copy2(src, dest)
+        from ..patch import md5_file
+        self._base_ref = {
+            "kind": "archive",
+            "file": os.path.join(".ivpm", "base" + ext),
+            "md5": md5_file(dest),
+        }
+
+    def _find_retained_base(self, pkg_dir):
+        ivpm_dir = os.path.join(pkg_dir, ".ivpm")
+        if not os.path.isdir(ivpm_dir):
+            return None
+        for fn in sorted(os.listdir(ivpm_dir)):
+            if fn.startswith("base."):
+                return os.path.join(ivpm_dir, fn)
+        return None
+
+    def restore_pristine(self, pkg_dir, base_version, update_info) -> bool:
+        """Re-extract the retained base archive, preserving .ivpm/. Always safe
+        for an archive tree (no user-tracked history); returns False only if no
+        retained base is present."""
+        import shutil as _sh
+        base_file = self._find_retained_base(pkg_dir)
+        if base_file is None:
+            return False
+        for entry in os.listdir(pkg_dir):
+            if entry == ".ivpm":
+                continue
+            p = os.path.join(pkg_dir, entry)
+            if os.path.islink(p) or os.path.isfile(p):
+                os.unlink(p)
+            else:
+                _sh.rmtree(p)
+        self._install(base_file, pkg_dir)
+        return True
+
+    def patch_tree_status(self, pkg_dir, base_version, allowed_paths):
+        """Clean iff only allowed_paths deviate from the retained base snapshot.
+        ('unknown' if no retained base -- archive trees are only drift-checkable
+        once they carry a base snapshot.)"""
+        base_file = self._find_retained_base(pkg_dir)
+        if base_file is None:
+            return "unknown"
+        from ..patch import _walk_rel, _sha256_file
+        import tempfile as _tf
+        import shutil as _sh
+        tmp = _tf.mkdtemp()
+        try:
+            self._install(base_file, tmp)
+            base_files = _walk_rel(tmp)
+            cur_files = _walk_rel(pkg_dir)
+            for rel in base_files | cur_files:
+                if rel in allowed_paths:
+                    continue
+                bp = os.path.join(tmp, rel)
+                cp = os.path.join(pkg_dir, rel)
+                be, ce = os.path.isfile(bp), os.path.isfile(cp)
+                if be != ce:
+                    return "drift"
+                if be and ce and _sha256_file(bp) != _sha256_file(cp):
+                    return "drift"
+            return "clean"
+        finally:
+            _sh.rmtree(tmp, ignore_errors=True)
+
     def update(self, update_info : ProjectUpdateInfo):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")

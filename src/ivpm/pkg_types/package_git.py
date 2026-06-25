@@ -46,6 +46,94 @@ class PackageGit(PackageURL):
     ssh : bool = None  # rewrite https URL to git@host:path form
     resolved_commit : str = None  # actual commit hash after fetch
 
+    def patch_capability(self):
+        # Editable patchable: cache-mode plus in-place rollback via the git
+        # history (retain_base / restore_pristine below). base_version is the
+        # commit hash.
+        from ..patch import PatchCapability
+        return PatchCapability.EDITABLE
+
+    def retain_base(self, pkg_dir, base_version, update_info):
+        """No retained bytes needed -- base_version is the commit, recoverable
+        from the clone. Record the provenance for the manifest writer."""
+        self._base_ref = {"kind": "git", "version": base_version}
+
+    def restore_pristine(self, pkg_dir, base_version, update_info) -> bool:
+        """Revert the working tree to base_version, preserving .ivpm/.
+
+        Safety: proceed only if the working tree's deviations are exactly the
+        recorded patch result (the manifest result[] paths) plus .ivpm/. Any
+        unrelated modification makes this return False so the caller errors
+        rather than discarding the developer's work.
+        """
+        from ..patch import read_manifest
+        manifest = read_manifest(pkg_dir)
+        recorded = set()
+        if manifest:
+            for r in manifest.get("result", []):
+                recorded.add(r.get("path"))
+
+        status = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=pkg_dir, capture_output=True, text=True)
+        if status.returncode != 0:
+            return False
+        for line in status.stdout.splitlines():
+            if not line.strip():
+                continue
+            path = line[3:].strip()
+            if " -> " in path:               # rename: take the destination
+                path = path.split(" -> ")[-1].strip()
+            if path == ".ivpm" or path.startswith(".ivpm/"):
+                continue
+            if path not in recorded:
+                return False                 # unrelated edit -> refuse
+
+        if subprocess.run(["git", "reset", "--hard", base_version],
+                          cwd=pkg_dir, capture_output=True, text=True).returncode != 0:
+            return False
+        subprocess.run(["git", "clean", "-fdx", "-e", ".ivpm/"],
+                       cwd=pkg_dir, capture_output=True, text=True)
+        return True
+
+    def _porcelain_paths(self, pkg_dir):
+        """Dirty paths (excluding .ivpm/) from git status --porcelain, or None
+        if git status fails."""
+        status = subprocess.run(["git", "status", "--porcelain"],
+                                cwd=pkg_dir, capture_output=True, text=True)
+        if status.returncode != 0:
+            return None
+        paths = []
+        for line in status.stdout.splitlines():
+            if not line.strip():
+                continue
+            path = line[3:].strip()
+            if " -> " in path:
+                path = path.split(" -> ")[-1].strip()
+            if path == ".ivpm" or path.startswith(".ivpm/"):
+                continue
+            paths.append(path)
+        return paths
+
+    def working_tree_dirty(self, pkg_dir):
+        paths = self._porcelain_paths(pkg_dir)
+        if paths is None:
+            return None
+        return len(paths) > 0
+
+    def patch_tree_status(self, pkg_dir, base_version, allowed_paths):
+        head = subprocess.run(["git", "rev-parse", "HEAD"],
+                              cwd=pkg_dir, capture_output=True, text=True)
+        if head.returncode != 0 or head.stdout.strip() != base_version:
+            return "drift"      # moved HEAD (e.g. committed) -> drift
+        paths = self._porcelain_paths(pkg_dir)
+        if paths is None:
+            return "drift"
+        for path in paths:
+            if path not in allowed_paths:
+                return "drift"
+        return "clean"
+
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
@@ -56,10 +144,23 @@ class PackageGit(PackageURL):
         is_editable = self.cache is not True  # Could be cached but isn't
         update_info.report_package(cacheable=is_cacheable, editable=is_editable)
 
+        patched = not self.patchset.is_empty
+        manifest = os.path.exists(os.path.join(pkg_dir, ".ivpm", "patch-manifest.json"))
+
         if os.path.exists(pkg_dir) or os.path.islink(pkg_dir):
+            # A patched (or previously-patched) tree is reconciled, not skipped,
+            # so a changed patch set is picked up.
+            if patched or manifest:
+                return self._update_with_patches(update_info, pkg_dir)
             note("package %s is already loaded" % self.name)
             self._capture_resolved_commit(pkg_dir)
         else:
+            # Patched deps go through the patch-aware resolver (which owns the
+            # cache interaction). It deliberately bypasses the not-yet-patch-aware
+            # deps-source probe below.
+            if patched:
+                return self._update_with_patches(update_info, pkg_dir)
+
             # Try deps-source first — resolve commit, then check parent deps-dir(s)
             if update_info.deps_source is not None:
                 self._resolve_commit_for_deps_source(update_info)
@@ -239,6 +340,31 @@ class PackageGit(PackageURL):
         provider.materialize(self, commit_hash)
 
         return ProjInfo.mkFromProj(pkg_dir)
+
+    def _resolve_commit(self, update_info: ProjectUpdateInfo) -> str:
+        """Resolve the ref (branch/tag/HEAD) to a concrete commit hash."""
+        ref = self.branch or self.tag or "HEAD"
+        if is_github_url(self.url):
+            owner, repo = parse_github_url(self.url)
+            h = self._get_github_commit_hash(owner, repo, ref, update_info)
+        else:
+            h = self._get_commit_hash_ls_remote(ref, update_info)
+        if h is None:
+            fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
+        return h
+
+    def fetch_pristine(self, update_info, dest_dir: str, base_version: str) -> None:
+        """Materialize a writable pristine tree of base_version at dest_dir.
+        A depth=1 clone at the resolved ref is exactly base_version (mirrors the
+        cache-miss clone)."""
+        self._clone_to_dir(update_info, dest_dir, depth=1)
+
+    def _update_with_patches(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
+        """Resolve the commit, then hand off to the patch-aware resolver."""
+        from ..patch import PatchAwareResolver
+        commit_hash = self._resolve_commit(update_info)
+        self.resolved_commit = commit_hash
+        return PatchAwareResolver().resolve(update_info, self, commit_hash)
 
     def _update_no_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
         """Editable clone without shared cache (cache=False). Depth controlled by self.depth."""

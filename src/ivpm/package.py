@@ -26,6 +26,7 @@ import dataclasses as dc
 from enum import Enum, auto
 from typing import Dict, List, Set, Optional, Tuple
 from .project_ops_info import ProjectUpdateInfo
+from .patch import PatchSpec, PatchSet, PatchCapability
 from .utils import fatal, getlocstr
 
 _logger = logging.getLogger("ivpm.package")
@@ -105,6 +106,10 @@ class Package(object):
     self_types : List[Tuple[str, dict]] = dc.field(default_factory=list)
     # agents_config holds the 'agents:' dict from the dep entry (consumer-specified override).
     agents_config : Optional[dict] = None
+    # patches holds the resolved, MD5-fingerprinted patch list from the dep entry's
+    # 'patches:' key (empty by default -> today's behavior exactly). Populated by
+    # IvpmYamlReader.read_deps for patch-capable sources only.
+    patches : List['PatchSpec'] = dc.field(default_factory=list)
 
     process_deps : bool = True
     setup_deps : Set[str] = dc.field(default_factory=set)
@@ -136,6 +141,7 @@ class Package(object):
         "agents",   # per-dep agents configuration
         "dep-set",  # which dep-set to pull from the sub-package
         "deps",     # 'skip' to suppress dependency processing
+        "patches",  # cache-aware dependency patching (patch-capable sources only)
     })
 
     @classmethod
@@ -146,6 +152,54 @@ class Package(object):
         Source providers override and extend via ``super().dep_keys() | {...}``,
         mirroring the ``process_options`` override chain."""
         return set(Package._BASE_DEP_KEYS)
+
+    @property
+    def patchset(self) -> 'PatchSet':
+        """The resolved patch set for this package (empty by default)."""
+        return PatchSet(tuple(self.patches))
+
+    # --- Patch participation hooks (see patch-source-provider-contract.md) ---
+    # The default Package is tier-0 (NONE): not patchable. Patch-capable source
+    # providers override patch_capability() and fetch_pristine(); editable ones
+    # additionally override retain_base()/restore_pristine().
+
+    def patch_capability(self) -> 'PatchCapability':
+        """How much patching this source supports. Default: NONE (tier 0)."""
+        return PatchCapability.NONE
+
+    def fetch_pristine(self, update_info, dest_dir: str, base_version: str) -> None:
+        """Materialize a writable pristine tree of base_version at dest_dir.
+
+        Must not apply patches and must not chmod the tree read-only (the
+        resolver owns read-only locking). Default raises -- a source that
+        declares a non-NONE patch_capability must override this."""
+        raise NotImplementedError(
+            "%s does not support patching (no fetch_pristine)" % self.src_type)
+
+    def retain_base(self, pkg_dir: str, base_version: str, update_info) -> None:
+        """Retain whatever is needed to restore pristine later (editable mode).
+        Called once, after the pristine tree is materialized and before any
+        patch is applied. Default: no-op."""
+        pass
+
+    def restore_pristine(self, pkg_dir: str, base_version: str, update_info) -> bool:
+        """Revert pkg_dir to pristine base_version, preserving .ivpm/. Return
+        True on success, False if pristine cannot be SAFELY restored (the caller
+        then errors rather than destroying work). Default: False."""
+        return False
+
+    def working_tree_dirty(self, pkg_dir: str) -> Optional[bool]:
+        """For a tree with NO patch manifest: does it have user modifications
+        vs. its base? True/False, or None when cleanliness cannot be determined
+        (e.g. an archive tree with no VCS and no base snapshot -> treated as
+        pristine, never dirty). Default: None."""
+        return None
+
+    def patch_tree_status(self, pkg_dir: str, base_version: str, allowed_paths) -> str:
+        """For a patched tree: is it 'clean' (equals base + the recorded patch
+        result, i.e. only allowed_paths deviate from base), 'drift' (deviates
+        beyond them), or 'unknown' (cannot tell)? Default: 'unknown'."""
+        return "unknown"
 
     def build(self, pkgs_info):
         pass

@@ -583,6 +583,12 @@ class IvpmYamlReader(object):
             if "agents" in d.keys():
                 pkg.agents_config = dict(d["agents"])
 
+            # Parse 'patches:' (cache-aware dependency patching). Allowed only on
+            # patch-capable sources; each path resolves against the declaring
+            # ivpm.yaml's directory and is MD5-fingerprinted into a PatchSpec.
+            if "patches" in d.keys():
+                pkg.patches = self._read_patches(pkg, d, src, si)
+
             # Unless specified, load the same dep-set from sub-packages
             if pkg.dep_set is None:
                 if default_dep_set is not None:
@@ -600,6 +606,65 @@ class IvpmYamlReader(object):
         if self.debug:
             print("ret: %s %d packages" % (str(ret), len(ret.packages)))
         return ret
+
+    def _read_patches(self, pkg, d, src, si):
+        """Parse a dependency's 'patches:' list into resolved PatchSpec objects.
+
+        Rejects patches on a source that declares no patch capability, resolves
+        each path against the declaring ivpm.yaml's directory, and fails with a
+        located error on a missing file or an unknown patch option.
+        """
+        from .patch import PatchSpec, PatchCapability, md5_file
+
+        if pkg.patch_capability() == PatchCapability.NONE:
+            fatal("Package '%s': source type '%s' does not support patches @ %s" % (
+                pkg.name, src, getlocstr(d)), d)
+
+        base_dir = "."
+        if si is not None and getattr(si, "filename", None):
+            base_dir = os.path.dirname(si.filename) or "."
+
+        raw = d["patches"]
+        if not isinstance(raw, (list, tuple)):
+            fatal("Package '%s': 'patches' must be a list @ %s" % (
+                pkg.name, getlocstr(d)), d)
+
+        specs = []
+        for elem in raw:
+            loc = getattr(elem, "srcinfo", None) or si
+            tool = None
+            if isinstance(elem, str):
+                file_rel, strip, directory = elem, 1, None
+            elif hasattr(elem, "keys"):
+                unknown = set(elem.keys()) - {"file", "strip", "directory", "tool"}
+                if unknown:
+                    fatal("Package '%s': unknown patch option(s): %s @ %s" % (
+                        pkg.name, ", ".join(sorted(unknown)), getlocstr(d)), loc)
+                if "file" not in elem.keys():
+                    fatal("Package '%s': patch entry missing 'file' @ %s" % (
+                        pkg.name, getlocstr(d)), loc)
+                file_rel = str(elem["file"])
+                strip = int(elem["strip"]) if "strip" in elem.keys() else 1
+                directory = elem["directory"] if "directory" in elem.keys() else None
+                tool = elem["tool"] if "tool" in elem.keys() else None
+                if tool is not None and tool not in ("git", "patch"):
+                    fatal("Package '%s': patch 'tool' must be 'git' or 'patch', "
+                          "got '%s' @ %s" % (pkg.name, tool, getlocstr(d)), loc)
+            else:
+                fatal("Package '%s': patch entry must be a string or mapping @ %s" % (
+                    pkg.name, getlocstr(d)), loc)
+
+            resolved = file_rel if os.path.isabs(file_rel) \
+                else os.path.normpath(os.path.join(base_dir, file_rel))
+            if not os.path.isfile(resolved):
+                fatal("Package '%s': patch file not found: %s @ %s" % (
+                    pkg.name, resolved, getlocstr(d)), loc)
+
+            specs.append(PatchSpec(
+                name=os.path.basename(file_rel), source=file_rel,
+                resolved_path=resolved, md5=md5_file(resolved),
+                strip=strip, directory=directory, tool=tool))
+        return specs
 
     def read_path_set(self, info : 'ProjInfo', path, ps_kind : str, ps):
         if ps_kind not in info.paths.keys():
