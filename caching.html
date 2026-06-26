@@ -60,6 +60,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#cache-modes">Cache Modes</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#enabling-the-cache">Enabling the Cache</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#disabling-the-cache-for-one-run">Disabling the Cache for One Run</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#initializing-a-cache-directory">Initializing a Cache Directory</a></li>
 </ul>
 </li>
@@ -101,6 +102,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="deps_source.html">Deps-Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patching.html">Patching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
@@ -183,41 +185,43 @@ package data.</p>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">false</span></code></p></td>
 <td><p>No</p></td>
-<td><p>No</p></td>
-<td><p>No</p></td>
-<td><p>One-time use, temp deps</p></td>
+<td><p>Yes*</p></td>
+<td><p>Yes</p></td>
+<td><p>Editable clone, never cached</p></td>
 </tr>
 <tr class="row-even"><td><p>(unspecified)</p></td>
 <td><p>No</p></td>
+<td><p>Yes*</p></td>
 <td><p>Yes</p></td>
-<td><p>Yes</p></td>
-<td><p>Development, co-development</p></td>
+<td><p>Development, co-development (default)</p></td>
 </tr>
 </tbody>
 </table>
+<p>* The <em>History?</em> and <em>Editable?</em> columns describe <strong>git</strong> packages, where
+<code class="docutils literal notranslate"><span class="pre">depth:</span></code> controls history (full unless set). For <strong>archive</strong> packages (<code class="docutils literal notranslate"><span class="pre">http</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>, <code class="docutils literal notranslate"><span class="pre">tgz</span></code>/<code class="docutils literal notranslate"><span class="pre">txz</span></code>/<code class="docutils literal notranslate"><span class="pre">zip</span></code>/<code class="docutils literal notranslate"><span class="pre">jar</span></code>) there is no editable working copy:
+<code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code> downloads and unpacks the archive <strong>read-only</strong>, while omitting
+<code class="docutils literal notranslate"><span class="pre">cache</span></code> unpacks it <strong>writable</strong>.</p>
 <dl class="simple">
 <dt><strong>cache: true</strong></dt><dd><ul class="simple">
-<li><p>Package stored in <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code></p></li>
-<li><p>Symlinked into <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
-<li><p>Read-only (cannot modify)</p></li>
-<li><p>No Git history (shallow clone)</p></li>
-<li><p>Shared across projects</p></li>
+<li><p>Stored in <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code> and symlinked into <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
+<li><p>Read-only (cannot modify), shared across projects</p></li>
+<li><p>git: shallow checkout (depth 1) at the resolved commit</p></li>
 </ul>
 </dd>
 <dt><strong>cache: false</strong></dt><dd><ul class="simple">
-<li><p>Not cached</p></li>
-<li><p>Cloned directly to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
-<li><p>Read-only (cannot modify)</p></li>
-<li><p>No Git history (shallow clone)</p></li>
-<li><p>Cannot be edited</p></li>
+<li><p>Not cached – never consults or writes the shared cache</p></li>
+<li><p>git: an <strong>editable</strong> clone written to <code class="docutils literal notranslate"><span class="pre">packages/</span></code> (full history unless
+<code class="docutils literal notranslate"><span class="pre">depth:</span></code> is set) – the same working copy as omitting <code class="docutils literal notranslate"><span class="pre">cache</span></code>, just
+guaranteed never to use the cache</p></li>
+<li><p>archive sources (<code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>, …): downloaded, unpacked, and made
+<strong>read-only</strong></p></li>
 </ul>
 </dd>
-<dt><strong>cache not specified</strong></dt><dd><ul class="simple">
+<dt><strong>cache not specified</strong> (default)</dt><dd><ul class="simple">
 <li><p>Not cached</p></li>
-<li><p>Cloned directly to <code class="docutils literal notranslate"><span class="pre">packages/</span></code></p></li>
-<li><p>Full Git history</p></li>
-<li><p>Can be modified and committed</p></li>
-<li><p>Development-friendly</p></li>
+<li><p>git: full <strong>editable</strong> clone – the common case for co-developed deps</p></li>
+<li><p>archive sources: downloaded and unpacked <strong>writable</strong></p></li>
 </ul>
 </dd>
 </dl>
@@ -237,8 +241,20 @@ to the cache directory:</p>
 <li><p>Personal cache: <code class="docutils literal notranslate"><span class="pre">~/.cache/ivpm</span></code> or <code class="docutils literal notranslate"><span class="pre">~/ivpm-cache</span></code></p></li>
 <li><p>Shared cache: <code class="docutils literal notranslate"><span class="pre">/shared/ivpm-cache</span></code> or <code class="docutils literal notranslate"><span class="pre">/opt/ivpm-cache</span></code></p></li>
 </ul>
-<p>If <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is not set, IVPM will fall back to full clones (no caching) with
-a warning message.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is not set, IVPM falls back to full (uncached) clones. A
+dependency that explicitly requests <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> while no cache is configured
+is reported in the update summary; otherwise the fallback is silent.</p>
+</section>
+<section id="disabling-the-cache-for-one-run">
+<h3>Disabling the Cache for One Run<a class="headerlink" href="#disabling-the-cache-for-one-run" title="Link to this heading"></a></h3>
+<p>Pass <code class="docutils literal notranslate"><span class="pre">--no-cache</span></code> to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> to disable caching for a single run,
+regardless of <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> or any <code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code> flags:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>update<span class="w"> </span>--no-cache
+</pre></div>
+</div>
+<p>This forces the <em>null cache provider</em> for that invocation, so every dependency is
+fetched fresh as if no cache were configured. It does not modify or remove any
+existing cache entries.</p>
 </section>
 <section id="initializing-a-cache-directory">
 <h3>Initializing a Cache Directory<a class="headerlink" href="#initializing-a-cache-directory" title="Link to this heading"></a></h3>
@@ -253,7 +269,10 @@ sudo<span class="w"> </span>chown<span class="w"> </span>:developers<span class=
 <span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>/shared/ivpm-cache
 </pre></div>
 </div>
-<p>This ensures new files inherit the group ownership of the cache directory.</p>
+<p>This sets the setgid bit and group ownership on the cache <em>root</em> so new files
+inherit the cache’s group. (IVPM also applies the setgid bit to every individual
+cache entry it creates, regardless of <code class="docutils literal notranslate"><span class="pre">--shared</span></code>, so group members can clean up
+entries later; <code class="docutils literal notranslate"><span class="pre">--shared</span></code> is about the root’s group ownership and inheritance.)</p>
 </section>
 </section>
 <section id="how-caching-is-resolved">
@@ -494,19 +513,19 @@ directory.</p>
 </div>
 <p>Example output:</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Cache</span> <span class="n">directory</span><span class="p">:</span> <span class="o">/</span><span class="n">home</span><span class="o">/</span><span class="n">user</span><span class="o">/.</span><span class="n">cache</span><span class="o">/</span><span class="n">ivpm</span>
-<span class="n">Total</span> <span class="n">packages</span><span class="p">:</span> <span class="mi">15</span>
-<span class="n">Total</span> <span class="n">versions</span><span class="p">:</span> <span class="mi">47</span>
 <span class="n">Total</span> <span class="n">size</span><span class="p">:</span> <span class="mf">2.3</span> <span class="n">GB</span>
+<span class="n">Packages</span><span class="p">:</span> <span class="mi">15</span>
 
-<span class="n">Package</span><span class="p">:</span> <span class="n">gtest</span>
-  <span class="n">Versions</span><span class="p">:</span> <span class="mi">3</span>
-  <span class="n">Size</span><span class="p">:</span> <span class="mi">45</span> <span class="n">MB</span>
-
-<span class="n">Package</span><span class="p">:</span> <span class="n">boost</span>
-  <span class="n">Versions</span><span class="p">:</span> <span class="mi">2</span>
-  <span class="n">Size</span><span class="p">:</span> <span class="mi">856</span> <span class="n">MB</span>
+  <span class="n">gtest</span><span class="p">:</span>
+    <span class="n">Versions</span><span class="p">:</span> <span class="mi">3</span>
+    <span class="n">Size</span><span class="p">:</span> <span class="mi">45</span> <span class="n">MB</span>
+  <span class="n">boost</span><span class="p">:</span>
+    <span class="n">Versions</span><span class="p">:</span> <span class="mi">2</span>
+    <span class="n">Size</span><span class="p">:</span> <span class="mi">856</span> <span class="n">MB</span>
 </pre></div>
 </div>
+<p>With <code class="docutils literal notranslate"><span class="pre">--verbose</span></code>, each version is listed individually beneath its package
+(<code class="docutils literal notranslate"><span class="pre">-</span> <span class="pre">&lt;version&gt;:</span> <span class="pre">&lt;size&gt;</span></code>).</p>
 <p>If <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is not set, specify the cache directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--cache-dir<span class="w"> </span>/path/to/cache
 </pre></div>
@@ -518,7 +537,7 @@ directory.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
 </pre></div>
 </div>
-<p>This removes entries that haven’t been accessed in 7 days (the default).</p>
+<p>This removes entries that haven’t been modified in 7 days (the default).</p>
 <p><strong>To remove old entries:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove entries older than 30 days</span>
 ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
@@ -529,7 +548,7 @@ ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> <
 </div>
 <p><strong>What gets removed:</strong></p>
 <ul class="simple">
-<li><p>Version directories with access time (atime) older than specified days</p></li>
+<li><p>Version directories with modification time (mtime) older than specified days</p></li>
 <li><p>Empty package directories after version removal</p></li>
 <li><p>Symlinks in projects will become broken and need <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> to recreate</p></li>
 </ul>

@@ -97,6 +97,7 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="deps_source.html">Deps-Source</a></li>
+<li class="toctree-l1"><a class="reference internal" href="patching.html">Patching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
@@ -180,6 +181,8 @@ SSH). See <a class="reference internal" href="git_integration.html"><span class=
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">cache</span></code></dt><dd><p>Enable caching (see <a class="reference internal" href="caching.html"><span class="doc">Caching</span></a>)</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">patches</span></code></dt><dd><p>Apply one or more patch files to the checkout (see <a class="reference internal" href="patching.html"><span class="doc">Patching</span></a>)</p>
+</dd>
 </dl>
 <p><strong>Examples:</strong></p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Specific branch</span>
@@ -212,6 +215,12 @@ SSH). See <a class="reference internal" href="git_integration.html"><span class=
 <span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
 <span class="w">  </span><span class="nt">branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v1.0</span>
 <span class="w">  </span><span class="nt">cache</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="c1"># Patched checkout (see :doc:`patching`)</span>
+<span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my-lib</span>
+<span class="w">  </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/org/my-lib.git</span>
+<span class="w">  </span><span class="nt">patches</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">patches/my-lib-fix.patch</span>
 </pre></div>
 </div>
 <p><strong>Submodules:</strong> Automatically initialized if <code class="docutils literal notranslate"><span class="pre">.gitmodules</span></code> is present.</p>
@@ -1026,6 +1035,7 @@ one package definition, while <code class="docutils literal notranslate"><span c
 <li><p><a class="reference internal" href="core_concepts.html"><span class="doc">Core Concepts</span></a> - Understanding the package model</p></li>
 <li><p><a class="reference internal" href="dependency_sets.html"><span class="doc">Dependency Sets</span></a> - Organizing dependencies</p></li>
 <li><p><a class="reference internal" href="caching.html"><span class="doc">Caching</span></a> - Caching strategies</p></li>
+<li><p><a class="reference internal" href="patching.html"><span class="doc">Patching</span></a> - Applying patch files to dependencies</p></li>
 <li><p><a class="reference internal" href="python_packages.html"><span class="doc">Python Package Management</span></a> - Python-specific features</p></li>
 <li><p><a class="reference internal" href="github_releases.html"><span class="doc">GitHub Releases</span></a> - GitHub Releases details</p></li>
 <li><p><a class="reference internal" href="handlers.html"><span class="doc">Package Handlers</span></a> - How handlers process packages (Python, Direnv, Agents)</p></li>

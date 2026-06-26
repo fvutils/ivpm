@@ -49,7 +49,9 @@ the *source of truth* for a package is "whatever is in that other
 
    If you work with **git worktrees**, IVPM configures a deps-source
    automatically: a linked worktree reuses the main worktree's ``packages/``
-   with no flags required. See :doc:`git_worktrees`.
+   with no flags required. See :doc:`git_worktrees`. Pass
+   ``--no-worktree-deps-source`` to ``ivpm update`` to opt out of this
+   automatic detection (explicit ``--deps-source`` parents are still honored).
 
 Quickstart
 ==========
@@ -85,8 +87,10 @@ the current project would fetch against the lock entry's identity field:
 
    * - ``src_type``
      - identity field in parent lock
-   * - ``git``, ``gh-rls``
-     - ``commit_resolved`` / ``version_resolved``
+   * - ``git``
+     - ``commit_resolved``
+   * - ``gh-rls``
+     - ``version_resolved``
    * - ``http``, ``tgz``, ``txz``, ``zip``, ``jar``
      - ``etag`` (then ``last_modified``)
    * - ``pypi``
@@ -100,6 +104,11 @@ A name collision across different ``src_type`` s (the parent has ``foo`` as
 If the parent has no ``package-lock.json``, all matches via this strategy
 fail silently -- IVPM falls through to the cache / remote fetch path as if
 no deps-source were configured.
+
+When any deps-source is configured, the ``ivpm update`` summary reports
+deps-source **hits** (packages satisfied from a parent) and **misses**
+(packages that fell through to the cache or a remote fetch), so you can see how
+much of the workspace came from the parent tree.
 
 ``--trust-deps-source``
 -----------------------
@@ -146,6 +155,10 @@ matches, so a divergent version still falls through to a fresh clone. Use
 ``--deps-source-mode=copy`` when you need the local checkout to be independent
 of the parent's.
 
+A git dependency that declares ``patches:`` is an exception: it is resolved
+through the patch pipeline (which has its own base + variant caching) and does
+**not** consult a deps-source. See :doc:`patching`.
+
 Lock-File Representation
 ========================
 
@@ -162,7 +175,12 @@ When a package comes from a deps-source, the local workspace's
    }
 
 ``ivpm status`` surfaces this provenance so it's clear which packages are
-mirrors of a foreign tree.
+mirrors of a foreign tree. The status line carries one of two suffixes:
+
+- ``(deps-source)`` -- materialized from a parent you named with
+  ``--deps-source`` (or ``IVPM_DEPS_SOURCE``).
+- ``(auto: worktree)`` -- materialized from the main worktree's ``packages/``
+  via the automatic git-worktree detection described above.
 
 See Also
 ========

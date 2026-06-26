@@ -1,0 +1,321 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Patching &mdash; IVPM  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+    <link rel="shortcut icon" href="_static/favicon.svg"/>
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Package Lock File" href="package_lock.html" />
+    <link rel="prev" title="Deps-Source" href="deps_source.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            IVPM
+              <img src="_static/ivpm-logo.svg" class="logo" alt="Logo"/>
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="introduction.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting Started with IVPM</a></li>
+<li class="toctree-l1"><a class="reference internal" href="core_concepts.html">Core Concepts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="handlers.html">Package Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dependency_sets.html">Dependency Sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="remote_catalogs.html">Remote Catalogs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="multi_file.html">Splitting <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> Across Files</a></li>
+<li class="toctree-l1"><a class="reference internal" href="variables.html">Variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="package_types.html">Package Types &amp; Sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="caching.html">Caching</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deps_source.html">Deps-Source</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Patching</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#declaring-patches">Declaring Patches</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#how-patches-are-applied">How Patches Are Applied</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#idempotency-and-change-detection">Idempotency and Change Detection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#caching-patched-dependencies">Caching Patched Dependencies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#editable-patched-checkouts">Editable Patched Checkouts</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#the-drift-error">The Drift Error</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#limitations">Limitations</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
+<li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
+<li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
+<li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
+<li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="integrations.html">Integrations</a></li>
+<li class="toctree-l1"><a class="reference internal" href="extending_ivpm.html">Writing Custom Handlers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="diagnostics.html">Diagnostics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">IVPM</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Patching</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/patching.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="patching">
+<h1>Patching<a class="headerlink" href="#patching" title="Link to this heading"></a></h1>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>IVPM can apply one or more patch files to a dependency after it is fetched,
+without forking the upstream repository. You declare the patches in
+<code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> next to the dependency; IVPM applies them deterministically and
+records exactly what it did so that re-running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> is idempotent.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Patching is currently supported for <strong>git</strong> dependencies (both cached and
+editable). Archive sources (<code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">gh-rls</span></code>, <code class="docutils literal notranslate"><span class="pre">tgz</span></code>/<code class="docutils literal notranslate"><span class="pre">txz</span></code>/<code class="docutils literal notranslate"><span class="pre">zip</span></code>/
+<code class="docutils literal notranslate"><span class="pre">jar</span></code>) declare patch capability but are <strong>not yet wired</strong> to the patch
+pipeline – <code class="docutils literal notranslate"><span class="pre">patches:</span></code> on those sources is silently ignored for now. Apply
+patches only to <code class="docutils literal notranslate"><span class="pre">git</span></code> dependencies until archive support lands.</p>
+</div>
+</section>
+<section id="declaring-patches">
+<h2>Declaring Patches<a class="headerlink" href="#declaring-patches" title="Link to this heading"></a></h2>
+<p>Add a <code class="docutils literal notranslate"><span class="pre">patches:</span></code> list to a dependency. Each entry is either a <strong>string</strong> (a
+path to a patch file) or a <strong>mapping</strong> with options:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">package</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">consumer</span>
+<span class="w">  </span><span class="nt">dep-sets</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">default</span>
+<span class="w">      </span><span class="nt">deps</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">somelib</span>
+<span class="w">          </span><span class="nt">src</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git</span>
+<span class="w">          </span><span class="nt">url</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/foo/somelib.git</span>
+<span class="w">          </span><span class="nt">patches</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">patches/fix.patch</span><span class="w">                 </span><span class="c1"># string form (strip: 1)</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">file</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">patches/feature.patch</span><span class="w">        </span><span class="c1"># mapping form</span>
+<span class="w">              </span><span class="nt">strip</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">              </span><span class="nt">directory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src</span>
+<span class="w">              </span><span class="nt">tool</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">git</span>
+</pre></div>
+</div>
+<p>Patch-entry options (mapping form):</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">file</span></code> (required)</p></td>
+<td><p>Path to the patch file, resolved <strong>relative to the directory of the
+declaring</strong> <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code> (absolute paths are honored as-is). Keep patch
+files alongside the project that references them.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">strip</span></code></p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">-p&lt;N&gt;</span></code> leading-path strip level passed to the patch tool.
+Defaults to <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">directory</span></code></p></td>
+<td><p>Sub-directory of the package to apply the patch within. Defaults to the
+package root.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tool</span></code></p></td>
+<td><p>Force the patch engine: <code class="docutils literal notranslate"><span class="pre">git</span></code> (<code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">apply</span></code>) or <code class="docutils literal notranslate"><span class="pre">patch</span></code> (GNU
+<code class="docutils literal notranslate"><span class="pre">patch</span></code>). Omit to auto-detect (see below). <code class="docutils literal notranslate"><span class="pre">tool</span></code> does <strong>not</strong> affect
+the resulting tree, so it is deliberately excluded from the patch-set
+identity.</p></td>
+</tr>
+</tbody>
+</table>
+<p>A patch file that does not exist (at parse time) or an unknown option is a hard,
+located error. Declaring <code class="docutils literal notranslate"><span class="pre">patches:</span></code> on a source type that cannot be patched
+(<code class="docutils literal notranslate"><span class="pre">dir</span></code>, <code class="docutils literal notranslate"><span class="pre">file</span></code>, …) is also an error.</p>
+</section>
+<section id="how-patches-are-applied">
+<h2>How Patches Are Applied<a class="headerlink" href="#how-patches-are-applied" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Patches are applied in <strong>declaration order</strong>.</p></li>
+<li><p>With no explicit <code class="docutils literal notranslate"><span class="pre">tool</span></code>, IVPM auto-detects: it tries <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">apply</span> <span class="pre">-p&lt;strip&gt;</span></code>
+first, then falls back to GNU <code class="docutils literal notranslate"><span class="pre">patch</span> <span class="pre">-p&lt;strip&gt;</span></code>. The first engine that
+applies cleanly wins.</p></li>
+<li><p>Application is <strong>fail-closed</strong>: the first patch that does not apply cleanly
+aborts the update with an error (a partially patched tree is never published).</p></li>
+<li><p>A path-traversal guard rejects any patch whose targets would escape the
+package directory before the patch tool runs.</p></li>
+</ul>
+</section>
+<section id="idempotency-and-change-detection">
+<h2>Idempotency and Change Detection<a class="headerlink" href="#idempotency-and-change-detection" title="Link to this heading"></a></h2>
+<p>When IVPM patches a tree it writes a manifest, <code class="docutils literal notranslate"><span class="pre">.ivpm/patch-manifest.json</span></code>,
+recording the base version, every applied patch (name, source, MD5, <code class="docutils literal notranslate"><span class="pre">strip</span></code>,
+<code class="docutils literal notranslate"><span class="pre">directory</span></code>), and a <strong>patch-set id</strong>.</p>
+<p>The patch-set id is the SHA-256 of a canonical description of the patch set –
+one entry per patch, in order, carrying each patch file’s MD5 plus its <code class="docutils literal notranslate"><span class="pre">strip</span></code>
+and <code class="docutils literal notranslate"><span class="pre">directory</span></code>. Consequences:</p>
+<ul class="simple">
+<li><p>Editing a patch file’s contents, adding/removing a patch, or <strong>reordering</strong>
+patches changes the id.</p></li>
+<li><p>Renaming a patch file or changing its <code class="docutils literal notranslate"><span class="pre">tool</span></code> does <strong>not</strong> change the id (the
+resulting tree is identical).</p></li>
+</ul>
+<p>On the next <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>, IVPM compares the declared patch set against the
+manifest: a match is a no-op; a change triggers a re-establish (for a clean
+tree) or an error (for a tree with other local modifications – see
+<a class="reference internal" href="#patching-drift"><span class="std std-ref">The Drift Error</span></a>).</p>
+</section>
+<section id="caching-patched-dependencies">
+<h2>Caching Patched Dependencies<a class="headerlink" href="#caching-patched-dependencies" title="Link to this heading"></a></h2>
+<p>For a cached dependency (<code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">true</span></code>), patching is <strong>base-first</strong>:</p>
+<ul class="simple">
+<li><p>The pristine <strong>base</strong> is always cached as its own entry, keyed by its base
+version (the resolved commit for git).</p></li>
+<li><p>Each patched <strong>variant</strong> is cached as a full copy of the base with the patch
+set applied, keyed by <code class="docutils literal notranslate"><span class="pre">&lt;base_version&gt;+patch.&lt;id&gt;</span></code> (the first 16 hex
+characters of the patch-set id). The variant is symlinked read-only into
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> exactly like any other cached package.</p></li>
+<li><p>A dependency with an <strong>empty</strong> patch set resolves to the base version
+byte-for-byte, so merely <em>being patchable</em> never fragments the cache or
+invalidates existing pristine entries.</p></li>
+</ul>
+<p>Worked example – two consumers, same base:</p>
+<ul class="simple">
+<li><p>Project A pins <code class="docutils literal notranslate"><span class="pre">somelib</span></code> at commit <code class="docutils literal notranslate"><span class="pre">abc123</span></code> with patch set <em>P</em>.</p></li>
+<li><p>Project B pins the same commit with a <strong>different</strong> patch set <em>Q</em>.</p></li>
+</ul>
+<p>The cache ends up with one base entry (<code class="docutils literal notranslate"><span class="pre">abc123</span></code>) and two variant entries
+(<code class="docutils literal notranslate"><span class="pre">abc123+patch.&lt;idP&gt;</span></code> and <code class="docutils literal notranslate"><span class="pre">abc123+patch.&lt;idQ&gt;</span></code>). The base is fetched once
+and shared; each distinct patch set materializes one variant, reused by every
+consumer that requests the same <code class="docutils literal notranslate"><span class="pre">(base,</span> <span class="pre">patch</span> <span class="pre">set)</span></code> pair.</p>
+</section>
+<section id="editable-patched-checkouts">
+<h2>Editable Patched Checkouts<a class="headerlink" href="#editable-patched-checkouts" title="Link to this heading"></a></h2>
+<p>For an editable git dependency (<code class="docutils literal notranslate"><span class="pre">cache:</span> <span class="pre">false</span></code> or <code class="docutils literal notranslate"><span class="pre">cache</span></code> omitted), IVPM
+applies the patches <strong>in place</strong> in <code class="docutils literal notranslate"><span class="pre">packages/&lt;pkg&gt;</span></code>: it retains the pristine
+base (so it can roll back), applies the patch set, and writes the manifest.</p>
+<p>Re-running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> is idempotent:</p>
+<ul class="simple">
+<li><p><strong>Same declared patch set, clean tree</strong> – no-op.</p></li>
+<li><p><strong>Changed declared patch set, clean tree</strong> – IVPM rolls the tree back to the
+pristine base and re-applies the new set.</p></li>
+<li><p><strong>Same declared patch set, you have local edits</strong> – IVPM leaves your
+in-progress work alone (it never reverts a working tree you are editing).</p></li>
+</ul>
+<p>The safety invariant: IVPM mutates the working tree only when the <em>sole</em>
+deviation from “base + recorded patches” is its own patch application. Any other
+drift makes it stop rather than risk discarding your work.</p>
+<section id="the-drift-error">
+<span id="patching-drift"></span><h3>The Drift Error<a class="headerlink" href="#the-drift-error" title="Link to this heading"></a></h3>
+<p>If the declared patch set changes <strong>and</strong> the working tree has local
+modifications beyond the patches IVPM recorded, an unattended <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>
+cannot safely re-establish the tree without discarding those changes, so it
+stops with an error instead:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>package somelib has local modifications beyond its applied patches; refusing
+to re-establish (this would discard your changes). Your tree is left
+untouched.
+  - to discard the changes and re-establish: remove &#39;packages/somelib&#39;, then
+    re-run &#39;ivpm update&#39;
+</pre></div>
+</div>
+<p>The tree is never modified in this case. To re-establish cleanly, remove the
+package directory and re-run <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>; IVPM will re-fetch the base and
+apply the current declared patch set. (This is the intended escape hatch under
+the current CLI; a destructive <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span> <span class="pre">--reset</span></code> convenience may be added
+later.)</p>
+</section>
+</section>
+<section id="limitations">
+<h2>Limitations<a class="headerlink" href="#limitations" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Patching applies to <strong>git</strong> dependencies only today; archive sources are not
+yet wired (see the note at the top).</p></li>
+<li><p>A patched git dependency is resolved through the patch pipeline and does not
+consult a <a class="reference internal" href="deps_source.html"><span class="doc">deps-source</span></a>.</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="deps_source.html" class="btn btn-neutral float-left" title="Deps-Source" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="package_lock.html" class="btn btn-neutral float-right" title="Package Lock File" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2018-2026, Matthew Ballance.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

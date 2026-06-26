@@ -20,7 +20,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Package Lock File" href="package_lock.html" />
+    <link rel="next" title="Patching" href="patching.html" />
     <link rel="prev" title="Caching" href="caching.html" /> 
 </head>
 
@@ -71,6 +71,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="patching.html">Patching</a></li>
 <li class="toctree-l1"><a class="reference internal" href="package_lock.html">Package Lock File</a></li>
 <li class="toctree-l1"><a class="reference internal" href="python_packages.html">Python Package Management</a></li>
 <li class="toctree-l1"><a class="reference internal" href="node_packages.html">Node.js Package Management</a></li>
@@ -164,7 +165,9 @@ the <em>source of truth</em> for a package is “whatever is in that other
 <p class="admonition-title">Note</p>
 <p>If you work with <strong>git worktrees</strong>, IVPM configures a deps-source
 automatically: a linked worktree reuses the main worktree’s <code class="docutils literal notranslate"><span class="pre">packages/</span></code>
-with no flags required. See <a class="reference internal" href="git_worktrees.html"><span class="doc">Git Worktrees</span></a>.</p>
+with no flags required. See <a class="reference internal" href="git_worktrees.html"><span class="doc">Git Worktrees</span></a>. Pass
+<code class="docutils literal notranslate"><span class="pre">--no-worktree-deps-source</span></code> to <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> to opt out of this
+automatic detection (explicit <code class="docutils literal notranslate"><span class="pre">--deps-source</span></code> parents are still honored).</p>
 </div>
 </section>
 <section id="quickstart">
@@ -199,16 +202,19 @@ the current project would fetch against the lock entry’s identity field:</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">git</span></code>, <code class="docutils literal notranslate"><span class="pre">gh-rls</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">commit_resolved</span></code> / <code class="docutils literal notranslate"><span class="pre">version_resolved</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">git</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">commit_resolved</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">tgz</span></code>, <code class="docutils literal notranslate"><span class="pre">txz</span></code>, <code class="docutils literal notranslate"><span class="pre">zip</span></code>, <code class="docutils literal notranslate"><span class="pre">jar</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">etag</span></code> (then <code class="docutils literal notranslate"><span class="pre">last_modified</span></code>)</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gh-rls</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">version_resolved</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dir</span></code>, <code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">http</span></code>, <code class="docutils literal notranslate"><span class="pre">tgz</span></code>, <code class="docutils literal notranslate"><span class="pre">txz</span></code>, <code class="docutils literal notranslate"><span class="pre">zip</span></code>, <code class="docutils literal notranslate"><span class="pre">jar</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">etag</span></code> (then <code class="docutils literal notranslate"><span class="pre">last_modified</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pypi</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">version_resolved</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dir</span></code>, <code class="docutils literal notranslate"><span class="pre">file</span></code></p></td>
 <td><p>never matched (no caching identity)</p></td>
 </tr>
 </tbody>
@@ -218,6 +224,10 @@ the current project would fetch against the lock entry’s identity field:</p>
 <p>If the parent has no <code class="docutils literal notranslate"><span class="pre">package-lock.json</span></code>, all matches via this strategy
 fail silently – IVPM falls through to the cache / remote fetch path as if
 no deps-source were configured.</p>
+<p>When any deps-source is configured, the <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> summary reports
+deps-source <strong>hits</strong> (packages satisfied from a parent) and <strong>misses</strong>
+(packages that fell through to the cache or a remote fetch), so you can see how
+much of the workspace came from the parent tree.</p>
 <section id="trust-deps-source">
 <h3><code class="docutils literal notranslate"><span class="pre">--trust-deps-source</span></code><a class="headerlink" href="#trust-deps-source" title="Link to this heading"></a></h3>
 <p>Skip lock-file verification and trust that any same-named directory in the
@@ -259,6 +269,9 @@ parent. With lock-verified matching this only happens when the resolved commit
 matches, so a divergent version still falls through to a fresh clone. Use
 <code class="docutils literal notranslate"><span class="pre">--deps-source-mode=copy</span></code> when you need the local checkout to be independent
 of the parent’s.</p>
+<p>A git dependency that declares <code class="docutils literal notranslate"><span class="pre">patches:</span></code> is an exception: it is resolved
+through the patch pipeline (which has its own base + variant caching) and does
+<strong>not</strong> consult a deps-source. See <a class="reference internal" href="patching.html"><span class="doc">Patching</span></a>.</p>
 </section>
 <section id="lock-file-representation">
 <h2>Lock-File Representation<a class="headerlink" href="#lock-file-representation" title="Link to this heading"></a></h2>
@@ -273,7 +286,13 @@ of the parent’s.</p>
 </pre></div>
 </div>
 <p><code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">status</span></code> surfaces this provenance so it’s clear which packages are
-mirrors of a foreign tree.</p>
+mirrors of a foreign tree. The status line carries one of two suffixes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">(deps-source)</span></code> – materialized from a parent you named with
+<code class="docutils literal notranslate"><span class="pre">--deps-source</span></code> (or <code class="docutils literal notranslate"><span class="pre">IVPM_DEPS_SOURCE</span></code>).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">(auto:</span> <span class="pre">worktree)</span></code> – materialized from the main worktree’s <code class="docutils literal notranslate"><span class="pre">packages/</span></code>
+via the automatic git-worktree detection described above.</p></li>
+</ul>
 </section>
 <section id="see-also">
 <h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading"></a></h2>
@@ -290,7 +309,7 @@ mirrors of a foreign tree.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="caching.html" class="btn btn-neutral float-left" title="Caching" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="package_lock.html" class="btn btn-neutral float-right" title="Package Lock File" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="patching.html" class="btn btn-neutral float-right" title="Patching" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
