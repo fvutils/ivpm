@@ -27,12 +27,15 @@ version = {attr = "ivpm.__version__._pkg_version"}
 ivpm = "ivpm.__main__:main"
 
 [tool.setuptools.package-data]
-ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*']
+ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*', 'share/skills/*/*']
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
 ]
+
+[project.entry-points."agent.skills"]
+ivpm = "ivpm.skills:get_skill_dirs"
 
 [project.entry-points."ivpm.handlers"]
 python = "ivpm.handlers.package_handler_python:PackageHandlerPython"

@@ -51,9 +51,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
     subcommands : Dict[str, object] = {}
     
-    # Build the epilog with the skill.md path
+    # Build the epilog with the agent SKILL.md path
     share_dir = get_share_dir()
-    skill_path = os.path.join(share_dir, "skill.md")
+    skill_path = os.path.join(share_dir, "skills", "ivpm", "SKILL.md")
     epilog = f"Agent skill documentation: {skill_path}"
     
     parser = argparse.ArgumentParser(

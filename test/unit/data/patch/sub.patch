@@ -1,0 +1,5 @@
+--- a/foo.txt
++++ b/foo.txt
+@@ -1 +1 @@
+-foo
++foo patched
