@@ -1,4 +1,8 @@
 
+# 2.16.0
+- Support for patching imported packaged
+- Support recursive ivpm.yaml processing in .tar and gh-rls packages
+
 # 2.14.0
 - Extended support for remote manifest support
 - A `src: ivpm.yaml` dep-set factory's `dep-set:` may now name a list of
