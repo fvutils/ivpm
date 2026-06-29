@@ -105,5 +105,5 @@ class TestCliHelp(unittest.TestCase):
         result = _run("destroy", "--help")
         self.assertEqual(result.returncode, 0)
         for opt in ("--deps-only", "--dry-run", "--force", "--yes",
-                    "wsdir", "--verbose"):
+                    "wsdir", "--verbose", "--jobs", "--no-rich"):
             self.assertIn(opt, result.stdout)

@@ -48,22 +48,30 @@ class CmdDestroy(object):
 
         ops = ProjectOps(target)
 
+        # Build the progress TUI and wire it as the live listener for both the
+        # (parallel) gate and teardown phases. The TUI owns presentation.
+        tui = destroy_tui.create_destroy_tui(args)
+        args._destroy_progress = tui
+
         # 1. Plan (read-only): resolve, validate, gate. fatal() refusals
         #    (not-a-workspace, cwd/ancestor) propagate to the top-level handler.
-        report = ops.destroy_plan(args=args)
+        tui.gate_begin()
+        try:
+            report = ops.destroy_plan(args=args)
+        finally:
+            tui.gate_end()
 
         # 2. Blocked by the gate -> render and stop.
         if report.blocked:
-            print(destroy_tui.render_blocking(report, verbose=verbose),
-                  file=sys.stderr)
+            tui.show_blocking(report, verbose=verbose)
             sys.exit(1)
 
         # 3. Dry-run -> render the plan and stop.
         if getattr(args, "dry_run", False):
-            print(destroy_tui.render_dry_run(report, verbose=verbose))
+            tui.show_dry_run(report, verbose=verbose)
             return
 
-        # 4. Confirm, unless --yes/--force.
+        # 4. Confirm, unless --yes/--force. (No live display is active here.)
         if not (getattr(args, "yes", False) or getattr(args, "force", False)):
             if not sys.stdin.isatty():
                 fatal("refusing to destroy without confirmation in a "
@@ -77,9 +85,13 @@ class CmdDestroy(object):
                 print("Aborted; nothing was removed.")
                 return
 
-        # 5. Apply (mutating).
-        final = ops.destroy_apply(args=args)
-        print(destroy_tui.render_summary(final))
+        # 5. Apply (mutating), with the teardown live display.
+        tui.teardown_begin()
+        try:
+            final = ops.destroy_apply(args=args)
+        finally:
+            tui.teardown_end()
+        tui.show_summary(final)
 
         # 6. Exit non-zero on any teardown error / manual follow-up.
         if any(r.outcome == RemoveOutcome.MANUAL for r in final.results):

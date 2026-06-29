@@ -160,8 +160,18 @@ Options
    * - ``-y``, ``--yes``
      - Skip the interactive confirmation prompt (required in non-interactive/CI
        contexts).
+   * - ``-j``, ``--jobs``
+     - Number of parallel gate/teardown operations (default: CPU count).
+   * - ``--no-rich``
+     - Plain-text output without the Rich live display.
    * - ``-v``, ``--verbose``
      - List the blocking files/commits in the report.
+
+Both phases run in parallel: the safety gate checks every package concurrently
+(each git package shells out several times, so this is the larger win), and the
+teardown removes packages concurrently. A live display (a spinner table per
+phase, or concise per-line output under ``--no-rich``) shows progress as work
+completes. Use ``-j`` to cap concurrency.
 
 Refusals
 ========

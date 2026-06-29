@@ -320,6 +320,12 @@ the imports (the inverse of ``update``). Gated against losing local work. See
     Skip the interactive confirmation prompt (required in non-interactive/CI
     contexts).
 
+``-j, --jobs <n>``
+    Number of parallel gate/teardown operations (default: CPU count).
+
+``--no-rich``
+    Plain-text output without the Rich live display.
+
 ``-v, --verbose``
     List the blocking files/commits in the report.
 

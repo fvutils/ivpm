@@ -8,7 +8,9 @@
   the evidence. Teardown is source-specific: cache-backed and deps-source
   symlinks are unlinked (never recursed into), and handlers remove their derived
   artifacts (venv, `node_modules`) via a new `on_destroy()` hook. Refuses to
-  destroy a non-workspace or the current directory/an ancestor.
+  destroy a non-workspace or the current directory/an ancestor. Both the gate and
+  the teardown run in parallel (`-j/--jobs`, default CPU count) with a live Rich
+  progress display (or `--no-rich` plain-text fallback).
 - Support for patching imported packaged
 - Support recursive ivpm.yaml processing in .tar and gh-rls packages
 - `ivpm cache clean` now prunes by *last use* instead of *first cached*. Each

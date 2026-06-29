@@ -79,6 +79,25 @@ class RemovalSafety:
     reasons: List[SafetyReason] = dc.field(default_factory=list)
 
 
+class RemoveProgressListener:
+    """Callback interface for live `ivpm destroy` progress. Implement and pass
+    as ``ProjectRemoveInfo.progress`` to receive per-package notifications during
+    the (parallel) gate and teardown phases. All four may be called from worker
+    threads — implementations must be thread-safe."""
+
+    def on_gate_start(self, name: str) -> None:
+        """A package's safety check is starting."""
+
+    def on_gate_result(self, name: str, safety: "RemovalSafety") -> None:
+        """A package's safety verdict is ready."""
+
+    def on_remove_start(self, name: str) -> None:
+        """A package's teardown is starting."""
+
+    def on_remove_result(self, result: "PkgRemoveResult") -> None:
+        """A package's teardown finished."""
+
+
 @dc.dataclass
 class PkgRemoveResult:
     """Per-package teardown result returned by Package.remove()."""

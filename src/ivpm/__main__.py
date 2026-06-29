@@ -309,6 +309,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Delete even when packages hold local modifications or unpushed commits")
     destroy_cmd.add_argument("-y", "--yes", action="store_true", default=False,
         help="Skip the interactive confirmation prompt")
+    destroy_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=0,
+        help="Number of parallel gate/teardown operations (default: CPU count)")
+    destroy_cmd.add_argument("--no-rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
     destroy_cmd.add_argument("-v", "--verbose", action="count", default=0,
         help="Increase per-package detail (-v: list the blocking files/commits)")
     destroy_cmd.set_defaults(func=CmdDestroy())
