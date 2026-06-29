@@ -63,6 +63,7 @@
 <li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="destroy.html">Destroying Workspaces</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
@@ -87,6 +88,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#git-update">git-update</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#snapshot">snapshot</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#sync">sync</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#destroy">destroy</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#status">status</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#show">show</a></li>
 </ul>
@@ -103,6 +105,7 @@
 </ul>
 </li>
 <li class="toctree-l3"><a class="reference internal" href="#clone">clone</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#destroy">destroy</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#init">init</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#pkg-info">pkg-info</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#share">share</a></li>
@@ -190,15 +193,15 @@
 <p><p>IVPM (Integrated View Package Manager) - A polyglot package manager that fetches dependencies from diverse sources and assembles unified project views.</p>
 </p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">level</span> <span class="p">{</span><span class="n">INFO</span><span class="p">,</span><span class="n">DEBUG</span><span class="p">,</span><span class="n">WARN</span><span class="p">,</span><span class="n">NONE</span><span class="p">}]</span>
-            <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">cache</span><span class="p">,</span><span class="n">clone</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">show</span><span class="p">,</span><span class="n">snapshot</span><span class="p">,</span><span class="n">status</span><span class="p">,</span><span class="n">sync</span><span class="p">,</span><span class="n">update</span><span class="p">}</span>
+            <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">cache</span><span class="p">,</span><span class="n">clone</span><span class="p">,</span><span class="n">destroy</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">show</span><span class="p">,</span><span class="n">snapshot</span><span class="p">,</span><span class="n">status</span><span class="p">,</span><span class="n">sync</span><span class="p">,</span><span class="n">update</span><span class="p">}</span>
             <span class="o">...</span>
 </pre></div>
 </div>
 <section id="ivpm.__main__-get_parser-positional-arguments">
 <h3>Positional Arguments<a class="headerlink" href="#ivpm.__main__-get_parser-positional-arguments" title="Link to this heading"></a></h3>
 <dl class="option-list">
-<dt><kbd>{activate,build,cache,clone,init,pkg-info,share,show,snapshot,status,sync,update}</kbd></dt>
-<dd><p>Possible choices: activate, build, cache, pkg-info, share, clone, update, init, git-status, git-update, snapshot, sync, status, show</p>
+<dt><kbd>{activate,build,cache,clone,destroy,init,pkg-info,share,show,snapshot,status,sync,update}</kbd></dt>
+<dd><p>Possible choices: activate, build, cache, pkg-info, share, clone, update, init, git-status, git-update, snapshot, sync, destroy, status, show</p>
 </dd>
 </dl>
 </section>
@@ -324,7 +327,7 @@
 <section id="clean">
 <h6>clean<a class="headerlink" href="#clean" title="Link to this heading"></a></h6>
 <p>Remove old cache entries</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">clean</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">CACHE_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DAYS</span><span class="p">]</span>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">clean</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">CACHE_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DAYS</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span>
 </pre></div>
 </div>
 <section id="named-arguments_repeat4">
@@ -334,8 +337,12 @@
 <dd><p>Cache directory (default: $IVPM_CACHE)</p>
 </dd>
 <dt><kbd>-d, --days</kbd></dt>
-<dd><p>Remove entries older than this many days (default: 7)</p>
+<dd><p>Remove entries unused for more than this many days (default: 7)</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">7</span></code></p>
+</dd>
+<dt><kbd>-n, --dry-run</kbd></dt>
+<dd><p>List entries that would be removed without deleting anything</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
 </dd>
 </dl>
 </section>
@@ -659,14 +666,67 @@
 </dl>
 </section>
 </section>
+<section id="destroy">
+<h4>destroy<a class="headerlink" href="#destroy" title="Link to this heading"></a></h4>
+<p>Remove a root project and all its imports (inverse of clone)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">destroy</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">deps</span><span class="o">-</span><span class="n">only</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">y</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span>
+             <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
+             <span class="p">[</span><span class="n">wsdir</span><span class="p">]</span>
+</pre></div>
+</div>
+<section id="positional-arguments_repeat8">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat8" title="Link to this heading"></a></h5>
+<dl class="option-list">
+<dt><kbd>wsdir</kbd></dt>
+<dd><p>Workspace directory to remove (required unless –deps-only)</p>
+</dd>
+</dl>
+</section>
+<section id="named-arguments_repeat13">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat13" title="Link to this heading"></a></h5>
+<dl class="option-list">
+<dt><kbd>--deps-only</kbd></dt>
+<dd><p>Remove only the imports/venv; keep the root project and ivpm.yaml</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-p, --project-dir</kbd></dt>
+<dd><p>Workspace root for –deps-only mode (default: cwd)</p>
+</dd>
+<dt><kbd>-n, --dry-run</kbd></dt>
+<dd><p>Report what would be removed and the gate verdict; change nothing</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-f, --force</kbd></dt>
+<dd><p>Delete even when packages hold local modifications or unpushed commits</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-y, --yes</kbd></dt>
+<dd><p>Skip the interactive confirmation prompt</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-j, --jobs</kbd></dt>
+<dd><p>Number of parallel gate/teardown operations (default: CPU count)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">0</span></code></p>
+</dd>
+<dt><kbd>--no-rich</kbd></dt>
+<dd><p>Plain-text output without Rich formatting</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>-v, --verbose</kbd></dt>
+<dd><p>Increase per-package detail (-v: list the blocking files/commits)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">0</span></code></p>
+</dd>
+</dl>
+</section>
+</section>
 <section id="status">
 <h4>status<a class="headerlink" href="#status" title="Link to this heading"></a></h4>
 <p>Checks the status of sub-dependencies such as git repositories</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">status</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat13">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat13" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat14">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat14" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd></dd>
@@ -688,16 +748,16 @@
           <span class="p">{</span><span class="n">deps</span><span class="p">,</span><span class="n">handler</span><span class="p">,</span><span class="n">site</span><span class="o">-</span><span class="n">config</span><span class="p">,</span><span class="n">source</span><span class="p">,</span><span class="nb">type</span><span class="p">}</span> <span class="o">...</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat8">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat8" title="Link to this heading"></a></h5>
+<section id="positional-arguments_repeat9">
+<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat9" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>{deps,handler,site-config,source,type}</kbd></dt>
 <dd><p>Possible choices: source, src, type, handler, deps, site-config, config</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat14">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat14" title="Link to this heading"></a></h5>
+<section id="named-arguments_repeat15">
+<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat15" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>--schema</kbd></dt>
 <dd><p>Emit a JSON Schema for ivpm.yaml covering all registered sources and types</p>
@@ -721,16 +781,16 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">source</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat9">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat9" title="Link to this heading"></a></h6>
+<section id="positional-arguments_repeat10">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat10" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this source (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat15">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat15" title="Link to this heading"></a></h6>
+<section id="named-arguments_repeat16">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat16" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
@@ -749,16 +809,16 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="nb">type</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat10">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat10" title="Link to this heading"></a></h6>
+<section id="positional-arguments_repeat11">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat11" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this type (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat16">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat16" title="Link to this heading"></a></h6>
+<section id="named-arguments_repeat17">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat17" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
@@ -777,16 +837,16 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">handler</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">order</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat11">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat11" title="Link to this heading"></a></h6>
+<section id="positional-arguments_repeat12">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat12" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this handler (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat17">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat17" title="Link to this heading"></a></h6>
+<section id="named-arguments_repeat18">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat18" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--order</kbd></dt>
 <dd><p>Show the resolved root-phase execution order of all handlers</p>
@@ -811,16 +871,16 @@
                <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat12">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat12" title="Link to this heading"></a></h6>
+<section id="positional-arguments_repeat13">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat13" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show full detail for this specific dependency (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat18">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat18" title="Link to this heading"></a></h6>
+<section id="named-arguments_repeat19">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat19" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--tree, -t</kbd></dt>
 <dd><p>Show hierarchical dependency tree instead of flat list</p>
@@ -859,16 +919,16 @@
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">site</span><span class="o">-</span><span class="n">config</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat13">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat13" title="Link to this heading"></a></h6>
+<section id="positional-arguments_repeat14">
+<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat14" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this site config (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat19">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat19" title="Link to this heading"></a></h6>
+<section id="named-arguments_repeat20">
+<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat20" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
@@ -1106,6 +1166,62 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 </ol>
 <p>Note: Since <code class="docutils literal notranslate"><span class="pre">clone</span></code> automatically runs <code class="docutils literal notranslate"><span class="pre">update</span></code>, you don’t need to run
 <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> separately after <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">clone</span></code>.</p>
+</section>
+<section id="destroy">
+<h3>destroy<a class="headerlink" href="#destroy" title="Link to this heading"></a></h3>
+<p>Remove a root project and all its imports (the inverse of <code class="docutils literal notranslate"><span class="pre">clone</span></code>), or just
+the imports (the inverse of <code class="docutils literal notranslate"><span class="pre">update</span></code>). Gated against losing local work. See
+<a class="reference internal" href="destroy.html"><span class="doc">Destroying Workspaces</span></a> for the full guide.</p>
+<p><strong>Synopsis:</strong></p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm destroy [options] [wsdir]
+</pre></div>
+</div>
+<p><strong>Arguments:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">wsdir</span></code></dt><dd><p>Workspace directory to remove (required for a full destroy; ignored with
+<code class="docutils literal notranslate"><span class="pre">--deps-only</span></code>).</p>
+</dd>
+</dl>
+<p><strong>Options:</strong></p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--deps-only</span></code></dt><dd><p>Remove only the imports/venv; keep the root project and <code class="docutils literal notranslate"><span class="pre">ivpm.yaml</span></code>. Runs
+in place; no <code class="docutils literal notranslate"><span class="pre">wsdir</span></code> required.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-p,</span> <span class="pre">--project-dir</span> <span class="pre">&lt;dir&gt;</span></code></dt><dd><p>Workspace root for <code class="docutils literal notranslate"><span class="pre">--deps-only</span></code> mode (default: current directory).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-n,</span> <span class="pre">--dry-run</span></code></dt><dd><p>Report what would be removed and the gate verdict; change nothing.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-f,</span> <span class="pre">--force</span></code></dt><dd><p>Delete even when packages hold local modifications or unpushed commits.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-y,</span> <span class="pre">--yes</span></code></dt><dd><p>Skip the interactive confirmation prompt (required in non-interactive/CI
+contexts).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-j,</span> <span class="pre">--jobs</span> <span class="pre">&lt;n&gt;</span></code></dt><dd><p>Number of parallel gate/teardown operations (default: CPU count).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--no-rich</span></code></dt><dd><p>Plain-text output without the Rich live display.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">--verbose</span></code></dt><dd><p>List the blocking files/commits in the report.</p>
+</dd>
+</dl>
+<p><strong>Examples:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Reset the current workspace&#39;s dependencies (keep the root)</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>destroy<span class="w"> </span>--deps-only
+
+<span class="c1"># Preview a full teardown</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>destroy<span class="w"> </span>-n<span class="w"> </span>../scratch-workspace
+
+<span class="c1"># Remove an entire cloned workspace, no prompt</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>destroy<span class="w"> </span>-y<span class="w"> </span>../scratch-workspace
+</pre></div>
+</div>
+<p><strong>Behavior:</strong></p>
+<ol class="arabic simple">
+<li><p>Validates the target is an IVPM workspace (refuses otherwise)</p></li>
+<li><p>Gates every import (and, in full mode, the root) — refuses if any holds
+unrecoverable local work, unless <code class="docutils literal notranslate"><span class="pre">--force</span></code></p></li>
+<li><p>Removes each import via its source provider (unlinking cache/symlink deps),
+then the venv, lock/state, and — in full mode — the deps directory and root</p></li>
+</ol>
 </section>
 <section id="init">
 <h3>init<a class="headerlink" href="#init" title="Link to this heading"></a></h3>
@@ -1625,82 +1741,95 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <tr class="row-even"><td><p>type</p></td>
 <td colspan="4"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
+<li><p>include</p></li>
+</ul>
+</td>
+<td colspan="5"><p>Paths (relative to this file) of partial ivpm.yaml files to merge into this package. The including file wins on conflict; dep-sets merge by name (a name defined in two files is an error).</p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="4"><p><em>array</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>items</p></td>
+<td><p>type</p></td>
+<td colspan="3"><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>deps-dir</p></li>
 </ul>
 </td>
 <td colspan="5"><p>Directory where dependencies are stored (default: ‘packages’)</p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="4"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>default-dep-set</p></li>
 </ul>
 </td>
-<td colspan="5"><p>Default dependency set to use if not specified on command line</p></td>
+<td colspan="5"><p>Default dependency set to use if not specified on command line. If not set, uses the first dep-set in the file</p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="4"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="3"><ul class="simple">
+<tr class="row-even"><td rowspan="3"><ul class="simple">
 <li><p>dep-sets</p></li>
 </ul>
 </td>
 <td colspan="5"><p><em>List of named dependency sets</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="4"><p><em>array</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>items</p></td>
+<tr class="row-even"><td><p>items</p></td>
 <td colspan="4"><p><a class="reference internal" href="#named-package-dependency-set"><span class="std std-ref">Named package-dependency set</span></a></p></td>
 </tr>
-<tr class="row-even"><td rowspan="3"><ul class="simple">
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
 <li><p>setup-deps</p></li>
 </ul>
 </td>
 <td colspan="5"><p><em>Setup-time dependencies that must be installed before other packages</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>type</p></td>
+<tr class="row-even"><td><p>type</p></td>
 <td colspan="4"><p><em>array</em></p></td>
 </tr>
-<tr class="row-even"><td><p>items</p></td>
+<tr class="row-odd"><td><p>items</p></td>
 <td><p>type</p></td>
 <td colspan="3"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="6"><ul class="simple">
+<tr class="row-even"><td rowspan="6"><ul class="simple">
 <li><p>paths</p></li>
 </ul>
 </td>
 <td colspan="5"><p><em>Path specifications organized by kind and type</em></p></td>
 </tr>
-<tr class="row-even"><td colspan="5"><p>Organize project paths for tools to discover (e.g., rtl/vlog, dv/sv)</p></td>
+<tr class="row-odd"><td colspan="5"><p>Organize project paths for tools to discover (e.g., rtl/vlog, dv/sv)</p></td>
 </tr>
-<tr class="row-odd"><td><p>type</p></td>
+<tr class="row-even"><td><p>type</p></td>
 <td colspan="4"><p><em>object</em></p></td>
 </tr>
-<tr class="row-even"><td rowspan="3"><p>additionalProperties</p></td>
+<tr class="row-odd"><td rowspan="3"><p>additionalProperties</p></td>
 <td><p>type</p></td>
 <td colspan="3"><p><em>object</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><p>additionalProperties</p></td>
+<tr class="row-even"><td rowspan="2"><p>additionalProperties</p></td>
 <td><p>type</p></td>
 <td colspan="2"><p><em>array</em></p></td>
 </tr>
-<tr class="row-even"><td><p>items</p></td>
+<tr class="row-odd"><td><p>items</p></td>
 <td><p>type</p></td>
 <td><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="3"><ul class="simple">
+<tr class="row-even"><td rowspan="3"><ul class="simple">
 <li><p>env-sets</p></li>
 </ul>
 </td>
 <td colspan="5"><p><em>Environment variable sets</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="4"><p><em>array</em></p></td>
 </tr>
-<tr class="row-odd"><td><p>items</p></td>
+<tr class="row-even"><td><p>items</p></td>
 <td colspan="4"><p><a class="reference internal" href="#environment-variable-set"><span class="std std-ref">Environment variable set</span></a></p></td>
 </tr>
 </tbody>
@@ -1714,48 +1843,73 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
-<td colspan="2"><p><em>object</em></p></td>
+<td colspan="3"><p><em>object</em></p></td>
 </tr>
-<tr class="row-even"><td colspan="3"><p>properties</p></td>
+<tr class="row-even"><td colspan="4"><p>properties</p></td>
 </tr>
 <tr class="row-odd"><td rowspan="2"><ul class="simple">
 <li><p>name</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Dependency-set identifier. ‘default’ and ‘default-dev’ are builtin names</em></p></td>
+<td colspan="3"><p><em>Dependency-set identifier. Common names include ‘default’ and ‘default-dev’</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
+<td colspan="2"><p><em>string</em></p></td>
 </tr>
 <tr class="row-odd"><td rowspan="2"><ul class="simple">
 <li><p>description</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>One-line summary of what this dependency set installs</em></p></td>
+<td colspan="3"><p><em>One-line summary of what this dependency set installs</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
+<li><p>kind</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Optional classification for catalog views (‘ivpm show deps –from’). ‘package’ is a single installable tool; ‘collection’ is a curated multi-tool bundle. Inferred from dep count / dotted name / ‘uses’ when omitted.</em></p></td>
+</tr>
+<tr class="row-even"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>enum</p></td>
+<td colspan="2"><p>package, collection</p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><ul class="simple">
+<li><p>uses</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Name (or list of names) of other dep-set(s) in this file to use as a base. Non-overlapping packages are inherited; later bases override earlier ones, and packages defined in this dep-set override those from the bases.</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em> / <em>array</em></p></td>
+</tr>
+<tr class="row-even"><td><p>items</p></td>
+<td><p>type</p></td>
 <td><p><em>string</em></p></td>
 </tr>
 <tr class="row-odd"><td rowspan="2"><ul class="simple">
 <li><p>default-dep-set</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Default dep-set name for sub-packages to inherit if not explicitly specified</em></p></td>
+<td colspan="3"><p><em>Default dep-set name for sub-packages to inherit if not explicitly specified</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
-<td><p><em>string</em></p></td>
+<td colspan="2"><p><em>string</em></p></td>
 </tr>
 <tr class="row-odd"><td rowspan="3"><ul class="simple">
 <li><p>deps</p></li>
 </ul>
 </td>
-<td colspan="2"><p><em>Package dependencies</em></p></td>
+<td colspan="3"><p><em>Package dependencies</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
-<td><p><em>array</em></p></td>
+<td colspan="2"><p><em>array</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>items</p></td>
-<td><p><a class="reference internal" href="#package-dependency-specification"><span class="std std-ref">Package Dependency specification</span></a></p></td>
+<td colspan="2"><p><a class="reference internal" href="#package-dependency-specification"><span class="std std-ref">Package Dependency specification</span></a></p></td>
 </tr>
 </tbody>
 </table>
@@ -1796,16 +1950,16 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-even"><td rowspan="22"><ul class="simple">
+<tr class="row-even"><td rowspan="28"><ul class="simple">
 <li><p>src</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Specifies the source type. Most of the time auto-detect works</em></p></td>
+<td colspan="3"><p><em>Specifies the source type. Built-in types are listed below; custom (plugin-provided) source types are also accepted</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-even"><td rowspan="20"><p>oneOf</p></td>
+<tr class="row-even"><td rowspan="26"><p>anyOf</p></td>
 <td colspan="2"><p><em>URL points to a Git repository</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>const</p></td>
@@ -1856,7 +2010,22 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <tr class="row-odd"><td><p>const</p></td>
 <td><p>gh-rls</p></td>
 </tr>
-<tr class="row-even"><td rowspan="6"><ul class="simple">
+<tr class="row-even"><td colspan="2"><p><em>Environment Module – resolves a module specifier to its modulefile directory</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>module</p></td>
+</tr>
+<tr class="row-even"><td colspan="2"><p><em>Dep-set factory – pulls the named ‘dep-set’ from a referenced ivpm.yaml (via ‘url’). Contributes deps only; no packages-dir entry.</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>ivpm.yaml</p></td>
+</tr>
+<tr class="row-even"><td colspan="2"><p><em>Custom (plugin-provided) source type</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="8"><ul class="simple">
 <li><p>type</p></li>
 </ul>
 </td>
@@ -1865,7 +2034,7 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-even"><td rowspan="4"><p>oneOf</p></td>
+<tr class="row-even"><td rowspan="6"><p>oneOf</p></td>
 <td colspan="2"><p><em>Data package. IVPM will not attempt to interpret</em></p></td>
 </tr>
 <tr class="row-odd"><td><p>const</p></td>
@@ -1875,6 +2044,11 @@ validation and autocompletion when the <code class="docutils literal notranslate
 </tr>
 <tr class="row-odd"><td><p>const</p></td>
 <td><p>python</p></td>
+</tr>
+<tr class="row-even"><td colspan="2"><p><em>Environment Module – emit module load and/or resolve root directory for handler discovery</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>const</p></td>
+<td><p>module</p></td>
 </tr>
 <tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>version</p></li>
@@ -1951,59 +2125,111 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <tr class="row-even"><td><p>type</p></td>
 <td colspan="2"><p><em>integer</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-odd"><td rowspan="3"><ul class="simple">
 <li><p>dep-set</p></li>
 </ul>
 </td>
-<td colspan="3"><p><em>Assuming the target is an IVPM package, specifies the named dep-set to use</em></p></td>
+<td colspan="3"><p><em>Named dep-set(s) to pull from the target IVPM package: a single name, or a list of names to merge (later overrides earlier).</em></p></td>
 </tr>
 <tr class="row-even"><td><p>type</p></td>
-<td colspan="2"><p><em>string</em></p></td>
+<td colspan="2"><p><em>string</em> / <em>array</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-odd"><td><p>items</p></td>
+<td><p>type</p></td>
+<td><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>cache</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>Enable caching for this package. true=cached+readonly, false=readonly no cache, unspecified=full history+editable</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>boolean</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>link</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>For ‘dir’ source type: use symlink (true) or copy (false). Default: true</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>boolean</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>unpack</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>For archive files: whether to unpack the archive. Default: true (false for .jar)</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>boolean</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>file</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>For GitHub Releases: specific asset filename to download</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>string</em></p></td>
 </tr>
-<tr class="row-odd"><td rowspan="2"><ul class="simple">
+<tr class="row-even"><td rowspan="2"><ul class="simple">
 <li><p>prerelease</p></li>
 </ul>
 </td>
 <td colspan="3"><p><em>For GitHub Releases: include pre-release versions when selecting. Default: false</em></p></td>
 </tr>
-<tr class="row-even"><td><p>type</p></td>
+<tr class="row-odd"><td><p>type</p></td>
 <td colspan="2"><p><em>boolean</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><ul class="simple">
+<li><p>source</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>For GitHub Releases: force fetching source archive (.tar.gz) instead of platform-specific binary. Default: false</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>boolean</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><ul class="simple">
+<li><p>with</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Type-specific parameters. Only valid when ‘type’ is also specified. Parameter names and values are validated at runtime by the content-type handler.</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>object</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><ul class="simple">
+<li><p>module</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Module specifier (e.g. gcc/15.2.0). Required when src is module</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="2"><ul class="simple">
+<li><p>root</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Explicit root directory override for src: module</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>string</em></p></td>
+</tr>
+<tr class="row-even"><td rowspan="3"><ul class="simple">
+<li><p>resolve-root</p></li>
+</ul>
+</td>
+<td colspan="3"><p><em>Opt-in: parse module show output to determine the install prefix</em></p></td>
+</tr>
+<tr class="row-odd"><td><p>type</p></td>
+<td colspan="2"><p><em>boolean</em></p></td>
+</tr>
+<tr class="row-even"><td><p>default</p></td>
+<td colspan="2"><p>False</p></td>
 </tr>
 </tbody>
 </table>

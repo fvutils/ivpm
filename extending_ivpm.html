@@ -64,6 +64,7 @@
 <li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="destroy.html">Destroying Workspaces</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
@@ -242,6 +243,13 @@ Override this only if you need additional setup before leaf callbacks begin.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">on_root_post_load(update_info)</span></code></dt><dd><p>Called after all packages have been fetched. Runs on the main thread. This is
 where long-running work (venv creation, codegen, etc.) belongs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">on_destroy(remove_info)</span></code></dt><dd><p>Called by <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">destroy</span></code> to tear down derived artifacts this handler
+created (a venv, <code class="docutils literal notranslate"><span class="pre">node_modules</span></code>, generated activation files) – the inverse
+of <code class="docutils literal notranslate"><span class="pre">on_root_post_load()</span></code>. <code class="docutils literal notranslate"><span class="pre">remove_info</span></code> carries <code class="docutils literal notranslate"><span class="pre">deps_dir</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dry_run</span></code>; honor <code class="docutils literal notranslate"><span class="pre">dry_run</span></code> (report, change nothing). Return the list of
+removed paths, or <code class="docutils literal notranslate"><span class="pre">None</span></code>. Default: no-op, so a handler that creates no
+removable artifact needs no override.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">get_lock_entries(deps_dir)</span> <span class="pre">-&gt;</span> <span class="pre">dict</span></code></dt><dd><p>Return extra top-level keys to merge into the project’s lock file. Called
 after <code class="docutils literal notranslate"><span class="pre">on_root_post_load()</span></code>. Default returns <code class="docutils literal notranslate"><span class="pre">{}</span></code>.</p>

@@ -282,6 +282,74 @@ Create a new workspace from a Git repository.
 Note: Since ``clone`` automatically runs ``update``, you don't need to run
 ``ivpm update`` separately after ``ivpm clone``.
 
+destroy
+-------
+
+Remove a root project and all its imports (the inverse of ``clone``), or just
+the imports (the inverse of ``update``). Gated against losing local work. See
+:doc:`destroy` for the full guide.
+
+**Synopsis:**
+
+.. code-block:: text
+
+    ivpm destroy [options] [wsdir]
+
+**Arguments:**
+
+``wsdir``
+    Workspace directory to remove (required for a full destroy; ignored with
+    ``--deps-only``).
+
+**Options:**
+
+``--deps-only``
+    Remove only the imports/venv; keep the root project and ``ivpm.yaml``. Runs
+    in place; no ``wsdir`` required.
+
+``-p, --project-dir <dir>``
+    Workspace root for ``--deps-only`` mode (default: current directory).
+
+``-n, --dry-run``
+    Report what would be removed and the gate verdict; change nothing.
+
+``-f, --force``
+    Delete even when packages hold local modifications or unpushed commits.
+
+``-y, --yes``
+    Skip the interactive confirmation prompt (required in non-interactive/CI
+    contexts).
+
+``-j, --jobs <n>``
+    Number of parallel gate/teardown operations (default: CPU count).
+
+``--no-rich``
+    Plain-text output without the Rich live display.
+
+``-v, --verbose``
+    List the blocking files/commits in the report.
+
+**Examples:**
+
+.. code-block:: bash
+
+    # Reset the current workspace's dependencies (keep the root)
+    $ ivpm destroy --deps-only
+
+    # Preview a full teardown
+    $ ivpm destroy -n ../scratch-workspace
+
+    # Remove an entire cloned workspace, no prompt
+    $ ivpm destroy -y ../scratch-workspace
+
+**Behavior:**
+
+1. Validates the target is an IVPM workspace (refuses otherwise)
+2. Gates every import (and, in full mode, the root) — refuses if any holds
+   unrecoverable local work, unless ``--force``
+3. Removes each import via its source provider (unlinking cache/symlink deps),
+   then the venv, lock/state, and — in full mode — the deps directory and root
+
 init
 ----
 

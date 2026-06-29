@@ -109,6 +109,7 @@
 <li class="toctree-l1"><a class="reference internal" href="github_releases.html">GitHub Releases</a></li>
 <li class="toctree-l1"><a class="reference internal" href="environment_paths.html">Environment &amp; Paths</a></li>
 <li class="toctree-l1"><a class="reference internal" href="workflows.html">Development Workflows</a></li>
+<li class="toctree-l1"><a class="reference internal" href="destroy.html">Destroying Workspaces</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
@@ -525,7 +526,8 @@ directory.</p>
 </pre></div>
 </div>
 <p>With <code class="docutils literal notranslate"><span class="pre">--verbose</span></code>, each version is listed individually beneath its package
-(<code class="docutils literal notranslate"><span class="pre">-</span> <span class="pre">&lt;version&gt;:</span> <span class="pre">&lt;size&gt;</span></code>).</p>
+(<code class="docutils literal notranslate"><span class="pre">-</span> <span class="pre">&lt;version&gt;:</span> <span class="pre">&lt;size&gt;</span></code>) along with its <code class="docutils literal notranslate"><span class="pre">stored</span></code> and <code class="docutils literal notranslate"><span class="pre">last</span> <span class="pre">linked</span></code>
+timestamps.</p>
 <p>If <code class="docutils literal notranslate"><span class="pre">IVPM_CACHE</span></code> is not set, specify the cache directory:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>info<span class="w"> </span>--cache-dir<span class="w"> </span>/path/to/cache
 </pre></div>
@@ -533,25 +535,54 @@ directory.</p>
 </section>
 <section id="cleaning-the-cache">
 <h3>Cleaning the Cache<a class="headerlink" href="#cleaning-the-cache" title="Link to this heading"></a></h3>
-<p>Remove cache entries older than a specified number of days:</p>
+<p>Remove cache entries that haven’t been <em>used</em> in a given number of days:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">7</span>
 </pre></div>
 </div>
-<p>This removes entries that haven’t been modified in 7 days (the default).</p>
-<p><strong>To remove old entries:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Remove entries older than 30 days</span>
-ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span>
-
-<span class="c1"># Use a specific cache directory</span>
+<p><strong>How an entry’s age is measured.</strong> “Used” means <em>last referenced into a
+workspace</em>, not <em>first downloaded</em>. Each entry has a sidecar
+(<code class="docutils literal notranslate"><span class="pre">&lt;version&gt;.meta.json</span></code>) recording two timestamps:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">stored</span></code> — when the entry was first cached.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">last_linked</span></code> — the most recent time <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> symlinked it into a
+<code class="docutils literal notranslate"><span class="pre">packages/</span></code> directory. This is refreshed on every cache hit <strong>and</strong> on a
+re-run that finds the dependency already linked, so a version shared by many
+live workspaces keeps being marked as used.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">clean</span></code> prunes by <code class="docutils literal notranslate"><span class="pre">max(stored,</span> <span class="pre">last_linked)</span></code> age. An entry that was first
+cached 90 days ago but linked into a project yesterday is <strong>not</strong> removed.
+Entries created before this tracking existed (no sidecar) fall back to the
+directory’s modification time — exactly the previous behavior.</p>
+<p><strong>Preview before deleting</strong> with <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--days<span class="w"> </span><span class="m">30</span><span class="w"> </span>--dry-run<span class="w">     </span><span class="c1"># list candidates, delete nothing</span>
 ivpm<span class="w"> </span>cache<span class="w"> </span>clean<span class="w"> </span>--cache-dir<span class="w"> </span>/shared/cache<span class="w"> </span>--days<span class="w"> </span><span class="m">14</span>
 </pre></div>
 </div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><code class="docutils literal notranslate"><span class="pre">last_linked</span></code> only advances when IVPM references an entry (a cache hit or
+a re-run of <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> that finds the dep already linked). It does not
+observe reads that bypass IVPM — e.g. a long-lived workspace that keeps
+building against a cached symlink without ever re-running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code>.
+Re-running <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> periodically (as CI and normal workflows do)
+keeps in-use entries warm; otherwise raise <code class="docutils literal notranslate"><span class="pre">--days</span></code> to suit how often your
+workspaces refresh.</p>
+</div>
 <p><strong>What gets removed:</strong></p>
 <ul class="simple">
-<li><p>Version directories with modification time (mtime) older than specified days</p></li>
+<li><p>Version directories whose last-used age exceeds the threshold</p></li>
+<li><p>The entry’s <code class="docutils literal notranslate"><span class="pre">.meta.json</span></code> sidecar (and any orphaned sidecars)</p></li>
 <li><p>Empty package directories after version removal</p></li>
 <li><p>Symlinks in projects will become broken and need <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> to recreate</p></li>
 </ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><a class="reference internal" href="destroy.html"><span class="doc">ivpm destroy</span></a> only <strong>unlinks</strong> a workspace’s cache-backed
+symlinks — it never deletes cache content, since other workspaces may share
+the same entry. Reclaiming an entry that is no longer referenced remains the
+job of <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">cache</span> <span class="pre">clean</span></code>: once the last workspace referencing a version is
+destroyed, that version simply ages out and is pruned on the next <code class="docutils literal notranslate"><span class="pre">clean</span></code>.</p>
+</div>
 </section>
 </section>
 <section id="practical-examples">
@@ -711,18 +742,21 @@ corresponding to tag v2.0. Total disk usage: 1× instead of 3×.</p>
 <p>Options:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">-c,</span> <span class="pre">--cache-dir</span></code>: Cache directory (default: <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">--verbose</span></code>: Show detailed version information</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-v,</span> <span class="pre">--verbose</span></code>: Show detailed version information (size, <code class="docutils literal notranslate"><span class="pre">stored</span></code>,
+<code class="docutils literal notranslate"><span class="pre">last</span> <span class="pre">linked</span></code>)</p></li>
 </ul>
 </section>
 <section id="cache-clean">
 <h3>cache clean<a class="headerlink" href="#cache-clean" title="Link to this heading"></a></h3>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache clean [-c/--cache-dir &lt;dir&gt;] [-d/--days &lt;n&gt;]
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ivpm cache clean [-c/--cache-dir &lt;dir&gt;] [-d/--days &lt;n&gt;] [-n/--dry-run]
 </pre></div>
 </div>
 <p>Options:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">-c,</span> <span class="pre">--cache-dir</span></code>: Cache directory (default: <code class="docutils literal notranslate"><span class="pre">$IVPM_CACHE</span></code>)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--days</span></code>: Remove entries older than this many days (default: 7)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-d,</span> <span class="pre">--days</span></code>: Remove entries unused (last-linked, see above) for more than
+this many days (default: 7)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">-n,</span> <span class="pre">--dry-run</span></code>: List entries that would be removed without deleting</p></li>
 </ul>
 </section>
 </section>

@@ -20,7 +20,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Git Integration" href="git_integration.html" />
+    <link rel="next" title="Destroying Workspaces" href="destroy.html" />
     <link rel="prev" title="Environment &amp; Paths" href="environment_paths.html" /> 
 </head>
 
@@ -76,6 +76,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#adding-a-local-development-dependency">Adding a Local Development Dependency</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#removing-a-dependency">Removing a Dependency</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#updating-dependency-versions">Updating Dependency Versions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#tearing-down-a-workspace">Tearing Down a Workspace</a></li>
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#daily-development">Daily Development</a><ul>
@@ -130,6 +131,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#see-also">See Also</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="destroy.html">Destroying Workspaces</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_integration.html">Git Integration</a></li>
 <li class="toctree-l1"><a class="reference internal" href="git_worktrees.html">Git Worktrees</a></li>
 <li class="toctree-l1"><a class="reference internal" href="show_deps.html">Inspecting Dependencies (show deps)</a></li>
@@ -333,6 +335,21 @@ $<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w"> </sp
 $<span class="w"> </span>ivpm<span class="w"> </span>update
 </pre></div>
 </div>
+</section>
+<section id="tearing-down-a-workspace">
+<h3>Tearing Down a Workspace<a class="headerlink" href="#tearing-down-a-workspace" title="Link to this heading"></a></h3>
+<p>To reset all dependencies (the inverse of <code class="docutils literal notranslate"><span class="pre">update</span></code>) — gated so you do not lose
+uncommitted or unpushed work:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>destroy<span class="w"> </span>--deps-only
+</pre></div>
+</div>
+<p>To remove an entire workspace, root and all (the inverse of <code class="docutils literal notranslate"><span class="pre">clone</span></code>):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>destroy<span class="w"> </span>../scratch-workspace
+</pre></div>
+</div>
+<p>Unlike <code class="docutils literal notranslate"><span class="pre">rm</span> <span class="pre">-rf</span></code>, <code class="docutils literal notranslate"><span class="pre">destroy</span></code> refuses to delete imports holding local
+modifications, untracked files, or unpushed commits, and unlinks cache-backed
+dependencies instead of recursing into the shared cache. See <a class="reference internal" href="destroy.html"><span class="doc">Destroying Workspaces</span></a>.</p>
 </section>
 </section>
 <section id="daily-development">
@@ -853,7 +870,7 @@ editable packages are handled.</p>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="environment_paths.html" class="btn btn-neutral float-left" title="Environment &amp; Paths" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="git_integration.html" class="btn btn-neutral float-right" title="Git Integration" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="destroy.html" class="btn btn-neutral float-right" title="Destroying Workspaces" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
