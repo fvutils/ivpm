@@ -165,6 +165,17 @@ class PackageHandler(object):
         Replaces update()."""
         pass
 
+    def on_destroy(self, remove_info):
+        """Tear down derived artifacts this handler created (venv, node_modules,
+        envrc sidecars). The inverse of on_root_post_load(). Called by
+        `ivpm destroy` after per-package remove() and before lock/state removal.
+
+        ``remove_info`` is a ProjectRemoveInfo (carries deps_dir, dry_run, etc.).
+        Default: no-op — a handler that creates no removable artifact needs no
+        override. Honor ``remove_info.dry_run`` (report, change nothing).
+        Return a list of removed paths (for the summary), or None."""
+        return None
+
     # ------------------------------------------------------------------ #
     # Other handler hooks                                                  #
     # ------------------------------------------------------------------ #

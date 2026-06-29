@@ -6,6 +6,8 @@ Cache management commands for IVPM
 import os
 import stat
 import sys
+import time
+from datetime import datetime
 from ..cache import DirectoryCacheStore
 from ..msg import note
 
@@ -17,6 +19,15 @@ def format_size(size_bytes: int) -> str:
             return f"{size_bytes:.1f} {unit}"
         size_bytes /= 1024
     return f"{size_bytes:.1f} TB"
+
+
+def format_age(ts) -> str:
+    """Render a timestamp as 'YYYY-MM-DD (Nd ago)', or '-' when absent."""
+    if ts is None:
+        return "-"
+    when = datetime.fromtimestamp(ts).strftime("%Y-%m-%d")
+    days = int((time.time() - ts) // (24 * 60 * 60))
+    return f"{when} ({days}d ago)"
 
 
 class CmdCache:
@@ -77,20 +88,22 @@ class CmdCache:
         
         cache = DirectoryCacheStore(cache_dir)
         info = cache.get_cache_info()
-        
+
         print(f"Cache directory: {cache_dir}")
         print(f"Total size: {format_size(info['total_size'])}")
         print(f"Packages: {len(info['packages'])}")
         print()
-        
+
         for pkg in info['packages']:
             print(f"  {pkg['name']}:")
             print(f"    Versions: {len(pkg['versions'])}")
             print(f"    Size: {format_size(pkg['total_size'])}")
-            
+
             if args.verbose:
                 for ver in pkg['versions']:
                     print(f"      - {ver['version']}: {format_size(ver['size'])}")
+                    print(f"          stored:      {format_age(ver.get('stored'))}")
+                    print(f"          last linked: {format_age(ver.get('last_linked'))}")
     
     def _clean(self, args):
         """Clean old entries from the cache."""
@@ -107,7 +120,13 @@ class CmdCache:
             print(f"Error: Cache directory does not exist: {cache_dir}", file=sys.stderr)
             sys.exit(1)
         
+        dry_run = getattr(args, "dry_run", False)
         cache = DirectoryCacheStore(cache_dir)
-        removed = cache.clean_older_than(args.days)
-        
-        print(f"Removed {removed} cache entries older than {args.days} days")
+        removed = cache.clean_older_than(args.days, dry_run=dry_run)
+
+        if dry_run:
+            print(f"Would remove {removed} cache entries unused for more "
+                  f"than {args.days} days")
+        else:
+            print(f"Removed {removed} cache entries unused for more "
+                  f"than {args.days} days")

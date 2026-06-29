@@ -54,6 +54,17 @@ class ProjectSyncInfo(ProjectOpsInfo):
     progress: Optional[object] = None             # SyncProgressListener instance
 
 @dc.dataclass
+class ProjectRemoveInfo(ProjectOpsInfo):
+    """Passed to Package.remove() / Package.removal_safety() and handler
+    on_destroy() during `ivpm destroy`. Mirrors ProjectSyncInfo."""
+    dry_run: bool = False
+    force: bool = False
+    deps_only: bool = False
+    keep_venv: bool = False                          # post-MVP; default off
+    progress: Optional[object] = None                # RemoveProgressListener
+    event_dispatcher: Optional[UpdateEventDispatcher] = None
+
+@dc.dataclass
 class ProjectStatusInfo(ProjectOpsInfo):
     dep_set: Optional[str] = None
 
@@ -230,16 +241,28 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         self._current_package_name = None
         self._current_cache_hit = None
     
-    def package_error(self, name: str, error_message: str):
-        """Signal that loading of a package has failed."""
+    def package_error(self, name: str, error_message: str, loc=None):
+        """Signal that loading of a package has failed.
+
+        *loc* is the dependency's source location (a SrcInfo, or any object
+        carrying a ``.srcinfo``); when present it is stringified to
+        ``file:line:col`` and attached to the event so the TUI can point the
+        user at the exact ivpm.yaml entry that failed."""
+        package_loc = None
+        si = getattr(loc, "srcinfo", loc)
+        if si is not None and getattr(si, "filename", None) is not None \
+                and getattr(si, "lineno", -1) >= 0:
+            package_loc = str(si)
         if self.event_dispatcher:
             event = UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_ERROR,
                 package_name=name,
-                error_message=error_message
+                error_message=error_message,
+                package_loc=package_loc
             )
             self.event_dispatcher.dispatch(event)
-        _logger.error("Package error: %s - %s", name, error_message)
+        loc_str = (" (%s)" % package_loc) if package_loc else ""
+        _logger.error("Package error: %s%s - %s", name, loc_str, error_message)
     
     def update_complete(self):
         """Signal that the update operation is complete."""

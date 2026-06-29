@@ -40,6 +40,28 @@ from .project_ops_info import ProjectUpdateInfo
 _logger = logging.getLogger("ivpm.package_updater")
 
 
+def _origin_suffix(pkg) -> str:
+    """A short parenthetical describing *where* a failing dependency came from.
+
+    Names the source type and URL (the actual specification that failed) and,
+    for a transitive dependency, the package that pulled it in. The file:line
+    location is added separately by the diagnostic reporter (it reads
+    ``pkg.srcinfo``), so this only carries the spec details that help the user
+    recognise which entry to fix."""
+    parts = []
+    src = getattr(pkg, "src_type", None)
+    if src is not None:
+        src = src.name.lower() if hasattr(src, "name") else str(src)
+        parts.append("src: %s" % src)
+    url = getattr(pkg, "url", None)
+    if url:
+        parts.append("url: %s" % url)
+    resolved_by = getattr(pkg, "resolved_by", None)
+    if resolved_by:
+        parts.append("required by: %s" % resolved_by)
+    return (" [%s]" % ", ".join(parts)) if parts else ""
+
+
 class PackageUpdater(object):
     
     def __init__(self, 
@@ -164,18 +186,25 @@ class PackageUpdater(object):
             tasks.append(self._update_pkg_async(pkg, semaphore))
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+
         # Process results, handling any exceptions
         processed = []
         for i, result in enumerate(results):
             pkg = pkg_q[i]
             if isinstance(result, Exception):
-                # Notify listeners of failure
-                self.update_info.package_error(pkg.name, str(result))
-                fatal("Failed to update package %s: %s" % (pkg.name, str(result)))
+                # The per-package PACKAGE_ERROR event was already dispatched by
+                # _update_pkg (closest to the failure, with source location), so
+                # we don't re-report it here -- that would duplicate the
+                # '<< <pkg> ERROR:' line. Raise a fatal that points at the exact
+                # dependency specification (file:line:col, plus the source/url
+                # that failed) so the user knows which entry to fix and where.
+                fatal(
+                    "Failed to update package %s: %s%s" % (
+                        pkg.name, str(result), _origin_suffix(pkg)),
+                    pkg)
             else:
                 processed.append(result)
-        
+
         return processed
     
     async def _update_pkg_async(self, pkg: Package, semaphore: asyncio.Semaphore) -> Tuple[Package, ProjInfo]:
@@ -246,8 +275,10 @@ class PackageUpdater(object):
             
             return (pkg, pkg.proj_info)
         except Exception as e:
-            # Signal package error
-            self.update_info.package_error(pkg.name, str(e))
+            # Signal package error, carrying the dependency's source location so
+            # the TUI can show file:line:col alongside the message.
+            self.update_info.package_error(
+                pkg.name, str(e), loc=getattr(pkg, "srcinfo", None))
             raise
 
     

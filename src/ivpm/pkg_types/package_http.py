@@ -26,6 +26,7 @@ import urllib
 import dataclasses as dc
 from .package_file import PackageFile
 from ..project_ops_info import ProjectUpdateInfo
+from ..proj_info import ProjInfo
 from ..utils import note
 from ..package import SourceType2Ext
 
@@ -116,6 +117,35 @@ class PackageHttp(PackageFile):
         finally:
             _sh.rmtree(tmp, ignore_errors=True)
 
+    def fetch_pristine(self, update_info, dest_dir, base_version):
+        """Materialize a writable pristine tree of base_version at dest_dir.
+
+        Tier-1 patch hook (patch-source-provider-contract.md §3.2): downloads the
+        archive and unpacks it into dest_dir, applying no patches and leaving the
+        tree writable (the resolver owns read-only locking). The downloaded
+        archive is retained on ``self._pristine_archive`` so retain_base() (the
+        tier-2 editable path) can keep a byte-exact copy without re-downloading.
+        """
+        download_dir = os.path.join(update_info.deps_dir, ".download")
+        os.makedirs(download_dir, exist_ok=True)
+        if self.unpack:
+            pkg_path = os.path.join(download_dir, os.path.basename(self.url))
+            self._download_file(self.url, pkg_path)
+            self._pristine_archive = pkg_path
+            self._install(pkg_path, dest_dir)
+        else:
+            os.makedirs(dest_dir, exist_ok=True)
+            pkg_path = os.path.join(dest_dir, os.path.basename(self.url))
+            self._download_file(self.url, pkg_path)
+            self._pristine_archive = pkg_path
+
+    def _update_with_patches(self, update_info: ProjectUpdateInfo, pkg_dir: str):
+        """Resolve the base version (ETag/Last-Modified), then hand off to the
+        patch-aware resolver, which owns the cache interaction."""
+        from ..patch import PatchAwareResolver
+        base_version = self._get_url_version(self.url)
+        return PatchAwareResolver().resolve(update_info, self, base_version)
+
     def update(self, update_info : ProjectUpdateInfo):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
@@ -126,24 +156,47 @@ class PackageHttp(PackageFile):
         is_editable = self.cache is not True  # Could be cached but isn't
         update_info.report_package(cacheable=is_cacheable, editable=is_editable)
 
+        patched = not self.patchset.is_empty
+        manifest = os.path.exists(os.path.join(pkg_dir, ".ivpm", "patch-manifest.json"))
+
         if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
+            # A patched (or previously-patched) tree is reconciled, not skipped,
+            # so a changed patch set is picked up (mirrors package_git.py).
+            if patched or manifest:
+                return self._update_with_patches(update_info, pkg_dir)
             note("Skipping %s, since it is already loaded" % self.name)
+            # Refresh the cache entry's last-referenced timestamp when this dep
+            # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
+            update_info.get_cache_provider().note_reference(self)
         else:
+            # Patched deps go through the patch-aware resolver (which owns the
+            # cache interaction) and deliberately bypass the not-yet-patch-aware
+            # deps-source probe below.
+            if patched:
+                return self._update_with_patches(update_info, pkg_dir)
+
             # Try deps-source: probe URL to populate resolved_etag/last_modified
             # so the matcher has identity to compare against.
             if update_info.deps_source is not None:
                 self._get_url_version(self.url)
                 if update_info.try_deps_source(self):
                     note("deps-source hit for %s" % self.name)
-                    return
+                    return ProjInfo.mkFromProj(pkg_dir)
 
-            # Check if caching is enabled
+            # Check if caching is enabled. The helpers fetch/unpack into pkg_dir
+            # for their side effects; we then scan the unpacked tree for a nested
+            # ivpm.yaml below so the archive's transitive deps are processed.
             if self.cache is True:
-                return self._update_with_cache(update_info, pkg_dir)
+                self._update_with_cache(update_info, pkg_dir)
             elif self.cache is False:
-                return self._update_no_cache_readonly(update_info, pkg_dir)
+                self._update_no_cache_readonly(update_info, pkg_dir)
             else:
-                return self._update_normal(update_info, pkg_dir)
+                self._update_normal(update_info, pkg_dir)
+
+        # Scan the unpacked tree for a nested ivpm.yaml so transitive deps are
+        # processed (mirrors package_git.py). Returns None when there is none
+        # (e.g. unpack=False, where pkg_dir is the downloaded file).
+        return ProjInfo.mkFromProj(pkg_dir)
     
     def _get_url_version(self, url: str) -> str:
         """Get version identifier for a URL using HEAD request.

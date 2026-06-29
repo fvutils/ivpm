@@ -26,6 +26,7 @@ from .cmds.cmd_share import CmdShare
 from .cmds.cmd_snapshot import CmdSnapshot
 from .cmds.cmd_status import CmdStatus
 from .cmds.cmd_sync import CmdSync
+from .cmds.cmd_destroy import CmdDestroy
 from .show.cmd_show import CmdShow
 from .site_config import parse_git_auth_order
 
@@ -118,7 +119,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     cache_clean_cmd.add_argument("-c", "--cache-dir", dest="cache_dir",
         help="Cache directory (default: $IVPM_CACHE)")
     cache_clean_cmd.add_argument("-d", "--days", dest="days", type=int, default=7,
-        help="Remove entries older than this many days (default: 7)")
+        help="Remove entries unused for more than this many days (default: 7)")
+    cache_clean_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
+        help="List entries that would be removed without deleting anything")
 
     _finalize_subparser_help(cache_subparser)
 
@@ -289,6 +292,31 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Plain-text output without Rich formatting")
     sync_cmd.add_argument("-v", "--verbose", action="count", default=0,
         help="Increase transcript output detail (-v: per-package activity)")
+
+    destroy_cmd = subparser.add_parser("destroy",
+        help="Remove a root project and all its imports (inverse of clone)")
+    destroy_cmd.add_argument("wsdir", nargs="?", default=None,
+        help="Workspace directory to remove (required unless --deps-only)")
+    destroy_cmd.add_argument("--deps-only", dest="deps_only", action="store_true",
+        default=False,
+        help="Remove only the imports/venv; keep the root project and ivpm.yaml")
+    destroy_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Workspace root for --deps-only mode (default: cwd)")
+    destroy_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
+        default=False,
+        help="Report what would be removed and the gate verdict; change nothing")
+    destroy_cmd.add_argument("-f", "--force", action="store_true", default=False,
+        help="Delete even when packages hold local modifications or unpushed commits")
+    destroy_cmd.add_argument("-y", "--yes", action="store_true", default=False,
+        help="Skip the interactive confirmation prompt")
+    destroy_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=0,
+        help="Number of parallel gate/teardown operations (default: CPU count)")
+    destroy_cmd.add_argument("--no-rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+    destroy_cmd.add_argument("-v", "--verbose", action="count", default=0,
+        help="Increase per-package detail (-v: list the blocking files/commits)")
+    destroy_cmd.set_defaults(func=CmdDestroy())
+    subcommands["destroy"] = destroy_cmd
 
     status_cmd = subparser.add_parser("status",
         help="Checks the status of sub-dependencies such as git repositories")

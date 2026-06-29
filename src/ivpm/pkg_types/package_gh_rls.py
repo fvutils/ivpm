@@ -62,6 +62,17 @@ class PackageGhRls(PackageHttp):
     def dep_keys(cls):
         return super().dep_keys() | {"version", "file", "prerelease", "source"}
 
+    def patch_capability(self):
+        # Tier 0 (NONE) for now: gh-rls inherits PackageHttp's patch hooks, but
+        # its base identity is platform-aware ({tag}_{sys}_{arch}) and its
+        # pristine bytes come from a resolved release-asset URL -- not self.url --
+        # so the inherited fetch_pristine would fetch the wrong artifact. Until a
+        # gh-rls-specific fetch_pristine/_update_with_patches exists, decline
+        # patching so the reader rejects `patches:` with a clear error rather than
+        # silently ignoring it. (Override, don't inherit EDITABLE from PackageHttp.)
+        from ..patch import PatchCapability
+        return PatchCapability.NONE
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
 
@@ -95,7 +106,12 @@ class PackageGhRls(PackageHttp):
 
         if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
             note("Skipping %s, since it is already loaded" % self.name)
-            return
+            # Refresh the cache entry's last-referenced timestamp when this dep
+            # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
+            update_info.get_cache_provider().note_reference(self)
+            # Scan the already-unpacked tree for a nested ivpm.yaml so transitive
+            # deps are processed (mirrors package_git.py).
+            return ProjInfo.mkFromProj(pkg_dir)
 
         # Query release metadata
         rls_info, rls, file_url, forced_ext = self._resolve_release()
@@ -107,15 +123,19 @@ class PackageGhRls(PackageHttp):
         if update_info.deps_source is not None:
             if update_info.try_deps_source(self):
                 note("deps-source hit for %s" % self.name)
-                return
+                return ProjInfo.mkFromProj(pkg_dir)
 
-        # Check if caching is enabled
+        # Check if caching is enabled. The helpers fetch/unpack into pkg_dir for
+        # their side effects; we then scan the unpacked tree for a nested
+        # ivpm.yaml below so the bundle's transitive deps are processed.
         if self.cache is True:
-            return self._update_with_cache(update_info, pkg_dir, file_url, forced_ext, release_tag)
+            self._update_with_cache(update_info, pkg_dir, file_url, forced_ext, release_tag)
         elif self.cache is False:
-            return self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
+            self._update_no_cache_readonly(update_info, pkg_dir, file_url, forced_ext)
         else:
-            return self._update_normal(update_info, pkg_dir, file_url, forced_ext)
+            self._update_normal(update_info, pkg_dir, file_url, forced_ext)
+
+        return ProjInfo.mkFromProj(pkg_dir)
 
     def _repo_base_url(self):
         """Return the base GitHub API URL for this package's repo."""

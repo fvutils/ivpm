@@ -18,7 +18,7 @@ sys.path.insert(0, SRCDIR)
 
 from ivpm.ivpm_yaml_reader import IvpmYamlReader
 from ivpm.patch import PatchSet, md5_file
-from ivpm.package_lock import _entry_from_pkg, _spec_matches_lock
+from ivpm.package_lock import _entry_from_pkg, _spec_matches_lock, _patch_spec_matches
 
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "patch")
 
@@ -202,6 +202,65 @@ class TestPatchLockRoundTrip(_ReaderBase):
         # An unpatched pkg must NOT match a patched lock entry.
         pkg.patches = []
         self.assertFalse(_spec_matches_lock(pkg, entry))
+
+
+class TestPatchLockReproduction(_ReaderBase):
+    """Gap 1: IvpmLockReader.build_packages_info() must reconstruct the patch set
+    so a reproduced workspace re-derives the same patch identity (effective
+    version) it was locked with -- not a silent pristine tree."""
+
+    def _write_and_reproduce(self):
+        from ivpm.package_lock import write_lock, IvpmLockReader
+        from ivpm.packages_info import PackagesInfo
+        info = self.read(_consumer_yaml(
+            "          patches:\n"
+            "            - fix.patch\n"
+            "            - file: sub.patch\n"
+            "              directory: src\n"))
+        pkg = self.pkg(info)
+        pkg.src_type = "git"
+        pkg.resolved_commit = "abc123def456"
+        pkg.resolved_by = "root"
+
+        pi = PackagesInfo("root")
+        pi[pkg.name] = pkg
+        # deps_dir under the project root so patch files (in self.d) are found
+        # via base_dirs' parent-of-lock-dir entry.
+        deps_dir = os.path.join(self.d, "packages")
+        write_lock(deps_dir, pi)
+
+        reader = IvpmLockReader(os.path.join(deps_dir, "package-lock.json"))
+        repro = reader.build_packages_info()
+        return pkg, repro.packages["somelib"]
+
+    def test_patchset_identity_round_trips(self):
+        orig, repro = self._write_and_reproduce()
+        self.assertEqual(len(repro.patches), 2)
+        # Identity must match exactly -> same effective version -> cache HIT.
+        self.assertFalse(repro.patchset.is_empty)
+        self.assertEqual(repro.patchset.patchset_id, orig.patchset.patchset_id)
+
+    def test_reconstructed_patch_identity_matches(self):
+        orig, repro = self._write_and_reproduce()
+        entry = _entry_from_pkg(orig)
+        # The patch-identity comparison must hold for the reconstructed pkg --
+        # this is the specific check Gap 1 broke (empty patchset -> mismatch).
+        # (Full _spec_matches_lock additionally compares commit_requested, which
+        # reproduction intentionally pins to commit_resolved -- out of scope here.)
+        self.assertTrue(_patch_spec_matches(repro, entry))
+        # And an empty-patchset pkg (the pre-fix behavior) would NOT match.
+        repro.patches = []
+        self.assertFalse(_patch_spec_matches(repro, entry))
+
+    def test_resolved_path_located_for_miss(self):
+        # Patch files live at the project root (parent of the deps/lock dir); the
+        # reconstructed resolved_path should point at the real file so an uncached
+        # MISS can re-apply rather than fail.
+        _, repro = self._write_and_reproduce()
+        for spec in repro.patches:
+            self.assertTrue(os.path.isfile(spec.resolved_path),
+                            "resolved_path not located: %s" % spec.resolved_path)
+            self.assertEqual(md5_file(spec.resolved_path), spec.md5)
 
 
 if __name__ == "__main__":

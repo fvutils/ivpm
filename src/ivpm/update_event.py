@@ -53,6 +53,9 @@ class UpdateEvent:
     duration: Optional[float] = None
     cache_hit: Optional[bool] = None
     error_message: Optional[str] = None
+    # Source location (``file:line:col``) of the dependency spec that failed,
+    # when known. Set on PACKAGE_ERROR so the TUI can point at the ivpm.yaml entry.
+    package_loc: Optional[str] = None
     version: Optional[str] = None
     total_packages: int = 0
     cache_hits: int = 0

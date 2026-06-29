@@ -95,3 +95,15 @@ class TestCliHelp(unittest.TestCase):
         result = _run("show", "deps", "--help")
         self.assertEqual(result.returncode, 0)
         self.assertIn("--from", result.stdout)
+
+    def test_destroy_listed_in_top_level_help(self):
+        result = _run("--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("destroy", _usage_commands(result.stdout))
+
+    def test_destroy_accepts_expected_options(self):
+        result = _run("destroy", "--help")
+        self.assertEqual(result.returncode, 0)
+        for opt in ("--deps-only", "--dry-run", "--force", "--yes",
+                    "wsdir", "--verbose", "--jobs", "--no-rich"):
+            self.assertIn(opt, result.stdout)

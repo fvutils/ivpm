@@ -1,5 +1,5 @@
 {
-	"$schema" : "https://json-schema.org/draft/2020-12/schema",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://fvutils.github.com/ivpm/ivpm.json",
 	"title": "IVPM",
 	"description": "Schema for IVPM (Integrated View Package Manager)",
@@ -25,7 +25,9 @@
 			}
 		}
 	},
-	"required": [ "package", "version" ],
+	"required": [
+		"package"
+	],
 	"defs": {
 		"package-def": {
 			"title": "Package Definition",
@@ -44,13 +46,20 @@
 					"type": "string",
 					"description": "Version of the package"
 				},
+				"include": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Paths (relative to this file) of partial ivpm.yaml files to merge into this package. The including file wins on conflict; dep-sets merge by name (a name defined in two files is an error)."
+				},
 				"deps-dir": {
 					"type": "string",
 					"description": "Directory where dependencies are stored (default: 'packages')"
 				},
 				"default-dep-set": {
 					"type": "string",
-					"description": "Default dependency set to use if not specified on command line"
+					"description": "Default dependency set to use if not specified on command line. If not set, uses the first dep-set in the file"
 				},
 				"dep-sets": {
 					"type": "array",
@@ -96,11 +105,23 @@
 			"properties": {
 				"name": {
 					"type": "string",
-					"title": "Dependency-set identifier. 'default' and 'default-dev' are builtin names"
+					"title": "Dependency-set identifier. Common names include 'default' and 'default-dev'"
 				},
 				"description": {
 					"type": "string",
 					"title": "One-line summary of what this dependency set installs"
+				},
+				"kind": {
+					"type": "string",
+					"enum": ["package", "collection"],
+					"title": "Optional classification for catalog views ('ivpm show deps --from'). 'package' is a single installable tool; 'collection' is a curated multi-tool bundle. Inferred from dep count / dotted name / 'uses' when omitted."
+				},
+				"uses": {
+					"type": ["string", "array"],
+					"items": {
+						"type": "string"
+					},
+					"title": "Name (or list of names) of other dep-set(s) in this file to use as a base. Non-overlapping packages are inherited; later bases override earlier ones, and packages defined in this dep-set override those from the bases."
 				},
 				"default-dep-set": {
 					"type": "string",
@@ -120,7 +141,9 @@
 			"$$target": "#/defs/package-dep",
 			"type": "object",
 			"properties": {
-				"required": [ "name" ],
+				"required": [
+					"name"
+				],
 				"name": {
 					"type": "string",
 					"description": "Package identifier"
@@ -131,8 +154,8 @@
 				},
 				"src": {
 					"type": "string",
-					"title": "Specifies the source type. Most of the time auto-detect works",
-					"oneOf": [
+					"title": "Specifies the source type. Built-in types are listed below; custom (plugin-provided) source types are also accepted",
+					"anyOf": [
 						{
 							"const": "git",
 							"title": "URL points to a Git repository"
@@ -149,7 +172,7 @@
 							"const": "dir",
 							"title": "URL points to a local directory (file://path)"
 						},
-						{	
+						{
 							"const": "jar",
 							"title": "URL points to a .jar file. IVPM will not expand"
 						},
@@ -172,6 +195,18 @@
 						{
 							"const": "gh-rls",
 							"title": "GitHub Release - downloads platform-specific binaries or source from releases"
+						},
+						{
+							"const": "module",
+							"title": "Environment Module -- resolves a module specifier to its modulefile directory"
+						},
+						{
+							"const": "ivpm.yaml",
+							"title": "Dep-set factory -- pulls the named 'dep-set' from a referenced ivpm.yaml (via 'url'). Contributes deps only; no packages-dir entry."
+						},
+						{
+							"type": "string",
+							"title": "Custom (plugin-provided) source type"
 						}
 					]
 				},
@@ -186,6 +221,10 @@
 						{
 							"const": "python",
 							"title": "Python package that IVPM will install into the venv"
+						},
+						{
+							"const": "module",
+							"title": "Environment Module -- emit module load and/or resolve root directory for handler discovery"
 						}
 					]
 				},
@@ -216,15 +255,20 @@
 				"deps": {
 					"type": "string",
 					"title": "When set to 'skip', sub-dependencies will not be loaded",
-					"enum": ["skip"]
+					"enum": [
+						"skip"
+					]
 				},
 				"depth": {
 					"type": "integer",
 					"title": "Git clone depth (number of commits to fetch)"
 				},
 				"dep-set": {
-					"type": "string",
-					"title": "Assuming the target is an IVPM package, specifies the named dep-set to use"
+					"type": ["string", "array"],
+					"items": {
+						"type": "string"
+					},
+					"title": "Named dep-set(s) to pull from the target IVPM package: a single name, or a list of names to merge (later overrides earlier)."
 				},
 				"cache": {
 					"type": "boolean",
@@ -245,6 +289,27 @@
 				"prerelease": {
 					"type": "boolean",
 					"title": "For GitHub Releases: include pre-release versions when selecting. Default: false"
+				},
+				"source": {
+					"type": "boolean",
+					"title": "For GitHub Releases: force fetching source archive (.tar.gz) instead of platform-specific binary. Default: false"
+				},
+				"with": {
+					"type": "object",
+					"title": "Type-specific parameters. Only valid when 'type' is also specified. Parameter names and values are validated at runtime by the content-type handler."
+				},
+				"module": {
+					"type": "string",
+					"title": "Module specifier (e.g. gcc/15.2.0). Required when src is module"
+				},
+				"root": {
+					"type": "string",
+					"title": "Explicit root directory override for src: module"
+				},
+				"resolve-root": {
+					"type": "boolean",
+					"title": "Opt-in: parse module show output to determine the install prefix",
+					"default": false
 				}
 			}
 		},
@@ -277,34 +342,64 @@
 				},
 				"value": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Set the variable to this value (space-separated if array)"
 				},
 				"path": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Set the variable as a path (colon-separated if array)"
 				},
 				"path-append": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Append to the variable as a path"
 				},
 				"path-prepend": {
 					"oneOf": [
-						{"type": "string"},
-						{"type": "array", "items": {"type": "string"}}
+						{
+							"type": "string"
+						},
+						{
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
 					],
 					"title": "Prepend to the variable as a path"
 				}
 			},
-			"required": ["name"]
+			"required": [
+				"name"
+			]
 		}
 	}
 }
