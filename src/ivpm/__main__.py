@@ -118,7 +118,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     cache_clean_cmd.add_argument("-c", "--cache-dir", dest="cache_dir",
         help="Cache directory (default: $IVPM_CACHE)")
     cache_clean_cmd.add_argument("-d", "--days", dest="days", type=int, default=7,
-        help="Remove entries older than this many days (default: 7)")
+        help="Remove entries unused for more than this many days (default: 7)")
+    cache_clean_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
+        help="List entries that would be removed without deleting anything")
 
     _finalize_subparser_help(cache_subparser)
 

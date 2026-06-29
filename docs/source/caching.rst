@@ -410,7 +410,8 @@ Example output::
        Size: 856 MB
 
 With ``--verbose``, each version is listed individually beneath its package
-(``- <version>: <size>``).
+(``- <version>: <size>``) along with its ``stored`` and ``last linked``
+timestamps.
 
 If ``IVPM_CACHE`` is not set, specify the cache directory:
 
@@ -421,27 +422,48 @@ If ``IVPM_CACHE`` is not set, specify the cache directory:
 Cleaning the Cache
 ------------------
 
-Remove cache entries older than a specified number of days:
+Remove cache entries that haven't been *used* in a given number of days:
 
 .. code-block:: bash
 
    ivpm cache clean --days 7
 
-This removes entries that haven't been modified in 7 days (the default).
+**How an entry's age is measured.** "Used" means *last referenced into a
+workspace*, not *first downloaded*. Each entry has a sidecar
+(``<version>.meta.json``) recording two timestamps:
 
-**To remove old entries:**
+- ``stored`` — when the entry was first cached.
+- ``last_linked`` — the most recent time ``ivpm update`` symlinked it into a
+  ``packages/`` directory. This is refreshed on every cache hit **and** on a
+  re-run that finds the dependency already linked, so a version shared by many
+  live workspaces keeps being marked as used.
+
+``clean`` prunes by ``max(stored, last_linked)`` age. An entry that was first
+cached 90 days ago but linked into a project yesterday is **not** removed.
+Entries created before this tracking existed (no sidecar) fall back to the
+directory's modification time — exactly the previous behavior.
+
+**Preview before deleting** with ``--dry-run``:
 
 .. code-block:: bash
 
-   # Remove entries older than 30 days
-   ivpm cache clean --days 30
-   
-   # Use a specific cache directory
+   ivpm cache clean --days 30 --dry-run     # list candidates, delete nothing
    ivpm cache clean --cache-dir /shared/cache --days 14
+
+.. note::
+
+   ``last_linked`` only advances when IVPM references an entry (a cache hit or
+   a re-run of ``ivpm update`` that finds the dep already linked). It does not
+   observe reads that bypass IVPM — e.g. a long-lived workspace that keeps
+   building against a cached symlink without ever re-running ``ivpm update``.
+   Re-running ``ivpm update`` periodically (as CI and normal workflows do)
+   keeps in-use entries warm; otherwise raise ``--days`` to suit how often your
+   workspaces refresh.
 
 **What gets removed:**
 
-- Version directories with modification time (mtime) older than specified days
+- Version directories whose last-used age exceeds the threshold
+- The entry's ``.meta.json`` sidecar (and any orphaned sidecars)
 - Empty package directories after version removal
 - Symlinks in projects will become broken and need ``ivpm update`` to recreate
 
@@ -628,19 +650,22 @@ cache info
 Options:
 
 - ``-c, --cache-dir``: Cache directory (default: ``$IVPM_CACHE``)
-- ``-v, --verbose``: Show detailed version information
+- ``-v, --verbose``: Show detailed version information (size, ``stored``,
+  ``last linked``)
 
 cache clean
 -----------
 
 .. code-block:: text
 
-   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>]
+   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>] [-n/--dry-run]
 
 Options:
 
 - ``-c, --cache-dir``: Cache directory (default: ``$IVPM_CACHE``)
-- ``-d, --days``: Remove entries older than this many days (default: 7)
+- ``-d, --days``: Remove entries unused (last-linked, see above) for more than
+  this many days (default: 7)
+- ``-n, --dry-run``: List entries that would be removed without deleting
 
 See Also
 ========

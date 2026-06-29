@@ -13,6 +13,7 @@ import unittest
 
 from ivpm.pkg_types.package_http import PackageHttp
 from ivpm.pkg_types.package_gh_rls import PackageGhRls
+from ivpm.cache_provider import CacheContext, NullCacheProvider
 
 
 class _UpdateInfo:
@@ -23,6 +24,13 @@ class _UpdateInfo:
 
     def report_package(self, cacheable=False, editable=False):
         pass
+
+    def get_cache_provider(self):
+        # The already-loaded path refreshes the cache entry's last-linked time;
+        # a null provider makes that a no-op for these no-cache fixtures.
+        return NullCacheProvider(CacheContext(
+            root_name=None, root_version=None, root_dir=None,
+            deps_dir=self.deps_dir))
 
 
 _NESTED_YAML = """\

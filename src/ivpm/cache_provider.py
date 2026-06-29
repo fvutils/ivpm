@@ -32,6 +32,7 @@ each method).  The provider owns the cache intelligence:
 A disabled cache is still a real provider (:class:`NullCacheProvider`) whose
 every lookup reports DISABLED ("uncacheable"); callers never receive ``None``.
 """
+import os
 import dataclasses as dc
 import enum
 from typing import TYPE_CHECKING, Optional
@@ -123,6 +124,17 @@ class CacheProvider:
         """
         raise NotImplementedError
 
+    def note_reference(self, pkg) -> None:
+        """Record that ``pkg`` is already materialized from the cache.
+
+        Called on the already-loaded fast path — which returns early without
+        fetching or calling :meth:`materialize` — so an entry's "last
+        referenced into a workspace" timestamp still advances when a stable
+        workspace re-runs ``ivpm update``.  Default no-op: only a real cache
+        has anything to refresh.
+        """
+        return None
+
 
 class NullCacheProvider(CacheProvider):
     """The provider returned when caching is disabled — always uncacheable."""
@@ -167,3 +179,11 @@ class DirectoryCacheProvider(CacheProvider):
 
     def materialize(self, pkg, version: str) -> str:
         return self._store.link_to_deps(pkg.name, version, self.context.deps_dir)
+
+    def note_reference(self, pkg) -> None:
+        # The fast path has the existing deps/<pkg> symlink but not the version
+        # id; let the store resolve the link target and refresh last_linked iff
+        # it points into this cache (editable clones / deps-source links no-op).
+        link_path = os.path.join(self.context.deps_dir, getattr(pkg, "name", ""))
+        if os.path.islink(link_path):
+            self._store.touch_linked_target(link_path)

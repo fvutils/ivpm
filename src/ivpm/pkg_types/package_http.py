@@ -165,6 +165,9 @@ class PackageHttp(PackageFile):
             if patched or manifest:
                 return self._update_with_patches(update_info, pkg_dir)
             note("Skipping %s, since it is already loaded" % self.name)
+            # Refresh the cache entry's last-referenced timestamp when this dep
+            # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
+            update_info.get_cache_provider().note_reference(self)
         else:
             # Patched deps go through the patch-aware resolver (which owns the
             # cache interaction) and deliberately bypass the not-yet-patch-aware

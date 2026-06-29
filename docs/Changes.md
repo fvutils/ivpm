@@ -2,6 +2,14 @@
 # 2.16.0
 - Support for patching imported packaged
 - Support recursive ivpm.yaml processing in .tar and gh-rls packages
+- `ivpm cache clean` now prunes by *last use* instead of *first cached*. Each
+  cache entry gets a sidecar (`<version>.meta.json`) recording `stored` and
+  `last_linked`; `last_linked` is refreshed whenever a version is symlinked
+  into a workspace (including re-runs of `ivpm update` on an already-linked
+  dep), so a version shared by live workspaces is no longer evicted by age
+  alone. Pre-existing (sidecar-less) entries fall back to directory mtime.
+  Adds `ivpm cache clean --dry-run`; `ivpm cache info --verbose` now shows
+  `stored`/`last linked`.
 
 # 2.14.0
 - Extended support for remote manifest support

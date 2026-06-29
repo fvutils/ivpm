@@ -106,6 +106,9 @@ class PackageGhRls(PackageHttp):
 
         if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
             note("Skipping %s, since it is already loaded" % self.name)
+            # Refresh the cache entry's last-referenced timestamp when this dep
+            # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
+            update_info.get_cache_provider().note_reference(self)
             # Scan the already-unpacked tree for a nested ivpm.yaml so transitive
             # deps are processed (mirrors package_git.py).
             return ProjInfo.mkFromProj(pkg_dir)

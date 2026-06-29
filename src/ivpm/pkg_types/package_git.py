@@ -154,6 +154,9 @@ class PackageGit(PackageURL):
                 return self._update_with_patches(update_info, pkg_dir)
             note("package %s is already loaded" % self.name)
             self._capture_resolved_commit(pkg_dir)
+            # Refresh the cache entry's last-referenced timestamp when this dep
+            # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
+            update_info.get_cache_provider().note_reference(self)
         else:
             # Patched deps go through the patch-aware resolver (which owns the
             # cache interaction). It deliberately bypasses the not-yet-patch-aware
@@ -526,21 +529,6 @@ class PackageGit(PackageURL):
             _logger.debug("git_cmd: %s", str(git_cmd))
             rc = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
 
-    def _make_readonly(self, path: str):
-        """Make all files in a directory tree read-only."""
-        import stat
-        for root, dirs, files in os.walk(path):
-            for d in dirs:
-                dir_path = os.path.join(root, d)
-                mode = os.stat(dir_path).st_mode
-                os.chmod(dir_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
-            for f in files:
-                file_path = os.path.join(root, f)
-                mode = os.stat(file_path).st_mode
-                os.chmod(file_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
-        mode = os.stat(path).st_mode
-        os.chmod(path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
-    
     def status(self, status_info: ProjectStatusInfo):
         from ..pkg_status import PkgVcsStatus
 
