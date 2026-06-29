@@ -54,6 +54,17 @@ class ProjectSyncInfo(ProjectOpsInfo):
     progress: Optional[object] = None             # SyncProgressListener instance
 
 @dc.dataclass
+class ProjectRemoveInfo(ProjectOpsInfo):
+    """Passed to Package.remove() / Package.removal_safety() and handler
+    on_destroy() during `ivpm destroy`. Mirrors ProjectSyncInfo."""
+    dry_run: bool = False
+    force: bool = False
+    deps_only: bool = False
+    keep_venv: bool = False                          # post-MVP; default off
+    progress: Optional[object] = None                # RemoveProgressListener
+    event_dispatcher: Optional[UpdateEventDispatcher] = None
+
+@dc.dataclass
 class ProjectStatusInfo(ProjectOpsInfo):
     dep_set: Optional[str] = None
 

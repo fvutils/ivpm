@@ -55,6 +55,16 @@ class PackagePyPi(Package):
         pkg.process_options(opts, si)
         return pkg
 
+    def remove(self, remove_info):
+        """PyPI packages live inside the managed venv (packages/python), not as
+        a deps-dir tree. Teardown is owned by the python handler's on_destroy(),
+        which removes the whole venv; there is no per-package tree to delete."""
+        from ..pkg_remove import PkgRemoveResult, RemoveOutcome
+        return PkgRemoveResult(
+            name=self.name, src_type="pypi", path=self.path,
+            removal="provider", outcome=RemoveOutcome.SKIPPED,
+            next_steps=[])
+
     @staticmethod
     def get_live_info(name: str, deps_dir: str) -> dict:
         """Return the installed version via importlib.metadata."""

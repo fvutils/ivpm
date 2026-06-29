@@ -309,6 +309,196 @@ class ProjectOps(object):
             if real == main_deps or real.startswith(main_deps + os.sep):
                 r.deps_source_auto = True
 
+    # ====================================================================== #
+    # destroy — tear down a workspace (root + imports) or just the imports.   #
+    # See destroy-design.md. The gate is delegated (each source classifies    #
+    # ITSELF via removal_safety()); teardown is delegated (remove()); this    #
+    # method only aggregates and sequences. It returns structured data — the  #
+    # front-end (CmdDestroy) owns all presentation and the confirm prompt.    #
+    # ====================================================================== #
+
+    def _destroy_context(self, args):
+        """Resolve + validate the target and build the package list from the
+        lock (the authoritative record of what is on disk). Shared by
+        destroy_plan() and destroy_apply() so both gate identically."""
+        from .proj_info import ProjInfo
+        from .pkg_types.pkg_type_rgy import PkgTypeRgy
+        from .package_lock import read_lock
+        from .project_ops_info import ProjectRemoveInfo
+
+        deps_only = bool(getattr(args, "deps_only", False)) if args else False
+        force     = bool(getattr(args, "force", False))     if args else False
+        dry_run   = bool(getattr(args, "dry_run", False))   if args else False
+        keep_venv = bool(getattr(args, "keep_venv", False)) if args else False
+
+        target = os.path.realpath(self.root_dir)
+        if not os.path.isdir(target):
+            fatal("destroy target does not exist: %s" % target)
+
+        proj_info = ProjInfo.mkFromProj(target)
+        deps_dir_name = proj_info.deps_dir if proj_info is not None else "packages"
+        deps_dir = os.path.join(target, deps_dir_name)
+        lock_path = os.path.join(deps_dir, "package-lock.json")
+        has_yaml = os.path.isfile(os.path.join(target, "ivpm.yaml"))
+        has_lock = os.path.isfile(lock_path)
+
+        # Refusal 1: not an IVPM workspace.
+        if not has_yaml and not has_lock:
+            fatal("%s is not an IVPM workspace (no ivpm.yaml or "
+                  "package-lock.json); refusing to destroy" % target)
+
+        mode = "deps-only" if deps_only else "full"
+
+        # Refusal 2: full destroy of cwd or an ancestor of cwd.
+        if mode == "full":
+            cwd = os.path.realpath(os.getcwd())
+            if target == cwd or (cwd + os.sep).startswith(target + os.sep):
+                fatal("refusing to destroy %s: it is the current directory or "
+                      "an ancestor of it.\n"
+                      "cd elsewhere, or use --deps-only to remove just the "
+                      "imports." % target)
+
+        # Build the package list from the lock (includes transitive deps).
+        packages = []
+        if has_lock:
+            lock = read_lock(lock_path)
+            rgy = PkgTypeRgy.inst()
+            for name, entry in lock.get("packages", {}).items():
+                src = entry.get("src", "")
+                # Normalize http-archive aliases the same way sync() does.
+                if src in ("tgz", "txz", "zip", "jar", "http"):
+                    src = "url"
+                if rgy.hasPkgType(src):
+                    pkg = rgy.mkPackage(src, name, entry, None)
+                else:
+                    pkg = Package(name)
+                    pkg.src_type = src or "non-vcs"
+                pkg.path = os.path.join(deps_dir, name)
+                if entry.get("from_deps_source"):
+                    pkg.from_deps_source = entry["from_deps_source"]
+                packages.append(pkg)
+
+        remove_info = ProjectRemoveInfo(
+            args=args, deps_dir=deps_dir,
+            dry_run=dry_run, force=force, deps_only=deps_only,
+            keep_venv=keep_venv)
+
+        return dict(
+            proj_info=proj_info, target=target, deps_dir=deps_dir,
+            deps_dir_name=deps_dir_name, packages=packages,
+            remove_info=remove_info, mode=mode, force=force,
+            dry_run=dry_run, has_lock=has_lock)
+
+    def _destroy_root_pkg(self, ctx):
+        """The Package used to gate the root project in full mode. A git root
+        carries unpushed commits like any dep, so it must pass the same gate."""
+        from .pkg_types.package_git import PackageGit
+        target = ctx["target"]
+        if os.path.isdir(os.path.join(target, ".git")):
+            pkg = PackageGit(name="<root>")
+        else:
+            pkg = Package("<root>")
+            pkg.src_type = "dir"
+        pkg.path = target
+        return pkg
+
+    def _destroy_gate(self, ctx):
+        """Call removal_safety() on every package (and, in full mode, the root).
+        Returns (gate dict, blocked bool). destroy only aggregates."""
+        from .pkg_remove import SafetyLevel
+        gate = {}
+        for pkg in ctx["packages"]:
+            gate[pkg.name] = pkg.removal_safety(ctx["remove_info"])
+        if ctx["mode"] == "full":
+            gate["<root>"] = self._destroy_root_pkg(ctx).removal_safety(
+                ctx["remove_info"])
+        blocked = (not ctx["force"]) and any(
+            v.level == SafetyLevel.BLOCKED for v in gate.values())
+        return gate, blocked
+
+    def destroy_plan(self, args=None):
+        """Read-only: resolve, validate, gate, and (for --dry-run) compute the
+        planned per-package teardown. Mutates nothing. Returns a DestroyReport
+        the front-end renders (blocking report or dry-run plan)."""
+        from .pkg_remove import DestroyReport
+        ctx = self._destroy_context(args)
+        gate, blocked = self._destroy_gate(ctx)
+        report = DestroyReport(
+            mode=ctx["mode"], target=ctx["target"], deps_dir=ctx["deps_dir"],
+            gate=gate, blocked=blocked, dry_run=ctx["dry_run"],
+            forced=ctx["force"])
+        if blocked:
+            return report
+        if ctx["dry_run"]:
+            report.results = [p.remove(ctx["remove_info"])
+                              for p in ctx["packages"]]
+        return report
+
+    def destroy_apply(self, args=None):
+        """Mutating: re-gate (never mutate when blocked), then tear down each
+        package (best-effort-continue), run handler on_destroy(), remove
+        lock/state, and finally remove deps_dir / the root tree (full mode).
+        Returns the final DestroyReport for the summary."""
+        from .pkg_remove import DestroyReport, RemoveOutcome, PkgRemoveResult
+        from .package import _rmtree_force
+
+        ctx = self._destroy_context(args)
+        gate, blocked = self._destroy_gate(ctx)
+        report = DestroyReport(
+            mode=ctx["mode"], target=ctx["target"], deps_dir=ctx["deps_dir"],
+            gate=gate, blocked=blocked, dry_run=False, forced=ctx["force"])
+        if blocked:
+            return report      # safety: never mutate while the gate blocks
+
+        remove_info = ctx["remove_info"]
+
+        # Teardown each package — one provider error does not abort the others.
+        results = []
+        for pkg in ctx["packages"]:
+            try:
+                results.append(pkg.remove(remove_info))
+            except Exception as e:
+                results.append(PkgRemoveResult(
+                    name=pkg.name,
+                    src_type=str(getattr(pkg, "src_type", "") or "non-vcs"),
+                    path=pkg.path, removal="error",
+                    outcome=RemoveOutcome.MANUAL, error=str(e)))
+        report.results = results
+
+        # Handler teardown (venv, node_modules, ...).
+        try:
+            handler = PackageHandlerRgy.inst().mkHandler()
+            handler.on_destroy(remove_info)
+        except Exception as e:
+            warning("handler teardown error: %s" % e)
+
+        # Remove lock/state under deps_dir.
+        for fname in ("package-lock.json", "ivpm.json"):
+            p = os.path.join(ctx["deps_dir"], fname)
+            if os.path.isfile(p):
+                try:
+                    os.remove(p)
+                except OSError as e:
+                    warning("could not remove %s: %s" % (p, e))
+
+        if ctx["mode"] == "deps-only":
+            # Leave the (emptied) deps_dir; prune only if it is now empty.
+            try:
+                if os.path.isdir(ctx["deps_dir"]) and not os.listdir(ctx["deps_dir"]):
+                    os.rmdir(ctx["deps_dir"])
+            except OSError:
+                pass
+        else:
+            # full: remove deps_dir, then the ROOT tree LAST (it can be a
+            # worktree/submodule parent and can carry unpushed commits of its
+            # own — already gated above).
+            if os.path.isdir(ctx["deps_dir"]):
+                _rmtree_force(ctx["deps_dir"])
+            if os.path.isdir(ctx["target"]):
+                _rmtree_force(ctx["target"])
+
+        return report
+
     def sync(self, dep_set: str = None, args=None):
         import asyncio
         import multiprocessing

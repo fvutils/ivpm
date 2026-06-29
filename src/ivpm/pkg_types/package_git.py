@@ -134,6 +134,116 @@ class PackageGit(PackageURL):
                 return "drift"
         return "clean"
 
+    # ------------------------------------------------------------------ #
+    # Destroy gate (see destroy-design.md)                                #
+    # ------------------------------------------------------------------ #
+
+    def _porcelain_split(self, pkg_dir):
+        """(modified, untracked) path lists from git status --porcelain,
+        excluding .ivpm/ and (implicitly) .gitignore'd files. ([], []) on error."""
+        r = subprocess.run(["git", "status", "--porcelain"],
+                           cwd=pkg_dir, capture_output=True, text=True)
+        if r.returncode != 0:
+            return [], []
+        modified, untracked = [], []
+        for line in r.stdout.splitlines():
+            if not line.strip():
+                continue
+            code = line[:2]
+            path = line[3:].strip()
+            if " -> " in path:                  # rename: take the destination
+                path = path.split(" -> ")[-1].strip()
+            if path == ".ivpm" or path.startswith(".ivpm/"):
+                continue
+            if code.startswith("??"):
+                untracked.append(path)
+            else:
+                modified.append(path)
+        return modified, untracked
+
+    def removal_safety(self, remove_info):
+        """git gate: classify this tree as SAFE / BLOCKED with structured
+        evidence (modified / untracked / unpushed / local-branch / stash /
+        patch-drift). Returns DATA only; the front-end formats it."""
+        from ..pkg_remove import RemovalSafety, SafetyLevel, SafetyReason
+        from ..package import Package
+
+        path = self.path
+        if path is None or not os.path.lexists(path):
+            return RemovalSafety(SafetyLevel.SAFE)
+
+        # cache-backed read-only mirror / deps-source mirror / dir-file link:
+        # the base policy (unlink-safe, nothing to lose) is correct.
+        if os.path.islink(path):
+            return Package.removal_safety(self, remove_info)
+
+        # Not a git repo on disk (incomplete / extracted) -> base policy.
+        if not os.path.isdir(os.path.join(path, ".git")):
+            return Package.removal_safety(self, remove_info)
+
+        def _git(args):
+            r = subprocess.run(["git"] + args, capture_output=True, text=True,
+                               cwd=path, timeout=10)
+            return r.returncode, r.stdout.strip()
+
+        reasons = []
+
+        # --- patched tree vs. plain tree -------------------------------- #
+        # For a patched tree the recorded patch result is EXPECTED to deviate
+        # from base, so we must not report those as "modified". Only drift
+        # beyond the manifest's allowed paths (or a moved HEAD) is unsafe.
+        from ..patch import read_manifest
+        manifest = read_manifest(path)
+        if manifest and manifest.get("base_version"):
+            base_version = manifest["base_version"]
+            allowed = set(r.get("path") for r in manifest.get("result", []))
+            if self.patch_tree_status(path, base_version, allowed) == "drift":
+                reasons.append(SafetyReason(
+                    "patch-drift", data={"base": base_version}))
+        else:
+            modified, untracked = self._porcelain_split(path)
+            if modified:
+                reasons.append(SafetyReason("modified", items=modified))
+            if untracked:
+                reasons.append(SafetyReason("untracked", items=untracked))
+
+        # --- unpushed commits / local-only branch ----------------------- #
+        _, branch_raw = _git(["rev-parse", "--abbrev-ref", "HEAD"])
+        branch = None if branch_raw == "HEAD" else branch_raw
+        rc_up, upstream = _git(
+            ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        if rc_up == 0 and upstream:
+            ahead = 0
+            rc_ab, ab_raw = _git(
+                ["rev-list", "--left-right", "--count", "@{u}...HEAD"])
+            if rc_ab == 0 and ab_raw:
+                parts = ab_raw.split()
+                if len(parts) == 2:
+                    try:
+                        ahead = int(parts[1])
+                    except ValueError:
+                        pass
+            if ahead > 0:
+                _, log_raw = _git(["log", "--format=%s", "@{u}..HEAD"])
+                subjects = [s for s in log_raw.splitlines() if s.strip()][:20]
+                reasons.append(SafetyReason(
+                    "unpushed", items=subjects, count=ahead,
+                    data={"upstream": upstream}))
+        elif branch is not None:
+            # On a branch with no upstream: its commits exist nowhere else.
+            # (A pinned commit/tag leaves a detached HEAD -> branch is None,
+            # and is recoverable from the remote, so it is not flagged.)
+            reasons.append(SafetyReason("local-branch", data={"branch": branch}))
+
+        # --- stashed work ------------------------------------------------ #
+        rc_st, stash_raw = _git(["stash", "list"])
+        if rc_st == 0 and stash_raw:
+            names = [s for s in stash_raw.splitlines() if s.strip()]
+            reasons.append(SafetyReason("stash", items=names, count=len(names)))
+
+        level = SafetyLevel.BLOCKED if reasons else SafetyLevel.SAFE
+        return RemovalSafety(level, reasons)
+
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")

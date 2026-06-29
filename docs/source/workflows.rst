@@ -208,6 +208,26 @@ Updating Dependency Versions
     $ rm -rf packages/lib
     $ ivpm update
 
+Tearing Down a Workspace
+------------------------
+
+To reset all dependencies (the inverse of ``update``) — gated so you do not lose
+uncommitted or unpushed work:
+
+.. code-block:: bash
+
+    $ ivpm destroy --deps-only
+
+To remove an entire workspace, root and all (the inverse of ``clone``):
+
+.. code-block:: bash
+
+    $ ivpm destroy ../scratch-workspace
+
+Unlike ``rm -rf``, ``destroy`` refuses to delete imports holding local
+modifications, untracked files, or unpushed commits, and unlinks cache-backed
+dependencies instead of recursing into the shared cache. See :doc:`destroy`.
+
 Daily Development
 =================
 

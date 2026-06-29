@@ -411,6 +411,20 @@ class PackageHandlerPython(PackageHandler):
             return update_info.python_config.venv
         return VenvMode.AUTO
 
+    def on_destroy(self, remove_info):
+        """Remove the managed virtual environment (packages/python). Honors
+        --keep-venv (post-MVP) and dry_run."""
+        if getattr(remove_info, "keep_venv", False):
+            return None
+        python_dir = os.path.join(remove_info.deps_dir, "python")
+        if not os.path.isdir(python_dir):
+            return None
+        if getattr(remove_info, "dry_run", False):
+            return [python_dir]
+        from ..package import _rmtree_force
+        _rmtree_force(python_dir)
+        return [python_dir]
+
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         from ..proj_info import VenvMode
 

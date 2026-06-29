@@ -86,6 +86,18 @@ class PackageHandlerList(PackageHandler):
         for h in self.handlers:
             h.build(build_info)
 
+    def on_destroy(self, remove_info):
+        """Tear down each handler's artifacts in REVERSE creation order (the
+        inverse of on_root_post_load). Returns the concatenated list of removed
+        paths. Teardown is order-independent for the built-in handlers today;
+        reverse order is used for symmetry with creation."""
+        removed = []
+        for h in reversed(resolve_order(self.handlers)):
+            paths = h.on_destroy(remove_info)
+            if paths:
+                removed.extend(paths)
+        return removed
+
     def get_lock_entries(self, deps_dir: str) -> dict:
         result = {}
         for h in self.handlers:

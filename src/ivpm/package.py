@@ -22,6 +22,9 @@
 
 import logging
 import os
+import shutil
+import stat
+import sys
 import dataclasses as dc
 from enum import Enum, auto
 from typing import Dict, List, Set, Optional, Tuple
@@ -30,6 +33,25 @@ from .patch import PatchSpec, PatchSet, PatchCapability
 from .utils import fatal, getlocstr
 
 _logger = logging.getLogger("ivpm.package")
+
+
+def _rmtree_force(path):
+    """rmtree that recovers from cleared write bits (read-only cache copies,
+    Windows dir/file copies). Never follows symlinks (rmtree's default)."""
+    def _retry(func, p, *exc):
+        # A read-only file cannot be unlinked from a read-only parent, so
+        # restore the write bit on both before retrying.
+        parent = os.path.dirname(p)
+        for target in (parent, p):
+            try:
+                os.chmod(target, stat.S_IRWXU)
+            except OSError:
+                pass
+        func(p)
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(path, onexc=_retry)
+    else:
+        shutil.rmtree(path, onerror=_retry)
 
 class PackageType(Enum):
     Raw = auto()
@@ -217,6 +239,98 @@ class Package(object):
             outcome=SyncOutcome.SKIPPED,
             skipped_reason=src,
         )
+
+    # --- Destroy participation hooks (see destroy-design.md) ---
+    # removal_safety() is the GATE: each source classifies ITSELF as
+    # SAFE / UNVERIFIABLE / BLOCKED and supplies structured evidence (NOT
+    # formatted prose). remove() is the TEARDOWN. `destroy` only aggregates;
+    # it contains no source-specific logic.
+
+    def removal_safety(self, remove_info) -> 'RemovalSafety':
+        """Classify this package for the destroy gate, WITH justification.
+
+        Returns a RemovalSafety verdict carrying the level and structured
+        evidence (SafetyReason data, not formatted text). The base, VCS-agnostic
+        policy:
+          * missing path                         -> SAFE
+          * symlink (cache read-only / deps-source / dir-file link)
+                                                 -> SAFE (+ informational reason)
+          * writable real dir, working_tree_dirty() is True   -> BLOCKED
+          * writable real dir, working_tree_dirty() is None    -> UNVERIFIABLE
+          * writable real dir, working_tree_dirty() is False   -> SAFE
+
+        VCS sources override to return richer BLOCKED evidence (git:
+        unpushed / modified / untracked / local-branch / stash / patch-drift)."""
+        from .pkg_remove import RemovalSafety, SafetyLevel, SafetyReason
+
+        path = self.path
+        if path is None or not os.path.lexists(path):
+            return RemovalSafety(SafetyLevel.SAFE)
+
+        if os.path.islink(path):
+            # cache-backed read-only mirror, deps-source mirror, or dir/file
+            # link -- the content is shared/immutable or owned elsewhere.
+            # Unlinking is inherently safe; never recurse into the target.
+            target = None
+            try:
+                target = os.readlink(path)
+            except OSError:
+                pass
+            return RemovalSafety(SafetyLevel.SAFE, [
+                SafetyReason("symlink", data={"target": target})])
+
+        dirty = self.working_tree_dirty(path)
+        if dirty is True:
+            return RemovalSafety(SafetyLevel.BLOCKED, [SafetyReason("modified")])
+        elif dirty is None:
+            return RemovalSafety(SafetyLevel.UNVERIFIABLE, [
+                SafetyReason("unverifiable", label="no VCS / no base snapshot")])
+        else:
+            return RemovalSafety(SafetyLevel.SAFE)
+
+    def remove(self, remove_info) -> 'PkgRemoveResult':
+        """Remove this package, honoring its materialization shape and any state
+        held outside its directory.
+
+        Base implementation:
+          * symlink (cache read-only / deps-source / dir-file link)
+                -> os.unlink the link; NEVER recurse into the target
+          * plain file
+                -> os.unlink
+          * writable directory
+                -> rmtree, recovering from cleared write bits
+          * missing path
+                -> no-op (idempotent)
+
+        Source types that register state elsewhere (Perforce client/view,
+        git worktree/submodule, editable installs) override this to clean that
+        state first, then remove the local tree. ``remove_info.dry_run`` reports
+        the planned action and mutates nothing."""
+        from .pkg_remove import PkgRemoveResult, RemoveOutcome
+
+        path = self.path
+        src = str(getattr(self, "src_type", "") or "non-vcs")
+        dry = getattr(remove_info, "dry_run", False)
+
+        def _result(removal, outcome, **kw):
+            return PkgRemoveResult(name=self.name, src_type=src, path=path,
+                                   removal=removal, outcome=outcome, **kw)
+
+        if path is None or not os.path.lexists(path):
+            return _result("noop", RemoveOutcome.SKIPPED)
+
+        # symlink (any mode) or plain file -> unlink the link/file only
+        if os.path.islink(path) or not os.path.isdir(path):
+            if dry:
+                return _result("unlink", RemoveOutcome.SKIPPED, removed_paths=[path])
+            os.unlink(path)
+            return _result("unlink", RemoveOutcome.REMOVED, removed_paths=[path])
+
+        # writable real directory -> rmtree (does not follow symlinks)
+        if dry:
+            return _result("rmtree", RemoveOutcome.SKIPPED, removed_paths=[path])
+        _rmtree_force(path)
+        return _result("rmtree", RemoveOutcome.REMOVED, removed_paths=[path])
 
     def update(self, update_info : ProjectUpdateInfo) -> 'ProjInfo':
         from .proj_info import ProjInfo

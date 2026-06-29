@@ -1,5 +1,14 @@
 
 # 2.16.0
+- New `ivpm destroy` command: tears down a workspace (root + imports) or, with
+  `--deps-only`, just the imports — the inverse of `clone`/`update`. A delegated
+  safety gate refuses to remove imports holding unrecoverable local work
+  (modified/untracked/unpushed/stash/local-only branch/patched-tree drift) and
+  reports every blocker; `--force` overrides, `--dry-run` previews, `-v` lists
+  the evidence. Teardown is source-specific: cache-backed and deps-source
+  symlinks are unlinked (never recursed into), and handlers remove their derived
+  artifacts (venv, `node_modules`) via a new `on_destroy()` hook. Refuses to
+  destroy a non-workspace or the current directory/an ancestor.
 - Support for patching imported packaged
 - Support recursive ivpm.yaml processing in .tar and gh-rls packages
 - `ivpm cache clean` now prunes by *last use* instead of *first cached*. Each

@@ -146,6 +146,14 @@ Callbacks
     Called after all packages have been fetched. Runs on the main thread. This is
     where long-running work (venv creation, codegen, etc.) belongs.
 
+``on_destroy(remove_info)``
+    Called by ``ivpm destroy`` to tear down derived artifacts this handler
+    created (a venv, ``node_modules``, generated activation files) -- the inverse
+    of ``on_root_post_load()``. ``remove_info`` carries ``deps_dir`` and
+    ``dry_run``; honor ``dry_run`` (report, change nothing). Return the list of
+    removed paths, or ``None``. Default: no-op, so a handler that creates no
+    removable artifact needs no override.
+
 ``get_lock_entries(deps_dir) -> dict``
     Return extra top-level keys to merge into the project's lock file. Called
     after ``on_root_post_load()``. Default returns ``{}``.

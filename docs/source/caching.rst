@@ -467,6 +467,14 @@ directory's modification time — exactly the previous behavior.
 - Empty package directories after version removal
 - Symlinks in projects will become broken and need ``ivpm update`` to recreate
 
+.. note::
+
+   :doc:`ivpm destroy <destroy>` only **unlinks** a workspace's cache-backed
+   symlinks — it never deletes cache content, since other workspaces may share
+   the same entry. Reclaiming an entry that is no longer referenced remains the
+   job of ``ivpm cache clean``: once the last workspace referencing a version is
+   destroyed, that version simply ages out and is pruned on the next ``clean``.
+
 Practical Examples
 ==================
 
