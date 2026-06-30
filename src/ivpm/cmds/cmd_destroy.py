@@ -20,7 +20,7 @@ import os
 import sys
 
 from ..project_ops import ProjectOps
-from ..pkg_remove import RemoveOutcome
+from ..pkg_remove import RemoveOutcome, SafetyLevel
 from ..utils import fatal
 from .. import destroy_tui
 
@@ -71,8 +71,12 @@ class CmdDestroy(object):
             tui.show_dry_run(report, verbose=verbose)
             return
 
-        # 4. Confirm, unless --yes/--force. (No live display is active here.)
-        if not (getattr(args, "yes", False) or getattr(args, "force", False)):
+        # 4. Confirm, unless --yes/--force, or every pre-remove check passed
+        #    cleanly (nothing UNVERIFIABLE to ask the user about).
+        all_safe = all(v.level == SafetyLevel.SAFE
+                        for v in report.gate.values())
+        if not (getattr(args, "yes", False) or getattr(args, "force", False)
+                or all_safe):
             if not sys.stdin.isatty():
                 fatal("refusing to destroy without confirmation in a "
                       "non-interactive context; pass --yes to proceed.")
