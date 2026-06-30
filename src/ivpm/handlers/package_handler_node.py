@@ -28,7 +28,7 @@ from ..package import Package, get_type_data
 from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note, fatal
 from ..pkg_content_type import NodeTypeData
-from .package_handler import PackageHandler
+from .package_handler import PackageHandler, HandlerFatalError
 from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_node")
@@ -255,15 +255,17 @@ class PackageHandlerNode(PackageHandler):
             path = os.path.expandvars(path)
 
         if not os.path.isfile(path):
-            _logger.warning("package.json not found at '%s' — skipping", path)
-            return
+            raise HandlerFatalError(
+                "src: package.json entry '%s' references a package.json that "
+                "does not exist: '%s'" % (pkg.name, path))
 
         try:
             with open(path) as fp:
                 data = json.load(fp)
         except Exception as e:
-            _logger.warning("Could not read package.json at '%s': %s", path, e)
-            return
+            raise HandlerFatalError(
+                "src: package.json entry '%s' could not read package.json at "
+                "'%s': %s" % (pkg.name, path, e))
 
         with self._lock:
             for dep_name, version in data.get("dependencies", {}).items():
