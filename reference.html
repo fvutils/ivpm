@@ -395,7 +395,7 @@
 <p>Create a new workspace from a Git URL or path</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">clone</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">ssh</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">git</span><span class="o">-</span><span class="n">auth</span><span class="o">-</span><span class="n">order</span> <span class="n">GIT_AUTH_ORDER</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">b</span> <span class="n">BRANCH</span><span class="p">]</span>
            <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
-           <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span>
+           <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">cache</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span>
            <span class="n">src</span> <span class="p">[</span><span class="n">workspace_dir</span><span class="p">]</span>
 </pre></div>
 </div>
@@ -440,6 +440,10 @@
 </dd>
 <dt><kbd>--py-system-site-packages</kbd></dt>
 <dd><p>Inherit system site-packages in the virtual environment (default: isolated)</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
+</dd>
+<dt><kbd>--no-cache</kbd></dt>
+<dd><p>Disable the cache for this clone’s update; forces a null cache provider</p>
 <p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
 </dd>
 <dt><kbd>-D</kbd></dt>
