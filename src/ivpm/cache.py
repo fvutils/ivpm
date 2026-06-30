@@ -18,18 +18,12 @@
 #****************************************************************************
 import os
 import stat
+import json
+import time
 import shutil
-import dataclasses as dc
 from typing import Optional
 from .msg import note
 from .site_config import get_site_config
-
-
-@dc.dataclass
-class CacheResult:
-    """Result of a cache operation."""
-    hit: bool = False
-    cache_path: Optional[str] = None
 
 
 class DirectoryCacheStore:
@@ -93,6 +87,8 @@ class DirectoryCacheStore:
             # Already cached — clean up the source that is no longer needed
             if os.path.exists(source_path):
                 shutil.rmtree(source_path)
+            # Re-storing an extant entry still counts as using it.
+            self._touch_last_linked(package_name, version)
             return version_dir
         
         self.ensure_cache_dir(package_name)
@@ -116,7 +112,16 @@ class DirectoryCacheStore:
         
         # Make all files read-only
         self._make_readonly(version_dir)
-        
+
+        # Seed the stale-tracking sidecar next to (never inside) the locked
+        # entry.  stored == last_linked at creation time.
+        now = time.time()
+        self._write_meta(package_name, version, {
+            "schema": self._META_SCHEMA,
+            "stored": now,
+            "last_linked": now,
+        })
+
         note(f"Cached {package_name} version {version}")
         return version_dir
     
@@ -140,9 +145,118 @@ class DirectoryCacheStore:
             shutil.rmtree(link_path)
         
         os.symlink(version_dir, link_path)
+        # Linking is the single choke point for "this entry was referenced
+        # into a workspace" — refresh last_linked here (covers both the cache
+        # HIT path and the MISS→store→materialize path).
+        self._touch_last_linked(package_name, version)
         note(f"Linked {package_name} from cache")
         return link_path
-    
+
+    # --- stale-tracking sidecar -------------------------------------------
+    #
+    # Each entry <cache>/<pkg>/<version>/ gets a sibling sidecar
+    # <cache>/<pkg>/<version>.meta.json recording when it was first stored and
+    # when it was last referenced into a deps/ directory.  The sidecar lives in
+    # the writable package directory, never inside the read-only entry, and is
+    # advisory: any failure to read/write it degrades gracefully to dir-mtime.
+
+    _META_SUFFIX = ".meta.json"
+    _META_SCHEMA = 1
+    _META_MODE = (
+        stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH
+    )  # 0o664 — group-writable so any member of a shared cache can refresh it
+
+    def _meta_path(self, package_name: str, version: str) -> str:
+        return os.path.join(
+            self.cache_dir, package_name, version + self._META_SUFFIX)
+
+    def _read_meta(self, package_name: str, version: str) -> Optional[dict]:
+        """Return the entry's sidecar dict, or None if absent/unreadable."""
+        try:
+            with open(self._meta_path(package_name, version)) as fp:
+                data = json.load(fp)
+        except (OSError, ValueError):
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _write_meta(self, package_name: str, version: str, meta: dict):
+        """Atomically write the sidecar (tmp + rename), group-writable.
+
+        Best-effort: a failure (e.g. an entry owned by another user in a
+        shared cache) is non-fatal and just degrades that entry to dir-mtime.
+        """
+        path = self._meta_path(package_name, version)
+        tmp = path + ".tmp.%d" % os.getpid()
+        try:
+            with open(tmp, "w") as fp:
+                json.dump(meta, fp)
+            try:
+                os.chmod(tmp, self._META_MODE)
+            except OSError:
+                pass
+            os.rename(tmp, path)
+        except OSError:
+            if os.path.exists(tmp):
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+
+    def _delete_meta(self, package_name: str, version: str):
+        try:
+            os.remove(self._meta_path(package_name, version))
+        except OSError:
+            pass
+
+    def _touch_last_linked(self, package_name: str, version: str):
+        """Refresh ``last_linked`` to now, preserving ``stored``.
+
+        Lazily creates the sidecar for a pre-existing (sidecar-less) entry,
+        seeding ``stored`` from the entry's directory mtime so its real age is
+        not lost on the first touch.
+        """
+        now = time.time()
+        meta = self._read_meta(package_name, version)
+        if meta is None:
+            try:
+                stored = os.path.getmtime(
+                    self.get_version_cache_dir(package_name, version))
+            except OSError:
+                stored = now
+            meta = {"schema": self._META_SCHEMA, "stored": stored}
+        meta.setdefault("schema", self._META_SCHEMA)
+        meta["last_linked"] = now
+        self._write_meta(package_name, version, meta)
+
+    def touch_linked(self, package_name: str, version: str) -> bool:
+        """Refresh last_linked for an already-materialized entry (fast path).
+
+        Returns True when the named entry exists and was touched.
+        """
+        if not self.has_version(package_name, version):
+            return False
+        self._touch_last_linked(package_name, version)
+        return True
+
+    def touch_linked_target(self, target_path: str) -> bool:
+        """Refresh last_linked given a *symlink target* into this cache.
+
+        Used by the already-loaded fast path, which has the existing
+        ``deps/<pkg>`` symlink but not the version id.  Resolves the target to
+        ``<cache>/<pkg>/<version>`` and touches it.  Returns False (no-op) when
+        the path is not a version directory inside this cache — e.g. an
+        editable clone or a deps-source link elsewhere.
+        """
+        if self.cache_dir is None:
+            return False
+        real_cache = os.path.realpath(self.cache_dir)
+        rel = os.path.relpath(os.path.realpath(target_path), real_cache)
+        parts = rel.split(os.sep)
+        if rel.startswith("..") or len(parts) != 2:
+            return False
+        package_name, version = parts
+        return self.touch_linked(package_name, version)
+
     # Permission bits used for shared-cache directories.
     # rwxrwsr-x: owner+group can read/write/traverse, setgid propagates
     # group ownership to new entries, others can read/traverse.
@@ -184,48 +298,54 @@ class DirectoryCacheStore:
     
     def get_cache_info(self) -> dict:
         """Get information about the cache.
-        
+
         Returns dict with:
         - packages: list of package info dicts with name, versions, total_size
         - total_size: total size of cache in bytes
+
+        Each version entry carries ``mtime`` plus the sidecar timestamps
+        ``stored`` and ``last_linked`` (None when the entry has no sidecar).
         """
         result = {
             "packages": [],
             "total_size": 0
         }
-        
+
         if not os.path.isdir(self.cache_dir):
             return result
-        
+
         for pkg_name in os.listdir(self.cache_dir):
             pkg_dir = os.path.join(self.cache_dir, pkg_name)
             if not os.path.isdir(pkg_dir):
                 continue
-            
+
             pkg_info = {
                 "name": pkg_name,
                 "versions": [],
                 "total_size": 0
             }
-            
+
             for version in os.listdir(pkg_dir):
                 version_dir = os.path.join(pkg_dir, version)
                 if not os.path.isdir(version_dir):
-                    continue
-                
+                    continue  # skip *.meta.json sidecars and other non-dirs
+
                 size = self._get_dir_size(version_dir)
                 mtime = os.path.getmtime(version_dir)
-                
+                meta = self._read_meta(pkg_name, version) or {}
+
                 pkg_info["versions"].append({
                     "version": version,
                     "size": size,
-                    "mtime": mtime
+                    "mtime": mtime,
+                    "stored": meta.get("stored"),
+                    "last_linked": meta.get("last_linked"),
                 })
                 pkg_info["total_size"] += size
-            
+
             result["packages"].append(pkg_info)
             result["total_size"] += pkg_info["total_size"]
-        
+
         return result
     
     def _get_dir_size(self, path: str) -> int:
@@ -238,40 +358,89 @@ class DirectoryCacheStore:
                     total += os.path.getsize(fp)
         return total
     
-    def clean_older_than(self, days: int) -> int:
-        """Remove cache entries older than specified days.
-        
-        Returns number of entries removed.
+    def entry_last_used(self, package_name: str, version: str) -> float:
+        """Most-recent "use" timestamp for a cached entry.
+
+        ``max(dir-mtime, stored, last_linked)``, where ``last_linked`` is
+        refreshed every time IVPM references the entry into a workspace.  When
+        the sidecar is missing or unreadable (a best-effort write that failed,
+        or a hand-managed cache) this collapses to the directory mtime, so GC
+        degrades safely rather than treating the entry as brand-new or ancient.
         """
-        import time
+        version_dir = self.get_version_cache_dir(package_name, version)
+        base = os.path.getmtime(version_dir)
+        ts = base
+        meta = self._read_meta(package_name, version)
+        if meta:
+            ts = max(ts, meta.get("stored", base), meta.get("last_linked", base))
+        return ts
+
+    def _sweep_orphan_meta(self, pkg_dir: str):
+        """Remove ``*.meta.json`` sidecars with no matching version directory.
+
+        Covers entries removed out-of-band (e.g. a manual ``rm -rf``) whose
+        sidecar would otherwise orphan.
+        """
+        try:
+            entries = os.listdir(pkg_dir)
+        except OSError:
+            return
+        for name in entries:
+            if not name.endswith(self._META_SUFFIX):
+                continue
+            version = name[:-len(self._META_SUFFIX)]
+            if not os.path.isdir(os.path.join(pkg_dir, version)):
+                try:
+                    os.remove(os.path.join(pkg_dir, name))
+                except OSError:
+                    pass
+
+    def clean_older_than(self, days: int, dry_run: bool = False) -> int:
+        """Remove cache entries whose *last-used* age exceeds ``days``.
+
+        Last-used is :meth:`entry_last_used` — ``max(stored, last_linked,
+        dir-mtime)`` — so an entry symlinked into a live workspace survives
+        even if it was first cached long ago.  With no sidecar this collapses
+        to the directory mtime (legacy behavior).
+
+        Returns the number of entries removed, or — when ``dry_run`` — the
+        number that *would* be removed.  Orphaned sidecars are swept alongside.
+        """
         cutoff = time.time() - (days * 24 * 60 * 60)
         removed = 0
-        
+
         if not os.path.isdir(self.cache_dir):
             return removed
-        
+
         for pkg_name in os.listdir(self.cache_dir):
             pkg_dir = os.path.join(self.cache_dir, pkg_name)
             if not os.path.isdir(pkg_dir):
                 continue
-            
+
             for version in list(os.listdir(pkg_dir)):
                 version_dir = os.path.join(pkg_dir, version)
                 if not os.path.isdir(version_dir):
-                    continue
-                
-                mtime = os.path.getmtime(version_dir)
-                if mtime < cutoff:
-                    # Need to make writable before removing
-                    self._make_writable(version_dir)
-                    shutil.rmtree(version_dir)
+                    continue  # skip sidecars and other non-dir siblings
+
+                if self.entry_last_used(pkg_name, version) < cutoff:
+                    if not dry_run:
+                        # Need to make writable before removing
+                        self._make_writable(version_dir)
+                        shutil.rmtree(version_dir)
+                        self._delete_meta(pkg_name, version)
                     removed += 1
-                    note(f"Removed cached {pkg_name}/{version}")
-            
-            # Remove empty package directories
+                    note("%s cached %s/%s" % (
+                        "Would remove" if dry_run else "Removed",
+                        pkg_name, version))
+
+            if dry_run:
+                continue
+
+            # Sweep orphaned sidecars, then drop now-empty package directories.
+            self._sweep_orphan_meta(pkg_dir)
             if not os.listdir(pkg_dir):
                 os.rmdir(pkg_dir)
-        
+
         return removed
     
     def _make_writable(self, path: str):

@@ -309,6 +309,271 @@ class ProjectOps(object):
             if real == main_deps or real.startswith(main_deps + os.sep):
                 r.deps_source_auto = True
 
+    # ====================================================================== #
+    # destroy — tear down a workspace (root + imports) or just the imports.   #
+    # See destroy-design.md. The gate is delegated (each source classifies    #
+    # ITSELF via removal_safety()); teardown is delegated (remove()); this    #
+    # method only aggregates and sequences. It returns structured data — the  #
+    # front-end (CmdDestroy) owns all presentation and the confirm prompt.    #
+    # ====================================================================== #
+
+    def _destroy_context(self, args):
+        """Resolve + validate the target and build the package list from the
+        lock (the authoritative record of what is on disk). Shared by
+        destroy_plan() and destroy_apply() so both gate identically."""
+        from .proj_info import ProjInfo
+        from .pkg_types.pkg_type_rgy import PkgTypeRgy
+        from .package_lock import read_lock
+        from .project_ops_info import ProjectRemoveInfo
+
+        import multiprocessing
+
+        deps_only = bool(getattr(args, "deps_only", False)) if args else False
+        force     = bool(getattr(args, "force", False))     if args else False
+        dry_run   = bool(getattr(args, "dry_run", False))   if args else False
+        keep_venv = bool(getattr(args, "keep_venv", False)) if args else False
+        jobs      = int(getattr(args, "jobs", 0) or 0)      if args else 0
+        if jobs <= 0:
+            jobs = multiprocessing.cpu_count()
+
+        target = os.path.realpath(self.root_dir)
+        if not os.path.isdir(target):
+            fatal("destroy target does not exist: %s" % target)
+
+        proj_info = ProjInfo.mkFromProj(target)
+        deps_dir_name = proj_info.deps_dir if proj_info is not None else "packages"
+        deps_dir = os.path.join(target, deps_dir_name)
+        lock_path = os.path.join(deps_dir, "package-lock.json")
+        has_yaml = os.path.isfile(os.path.join(target, "ivpm.yaml"))
+        has_lock = os.path.isfile(lock_path)
+
+        # Refusal 1: not an IVPM workspace.
+        if not has_yaml and not has_lock:
+            fatal("%s is not an IVPM workspace (no ivpm.yaml or "
+                  "package-lock.json); refusing to destroy" % target)
+
+        mode = "deps-only" if deps_only else "full"
+
+        # Refusal 2: full destroy of cwd or an ancestor of cwd.
+        if mode == "full":
+            cwd = os.path.realpath(os.getcwd())
+            if target == cwd or (cwd + os.sep).startswith(target + os.sep):
+                fatal("refusing to destroy %s: it is the current directory or "
+                      "an ancestor of it.\n"
+                      "cd elsewhere, or use --deps-only to remove just the "
+                      "imports." % target)
+
+        # Build the package list from the lock (includes transitive deps).
+        packages = []
+        if has_lock:
+            lock = read_lock(lock_path)
+            rgy = PkgTypeRgy.inst()
+            for name, entry in lock.get("packages", {}).items():
+                src = entry.get("src", "")
+                # Normalize http-archive aliases the same way sync() does.
+                if src in ("tgz", "txz", "zip", "jar", "http"):
+                    src = "url"
+                if rgy.hasPkgType(src):
+                    pkg = rgy.mkPackage(src, name, entry, None)
+                else:
+                    pkg = Package(name)
+                    pkg.src_type = src or "non-vcs"
+                pkg.path = os.path.join(deps_dir, name)
+                if entry.get("from_deps_source"):
+                    pkg.from_deps_source = entry["from_deps_source"]
+                packages.append(pkg)
+
+        remove_info = ProjectRemoveInfo(
+            args=args, deps_dir=deps_dir,
+            dry_run=dry_run, force=force, deps_only=deps_only,
+            keep_venv=keep_venv,
+            progress=getattr(args, "_destroy_progress", None) if args else None)
+
+        return dict(
+            proj_info=proj_info, target=target, deps_dir=deps_dir,
+            deps_dir_name=deps_dir_name, packages=packages,
+            remove_info=remove_info, mode=mode, force=force,
+            dry_run=dry_run, has_lock=has_lock, jobs=jobs)
+
+    @staticmethod
+    def _parallel_map(items, fn, max_workers, on_start=None, on_done=None):
+        """Run ``fn(item)`` across a thread pool, returning results in input
+        order. ``on_start(item)`` fires (in the worker) when an item begins and
+        ``on_done(item, result)`` when it finishes — both for live progress.
+        ``fn`` must not raise (wrap its own errors into a result), so a single
+        failure never poisons the batch. Falls back to a sequential pass when
+        there is nothing to gain from threads."""
+        import concurrent.futures as cf
+
+        n = len(items)
+        results = [None] * n
+
+        if max_workers <= 1 or n <= 1:
+            for i, it in enumerate(items):
+                if on_start:
+                    on_start(it)
+                results[i] = fn(it)
+                if on_done:
+                    on_done(it, results[i])
+            return results
+
+        def _work(i, it):
+            if on_start:
+                on_start(it)
+            return i, fn(it)
+
+        with cf.ThreadPoolExecutor(max_workers=min(max_workers, n)) as ex:
+            futs = [ex.submit(_work, i, it) for i, it in enumerate(items)]
+            for fut in cf.as_completed(futs):
+                i, res = fut.result()
+                results[i] = res
+                if on_done:
+                    on_done(items[i], res)
+        return results
+
+    def _destroy_root_pkg(self, ctx):
+        """The Package used to gate the root project in full mode. A git root
+        carries unpushed commits like any dep, so it must pass the same gate."""
+        from .pkg_types.package_git import PackageGit
+        target = ctx["target"]
+        if os.path.isdir(os.path.join(target, ".git")):
+            pkg = PackageGit(name="<root>")
+        else:
+            pkg = Package("<root>")
+            pkg.src_type = "dir"
+        pkg.path = target
+        return pkg
+
+    def _destroy_gate(self, ctx, progress=None):
+        """Call removal_safety() on every package (and, in full mode, the root),
+        in parallel. Returns (gate dict, blocked bool). destroy only aggregates;
+        each source classifies itself. When ``progress`` is given, emits
+        on_gate_start/on_gate_result per package for the live display."""
+        from .pkg_remove import (RemovalSafety, SafetyLevel, SafetyReason)
+
+        pkgs = list(ctx["packages"])
+        if ctx["mode"] == "full":
+            pkgs.append(self._destroy_root_pkg(ctx))
+
+        remove_info = ctx["remove_info"]
+
+        def _fn(pkg):
+            try:
+                return pkg.removal_safety(remove_info)
+            except Exception as e:
+                # A crashing gate must not silently allow deletion: block it
+                # (the user can still --force). Listed with the error.
+                return RemovalSafety(SafetyLevel.BLOCKED,
+                    [SafetyReason("gate-error", label=str(e))])
+
+        on_start = (lambda p: progress.on_gate_start(p.name)) if progress else None
+        on_done = ((lambda p, r: progress.on_gate_result(p.name, r))
+                   if progress else None)
+
+        verdicts = self._parallel_map(pkgs, _fn, ctx["jobs"], on_start, on_done)
+
+        gate = {pkg.name: v for pkg, v in zip(pkgs, verdicts)}
+        blocked = (not ctx["force"]) and any(
+            v.level == SafetyLevel.BLOCKED for v in gate.values())
+        return gate, blocked
+
+    def destroy_plan(self, args=None):
+        """Read-only: resolve, validate, gate, and (for --dry-run) compute the
+        planned per-package teardown. Mutates nothing. Returns a DestroyReport
+        the front-end renders (blocking report or dry-run plan)."""
+        from .pkg_remove import DestroyReport
+        ctx = self._destroy_context(args)
+        progress = getattr(ctx["remove_info"], "progress", None)
+        gate, blocked = self._destroy_gate(ctx, progress=progress)
+        report = DestroyReport(
+            mode=ctx["mode"], target=ctx["target"], deps_dir=ctx["deps_dir"],
+            gate=gate, blocked=blocked, dry_run=ctx["dry_run"],
+            forced=ctx["force"])
+        if blocked:
+            return report
+        if ctx["dry_run"]:
+            # Planned teardown (no mutation); cheap stats, kept sequential.
+            report.results = [p.remove(ctx["remove_info"])
+                              for p in ctx["packages"]]
+        return report
+
+    def destroy_apply(self, args=None):
+        """Mutating: re-gate (never mutate when blocked), then tear down each
+        package (best-effort-continue), run handler on_destroy(), remove
+        lock/state, and finally remove deps_dir / the root tree (full mode).
+        Returns the final DestroyReport for the summary."""
+        from .pkg_remove import DestroyReport, RemoveOutcome, PkgRemoveResult
+        from .package import _rmtree_force
+
+        ctx = self._destroy_context(args)
+        # Re-gate SILENTLY (no progress): this is a TOCTOU safety re-check
+        # between plan/confirm and mutation; the visible gate ran in the plan.
+        gate, blocked = self._destroy_gate(ctx, progress=None)
+        report = DestroyReport(
+            mode=ctx["mode"], target=ctx["target"], deps_dir=ctx["deps_dir"],
+            gate=gate, blocked=blocked, dry_run=False, forced=ctx["force"])
+        if blocked:
+            return report      # safety: never mutate while the gate blocks
+
+        remove_info = ctx["remove_info"]
+        progress = getattr(remove_info, "progress", None)
+
+        # Teardown each package IN PARALLEL — one provider error does not abort
+        # the others. Per-package remove() is independent today; the deps_dir /
+        # root rmtree below is the barrier that runs after all packages.
+        # NOTE: when worktree/submodule teardown overrides land (post-MVP), a
+        # child must be removed before its parent — at that point this map needs
+        # leaf-first ordering, not a flat parallel sweep.
+        def _fn(pkg):
+            try:
+                return pkg.remove(remove_info)
+            except Exception as e:
+                return PkgRemoveResult(
+                    name=pkg.name,
+                    src_type=str(getattr(pkg, "src_type", "") or "non-vcs"),
+                    path=pkg.path, removal="error",
+                    outcome=RemoveOutcome.MANUAL, error=str(e))
+
+        on_start = (lambda p: progress.on_remove_start(p.name)) if progress else None
+        on_done = ((lambda p, r: progress.on_remove_result(r))
+                   if progress else None)
+        report.results = self._parallel_map(
+            ctx["packages"], _fn, ctx["jobs"], on_start, on_done)
+
+        # Handler teardown (venv, node_modules, ...).
+        try:
+            handler = PackageHandlerRgy.inst().mkHandler()
+            handler.on_destroy(remove_info)
+        except Exception as e:
+            warning("handler teardown error: %s" % e)
+
+        # Remove lock/state under deps_dir.
+        for fname in ("package-lock.json", "ivpm.json"):
+            p = os.path.join(ctx["deps_dir"], fname)
+            if os.path.isfile(p):
+                try:
+                    os.remove(p)
+                except OSError as e:
+                    warning("could not remove %s: %s" % (p, e))
+
+        if ctx["mode"] == "deps-only":
+            # Leave the (emptied) deps_dir; prune only if it is now empty.
+            try:
+                if os.path.isdir(ctx["deps_dir"]) and not os.listdir(ctx["deps_dir"]):
+                    os.rmdir(ctx["deps_dir"])
+            except OSError:
+                pass
+        else:
+            # full: remove deps_dir, then the ROOT tree LAST (it can be a
+            # worktree/submodule parent and can carry unpushed commits of its
+            # own — already gated above).
+            if os.path.isdir(ctx["deps_dir"]):
+                _rmtree_force(ctx["deps_dir"])
+            if os.path.isdir(ctx["target"]):
+                _rmtree_force(ctx["target"])
+
+        return report
+
     def sync(self, dep_set: str = None, args=None):
         import asyncio
         import multiprocessing

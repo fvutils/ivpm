@@ -56,13 +56,52 @@ def _add_patch_fields(entry: dict, pkg) -> None:
         return
     entry["patches"] = [
         dict(
-            [("name", s.name), ("md5", s.md5), ("strip", s.strip),
-             ("directory", s.directory)]
+            [("name", s.name), ("source", s.source), ("md5", s.md5),
+             ("strip", s.strip), ("directory", s.directory)]
             + ([("tool", s.tool)] if s.tool else [])
         )
         for s in ps.specs
     ]
     entry["patchset_id"] = ps.patchset_id
+
+
+def _patches_from_entry(entry: dict, base_dirs) -> list:
+    """Reconstruct a ``pkg.patches`` list (PatchSpec objects) from a lock entry.
+
+    The inverse of :func:`_add_patch_fields`, used by the lock reader so a
+    reproduced workspace re-derives the *same* patch identity it was locked with.
+    Patch identity (``patchset_id``) depends only on md5/strip/directory/order --
+    all stored -- so the reconstructed set always reproduces the effective
+    version. That is enough to score a cache HIT and materialize the patched
+    variant with no re-apply. ``resolved_path`` is needed only on the (uncached)
+    MISS path, where the patch file must be re-read; we locate it best-effort
+    among *base_dirs*, falling back to the recorded source so a missing file
+    fails loudly at apply time rather than silently producing an unpatched tree.
+    """
+    from .patch import PatchSpec
+    raw = entry.get("patches")
+    if not raw:
+        return []
+    specs = []
+    for p in raw:
+        source = p.get("source") or p.get("name") or ""
+        resolved = source
+        if source:
+            if os.path.isabs(source):
+                if os.path.isfile(source):
+                    resolved = source
+            else:
+                for base in base_dirs:
+                    cand = os.path.normpath(os.path.join(base, source))
+                    if os.path.isfile(cand):
+                        resolved = cand
+                        break
+        specs.append(PatchSpec(
+            name=p.get("name") or os.path.basename(source),
+            source=source, resolved_path=resolved, md5=p.get("md5"),
+            strip=p.get("strip", 1), directory=p.get("directory"),
+            tool=p.get("tool")))
+    return specs
 
 
 def _patch_spec_matches(pkg, lock_entry: dict) -> bool:
@@ -425,6 +464,14 @@ class IvpmLockReader:
         packages = self._data.get("packages", {})
         pkgs_info = PackagesInfo("lock")
 
+        # Patch files are written relative to the declaring ivpm.yaml. In
+        # reproduction mode there is no ivpm.yaml, so locate them best-effort
+        # near the lock file: its directory (typically the deps dir), the parent
+        # (typically the project root), and the cwd. Identity does not depend on
+        # finding them (see _patches_from_entry); this only helps an uncached MISS.
+        _lock_dir = os.path.dirname(os.path.abspath(self.lock_path))
+        base_dirs = [os.path.dirname(_lock_dir), _lock_dir, os.getcwd()]
+
         for name, entry in packages.items():
             src = entry.get("src", "")
             pkg = None
@@ -489,6 +536,10 @@ class IvpmLockReader:
 
             pkg.resolved_by = entry.get("resolved_by", "root")
             pkg.dep_set = entry.get("dep_set")
+            # Reconstruct the patch set so a patched dependency reproduces its
+            # patched variant (not a silent pristine tree). Generic across all
+            # source types, mirroring _add_patch_fields on the write side.
+            pkg.patches = _patches_from_entry(entry, base_dirs)
             pkgs_info[name] = pkg
 
         return pkgs_info

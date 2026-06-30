@@ -1,4 +1,27 @@
 
+# 2.16.0
+- New `ivpm destroy` command: tears down a workspace (root + imports) or, with
+  `--deps-only`, just the imports — the inverse of `clone`/`update`. A delegated
+  safety gate refuses to remove imports holding unrecoverable local work
+  (modified/untracked/unpushed/stash/local-only branch/patched-tree drift) and
+  reports every blocker; `--force` overrides, `--dry-run` previews, `-v` lists
+  the evidence. Teardown is source-specific: cache-backed and deps-source
+  symlinks are unlinked (never recursed into), and handlers remove their derived
+  artifacts (venv, `node_modules`) via a new `on_destroy()` hook. Refuses to
+  destroy a non-workspace or the current directory/an ancestor. Both the gate and
+  the teardown run in parallel (`-j/--jobs`, default CPU count) with a live Rich
+  progress display (or `--no-rich` plain-text fallback).
+- Support for patching imported packaged
+- Support recursive ivpm.yaml processing in .tar and gh-rls packages
+- `ivpm cache clean` now prunes by *last use* instead of *first cached*. Each
+  cache entry gets a sidecar (`<version>.meta.json`) recording `stored` and
+  `last_linked`; `last_linked` is refreshed whenever a version is symlinked
+  into a workspace (including re-runs of `ivpm update` on an already-linked
+  dep), so a version shared by live workspaces is no longer evicted by age
+  alone. Pre-existing (sidecar-less) entries fall back to directory mtime.
+  Adds `ivpm cache clean --dry-run`; `ivpm cache info --verbose` now shows
+  `stored`/`last linked`.
+
 # 2.14.0
 - Extended support for remote manifest support
 - A `src: ivpm.yaml` dep-set factory's `dep-set:` may now name a list of

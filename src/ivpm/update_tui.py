@@ -242,9 +242,9 @@ class RichUpdateTUI(UpdateEventListener):
                 status = self.packages["[venv]"]
                 status.completed = True
                 status.error = event.error_message
-                self.errors.append(("[venv]", event.error_message))
+                self.errors.append(("[venv]", event.error_message, None))
                 self._update_display()
-        
+
         elif event.event_type == UpdateEventType.PACKAGE_START:
             status = PackageStatus(
                 event.package_name,
@@ -270,7 +270,8 @@ class RichUpdateTUI(UpdateEventListener):
                 status = self.packages[event.package_name]
                 status.completed = True
                 status.error = event.error_message
-                self.errors.append((event.package_name, event.error_message))
+                self.errors.append((event.package_name, event.error_message,
+                                    event.package_loc))
                 self._update_display()
         
         elif event.event_type == UpdateEventType.UPDATE_COMPLETE:
@@ -317,7 +318,7 @@ class RichUpdateTUI(UpdateEventListener):
                 task.completed = True
                 task.error = event.task_message or "error"
                 task.duration = event.duration
-                self.errors.append((event.task_name, task.error))
+                self.errors.append((event.task_name, task.error, None))
                 self._update_display()
     
     def make_prompt_callback(self):
@@ -363,8 +364,11 @@ class RichUpdateTUI(UpdateEventListener):
         if self.errors:
             lines.append("")
             lines.append(Text("Errors:", style="bold red"))
-            for pkg_name, error in self.errors:
-                lines.append(Text(f"  {pkg_name}: {error}", style="red"))
+            for entry in self.errors:
+                pkg_name, error = entry[0], entry[1]
+                loc = entry[2] if len(entry) > 2 else None
+                where = f" ({loc})" if loc else ""
+                lines.append(Text(f"  {pkg_name}{where}: {error}", style="red"))
             lines.append("")
             lines.append(Text("Re-run with --log-level=DEBUG for more details", style="yellow"))
         
@@ -419,7 +423,7 @@ class TranscriptUpdateTUI(UpdateEventListener):
         elif event.event_type == UpdateEventType.VENV_ERROR:
             with self._lock:
                 print(f"<< [venv] ERROR: {event.error_message}")
-                self.errors.append(("[venv]", event.error_message))
+                self.errors.append(("[venv]", event.error_message, None))
                 sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.PACKAGE_START:
@@ -436,8 +440,10 @@ class TranscriptUpdateTUI(UpdateEventListener):
         
         elif event.event_type == UpdateEventType.PACKAGE_ERROR:
             with self._lock:
-                print(f"<< {event.package_name} ERROR: {event.error_message}")
-                self.errors.append((event.package_name, event.error_message))
+                where = f" ({event.package_loc})" if event.package_loc else ""
+                print(f"<< {event.package_name}{where} ERROR: {event.error_message}")
+                self.errors.append((event.package_name, event.error_message,
+                                    event.package_loc))
                 sys.stdout.flush()
         
         elif event.event_type == UpdateEventType.UPDATE_COMPLETE:
@@ -466,8 +472,11 @@ class TranscriptUpdateTUI(UpdateEventListener):
             if self.errors:
                 print("")
                 print("Errors encountered:")
-                for pkg_name, error in self.errors:
-                    print(f"  {pkg_name}: {error}")
+                for entry in self.errors:
+                    pkg_name, error = entry[0], entry[1]
+                    loc = entry[2] if len(entry) > 2 else None
+                    where = f" ({loc})" if loc else ""
+                    print(f"  {pkg_name}{where}: {error}")
             sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_START:
@@ -518,7 +527,7 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 indent = "  " if event.parent_task_id else ""
                 pkg_tag = f"[{event.package_name}] " if event.package_name else ""
                 print(f"{indent}<< [{event.task_name}] {pkg_tag}ERROR: {event.task_message}")
-                self.errors.append((event.task_name, event.task_message or "error"))
+                self.errors.append((event.task_name, event.task_message or "error", None))
                 sys.stdout.flush()
 
 

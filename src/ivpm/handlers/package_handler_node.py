@@ -294,6 +294,18 @@ class PackageHandlerNode(PackageHandler):
         state = update_info.handler_state.get("node", {})
         self._prev_pkg_json_hash = state.get("package_json_hash", "")
 
+    def on_destroy(self, remove_info):
+        """Remove the managed Node environment (packages/node, which holds
+        node_modules and the generated activation files). Honors dry_run."""
+        node_dir = os.path.join(remove_info.deps_dir, "node")
+        if not os.path.isdir(node_dir):
+            return None
+        if getattr(remove_info, "dry_run", False):
+            return [node_dir]
+        from ..package import _rmtree_force
+        _rmtree_force(node_dir)
+        return [node_dir]
+
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         has_node_pkgs = bool(self._npm_pkgs or self._source_pkgs)
         node_config = getattr(update_info, "node_config", None)

@@ -36,35 +36,38 @@ IVPM supports three caching modes per package, controlled by the ``cache`` attri
      - Production deps, stable releases
    * - ``false``
      - No
-     - No
-     - No
-     - One-time use, temp deps
+     - Yes\*
+     - Yes
+     - Editable clone, never cached
    * - (unspecified)
      - No
+     - Yes\*
      - Yes
-     - Yes
-     - Development, co-development
+     - Development, co-development (default)
+
+\* The *History?* and *Editable?* columns describe **git** packages, where
+``depth:`` controls history (full unless set). For **archive** packages (``http``,
+``gh-rls``, ``tgz``/``txz``/``zip``/``jar``) there is no editable working copy:
+``cache: false`` downloads and unpacks the archive **read-only**, while omitting
+``cache`` unpacks it **writable**.
 
 **cache: true**
-    - Package stored in ``$IVPM_CACHE``
-    - Symlinked into ``packages/``
-    - Read-only (cannot modify)
-    - No Git history (shallow clone)
-    - Shared across projects
+    - Stored in ``$IVPM_CACHE`` and symlinked into ``packages/``
+    - Read-only (cannot modify), shared across projects
+    - git: shallow checkout (depth 1) at the resolved commit
 
 **cache: false**
-    - Not cached
-    - Cloned directly to ``packages/``
-    - Read-only (cannot modify)
-    - No Git history (shallow clone)
-    - Cannot be edited
+    - Not cached -- never consults or writes the shared cache
+    - git: an **editable** clone written to ``packages/`` (full history unless
+      ``depth:`` is set) -- the same working copy as omitting ``cache``, just
+      guaranteed never to use the cache
+    - archive sources (``http``, ``gh-rls``, ...): downloaded, unpacked, and made
+      **read-only**
 
-**cache not specified**
+**cache not specified** (default)
     - Not cached
-    - Cloned directly to ``packages/``
-    - Full Git history
-    - Can be modified and committed
-    - Development-friendly
+    - git: full **editable** clone -- the common case for co-developed deps
+    - archive sources: downloaded and unpacked **writable**
 
 Configuration
 =============
@@ -86,8 +89,23 @@ Add this to your shell rc file (``.bashrc``, ``.zshrc``, etc.) to make it perman
 - Personal cache: ``~/.cache/ivpm`` or ``~/ivpm-cache``
 - Shared cache: ``/shared/ivpm-cache`` or ``/opt/ivpm-cache``
 
-If ``IVPM_CACHE`` is not set, IVPM will fall back to full clones (no caching) with 
-a warning message.
+If ``IVPM_CACHE`` is not set, IVPM falls back to full (uncached) clones. A
+dependency that explicitly requests ``cache: true`` while no cache is configured
+is reported in the update summary; otherwise the fallback is silent.
+
+Disabling the Cache for One Run
+-------------------------------
+
+Pass ``--no-cache`` to ``ivpm update`` to disable caching for a single run,
+regardless of ``IVPM_CACHE`` or any ``cache: true`` flags:
+
+.. code-block:: bash
+
+    ivpm update --no-cache
+
+This forces the *null cache provider* for that invocation, so every dependency is
+fetched fresh as if no cache were configured. It does not modify or remove any
+existing cache entries.
 
 Initializing a Cache Directory
 -------------------------------
@@ -107,7 +125,10 @@ For **shared environments** where multiple users access the cache, use the
     sudo chown :developers /shared/ivpm-cache
     export IVPM_CACHE=/shared/ivpm-cache
 
-This ensures new files inherit the group ownership of the cache directory.
+This sets the setgid bit and group ownership on the cache *root* so new files
+inherit the cache's group. (IVPM also applies the setgid bit to every individual
+cache entry it creates, regardless of ``--shared``, so group members can clean up
+entries later; ``--shared`` is about the root's group ownership and inheritance.)
 
 How Caching Is Resolved
 =======================
@@ -378,17 +399,19 @@ Use ``--verbose`` for detailed version information:
 Example output::
 
    Cache directory: /home/user/.cache/ivpm
-   Total packages: 15
-   Total versions: 47
    Total size: 2.3 GB
-   
-   Package: gtest
-     Versions: 3
-     Size: 45 MB
-   
-   Package: boost
-     Versions: 2
-     Size: 856 MB
+   Packages: 15
+
+     gtest:
+       Versions: 3
+       Size: 45 MB
+     boost:
+       Versions: 2
+       Size: 856 MB
+
+With ``--verbose``, each version is listed individually beneath its package
+(``- <version>: <size>``) along with its ``stored`` and ``last linked``
+timestamps.
 
 If ``IVPM_CACHE`` is not set, specify the cache directory:
 
@@ -399,29 +422,58 @@ If ``IVPM_CACHE`` is not set, specify the cache directory:
 Cleaning the Cache
 ------------------
 
-Remove cache entries older than a specified number of days:
+Remove cache entries that haven't been *used* in a given number of days:
 
 .. code-block:: bash
 
    ivpm cache clean --days 7
 
-This removes entries that haven't been accessed in 7 days (the default).
+**How an entry's age is measured.** "Used" means *last referenced into a
+workspace*, not *first downloaded*. Each entry has a sidecar
+(``<version>.meta.json``) recording two timestamps:
 
-**To remove old entries:**
+- ``stored`` — when the entry was first cached.
+- ``last_linked`` — the most recent time ``ivpm update`` symlinked it into a
+  ``packages/`` directory. This is refreshed on every cache hit **and** on a
+  re-run that finds the dependency already linked, so a version shared by many
+  live workspaces keeps being marked as used.
+
+``clean`` prunes by ``max(stored, last_linked)`` age. An entry that was first
+cached 90 days ago but linked into a project yesterday is **not** removed.
+Entries created before this tracking existed (no sidecar) fall back to the
+directory's modification time — exactly the previous behavior.
+
+**Preview before deleting** with ``--dry-run``:
 
 .. code-block:: bash
 
-   # Remove entries older than 30 days
-   ivpm cache clean --days 30
-   
-   # Use a specific cache directory
+   ivpm cache clean --days 30 --dry-run     # list candidates, delete nothing
    ivpm cache clean --cache-dir /shared/cache --days 14
+
+.. note::
+
+   ``last_linked`` only advances when IVPM references an entry (a cache hit or
+   a re-run of ``ivpm update`` that finds the dep already linked). It does not
+   observe reads that bypass IVPM — e.g. a long-lived workspace that keeps
+   building against a cached symlink without ever re-running ``ivpm update``.
+   Re-running ``ivpm update`` periodically (as CI and normal workflows do)
+   keeps in-use entries warm; otherwise raise ``--days`` to suit how often your
+   workspaces refresh.
 
 **What gets removed:**
 
-- Version directories with access time (atime) older than specified days
+- Version directories whose last-used age exceeds the threshold
+- The entry's ``.meta.json`` sidecar (and any orphaned sidecars)
 - Empty package directories after version removal
 - Symlinks in projects will become broken and need ``ivpm update`` to recreate
+
+.. note::
+
+   :doc:`ivpm destroy <destroy>` only **unlinks** a workspace's cache-backed
+   symlinks — it never deletes cache content, since other workspaces may share
+   the same entry. Reclaiming an entry that is no longer referenced remains the
+   job of ``ivpm cache clean``: once the last workspace referencing a version is
+   destroyed, that version simply ages out and is pruned on the next ``clean``.
 
 Practical Examples
 ==================
@@ -606,19 +658,22 @@ cache info
 Options:
 
 - ``-c, --cache-dir``: Cache directory (default: ``$IVPM_CACHE``)
-- ``-v, --verbose``: Show detailed version information
+- ``-v, --verbose``: Show detailed version information (size, ``stored``,
+  ``last linked``)
 
 cache clean
 -----------
 
 .. code-block:: text
 
-   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>]
+   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>] [-n/--dry-run]
 
 Options:
 
 - ``-c, --cache-dir``: Cache directory (default: ``$IVPM_CACHE``)
-- ``-d, --days``: Remove entries older than this many days (default: 7)
+- ``-d, --days``: Remove entries unused (last-linked, see above) for more than
+  this many days (default: 7)
+- ``-n, --dry-run``: List entries that would be removed without deleting
 
 See Also
 ========

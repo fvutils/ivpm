@@ -134,9 +134,26 @@ class PackageIvpmYaml(PackageURL):
         # All requested dep-sets must exist in the referenced manifest.
         missing = [d for d in dep_set_names if not proj.has_dep_set(d)]
         if missing:
+            available = sorted(proj.dep_set_m.keys())
+            if available:
+                avail_msg = "available dep-set(s): %s" % ", ".join(available)
+            else:
+                avail_msg = "the referenced ivpm.yaml defines no dep-sets"
+
+            # Offer a "did you mean" suggestion for each missing name.
+            import difflib
+            suggestions = []
+            for d in missing:
+                close = difflib.get_close_matches(d, available, n=1, cutoff=0.6)
+                if close:
+                    suggestions.append("'%s' (did you mean '%s'?)" % (d, close[0]))
+                else:
+                    suggestions.append("'%s'" % d)
+
             fatal("Package '%s' (src: ivpm.yaml): referenced ivpm.yaml '%s' has "
-                  "no dep-set(s): %s @ %s" % (
-                      self.name, self.url, ", ".join(missing), getlocstr(self)))
+                  "no dep-set(s): %s; %s @ %s" % (
+                      self.name, self.url, ", ".join(suggestions),
+                      avail_msg, getlocstr(self)))
 
         # Stamp provenance on the leaves of each selected dep-set (recording the
         # specific dep-set each came from), and propagate the include chain to
