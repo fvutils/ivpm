@@ -168,6 +168,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     clone_cmd.add_argument("--py-system-site-packages", dest="py_system_site_packages",
         action="store_true", default=False,
         help="Inherit system site-packages in the virtual environment (default: isolated)")
+    clone_cmd.add_argument("--no-cache", dest="no_cache",
+        action="store_true", default=False,
+        help="Disable the cache for this clone's update; forces a null cache provider")
     clone_cmd.set_defaults(func=CmdClone())
     subcommands["clone"] = clone_cmd
     clone_cmd.add_argument("-D", dest="definitions", action="append",
