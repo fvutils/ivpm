@@ -608,6 +608,22 @@ Deploying to Users
 Note: ``ivpm clone`` automatically runs ``ivpm update`` after cloning, so you only
 need to run ``ivpm update`` separately when using ``git clone`` directly.
 
+**Option 2b: Reuse an already-checked-out repository**
+
+When the root repository has already been checked out — for example by a CI
+system or a prior ``git clone`` — run ``ivpm clone --here`` from inside it to
+populate the workspace in place (reusing the existing clone) and run
+``ivpm update``:
+
+.. code-block:: bash
+
+    $ git clone https://github.com/org/project.git
+    $ cd project
+    $ ivpm clone --here https://github.com/org/project.git
+
+``--here`` is idempotent, so re-running it against an existing clone simply
+reuses it rather than failing.
+
 **Option 3: Snapshot distribution**
 
 .. code-block:: bash

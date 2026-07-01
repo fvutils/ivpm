@@ -224,6 +224,16 @@ Create a new workspace from a Git repository.
 
 **Options:**
 
+``--here``
+    Set up the workspace in the current directory instead of a new
+    subdirectory. Cannot be combined with an explicit ``workspace_dir``.
+    This option is idempotent: if the current directory already contains a
+    clone of ``src`` it is reused in place; if it is non-empty but not yet a
+    repository, ``src`` is cloned into it (via ``git init``/``fetch``/
+    ``checkout``); if it is empty, a plain clone is performed. If the
+    directory already holds a git repository for a *different* source, the
+    command fails rather than overwriting it.
+
 ``--ssh``
     Force SSH: rewrite an ``https://`` URL to ``git@host:path`` form
 
@@ -263,7 +273,10 @@ Create a new workspace from a Git repository.
     
     # Custom directory
     $ ivpm clone https://github.com/org/project.git my-workspace
-    
+
+    # Set up the workspace in the current directory (idempotent)
+    $ ivpm clone --here https://github.com/org/project.git
+
     # Specific branch
     $ ivpm clone -b develop https://github.com/org/project.git
     
@@ -275,7 +288,8 @@ Create a new workspace from a Git repository.
 
 **Behavior:**
 
-1. Clones Git repository
+1. Clones Git repository (or, with ``--here``, populates the current
+   directory in place, reusing an existing clone if present)
 2. Enters directory
 3. Automatically runs ``ivpm update`` with specified options
 

@@ -21,6 +21,7 @@ import os
 import subprocess
 import time
 
+from ..msg import note
 from ..utils import fatal, resolve_clone_url, url_host
 from ..site_config import resolve_git_auth_order, loaded_config_paths
 from ..project_ops import ProjectOps
@@ -37,23 +38,32 @@ class CmdClone(object):
         # Determine workspace directory
         src = args.src
         wsdir = args.workspace_dir
+        here = getattr(args, 'here', False)
 
-        if wsdir is None:
-            # Derive from basename of src (strip trailing .git if present)
-            base = os.path.basename(src)
-            if base.endswith('.git'):
-                base = base[:-4]
-            wsdir = base
-        
-        if os.path.isabs(wsdir):
-            target_dir = wsdir
+        if here:
+            # --here overrides workspace_dir: the current directory is the
+            # workspace root.  An explicit workspace_dir alongside --here is
+            # contradictory.
+            if wsdir is not None and os.path.abspath(wsdir) != os.getcwd():
+                fatal("--here cannot be combined with an explicit workspace directory ('%s')" % wsdir)
+            target_dir = os.getcwd()
         else:
-            target_dir = os.path.abspath(wsdir)
-        
-        if os.path.exists(target_dir):
-            # Allow existing empty directory
-            if os.listdir(target_dir):
-                fatal("Workspace directory '%s' already exists and is not empty" % target_dir)
+            if wsdir is None:
+                # Derive from basename of src (strip trailing .git if present)
+                base = os.path.basename(src)
+                if base.endswith('.git'):
+                    base = base[:-4]
+                wsdir = base
+
+            if os.path.isabs(wsdir):
+                target_dir = wsdir
+            else:
+                target_dir = os.path.abspath(wsdir)
+
+            if os.path.exists(target_dir):
+                # Allow existing empty directory
+                if os.listdir(target_dir):
+                    fatal("Workspace directory '%s' already exists and is not empty" % target_dir)
         
         # Get log level from args for TUI selection
         log_level = getattr(args, 'log_level', 'NONE')
@@ -180,6 +190,117 @@ class CmdClone(object):
 
         _logger.debug("\n".join(lines))
 
+    def _run_git(self, cmd, event_dispatcher, suppress_output, progress=False, cwd=None):
+        """Run a git command, routing progress to the Rich TUI when suppressing
+        raw output.  Returns the process exit code."""
+        if suppress_output:
+            from ..git_progress import run_git_with_progress
+            def _on_progress(msg):
+                event_dispatcher.dispatch(UpdateEvent(
+                    event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
+                    package_name="[clone]",
+                    task_id="git:[clone]",
+                    task_name="git",
+                    task_message=msg))
+            extra = ["--progress"] if progress else []
+            return run_git_with_progress(cmd + extra, cwd=cwd, on_progress=_on_progress)
+        else:
+            return subprocess.run(cmd, cwd=cwd).returncode
+
+    def _git_url_identity(self, url):
+        """Normalize a git URL to a 'host/path' form for loose equality, so the
+        ssh and https spellings of the same repo compare equal."""
+        u = url.strip()
+        for pfx in ("https://", "http://", "ssh://", "git://"):
+            if u.startswith(pfx):
+                u = u[len(pfx):]
+                break
+        if u.startswith("git@"):
+            u = u[len("git@"):]
+        u = u.replace(":", "/", 1)   # scp-style host:path -> host/path
+        if u.endswith(".git"):
+            u = u[:-4]
+        return u.rstrip("/").lower()
+
+    def _populate_repo(self, src, url, target_dir, event_dispatcher, suppress_output):
+        """Fetch the repository into ``target_dir``, choosing a strategy based on
+        the directory's current state:
+
+          * empty / nonexistent   -> plain 'git clone <url> <target_dir>'
+          * already a clone of src -> reuse in place (no clone)
+          * non-empty, not a repo  -> clone in place via init/fetch/checkout
+
+        Returns the git exit code (0 on success, including the reuse case).
+        """
+        is_repo = os.path.isdir(os.path.join(target_dir, ".git"))
+        non_empty = os.path.isdir(target_dir) and bool(os.listdir(target_dir))
+
+        if is_repo:
+            existing = ""
+            try:
+                existing = subprocess.check_output(
+                    ["git", "remote", "get-url", "origin"],
+                    cwd=target_dir, text=True).strip()
+            except Exception:
+                existing = ""
+            if existing and self._git_url_identity(existing) not in (
+                    self._git_url_identity(url), self._git_url_identity(src)):
+                fatal("Directory '%s' already contains a git repository for a different "
+                      "source (origin=%s); refusing to reuse it" % (target_dir, existing))
+            if not suppress_output:
+                note("Reusing existing clone in %s" % target_dir)
+            return 0
+
+        if non_empty:
+            return self._clone_in_place(url, target_dir, event_dispatcher, suppress_output)
+
+        return self._run_git(["git", "clone", url, target_dir],
+                             event_dispatcher, suppress_output, progress=True)
+
+    def _clone_in_place(self, url, target_dir, event_dispatcher, suppress_output):
+        """Clone into an existing, non-empty directory that is not yet a repo.
+
+        'git clone' refuses a non-empty target, so initialise a repo, add the
+        remote, fetch, and check out the remote's default branch.
+        """
+        rc = subprocess.run(["git", "init", "-q", target_dir]).returncode
+        if rc != 0:
+            return rc
+        rc = subprocess.run(["git", "remote", "add", "origin", url], cwd=target_dir).returncode
+        if rc != 0:
+            return rc
+        rc = self._run_git(["git", "fetch", "origin"], event_dispatcher,
+                           suppress_output, progress=True, cwd=target_dir)
+        if rc != 0:
+            return rc
+
+        # Determine the remote's default branch, falling back to main/master.
+        default_ref = None
+        try:
+            out = subprocess.check_output(
+                ["git", "remote", "show", "origin"], cwd=target_dir, text=True)
+            for ln in out.splitlines():
+                ln = ln.strip()
+                if ln.startswith("HEAD branch:"):
+                    default_ref = ln.split(":", 1)[1].strip()
+                    break
+        except Exception:
+            default_ref = None
+        if not default_ref or default_ref == "(unknown)":
+            default_ref = None
+            for cand in ("main", "master"):
+                chk = subprocess.run(["git", "rev-parse", "--verify", "origin/%s" % cand],
+                                     cwd=target_dir, stdout=subprocess.DEVNULL,
+                                     stderr=subprocess.DEVNULL)
+                if chk.returncode == 0:
+                    default_ref = cand
+                    break
+        if not default_ref:
+            return 1
+        return subprocess.run(
+            ["git", "checkout", "-B", default_ref, "origin/%s" % default_ref],
+            cwd=target_dir).returncode
+
     def _clone_git(self, src, target_dir, args, event_dispatcher, suppress_output):
         # Resolve the clone URL.  Explicit --ssh / --anonymous force a
         # transport; otherwise the configured git auth order (gh/ssh/https)
@@ -204,19 +325,7 @@ class CmdClone(object):
         ))
         
         try:
-            git_cmd = ["git", "clone", url, target_dir]
-            if suppress_output:
-                from ..git_progress import run_git_with_progress
-                def _on_progress(msg):
-                    event_dispatcher.dispatch(UpdateEvent(
-                        event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
-                        package_name="[clone]",
-                        task_id="git:[clone]",
-                        task_name="git",
-                        task_message=msg))
-                rc = run_git_with_progress(git_cmd + ["--progress"], on_progress=_on_progress)
-            else:
-                rc = subprocess.run(git_cmd).returncode
+            rc = self._populate_repo(src, url, target_dir, event_dispatcher, suppress_output)
 
             if rc != 0:
                 event_dispatcher.dispatch(UpdateEvent(

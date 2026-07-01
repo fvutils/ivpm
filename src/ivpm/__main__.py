@@ -159,6 +159,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Target branch; checks out existing or creates new")
     clone_cmd.add_argument("workspace_dir", nargs="?",
         help="Target workspace directory; defaults to basename of src")
+    clone_cmd.add_argument("--here", dest="here", action="store_true", default=False,
+        help="Set up the workspace in the current directory instead of a new subdirectory. "
+             "Idempotent: reuses an existing clone of src if already present, or clones into "
+             "a non-empty directory in place.")
     clone_cmd.add_argument("-d", "--dep-set", dest="dep_set",
         help="Dependency set to use for ivpm update")
     clone_cmd.add_argument("--py-uv", dest="py_uv", action="store_true",
