@@ -158,6 +158,12 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 </div>
 <p><strong>Common options:</strong></p>
 <dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--here</span></code></dt><dd><p>Set up the workspace in the current directory instead of a new
+subdirectory (cannot be combined with an explicit <code class="docutils literal notranslate"><span class="pre">workspace_dir</span></code>).
+The option is idempotent: an existing clone of the source is reused, an
+empty directory is cloned into normally, and a non-empty directory is
+populated in place.</p>
+</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">--ssh</span></code></dt><dd><p>Force SSH: rewrite an <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL to <code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code> form.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous</span></code></dt><dd><p>Force HTTPS: clone the URL exactly as written. By default the transport
@@ -183,6 +189,9 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 
 <span class="c1"># Clone into specific directory with new branch</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project<span class="w"> </span>my-workspace<span class="w"> </span>-b<span class="w"> </span>feature/new
+
+<span class="c1"># Set up the workspace in the current directory</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--here<span class="w"> </span>https://github.com/org/project
 
 <span class="c1"># Force HTTPS (as-written) and select dependency set</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-a<span class="w"> </span>https://github.com/org/project<span class="w"> </span>-d<span class="w"> </span>default-dev

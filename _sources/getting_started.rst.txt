@@ -54,6 +54,13 @@ Clone Command Options
 
 **Common options:**
 
+``--here``
+    Set up the workspace in the current directory instead of a new
+    subdirectory (cannot be combined with an explicit ``workspace_dir``).
+    The option is idempotent: an existing clone of the source is reused, an
+    empty directory is cloned into normally, and a non-empty directory is
+    populated in place.
+
 ``--ssh``
     Force SSH: rewrite an ``https://`` URL to ``git@host:path`` form.
 
@@ -87,6 +94,9 @@ Clone Command Options
 
     # Clone into specific directory with new branch
     $ ivpm clone https://github.com/org/project my-workspace -b feature/new
+
+    # Set up the workspace in the current directory
+    $ ivpm clone --here https://github.com/org/project
 
     # Force HTTPS (as-written) and select dependency set
     $ ivpm clone -a https://github.com/org/project -d default-dev

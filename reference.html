@@ -73,24 +73,24 @@
 <li class="toctree-l1"><a class="reference internal" href="troubleshooting.html">Troubleshooting</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Reference</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#commands">Commands</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ivpm.__main__-get_parser-positional-arguments">Positional Arguments</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#ivpm.__main__-get_parser-named-arguments">Named Arguments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ivpm-positional-arguments">Positional Arguments</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#ivpm-named-arguments">Named Arguments</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#Sub-commands">Sub-commands</a><ul>
-<li class="toctree-l4"><a class="reference internal" href="#activate">activate</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#build">build</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#cache">cache</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#pkg-info">pkg-info</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#share">share</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#clone">clone</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#update">update</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#init_repeat1">init</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#git-status">git-status</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#git-update">git-update</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#snapshot">snapshot</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#sync">sync</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#destroy">destroy</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#status">status</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#show">show</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-activate">activate</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-build">build</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-cache">cache</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-pkg-info">pkg-info</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-share">share</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-clone">clone</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-update">update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-init">init</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-git-status">git-status</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-git-update">git-update</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-snapshot">snapshot</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-sync">sync</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-destroy">destroy</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-status">status</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#ivpm-show">show</a></li>
 </ul>
 </li>
 </ul>
@@ -118,7 +118,7 @@
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#global-options">Global Options</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#environment-variables">Environment Variables</a><ul>
-<li class="toctree-l3"><a class="reference internal" href="#ivpm-cache">IVPM_CACHE</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#id1">IVPM_CACHE</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ivpm-project">IVPM_PROJECT</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#ivpm-packages">IVPM_PACKAGES</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#github-token">GITHUB_TOKEN</a></li>
@@ -192,21 +192,21 @@
 <h2>Commands<a class="headerlink" href="#commands" title="Link to this heading"></a></h2>
 <p><p>IVPM (Integrated View Package Manager) - A polyglot package manager that fetches dependencies from diverse sources and assembles unified project views.</p>
 </p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">level</span> <span class="p">{</span><span class="n">INFO</span><span class="p">,</span><span class="n">DEBUG</span><span class="p">,</span><span class="n">WARN</span><span class="p">,</span><span class="n">NONE</span><span class="p">}]</span>
+<div class="highlight-default notranslate" id="ivpm"><div class="highlight"><pre><span></span><span class="n">usage</span><span class="p">:</span> <span class="n">ivpm</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">log</span><span class="o">-</span><span class="n">level</span> <span class="p">{</span><span class="n">INFO</span><span class="p">,</span><span class="n">DEBUG</span><span class="p">,</span><span class="n">WARN</span><span class="p">,</span><span class="n">NONE</span><span class="p">}]</span>
             <span class="p">{</span><span class="n">activate</span><span class="p">,</span><span class="n">build</span><span class="p">,</span><span class="n">cache</span><span class="p">,</span><span class="n">clone</span><span class="p">,</span><span class="n">destroy</span><span class="p">,</span><span class="n">init</span><span class="p">,</span><span class="n">pkg</span><span class="o">-</span><span class="n">info</span><span class="p">,</span><span class="n">share</span><span class="p">,</span><span class="n">show</span><span class="p">,</span><span class="n">snapshot</span><span class="p">,</span><span class="n">status</span><span class="p">,</span><span class="n">sync</span><span class="p">,</span><span class="n">update</span><span class="p">}</span>
             <span class="o">...</span>
 </pre></div>
 </div>
-<section id="ivpm.__main__-get_parser-positional-arguments">
-<h3>Positional Arguments<a class="headerlink" href="#ivpm.__main__-get_parser-positional-arguments" title="Link to this heading"></a></h3>
+<section id="ivpm-positional-arguments">
+<span id="ivpm.__main__-get_parser-positional-arguments"></span><h3>Positional Arguments<a class="headerlink" href="#ivpm-positional-arguments" title="Link to this heading"></a></h3>
 <dl class="option-list">
 <dt><kbd>{activate,build,cache,clone,destroy,init,pkg-info,share,show,snapshot,status,sync,update}</kbd></dt>
 <dd><p>Possible choices: activate, build, cache, pkg-info, share, clone, update, init, git-status, git-update, snapshot, sync, destroy, status, show</p>
 </dd>
 </dl>
 </section>
-<section id="ivpm.__main__-get_parser-named-arguments">
-<h3>Named Arguments<a class="headerlink" href="#ivpm.__main__-get_parser-named-arguments" title="Link to this heading"></a></h3>
+<section id="ivpm-named-arguments">
+<span id="ivpm.__main__-get_parser-named-arguments"></span><h3>Named Arguments<a class="headerlink" href="#ivpm-named-arguments" title="Link to this heading"></a></h3>
 <dl class="option-list">
 <dt><kbd>--log-level</kbd></dt>
 <dd><p>Possible choices: INFO, DEBUG, WARN, NONE</p>
@@ -217,21 +217,21 @@
 </section>
 <section id="Sub-commands">
 <h3>Sub-commands<a class="headerlink" href="#Sub-commands" title="Link to this heading"></a></h3>
-<section id="activate">
-<h4>activate<a class="headerlink" href="#activate" title="Link to this heading"></a></h4>
+<section id="ivpm-activate">
+<span id="activate"></span><h4>activate<a class="headerlink" href="#ivpm-activate" title="Link to this heading"></a></h4>
 <p>Starts a new shell that contains the activated python virtual environment</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">activate</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">C</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="n">args</span> <span class="o">...</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments" title="Link to this heading"></a></h5>
+<section id="ivpm-activate-positional-arguments">
+<span id="-positional-arguments"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-activate-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>args</kbd></dt>
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments" title="Link to this heading"></a></h5>
+<section id="ivpm-activate-named-arguments">
+<span id="-named-arguments"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-activate-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-c</kbd></dt>
 <dd><p>When specified, executes the specified string</p>
@@ -242,14 +242,14 @@
 </dl>
 </section>
 </section>
-<section id="build">
-<h4>build<a class="headerlink" href="#build" title="Link to this heading"></a></h4>
+<section id="ivpm-build">
+<span id="build"></span><h4>build<a class="headerlink" href="#ivpm-build" title="Link to this heading"></a></h4>
 <p>Build all sub-projects with an IVPM-supported build infrastructure (Python)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">build</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">g</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat1">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat1" title="Link to this heading"></a></h5>
+<section id="ivpm-build-named-arguments">
+<span id="-named-arguments_repeat1"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-build-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-d, --dep-set</kbd></dt>
 <dd><p>Uses dependencies from specified dep-set instead of default</p>
@@ -261,14 +261,14 @@
 </dl>
 </section>
 </section>
-<section id="cache">
-<h4>cache<a class="headerlink" href="#cache" title="Link to this heading"></a></h4>
+<section id="ivpm-cache">
+<span id="cache"></span><h4>cache<a class="headerlink" href="#ivpm-cache" title="Link to this heading"></a></h4>
 <p>Manage the IVPM package cache</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">{</span><span class="n">clean</span><span class="p">,</span><span class="n">info</span><span class="p">,</span><span class="n">init</span><span class="p">}</span> <span class="o">...</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat1">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat1" title="Link to this heading"></a></h5>
+<section id="ivpm-cache-positional-arguments">
+<span id="-positional-arguments_repeat1"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-cache-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>{clean,info,init}</kbd></dt>
 <dd><p>Possible choices: init, info, clean</p>
@@ -277,22 +277,22 @@
 </section>
 <section id="Sub-commands_repeat1">
 <h5>Sub-commands<a class="headerlink" href="#Sub-commands_repeat1" title="Link to this heading"></a></h5>
-<section id="init">
-<h6>init<a class="headerlink" href="#init" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-init">
+<span id="init"></span><h6>init<a class="headerlink" href="#ivpm-cache-init" title="Link to this heading"></a></h6>
 <p>Initialize a new cache directory</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">init</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">s</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="n">cache_dir</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat2">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat2" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-init-positional-arguments">
+<span id="-positional-arguments_repeat2"></span><h6 aria-level="7">Positional Arguments<a class="headerlink" href="#ivpm-cache-init-positional-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>cache_dir</kbd></dt>
 <dd><p>Path to the cache directory to initialize</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat2">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat2" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-init-named-arguments">
+<span id="-named-arguments_repeat2"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-cache-init-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>-s, --shared</kbd></dt>
 <dd><p>Set group inheritance (chmod g+s) for shared cache usage</p>
@@ -305,14 +305,14 @@
 </dl>
 </section>
 </section>
-<section id="info">
-<h6>info<a class="headerlink" href="#info" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-info">
+<span id="info"></span><h6>info<a class="headerlink" href="#ivpm-cache-info" title="Link to this heading"></a></h6>
 <p>Show cache information (packages, versions, sizes)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">CACHE_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat3">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat3" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-info-named-arguments">
+<span id="-named-arguments_repeat3"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-cache-info-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>-c, --cache-dir</kbd></dt>
 <dd><p>Cache directory (default: $IVPM_CACHE)</p>
@@ -324,14 +324,14 @@
 </dl>
 </section>
 </section>
-<section id="clean">
-<h6>clean<a class="headerlink" href="#clean" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-clean">
+<span id="clean"></span><h6>clean<a class="headerlink" href="#ivpm-cache-clean" title="Link to this heading"></a></h6>
 <p>Remove old cache entries</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">cache</span> <span class="n">clean</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">c</span> <span class="n">CACHE_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DAYS</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat4">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat4" title="Link to this heading"></a></h6>
+<section id="ivpm-cache-clean-named-arguments">
+<span id="-named-arguments_repeat4"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-cache-clean-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>-c, --cache-dir</kbd></dt>
 <dd><p>Cache directory (default: $IVPM_CACHE)</p>
@@ -349,15 +349,15 @@
 </section>
 </section>
 </section>
-<section id="pkg-info">
-<h4>pkg-info<a class="headerlink" href="#pkg-info" title="Link to this heading"></a></h4>
+<section id="ivpm-pkg-info">
+<span id="pkg-info"></span><h4>pkg-info<a class="headerlink" href="#ivpm-pkg-info" title="Link to this heading"></a></h4>
 <p>Collect paths/files for a listed set of packages</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">pkg</span><span class="o">-</span><span class="n">info</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">k</span> <span class="n">KIND</span><span class="p">]</span>
               <span class="p">{</span><span class="n">incdirs</span><span class="p">,</span><span class="n">paths</span><span class="p">,</span><span class="n">libdirs</span><span class="p">,</span><span class="n">libs</span><span class="p">,</span><span class="n">flags</span><span class="p">}</span> <span class="n">pkgs</span> <span class="p">[</span><span class="n">pkgs</span> <span class="o">...</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat3">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat3" title="Link to this heading"></a></h5>
+<section id="ivpm-pkg-info-positional-arguments">
+<span id="-positional-arguments_repeat3"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-pkg-info-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>type</kbd></dt>
 <dd><p>Possible choices: incdirs, paths, libdirs, libs, flags</p>
@@ -367,8 +367,8 @@
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments_repeat5">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat5" title="Link to this heading"></a></h5>
+<section id="ivpm-pkg-info-named-arguments">
+<span id="-named-arguments_repeat5"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-pkg-info-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-k, --kind</kbd></dt>
 <dd><p>Specifies qualifiers on the type of info to query</p>
@@ -376,31 +376,31 @@
 </dl>
 </section>
 </section>
-<section id="share">
-<h4>share<a class="headerlink" href="#share" title="Link to this heading"></a></h4>
+<section id="ivpm-share">
+<span id="share"></span><h4>share<a class="headerlink" href="#ivpm-share" title="Link to this heading"></a></h4>
 <p>Returns the ‘share’ directory, which includes cmake files, etc</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">share</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="o">...</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat4">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat4" title="Link to this heading"></a></h5>
+<section id="ivpm-share-positional-arguments">
+<span id="-positional-arguments_repeat4"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-share-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>path</kbd></dt>
 <dd></dd>
 </dl>
 </section>
 </section>
-<section id="clone">
-<h4>clone<a class="headerlink" href="#clone" title="Link to this heading"></a></h4>
+<section id="ivpm-clone">
+<span id="clone"></span><h4>clone<a class="headerlink" href="#ivpm-clone" title="Link to this heading"></a></h4>
 <p>Create a new workspace from a Git URL or path</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">clone</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">ssh</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">git</span><span class="o">-</span><span class="n">auth</span><span class="o">-</span><span class="n">order</span> <span class="n">GIT_AUTH_ORDER</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">b</span> <span class="n">BRANCH</span><span class="p">]</span>
-           <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span>
-           <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">cache</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span>
+           <span class="p">[</span><span class="o">--</span><span class="n">here</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">uv</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">pip</span><span class="p">]</span>
+           <span class="p">[</span><span class="o">--</span><span class="n">py</span><span class="o">-</span><span class="n">system</span><span class="o">-</span><span class="n">site</span><span class="o">-</span><span class="n">packages</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">cache</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span>
            <span class="n">src</span> <span class="p">[</span><span class="n">workspace_dir</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat5">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat5" title="Link to this heading"></a></h5>
+<section id="ivpm-clone-positional-arguments">
+<span id="-positional-arguments_repeat5"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-clone-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>src</kbd></dt>
 <dd><p>Source URL or path to clone</p>
@@ -410,8 +410,8 @@
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat6">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat6" title="Link to this heading"></a></h5>
+<section id="ivpm-clone-named-arguments">
+<span id="-named-arguments_repeat6"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-clone-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>--ssh</kbd></dt>
 <dd><p>Force SSH: rewrite an <a class="reference external" href="https://">https://</a> URL to <a class="reference external" href="mailto:git&#37;&#52;&#48;host">git<span>&#64;</span>host</a>:path form before cloning</p>
@@ -426,6 +426,10 @@
 </dd>
 <dt><kbd>-b, --branch</kbd></dt>
 <dd><p>Target branch; checks out existing or creates new</p>
+</dd>
+<dt><kbd>--here</kbd></dt>
+<dd><p>Set up the workspace in the current directory instead of a new subdirectory. Idempotent: reuses an existing clone of src if already present, or clones into a non-empty directory in place.</p>
+<p>Default: <code class="docutils literal notranslate"><span class="pre">False</span></code></p>
 </dd>
 <dt><kbd>-d, --dep-set</kbd></dt>
 <dd><p>Dependency set to use for ivpm update</p>
@@ -453,8 +457,8 @@
 </dl>
 </section>
 </section>
-<section id="update">
-<h4>update<a class="headerlink" href="#update" title="Link to this heading"></a></h4>
+<section id="ivpm-update">
+<span id="update"></span><h4>update<a class="headerlink" href="#ivpm-update" title="Link to this heading"></a></h4>
 <p>Fetches packages specified in ivpm.yaml that have not already been loaded</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">D</span> <span class="n">VAR</span><span class="o">=</span><span class="n">VALUE</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP</span><span class="o">-</span><span class="n">SET</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span>
             <span class="p">[</span><span class="o">--</span><span class="n">ssh</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">a</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">git</span><span class="o">-</span><span class="n">auth</span><span class="o">-</span><span class="n">order</span> <span class="n">GIT_AUTH_ORDER</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">skip</span><span class="o">-</span><span class="n">py</span><span class="o">-</span><span class="n">install</span><span class="p">]</span>
@@ -466,8 +470,8 @@
             <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat7">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat7" title="Link to this heading"></a></h5>
+<section id="ivpm-update-named-arguments">
+<span id="-named-arguments_repeat7"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-update-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-D</kbd></dt>
 <dd><p>Set variable VAR to VALUE, overriding the default in vars:</p>
@@ -561,21 +565,21 @@
 </dl>
 </section>
 </section>
-<section id="init_repeat1">
-<h4>init<a class="headerlink" href="#init_repeat1" title="Link to this heading"></a></h4>
+<section id="ivpm-init">
+<span id="init_repeat1"></span><h4>init<a class="headerlink" href="#ivpm-init" title="Link to this heading"></a></h4>
 <p>Creates an initial ivpm.yaml file</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">init</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span> <span class="n">VERSION</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="n">name</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat6">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat6" title="Link to this heading"></a></h5>
+<section id="ivpm-init-positional-arguments">
+<span id="-positional-arguments_repeat6"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-init-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd></dd>
 </dl>
 </section>
-<section id="named-arguments_repeat8">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat8" title="Link to this heading"></a></h5>
+<section id="ivpm-init-named-arguments">
+<span id="-named-arguments_repeat8"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-init-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-v, --version</kbd></dt>
 <dd><p>Default: <code class="docutils literal notranslate"><span class="pre">'0.0.1'</span></code></p>
@@ -586,50 +590,50 @@
 </dl>
 </section>
 </section>
-<section id="git-status">
-<h4>git-status<a class="headerlink" href="#git-status" title="Link to this heading"></a></h4>
+<section id="ivpm-git-status">
+<span id="git-status"></span><h4>git-status<a class="headerlink" href="#ivpm-git-status" title="Link to this heading"></a></h4>
 <p>Undocumented</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">status</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat9">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat9" title="Link to this heading"></a></h5>
+<section id="ivpm-git-status-named-arguments">
+<span id="-named-arguments_repeat9"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-git-status-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
 </dl>
 </section>
 </section>
-<section id="git-update">
-<h4>git-update<a class="headerlink" href="#git-update" title="Link to this heading"></a></h4>
+<section id="ivpm-git-update">
+<span id="git-update"></span><h4>git-update<a class="headerlink" href="#ivpm-git-update" title="Link to this heading"></a></h4>
 <p>Undocumented</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">git</span><span class="o">-</span><span class="n">update</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat10">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat10" title="Link to this heading"></a></h5>
+<section id="ivpm-git-update-named-arguments">
+<span id="-named-arguments_repeat10"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-git-update-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
 </dl>
 </section>
 </section>
-<section id="snapshot">
-<h4>snapshot<a class="headerlink" href="#snapshot" title="Link to this heading"></a></h4>
+<section id="ivpm-snapshot">
+<span id="snapshot"></span><h4>snapshot<a class="headerlink" href="#ivpm-snapshot" title="Link to this heading"></a></h4>
 <p>Creates a snapshot of required packages</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">snapshot</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">r</span><span class="p">]</span> <span class="n">snapshot_dir</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat7">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat7" title="Link to this heading"></a></h5>
+<section id="ivpm-snapshot-positional-arguments">
+<span id="-positional-arguments_repeat7"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-snapshot-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>snapshot_dir</kbd></dt>
 <dd><p>Specifies the directory where the snapshot will be created</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat11">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat11" title="Link to this heading"></a></h5>
+<section id="ivpm-snapshot-named-arguments">
+<span id="-named-arguments_repeat11"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-snapshot-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, -project-dir</kbd></dt>
 <dd></dd>
@@ -640,14 +644,14 @@
 </dl>
 </section>
 </section>
-<section id="sync">
-<h4>sync<a class="headerlink" href="#sync" title="Link to this heading"></a></h4>
+<section id="ivpm-sync">
+<span id="sync"></span><h4>sync<a class="headerlink" href="#ivpm-sync" title="Link to this heading"></a></h4>
 <p>Synchronizes dependent packages with an upstream source (if available)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">sync</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat12">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat12" title="Link to this heading"></a></h5>
+<section id="ivpm-sync-named-arguments">
+<span id="-named-arguments_repeat12"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-sync-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd></dd>
@@ -670,24 +674,24 @@
 </dl>
 </section>
 </section>
-<section id="destroy">
-<h4>destroy<a class="headerlink" href="#destroy" title="Link to this heading"></a></h4>
+<section id="ivpm-destroy">
+<span id="destroy"></span><h4>destroy<a class="headerlink" href="#ivpm-destroy" title="Link to this heading"></a></h4>
 <p>Remove a root project and all its imports (inverse of clone)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">destroy</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">deps</span><span class="o">-</span><span class="n">only</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">n</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">f</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">y</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">j</span> <span class="n">JOBS</span><span class="p">]</span>
              <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span>
              <span class="p">[</span><span class="n">wsdir</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat8">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat8" title="Link to this heading"></a></h5>
+<section id="ivpm-destroy-positional-arguments">
+<span id="-positional-arguments_repeat8"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-destroy-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>wsdir</kbd></dt>
 <dd><p>Workspace directory to remove (required unless –deps-only)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat13">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat13" title="Link to this heading"></a></h5>
+<section id="ivpm-destroy-named-arguments">
+<span id="-named-arguments_repeat13"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-destroy-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>--deps-only</kbd></dt>
 <dd><p>Remove only the imports/venv; keep the root project and ivpm.yaml</p>
@@ -723,14 +727,14 @@
 </dl>
 </section>
 </section>
-<section id="status">
-<h4>status<a class="headerlink" href="#status" title="Link to this heading"></a></h4>
+<section id="ivpm-status">
+<span id="status"></span><h4>status<a class="headerlink" href="#ivpm-status" title="Link to this heading"></a></h4>
 <p>Checks the status of sub-dependencies such as git repositories</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">status</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">v</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="named-arguments_repeat14">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat14" title="Link to this heading"></a></h5>
+<section id="ivpm-status-named-arguments">
+<span id="-named-arguments_repeat14"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-status-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>-p, --project-dir</kbd></dt>
 <dd></dd>
@@ -745,23 +749,23 @@
 </dl>
 </section>
 </section>
-<section id="show">
-<h4>show<a class="headerlink" href="#show" title="Link to this heading"></a></h4>
+<section id="ivpm-show">
+<span id="show"></span><h4>show<a class="headerlink" href="#ivpm-show" title="Link to this heading"></a></h4>
 <p>Introspect registered package sources, content types, and handlers</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">schema</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span>
           <span class="p">{</span><span class="n">deps</span><span class="p">,</span><span class="n">handler</span><span class="p">,</span><span class="n">site</span><span class="o">-</span><span class="n">config</span><span class="p">,</span><span class="n">source</span><span class="p">,</span><span class="nb">type</span><span class="p">}</span> <span class="o">...</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat9">
-<h5>Positional Arguments<a class="headerlink" href="#positional-arguments_repeat9" title="Link to this heading"></a></h5>
+<section id="ivpm-show-positional-arguments">
+<span id="-positional-arguments_repeat9"></span><h5>Positional Arguments<a class="headerlink" href="#ivpm-show-positional-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>{deps,handler,site-config,source,type}</kbd></dt>
 <dd><p>Possible choices: source, src, type, handler, deps, site-config, config</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat15">
-<h5>Named Arguments<a class="headerlink" href="#named-arguments_repeat15" title="Link to this heading"></a></h5>
+<section id="ivpm-show-named-arguments">
+<span id="-named-arguments_repeat15"></span><h5>Named Arguments<a class="headerlink" href="#ivpm-show-named-arguments" title="Link to this heading"></a></h5>
 <dl class="option-list">
 <dt><kbd>--schema</kbd></dt>
 <dd><p>Emit a JSON Schema for ivpm.yaml covering all registered sources and types</p>
@@ -779,22 +783,22 @@
 </section>
 <section id="Sub-commands_repeat2">
 <h5>Sub-commands<a class="headerlink" href="#Sub-commands_repeat2" title="Link to this heading"></a></h5>
-<section id="source (src)">
-<h6>source (src)<a class="headerlink" href="#source (src)" title="Link to this heading"></a></h6>
+<section id="ivpm-show-source-src">
+<span id="source (src)"></span><h6>source (src)<a class="headerlink" href="#ivpm-show-source-src" title="Link to this heading"></a></h6>
 <p>List registered package sources (where packages come from)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">source</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat10">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat10" title="Link to this heading"></a></h6>
+<section id="ivpm-show-source-src-positional-arguments">
+<span id="-positional-arguments_repeat10"></span><h6 aria-level="7">Positional Arguments<a class="headerlink" href="#ivpm-show-source-src-positional-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this source (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat16">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat16" title="Link to this heading"></a></h6>
+<section id="ivpm-show-source-src-named-arguments">
+<span id="-named-arguments_repeat16"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-show-source-src-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
@@ -807,22 +811,22 @@
 </dl>
 </section>
 </section>
-<section id="type">
-<h6>type<a class="headerlink" href="#type" title="Link to this heading"></a></h6>
+<section id="ivpm-show-type">
+<span id="type"></span><h6>type<a class="headerlink" href="#ivpm-show-type" title="Link to this heading"></a></h6>
 <p>List registered content types (what IVPM does with a package after fetching)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="nb">type</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat11">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat11" title="Link to this heading"></a></h6>
+<section id="ivpm-show-type-positional-arguments">
+<span id="-positional-arguments_repeat11"></span><h6 aria-level="7">Positional Arguments<a class="headerlink" href="#ivpm-show-type-positional-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this type (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat17">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat17" title="Link to this heading"></a></h6>
+<section id="ivpm-show-type-named-arguments">
+<span id="-named-arguments_repeat17"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-show-type-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
@@ -835,22 +839,22 @@
 </dl>
 </section>
 </section>
-<section id="handler">
-<h6>handler<a class="headerlink" href="#handler" title="Link to this heading"></a></h6>
+<section id="ivpm-show-handler">
+<span id="handler"></span><h6>handler<a class="headerlink" href="#ivpm-show-handler" title="Link to this heading"></a></h6>
 <p>List registered package handlers (post-fetch processing hooks)</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">handler</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">order</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat12">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat12" title="Link to this heading"></a></h6>
+<section id="ivpm-show-handler-positional-arguments">
+<span id="-positional-arguments_repeat12"></span><h6 aria-level="7">Positional Arguments<a class="headerlink" href="#ivpm-show-handler-positional-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this handler (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat18">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat18" title="Link to this heading"></a></h6>
+<section id="ivpm-show-handler-named-arguments">
+<span id="-named-arguments_repeat18"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-show-handler-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--order</kbd></dt>
 <dd><p>Show the resolved root-phase execution order of all handlers</p>
@@ -867,24 +871,24 @@
 </dl>
 </section>
 </section>
-<section id="deps">
-<h6>deps<a class="headerlink" href="#deps" title="Link to this heading"></a></h6>
+<section id="ivpm-show-deps">
+<span id="deps"></span><h6>deps<a class="headerlink" href="#ivpm-show-deps" title="Link to this heading"></a></h6>
 <p>Show project dependency tree and package information</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">deps</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">tree</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">p</span> <span class="n">PROJECT_DIR</span><span class="p">]</span>
                <span class="p">[</span><span class="o">-</span><span class="n">d</span> <span class="n">DEP_SET</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">dot</span><span class="p">]</span> <span class="p">[</span><span class="o">-</span><span class="n">o</span> <span class="n">OUTPUT</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="kn">from</span><span class="w"> </span><span class="nn">PATH</span><span class="o">-</span><span class="n">OR</span><span class="o">-</span><span class="n">URL</span><span class="p">]</span>
                <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat13">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat13" title="Link to this heading"></a></h6>
+<section id="ivpm-show-deps-positional-arguments">
+<span id="-positional-arguments_repeat13"></span><h6 aria-level="7">Positional Arguments<a class="headerlink" href="#ivpm-show-deps-positional-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show full detail for this specific dependency (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat19">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat19" title="Link to this heading"></a></h6>
+<section id="ivpm-show-deps-named-arguments">
+<span id="-named-arguments_repeat19"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-show-deps-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--tree, -t</kbd></dt>
 <dd><p>Show hierarchical dependency tree instead of flat list</p>
@@ -917,22 +921,22 @@
 </dl>
 </section>
 </section>
-<section id="site-config (config)">
-<h6>site-config (config)<a class="headerlink" href="#site-config (config)" title="Link to this heading"></a></h6>
+<section id="ivpm-show-site-config-config">
+<span id="site-config (config)"></span><h6>site-config (config)<a class="headerlink" href="#ivpm-show-site-config-config" title="Link to this heading"></a></h6>
 <p>Show registered site configurations and the active effective settings</p>
 <div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">ivpm</span> <span class="n">show</span> <span class="n">site</span><span class="o">-</span><span class="n">config</span> <span class="p">[</span><span class="o">-</span><span class="n">h</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">json</span><span class="p">]</span> <span class="p">[</span><span class="o">--</span><span class="n">no</span><span class="o">-</span><span class="n">rich</span><span class="p">]</span> <span class="p">[</span><span class="n">name</span><span class="p">]</span>
 </pre></div>
 </div>
-<section id="positional-arguments_repeat14">
-<h6 aria-level="7">Positional Arguments<a class="headerlink" href="#positional-arguments_repeat14" title="Link to this heading"></a></h6>
+<section id="ivpm-show-site-config-config-positional-arguments">
+<span id="-positional-arguments_repeat14"></span><h6 aria-level="7">Positional Arguments<a class="headerlink" href="#ivpm-show-site-config-config-positional-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>name</kbd></dt>
 <dd><p>Show detailed info for this site config (omit to list all)</p>
 </dd>
 </dl>
 </section>
-<section id="named-arguments_repeat20">
-<h6 aria-level="7">Named Arguments<a class="headerlink" href="#named-arguments_repeat20" title="Link to this heading"></a></h6>
+<section id="ivpm-show-site-config-config-named-arguments">
+<span id="-named-arguments_repeat20"></span><h6 aria-level="7">Named Arguments<a class="headerlink" href="#ivpm-show-site-config-config-named-arguments" title="Link to this heading"></a></h6>
 <dl class="option-list">
 <dt><kbd>--json</kbd></dt>
 <dd><p>Emit JSON output</p>
@@ -1122,6 +1126,15 @@ $<span class="w"> </span>ivpm<span class="w"> </span>cache<span class="w"> </spa
 </dl>
 <p><strong>Options:</strong></p>
 <dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">--here</span></code></dt><dd><p>Set up the workspace in the current directory instead of a new
+subdirectory. Cannot be combined with an explicit <code class="docutils literal notranslate"><span class="pre">workspace_dir</span></code>.
+This option is idempotent: if the current directory already contains a
+clone of <code class="docutils literal notranslate"><span class="pre">src</span></code> it is reused in place; if it is non-empty but not yet a
+repository, <code class="docutils literal notranslate"><span class="pre">src</span></code> is cloned into it (via <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">init</span></code>/<code class="docutils literal notranslate"><span class="pre">fetch</span></code>/
+<code class="docutils literal notranslate"><span class="pre">checkout</span></code>); if it is empty, a plain clone is performed. If the
+directory already holds a git repository for a <em>different</em> source, the
+command fails rather than overwriting it.</p>
+</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">--ssh</span></code></dt><dd><p>Force SSH: rewrite an <code class="docutils literal notranslate"><span class="pre">https://</span></code> URL to <code class="docutils literal notranslate"><span class="pre">git&#64;host:path</span></code> form</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">-a,</span> <span class="pre">--anonymous</span></code></dt><dd><p>Force HTTPS: clone the URL as written (do not rewrite to SSH)</p>
@@ -1152,6 +1165,9 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 <span class="c1"># Custom directory</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git<span class="w"> </span>my-workspace
 
+<span class="c1"># Set up the workspace in the current directory (idempotent)</span>
+$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>--here<span class="w"> </span>https://github.com/org/project.git
+
 <span class="c1"># Specific branch</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>-b<span class="w"> </span>develop<span class="w"> </span>https://github.com/org/project.git
 
@@ -1164,7 +1180,8 @@ $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </spa
 </div>
 <p><strong>Behavior:</strong></p>
 <ol class="arabic simple">
-<li><p>Clones Git repository</p></li>
+<li><p>Clones Git repository (or, with <code class="docutils literal notranslate"><span class="pre">--here</span></code>, populates the current
+directory in place, reusing an existing clone if present)</p></li>
 <li><p>Enters directory</p></li>
 <li><p>Automatically runs <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">update</span></code> with specified options</p></li>
 </ol>
@@ -1639,8 +1656,8 @@ $<span class="w"> </span>ivpm<span class="w"> </span>--log-level<span class="w">
 </section>
 <section id="environment-variables">
 <h2>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h2>
-<section id="ivpm-cache">
-<h3>IVPM_CACHE<a class="headerlink" href="#ivpm-cache" title="Link to this heading"></a></h3>
+<section id="id1">
+<h3>IVPM_CACHE<a class="headerlink" href="#id1" title="Link to this heading"></a></h3>
 <p>Path to the package cache directory.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">IVPM_CACHE</span><span class="o">=</span>~/.cache/ivpm
 </pre></div>
@@ -1710,7 +1727,7 @@ validation and autocompletion when the <code class="docutils literal notranslate
 <section id="package-definition">
 <h3>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h3>
 <section id="package-definition">
-<span id="id1"></span><h4>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h4>
+<span id="id2"></span><h4>Package Definition<a class="headerlink" href="#package-definition" title="Link to this heading"></a></h4>
 <table class="docutils align-default">
 <tbody>
 <tr class="row-odd"><td><p>type</p></td>
