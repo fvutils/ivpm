@@ -171,9 +171,12 @@ class TestFactoryExpansion(_FactoryTestBase):
 
 
 class TestFactoryMultiDepSet(_FactoryTestBase):
+    """Pulling several dep-sets from one factory. The supported idiom is one
+    dependency entry per dep-set, each with a distinct name; the list form
+    (``dep-set: [a, b]``) is rejected -- see test_dep_set_list_is_rejected."""
 
-    def _multi_factory(self, dep_set_attr):
-        factory = self._write("tools.yaml",
+    def _factory(self):
+        return self._write("tools.yaml",
             "package:\n"
             "  name: tools-factory\n"
             "  dep-sets:\n"
@@ -189,46 +192,59 @@ class TestFactoryMultiDepSet(_FactoryTestBase):
             "      deps:\n"
             "        - name: pytest\n"
             "          src: pypi\n")
-        consumer = self._write("ivpm.yaml",
-            "package:\n"
-            "  name: consumer\n"
-            "  dep-sets:\n"
-            "    - name: default\n"
-            "      deps:\n"
-            "        - name: core-tools\n"
-            "          src: ivpm.yaml\n"
-            "          url: %s\n"
-            "          %s\n" % (factory, dep_set_attr))
-        return factory, consumer
+
+    def _consumer(self, factory, entries):
+        """entries: list of (alias, dep_set) -> one factory dep entry each."""
+        lines = ["package:",
+                 "  name: consumer",
+                 "  dep-sets:",
+                 "    - name: default",
+                 "      deps:"]
+        for alias, ds in entries:
+            lines += ["        - name: %s" % alias,
+                      "          src: ivpm.yaml",
+                      "          url: %s" % factory,
+                      "          dep-set: %s" % ds]
+        return self._write("ivpm.yaml", "\n".join(lines) + "\n")
 
     def test_multiple_dep_sets_merge(self):
-        """A list of dep-set names folds the union of all their leaves into the
-        consumer; each leaf records the specific dep-set it came from."""
-        factory, consumer = self._multi_factory("dep-set: [core, extras, dev]")
+        """One entry per dep-set folds the union of their leaves into the
+        consumer; each leaf records the specific dep-set (and entry) it came
+        from."""
+        factory = self._factory()
+        consumer = self._consumer(
+            factory, [("t-core", "core"), ("t-extras", "extras"), ("t-dev", "dev")])
         ds = self._read_dep_set(consumer)
         updater, all_pkgs = self._run_update(ds)
 
         for leaf in ("pyyaml", "jinja2", "pytest"):
             self.assertIn(leaf, all_pkgs.keys())
-            self.assertEqual(all_pkgs[leaf].resolved_by, "core-tools")
 
         self.assertEqual(all_pkgs["pyyaml"].from_ivpm_source, "%s#core" % factory)
         self.assertEqual(all_pkgs["jinja2"].from_ivpm_source, "%s#extras" % factory)
         self.assertEqual(all_pkgs["pytest"].from_ivpm_source, "%s#dev" % factory)
+        self.assertEqual(all_pkgs["pyyaml"].resolved_by, "t-core")
+        self.assertEqual(all_pkgs["jinja2"].resolved_by, "t-extras")
+        self.assertEqual(all_pkgs["pytest"].resolved_by, "t-dev")
 
-    def test_multiple_dep_sets_lock_records_list(self):
-        """The authored list is recorded verbatim in ivpm_sources, not the
-        synthetic merged name used internally."""
-        factory, consumer = self._multi_factory("dep-set: [core, extras]")
+    def test_leaf_provenance_recorded_in_lock(self):
+        """Each folded leaf carries its originating dep-set in the lock's
+        packages map -- durable per-leaf provenance, independent of the
+        url-keyed ivpm_sources summary."""
+        factory = self._factory()
+        consumer = self._consumer(
+            factory, [("t-core", "core"), ("t-extras", "extras")])
         ds = self._read_dep_set(consumer)
         updater, all_pkgs = self._run_update(ds)
 
         write_lock(self.deps_dir, all_pkgs)
         lock = read_lock(os.path.join(self.deps_dir, "package-lock.json"))
-        self.assertEqual(lock["ivpm_sources"][factory]["dep_set"], ["core", "extras"])
+        self.assertEqual(lock["packages"]["pyyaml"]["from_ivpm_source"], "%s#core" % factory)
+        self.assertEqual(lock["packages"]["jinja2"]["from_ivpm_source"], "%s#extras" % factory)
 
-    def test_later_dep_set_overrides_earlier(self):
-        """On package-name collision the later-listed dep-set wins."""
+    def test_earlier_entry_wins_on_collision(self):
+        """When two entries contribute a package of the same name, the
+        earlier-listed entry wins (the updater keeps the first resolution)."""
         factory = self._write("tools.yaml",
             "package:\n"
             "  name: tools-factory\n"
@@ -241,6 +257,17 @@ class TestFactoryMultiDepSet(_FactoryTestBase):
             "      deps:\n"
             "        - name: shared\n"
             "          src: pypi\n")
+        consumer = self._consumer(factory, [("t-a", "a"), ("t-b", "b")])
+        ds = self._read_dep_set(consumer)
+        updater, all_pkgs = self._run_update(ds)
+        # 't-a' is listed first, so its 'shared' wins.
+        self.assertEqual(all_pkgs["shared"].from_ivpm_source, "%s#a" % factory)
+        self.assertEqual(all_pkgs["shared"].resolved_by, "t-a")
+
+    def test_dep_set_list_is_rejected(self):
+        """The old list form (`dep-set: [a, b]`) is no longer supported: each
+        entry must name exactly one dep-set."""
+        factory = self._factory()
         consumer = self._write("ivpm.yaml",
             "package:\n"
             "  name: consumer\n"
@@ -250,18 +277,9 @@ class TestFactoryMultiDepSet(_FactoryTestBase):
             "        - name: core-tools\n"
             "          src: ivpm.yaml\n"
             "          url: %s\n"
-            "          dep-set: [a, b]\n" % factory)
-        ds = self._read_dep_set(consumer)
-        updater, all_pkgs = self._run_update(ds)
-        # 'b' is listed last, so its 'shared' wins.
-        self.assertEqual(all_pkgs["shared"].from_ivpm_source, "%s#b" % factory)
-
-    def test_missing_in_list_is_fatal(self):
-        """If any name in the list is absent from the factory -> fatal."""
-        factory, consumer = self._multi_factory("dep-set: [core, nonexistent]")
-        ds = self._read_dep_set(consumer)
+            "          dep-set: [core, extras]\n" % factory)
         with self.assertRaises(SrcLoaderError):
-            self._run_update(ds)
+            self._read_dep_set(consumer)
 
 
 class TestFactoryErrors(_FactoryTestBase):
@@ -364,6 +382,69 @@ class TestFactoryTransitive(_FactoryTestBase):
         # provenance distinguishes the two factory layers
         self.assertEqual(all_pkgs["grandleaf"].from_ivpm_source,
                          "%s#g" % grandchild)
+
+
+class TestFactoryNameCollision(_FactoryTestBase):
+    """Regression: a factory dep whose alias name equals a package inside the
+    dep-set it references. The factory node is virtual (installs nothing), so it
+    must not shadow the real same-named package in the updater's name-keyed
+    dedup set -- otherwise the real package is silently never fetched.
+
+    Reproduces the real-world case of a `gcc-riscv` factory dep pointing at a
+    dep-set that also contains a `gcc-riscv` release package.
+    """
+
+    def _colliding_factory(self):
+        # Factory dep-set 'core' contains a leaf named 'gcc-riscv'...
+        factory = self._write("tools.yaml",
+            "package:\n"
+            "  name: tools-factory\n"
+            "  dep-sets:\n"
+            "    - name: core\n"
+            "      deps:\n"
+            "        - name: gcc-riscv\n"
+            "          src: pypi\n")
+        # ...and the consumer's factory dep is *also* named 'gcc-riscv'.
+        consumer = self._write("ivpm.yaml",
+            "package:\n"
+            "  name: consumer\n"
+            "  dep-sets:\n"
+            "    - name: default\n"
+            "      deps:\n"
+            "        - name: gcc-riscv\n"
+            "          src: ivpm.yaml\n"
+            "          url: %s\n"
+            "          dep-set: core\n" % factory)
+        return factory, consumer
+
+    def test_colliding_leaf_is_still_resolved(self):
+        """The real same-named leaf resolves and replaces the virtual factory
+        node; before the fix it was de-duped away and never fetched."""
+        factory, consumer = self._colliding_factory()
+        ds = self._read_dep_set(consumer)
+        updater, all_pkgs = self._run_update(ds)
+
+        self.assertIn("gcc-riscv", all_pkgs.keys())
+        node = all_pkgs["gcc-riscv"]
+        # The surviving node must be the *real* leaf, not the virtual factory.
+        self.assertFalse(getattr(node, "virtual", False),
+                         "virtual factory shadowed the real same-named package")
+        # It carries the folded-leaf provenance, proving it came from the dep-set.
+        self.assertEqual(node.from_ivpm_source, "%s#core" % factory)
+        self.assertEqual(node.resolved_by, "gcc-riscv")
+
+    def test_colliding_leaf_in_lock_packages(self):
+        """The real leaf lands in the lock's normal `packages` map (not left as
+        only an `ivpm_sources` virtual entry)."""
+        factory, consumer = self._colliding_factory()
+        ds = self._read_dep_set(consumer)
+        updater, all_pkgs = self._run_update(ds)
+
+        write_lock(self.deps_dir, all_pkgs)
+        lock = read_lock(os.path.join(self.deps_dir, "package-lock.json"))
+        self.assertIn("gcc-riscv", lock["packages"])
+        self.assertEqual(lock["packages"]["gcc-riscv"]["from_ivpm_source"],
+                         "%s#core" % factory)
 
 
 class TestFactoryLockMatch(_FactoryTestBase):

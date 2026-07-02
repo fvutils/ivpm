@@ -166,9 +166,20 @@ class PackageUpdater(object):
             # Collect new dependencies and add to queue
             pkg_q = []
             for key in pkg_deps.keys():
-                if not key in self.all_pkgs.keys():
+                dep = pkg_deps[key]
+                existing = self.all_pkgs.packages.get(key)
+                if existing is None:
                     # New package
-                    pkg_q.append(pkg_deps[key])
+                    pkg_q.append(dep)
+                elif getattr(existing, "virtual", False) and not getattr(dep, "virtual", False):
+                    # A real package whose name collides with a virtual redirect
+                    # (`src: ivpm.yaml` factory) of the same name. The redirect
+                    # installs nothing itself, so it must not shadow the real
+                    # package -- otherwise the real one is silently never fetched
+                    # (e.g. a `gcc-riscv` alias pointing at a dep-set that also
+                    # contains a `gcc-riscv` package). Queue the real package so
+                    # it is fetched; it will overwrite the virtual node below.
+                    pkg_q.append(dep)
             note("%d new dependencies from iteration %d" % (len(pkg_q), count))
                     
             if len(pkg_q) == 0:

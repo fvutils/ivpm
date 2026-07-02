@@ -347,9 +347,19 @@ class Package(object):
         self.srcinfo = si
 
         if "dep-set" in opts.keys():
+            ds = opts["dep-set"]
+            if not isinstance(ds, str):
+                fatal(
+                    "Package '%s': 'dep-set' must be a single dep-set name (a string), "
+                    "not a %s @ %s\n"
+                    "  Each dependency entry selects exactly one dep-set. To pull "
+                    "several dep-sets from the same source, add one dependency entry "
+                    "per dep-set, each with a distinct 'name'." % (
+                        self.name, type(ds).__name__, getlocstr(ds)),
+                    ds)
             _logger.debug("Using dep-set %s for package %s",
-                opts["dep-set"], self.name)
-            self.dep_set = opts["dep-set"]
+                ds, self.name)
+            self.dep_set = ds
 
         if "deps" in opts.keys():
             if opts["deps"] == "skip":
