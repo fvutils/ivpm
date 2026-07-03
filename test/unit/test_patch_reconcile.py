@@ -31,9 +31,16 @@ from ivpm.cache_provider import CacheContext, NullCacheProvider
 DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "patch")
 HAS_GIT = shutil.which("git") is not None
 
+# Pin author/committer identity *and* dates so a commit is a pure function of
+# its tree + message + parent. The Absent rows (1 & 2) build a separate `origin`
+# repo from the same srctree as setUp's pkg_dir and rely on origin's HEAD hashing
+# identical to self.base; without fixed dates the two commits straddle a second
+# boundary under CI load, diverge, and classify() reports PATCHED_DRIFT.
 GENV = dict(os.environ,
             GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
-            GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+            GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t",
+            GIT_AUTHOR_DATE="2020-01-01T00:00:00 +0000",
+            GIT_COMMITTER_DATE="2020-01-01T00:00:00 +0000")
 
 
 def mkspec(patch_name, strip=1, directory=None):
