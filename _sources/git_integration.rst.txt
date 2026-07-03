@@ -609,7 +609,7 @@ Workflow 2: Testing Upstream Changes
     # 4. Test changes
     $ git checkout origin/main  # Detached HEAD
     $ cd ../..
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
     
     # 5. If good, merge
     $ cd packages/my-library
@@ -630,7 +630,7 @@ Workflow 3: Bisecting a Bug
     
     # Test each commit
     $ cd ../..
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
     $ cd packages/buggy-lib
     $ git bisect good  # or 'bad'
     
@@ -646,7 +646,7 @@ Workflow 4: Pinning After Testing
 .. code-block:: bash
 
     # 1. Test current state
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
     
     # 2. Get current commit
     $ cd packages/my-library
@@ -662,7 +662,7 @@ Workflow 4: Pinning After Testing
     # 4. Verify
     $ rm -rf packages/my-library
     $ ivpm update
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
 
 Integration with Git Hooks
 ===========================

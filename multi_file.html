@@ -201,7 +201,7 @@ an <strong>error</strong> (reporting both locations).  <code class="docutils lit
 across files – each dep-set has exactly one owning file.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">with</span></code>, <code class="docutils literal notranslate"><span class="pre">vars</span></code> – Deep-merged.  On scalar conflict, the includer wins.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">paths</span></code> – Deep-merged as a map; leaf lists append.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">env</span></code>, <code class="docutils literal notranslate"><span class="pre">env-sets</span></code>, <code class="docutils literal notranslate"><span class="pre">setup-deps</span></code> – List-append (the include’s items
+<li><p><code class="docutils literal notranslate"><span class="pre">env</span></code>, <code class="docutils literal notranslate"><span class="pre">setup-deps</span></code> – List-append (the include’s items
 follow the local items).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">deps-dir</span></code>, <code class="docutils literal notranslate"><span class="pre">default-dep-set</span></code> and other scalars – Local wins; adopted
 from the include only if the includer does not set them.</p></li>

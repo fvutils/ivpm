@@ -655,16 +655,16 @@ Run commands within the virtual environment:
 .. code-block:: bash
 
     # One-off command
-    $ ivpm activate -c "python script.py"
-    $ ivpm activate -c "pytest"
+    $ direnv exec . python script.py
+    $ direnv exec . pytest
     
-    # Interactive shell
-    $ ivpm activate
-    (venv) $ python
-    (venv) $ pip list
-    (venv) $ exit
+    # Interactive shell (direnv loads the env on cd into the project)
+    $ direnv allow
+    $ python
+    $ pip list
 
-**Behind the scenes:** ``ivpm activate`` sources ``packages/python/bin/activate``
+**Behind the scenes:** the direnv handler emits ``PATH_add bin`` into
+``packages/python/export.envrc``, putting the venv's ``bin`` on ``PATH``.
 
 Direct Access
 -------------
@@ -685,11 +685,10 @@ You can also use the virtual environment directly:
 Environment Variables
 ---------------------
 
-When activated, these variables are set:
+When direnv loads ``packages.envrc``:
 
-- ``VIRTUAL_ENV`` → ``packages/python``
-- ``PATH`` → ``packages/python/bin:$PATH``
-- ``PYTHONPATH`` → (can be customized via ``env-sets``)
+- ``PATH`` → ``packages/python/bin`` is prepended (``PATH_add``)
+- ``PYTHONPATH`` → (can be customized via ``env:`` directives)
 
 Complete Examples
 =================
@@ -735,9 +734,9 @@ Example 1: Pure Python Project
 .. code-block:: bash
 
     $ ivpm update
-    $ ivpm activate -c "pytest"
-    $ ivpm activate -c "black src/"
-    $ ivpm activate -c "mypy src/"
+    $ direnv exec . pytest
+    $ direnv exec . black src/
+    $ direnv exec . mypy src/
 
 Example 2: Mixed Source and Binary
 -----------------------------------
@@ -774,10 +773,10 @@ Example 2: Mixed Source and Binary
 .. code-block:: bash
 
     $ ivpm update
-    $ ivpm activate -c "python train.py"
+    $ direnv exec . python train.py
     
     # Edit custom-models or data-utils, changes immediate
-    $ ivpm activate -c "python train.py"  # Uses modified code
+    $ direnv exec . python train.py  # Uses modified code
 
 Example 3: Native Extensions with Build
 ----------------------------------------
@@ -813,11 +812,11 @@ Example 3: Native Extensions with Build
 
     $ ivpm update       # Fetch and install
     $ ivpm build        # Build native extensions
-    $ ivpm activate -c "python process.py"
+    $ direnv exec . python process.py
     
     # Debug build
     $ ivpm build --debug
-    $ ivpm activate -c "gdb python"
+    $ direnv exec . gdb python
 
 Best Practices
 ==============

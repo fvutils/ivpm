@@ -141,7 +141,7 @@ set of mixed dependencies benefits from IVPM.
               src: pypi
 
 All three projects share the same structure: an ``ivpm.yaml`` file, a
-``packages/`` directory, and the same ``ivpm update`` / ``ivpm activate``
+``packages/`` directory, and the same ``ivpm update`` / ``direnv allow``
 workflow.
 
 Next Steps

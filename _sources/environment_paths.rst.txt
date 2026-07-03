@@ -15,36 +15,51 @@ Both features help tools discover project resources and configuration.
 Environment Variables
 =====================
 
-Environment Sets
-----------------
+.. note::
 
-Define environment variables in ``ivpm.yaml`` using **env-sets**:
+   IVPM delegates environment *application* to `direnv
+   <https://direnv.net>`_.  It does not set variables in your shell itself;
+   instead it emits the ``env:`` directives (together with each package's
+   ``export.envrc``) into ``packages/packages.envrc``.  Running ``direnv
+   allow`` once authorizes that file, after which the environment loads
+   automatically whenever you are in the project directory.
+
+Declaring Environment Variables
+-------------------------------
+
+Define environment variables in ``ivpm.yaml`` with a top-level ``env:``
+list.  Each entry names a variable and one action (see below):
 
 .. code-block:: yaml
 
     package:
       name: my-project
-      
-      env-sets:
-        - name: project
-          env:
-            - name: MY_VAR
-              value: "hello world"
-            - name: PROJECT_ROOT
-              value: "${IVPM_PROJECT}"
+
+      env:
+        - name: MY_VAR
+          value: "hello world"
+        - name: PROJECT_ROOT
+          value: "${IVPM_PROJECT}"
+
+When ``env:`` directives (or packages that publish ``export.envrc``) are
+present, ``ivpm update`` writes ``packages/packages.envrc``.  ``env:``
+directives are emitted last, so the project's own declarations take
+precedence over variables set by packages.
 
 **Built-in Variables:**
 
-IVPM provides these variables automatically:
+The ``direnv`` handler always writes these into ``packages.envrc``:
 
 - ``IVPM_PROJECT`` - Path to project root directory
 - ``IVPM_PACKAGES`` - Path to packages directory
-- ``IVPM_HOME`` - Path to packages directory (deprecated alias)
+
+They are available to your own ``env:`` directives via ``${IVPM_PROJECT}``
+/ ``${IVPM_PACKAGES}`` (expanded by ``direnv`` at load time).
 
 Variable Actions
 ----------------
 
-IVPM supports four actions for setting environment variables:
+IVPM supports four actions, each mapping to a ``direnv``/bash directive:
 
 value
 ~~~~~
@@ -117,15 +132,12 @@ Append to an existing path variable:
           - "${IVPM_PACKAGES}/bin"
           - "${IVPM_PACKAGES}/tools/bin"
 
-**Result:**
+**Result** (emitted into ``packages.envrc``):
 
 .. code-block:: bash
 
-    # If PATH already exists
-    export PATH="${PATH}:${IVPM_PACKAGES}/bin:${IVPM_PACKAGES}/tools/bin"
-    
-    # If PATH doesn't exist
-    export PATH="${IVPM_PACKAGES}/bin:${IVPM_PACKAGES}/tools/bin"
+    # A leading ':' separator is added only when PATH is already set
+    export PATH="${PATH:+$PATH:}${IVPM_PACKAGES}/bin:${IVPM_PACKAGES}/tools/bin"
 
 path-prepend
 ~~~~~~~~~~~~
@@ -140,20 +152,19 @@ Prepend to an existing path variable:
           - "${IVPM_PROJECT}/src"
           - "${IVPM_PACKAGES}/mylib/src"
 
-**Result:**
+**Result** (uses the ``direnv`` stdlib ``path_add``, which prepends its
+arguments and de-duplicates on re-source):
 
 .. code-block:: bash
 
-    # If PYTHONPATH already exists
-    export PYTHONPATH="${IVPM_PROJECT}/src:${IVPM_PACKAGES}/mylib/src:${PYTHONPATH}"
-    
-    # If PYTHONPATH doesn't exist
-    export PYTHONPATH="${IVPM_PROJECT}/src:${IVPM_PACKAGES}/mylib/src"
+    path_add PYTHONPATH "${IVPM_PROJECT}/src" "${IVPM_PACKAGES}/mylib/src"
 
 Variable Expansion
 ------------------
 
-IVPM expands variables referenced with ``${VAR}`` syntax:
+``${VAR}`` references are emitted verbatim and expanded by ``direnv``
+(via bash) when the environment loads -- IVPM does not expand them
+itself:
 
 .. code-block:: yaml
 
@@ -180,64 +191,79 @@ Complete Environment Example
 
     package:
       name: verification-project
-      
-      env-sets:
-        - name: project
-          env:
-            # Set project paths
-            - name: PROJECT_ROOT
-              value: "${IVPM_PROJECT}"
-            
-            - name: RTL_ROOT
-              value: "${PROJECT_ROOT}/rtl"
-            
-            - name: TB_ROOT
-              value: "${PROJECT_ROOT}/testbench"
-            
-            # Configure build
-            - name: BUILD_TYPE
-              value: "release"
-            
-            - name: CFLAGS
-              value:
-                - "-O2"
-                - "-Wall"
-            
-            # Add tools to PATH
-            - name: PATH
-              path-prepend:
-                - "${IVPM_PACKAGES}/tools/bin"
-                - "${PROJECT_ROOT}/scripts"
-            
-            # Set library paths
-            - name: LD_LIBRARY_PATH
-              path:
-                - "${IVPM_PACKAGES}/lib64"
-                - "${IVPM_PACKAGES}/lib"
-            
-            # Configure Python
-            - name: PYTHONPATH
-              path-prepend: "${IVPM_PROJECT}/src"
 
-Using Environment Sets
+      env:
+        # Set project paths
+        - name: PROJECT_ROOT
+          value: "${IVPM_PROJECT}"
+
+        - name: RTL_ROOT
+          value: "${PROJECT_ROOT}/rtl"
+
+        - name: TB_ROOT
+          value: "${PROJECT_ROOT}/testbench"
+
+        # Configure build
+        - name: BUILD_TYPE
+          value: "release"
+
+        - name: CFLAGS
+          value:
+            - "-O2"
+            - "-Wall"
+
+        # Add tools to PATH
+        - name: PATH
+          path-prepend:
+            - "${IVPM_PACKAGES}/tools/bin"
+            - "${PROJECT_ROOT}/scripts"
+
+        # Set library paths
+        - name: LD_LIBRARY_PATH
+          path:
+            - "${IVPM_PACKAGES}/lib64"
+            - "${IVPM_PACKAGES}/lib"
+
+        # Configure Python
+        - name: PYTHONPATH
+          path-prepend: "${IVPM_PROJECT}/src"
+
+Loading the Environment
 -----------------------
 
-Environment variables are automatically applied when using ``ivpm activate``:
+The generated ``packages.envrc`` is consumed by ``direnv``.  Authorize it
+once with ``direnv allow``; thereafter the environment loads automatically
+whenever you ``cd`` into the project:
 
 .. code-block:: bash
 
-    $ ivpm activate
-    (venv) $ echo $PROJECT_ROOT
+    $ direnv allow
+    $ echo $PROJECT_ROOT
     /home/user/projects/myproject
-    
-    (venv) $ echo $PATH
+
+    $ echo $PATH
     /home/user/projects/myproject/packages/tools/bin:/home/user/projects/myproject/scripts:...
+
+To run a single command in the project environment without an interactive
+shell, use ``direnv exec``:
+
+.. code-block:: bash
+
+    $ direnv exec . pytest
+
+.. note::
+
+   **Windows:** ``direnv`` evaluates ``packages.envrc`` with bash, so a bash
+   is required even under PowerShell.  The supported setup is ``direnv`` +
+   git-bash (bundled with Git-for-Windows).  For native PowerShell, add
+   ``Invoke-Expression "$(direnv hook pwsh)"`` to your ``$PROFILE``; inside
+   git-bash or WSL use ``direnv`` normally.
 
 Or for a single command:
 
 .. code-block:: bash
 
-    $ ivpm activate -c "echo \$PROJECT_ROOT"
+    $ direnv exec . echo \$PROJECT_ROOT
     /home/user/projects/myproject
 
 Project Paths
@@ -422,32 +448,30 @@ Example 1: Simulation Environment
 
     package:
       name: cpu-verification
-      
-      env-sets:
-        - name: project
-          env:
-            # Simulation variables
-            - name: SIM_ROOT
-              value: "${IVPM_PROJECT}"
-            
-            - name: WORK_DIR
-              value: "${SIM_ROOT}/work"
-            
-            - name: LOG_DIR
-              value: "${SIM_ROOT}/logs"
-            
-            # Simulator paths
-            - name: PATH
-              path-prepend:
-                - "${IVPM_PACKAGES}/verilator/bin"
-                - "${IVPM_PACKAGES}/gtkwave/bin"
-            
-            # Library paths for compiled libraries
-            - name: LD_LIBRARY_PATH
-              path:
-                - "${IVPM_PACKAGES}/lib"
-                - "${SIM_ROOT}/build/lib"
-      
+
+      env:
+        # Simulation variables
+        - name: SIM_ROOT
+          value: "${IVPM_PROJECT}"
+
+        - name: WORK_DIR
+          value: "${SIM_ROOT}/work"
+
+        - name: LOG_DIR
+          value: "${SIM_ROOT}/logs"
+
+        # Simulator paths
+        - name: PATH
+          path-prepend:
+            - "${IVPM_PACKAGES}/verilator/bin"
+            - "${IVPM_PACKAGES}/gtkwave/bin"
+
+        # Library paths for compiled libraries
+        - name: LD_LIBRARY_PATH
+          path:
+            - "${IVPM_PACKAGES}/lib"
+            - "${SIM_ROOT}/build/lib"
+
       paths:
         rtl:
           sv:
@@ -466,9 +490,9 @@ Example 1: Simulation Environment
 .. code-block:: bash
 
     $ ivpm update
-    $ ivpm activate
-    (venv) $ cd $WORK_DIR
-    (venv) $ make sim
+    $ direnv allow
+    $ cd $WORK_DIR
+    $ make sim
 
 Example 2: Multi-Language Project
 ----------------------------------
@@ -477,34 +501,32 @@ Example 2: Multi-Language Project
 
     package:
       name: mixed-project
-      
-      env-sets:
-        - name: project
-          env:
-            # Project structure
-            - name: HDL_ROOT
-              value: "${IVPM_PROJECT}/hdl"
-            
-            - name: SW_ROOT
-              value: "${IVPM_PROJECT}/software"
-            
-            # Compilation flags
-            - name: VLOG_FLAGS
-              value:
-                - "+incdir+${HDL_ROOT}/include"
-                - "-timescale=1ns/1ps"
-            
-            - name: CFLAGS
-              value:
-                - "-I${SW_ROOT}/include"
-                - "-Wall"
-            
-            # Tool configuration
-            - name: PYTHONPATH
-              path-prepend:
-                - "${SW_ROOT}/python"
-                - "${IVPM_PROJECT}/scripts"
-      
+
+      env:
+        # Project structure
+        - name: HDL_ROOT
+          value: "${IVPM_PROJECT}/hdl"
+
+        - name: SW_ROOT
+          value: "${IVPM_PROJECT}/software"
+
+        # Compilation flags
+        - name: VLOG_FLAGS
+          value:
+            - "+incdir+${HDL_ROOT}/include"
+            - "-timescale=1ns/1ps"
+
+        - name: CFLAGS
+          value:
+            - "-I${SW_ROOT}/include"
+            - "-Wall"
+
+        # Tool configuration
+        - name: PYTHONPATH
+          path-prepend:
+            - "${SW_ROOT}/python"
+            - "${IVPM_PROJECT}/scripts"
+
       paths:
         rtl:
           vlog:
@@ -526,38 +548,36 @@ Example 3: Team Development Setup
 
     package:
       name: team-project
-      
-      env-sets:
-        - name: project
-          env:
-            # Project info
-            - name: PROJECT_NAME
-              value: "TeamProject"
-            
-            - name: PROJECT_VERSION
-              value: "1.0.0"
-            
-            # Shared tools (from packages/)
-            - name: TOOL_ROOT
-              value: "${IVPM_PACKAGES}/tools"
-            
-            - name: PATH
-              path-prepend:
-                - "${TOOL_ROOT}/bin"
-                - "${IVPM_PROJECT}/scripts"
-            
-            # License servers
-            - name: LM_LICENSE_FILE
-              path:
-                - "27000@license-server-1"
-                - "27001@license-server-2"
-            
-            # Output directories
-            - name: BUILD_DIR
-              value: "${IVPM_PROJECT}/build"
-            
-            - name: REPORT_DIR
-              value: "${IVPM_PROJECT}/reports"
+
+      env:
+        # Project info
+        - name: PROJECT_NAME
+          value: "TeamProject"
+
+        - name: PROJECT_VERSION
+          value: "1.0.0"
+
+        # Shared tools (from packages/)
+        - name: TOOL_ROOT
+          value: "${IVPM_PACKAGES}/tools"
+
+        - name: PATH
+          path-prepend:
+            - "${TOOL_ROOT}/bin"
+            - "${IVPM_PROJECT}/scripts"
+
+        # License servers
+        - name: LM_LICENSE_FILE
+          path:
+            - "27000@license-server-1"
+            - "27001@license-server-2"
+
+        # Output directories
+        - name: BUILD_DIR
+          value: "${IVPM_PROJECT}/build"
+
+        - name: REPORT_DIR
+          value: "${IVPM_PROJECT}/reports"
 
 Best Practices
 ==============
@@ -568,7 +588,7 @@ Best Practices
 4. **Document custom variables** - Help team members understand the setup
 5. **Keep paths relative** - Use ``${IVPM_PROJECT}`` for portability
 6. **Group related variables** - Organize by purpose (build, test, docs)
-7. **Test after changes** - Always verify with ``ivpm activate -c "env"``
+7. **Test after changes** - Always verify with ``direnv exec . env``
 
 See Also
 ========

@@ -42,8 +42,8 @@ After cloning, you're ready to work:
 
 .. code-block:: bash
 
-    $ ivpm activate -c "python --version"
-    $ ivpm activate -c "pytest"
+    $ direnv exec . python --version
+    $ direnv exec . pytest
 
 Clone Command Options
 ---------------------
@@ -191,12 +191,11 @@ Step 4: Work with Your Project
 .. code-block:: bash
 
     # Run a command in the virtual environment
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
 
-    # Start an interactive shell
-    $ ivpm activate
-    (venv) $ python
-    (venv) $ exit
+    # Or authorize direnv once; the env then loads automatically in the dir
+    $ direnv allow
+    $ python
 
 Using the Python Virtual Environment
 =====================================
@@ -207,17 +206,16 @@ IVPM creates a project-local Python virtual environment in ``packages/python/``.
 
 .. code-block:: bash
 
-    $ ivpm activate -c "python script.py"
-    $ ivpm activate -c "pytest"
+    $ direnv exec . python script.py
+    $ direnv exec . pytest
 
-**Start an interactive shell:**
+**Authorize direnv once; the env then loads whenever you cd into the project:**
 
 .. code-block:: bash
 
-    $ ivpm activate
-    (venv) $ python
-    (venv) $ pytest
-    (venv) $ exit
+    $ direnv allow
+    $ python
+    $ pytest
 
 For details on Python package management (editable installs, uv vs pip,
 native extensions), see :doc:`python_packages`.

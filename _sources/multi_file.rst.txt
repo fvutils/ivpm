@@ -87,7 +87,7 @@ pulls in.
   across files -- each dep-set has exactly one owning file.
 - ``with``, ``vars`` -- Deep-merged.  On scalar conflict, the includer wins.
 - ``paths`` -- Deep-merged as a map; leaf lists append.
-- ``env``, ``env-sets``, ``setup-deps`` -- List-append (the include's items
+- ``env``, ``setup-deps`` -- List-append (the include's items
   follow the local items).
 - ``deps-dir``, ``default-dep-set`` and other scalars -- Local wins; adopted
   from the include only if the includer does not set them.

@@ -148,8 +148,8 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>proje
 <li><p>Installs Python packages</p></li>
 </ol>
 <p>After cloning, you’re ready to work:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python --version&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>--version
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 </pre></div>
 </div>
 <section id="clone-command-options">
@@ -273,12 +273,11 @@ $<span class="w"> </span>ivpm<span class="w"> </span>init<span class="w"> </span
 <section id="step-4-work-with-your-project">
 <h3>Step 4: Work with Your Project<a class="headerlink" href="#step-4-work-with-your-project" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run a command in the virtual environment</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 
-<span class="c1"># Start an interactive shell</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+<span class="c1"># Or authorize direnv once; the env then loads automatically in the dir</span>
+$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span>python
 </pre></div>
 </div>
 </section>
@@ -287,15 +286,14 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate
 <h2>Using the Python Virtual Environment<a class="headerlink" href="#using-the-python-virtual-environment" title="Link to this heading"></a></h2>
 <p>IVPM creates a project-local Python virtual environment in <code class="docutils literal notranslate"><span class="pre">packages/python/</span></code>.</p>
 <p><strong>Run a single command:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>script.py
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 </pre></div>
 </div>
-<p><strong>Start an interactive shell:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+<p><strong>Authorize direnv once; the env then loads whenever you cd into the project:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span>python
+$<span class="w"> </span>pytest
 </pre></div>
 </div>
 <p>For details on Python package management (editable installs, uv vs pip,

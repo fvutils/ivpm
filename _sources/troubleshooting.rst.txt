@@ -240,7 +240,7 @@ Module Not Found
 
    .. code-block:: bash
 
-       $ ivpm activate -c "pip list | grep xyz"
+       $ direnv exec . bash -c 'pip list | grep xyz'
 
 2. **Force reinstall:**
 
@@ -276,7 +276,7 @@ Editable Install Not Working
 
    .. code-block:: bash
 
-       $ ivpm activate -c "pip list | grep xyz"
+       $ direnv exec . bash -c 'pip list | grep xyz'
        # Should show: xyz  <version>  <path-to-packages>
 
 2. **Verify egg-link:**
@@ -310,7 +310,7 @@ Version Conflict
 
    .. code-block:: bash
 
-       $ ivpm activate -c "pip check"
+       $ direnv exec . pip check
 
 2. **Adjust version specs:**
 
@@ -330,7 +330,7 @@ Version Conflict
 
    .. code-block:: bash
 
-       $ ivpm activate -c "pip show package-name"
+       $ direnv exec . pip show package-name
 
 Native Extension Build Failed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -368,7 +368,7 @@ Native Extension Build Failed
    .. code-block:: bash
 
        $ ivpm build --debug
-       $ ivpm activate -c "python setup.py build_ext --verbose"
+       $ direnv exec . python setup.py build_ext --verbose
 
 Cache Issues
 ------------
@@ -557,21 +557,23 @@ Variables Not Set
 
 **Problem:** Environment variables not available
 
-**Cause:** Not using ``ivpm activate`` or ``env-sets`` not defined
+**Cause:** ``direnv`` not allowed for this directory, or no ``env:`` defined
 
 **Solutions:**
 
-1. **Use activate:**
+1. **Allow direnv (then check):**
 
    .. code-block:: bash
 
-       $ ivpm activate -c "echo \$MY_VAR"
+       $ direnv allow
+       $ direnv exec . echo \$MY_VAR
 
-2. **Check env-sets:**
+2. **Check env: directives:**
 
    .. code-block:: bash
 
-       $ cat ivpm.yaml  # Verify env-sets section
+       $ cat ivpm.yaml            # Verify the env: section
+       $ cat packages/packages.envrc  # Verify it was emitted
 
 3. **Re-run update:**
 
@@ -630,28 +632,36 @@ Wrong Python Version
     $ rm -rf packages/python
     $ python3.10 -m ivpm update  # Use specific version
 
-Activate Not Working
-~~~~~~~~~~~~~~~~~~~~
+Environment Not Loading
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** ``ivpm activate`` fails or doesn't change environment
+**Problem:** ``direnv`` doesn't change the environment in the project
 
-**Cause:** Shell issues or venv not created
+**Cause:** ``direnv`` not installed/hooked, directory not allowed, or venv
+not created
 
 **Solutions:**
 
-1. **Check venv exists:**
+1. **Check direnv is hooked into your shell:**
 
    .. code-block:: bash
 
-       $ ls packages/python/bin/activate
+       $ direnv version
+       # bash/zsh: ensure `eval "$(direnv hook bash)"` is in your rc file
 
-2. **Try direct activation:**
+2. **Allow the directory (required after each envrc change):**
+
+   .. code-block:: bash
+
+       $ direnv allow
+
+3. **Try direct activation of the venv:**
 
    .. code-block:: bash
 
        $ source packages/python/bin/activate
 
-3. **Recreate venv:**
+4. **Recreate venv:**
 
    .. code-block:: bash
 
@@ -690,16 +700,16 @@ List Installed Packages
 
 .. code-block:: bash
 
-    $ ivpm activate -c "pip list"
-    $ ivpm activate -c "pip list --format=json"
+    $ direnv exec . pip list
+    $ direnv exec . pip list --format=json
 
 Check Dependency Tree
 ---------------------
 
 .. code-block:: bash
 
-    $ ivpm activate -c "pip show package-name"
-    $ ivpm activate -c "pipdeptree"  # If installed
+    $ direnv exec . pip show package-name
+    $ direnv exec . pipdeptree  # If installed
 
 Verify ivpm.yaml Syntax
 -----------------------

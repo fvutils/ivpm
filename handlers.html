@@ -290,7 +290,7 @@ a <code class="docutils literal notranslate"><span class="pre">package.json</spa
 <code class="docutils literal notranslate"><span class="pre">node_modules/</span></code> exists</p></li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">install</span> <span class="pre">--prefix</span> <span class="pre">packages/node</span></code> (or pnpm/yarn equivalent)</p></li>
 <li><p>Run <code class="docutils literal notranslate"><span class="pre">npm</span> <span class="pre">link</span> <span class="pre">&lt;path&gt;</span></code> for each source package with <code class="docutils literal notranslate"><span class="pre">link:</span> <span class="pre">true</span></code></p></li>
-<li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/node/export.envrc</span></code> (and Windows <code class="docutils literal notranslate"><span class="pre">.bat</span></code>/<code class="docutils literal notranslate"><span class="pre">.ps1</span></code> helpers)</p></li>
+<li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/node/export.envrc</span></code> (a direnv snippet, all platforms)</p></li>
 <li><p>Patch sentinel section in <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code></p></li>
 <li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/node/.nvmrc</span></code> if <code class="docutils literal notranslate"><span class="pre">version:</span></code> is set</p></li>
 </ol>
@@ -330,11 +330,19 @@ that sources them all in the correct dependency order.</p>
 in the package root directory.  If found, the package is recorded for the
 root phase.</p>
 <p><strong>Root phase</strong></p>
-<p>Runs when at least one package with an envrc file was found.  Steps:</p>
+<p>Runs when at least one package with an envrc file was found, or when the
+root project declares <code class="docutils literal notranslate"><span class="pre">env:</span></code> directives.  Steps:</p>
 <ol class="arabic simple">
 <li><p>Build a dependency map among envrc-providing packages</p></li>
 <li><p>Topologically sort them (dependencies before dependents)</p></li>
-<li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code> with <code class="docutils literal notranslate"><span class="pre">source_env</span></code> lines in order</p></li>
+<li><p>Write <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code>:</p>
+<ol class="loweralpha simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">IVPM_PACKAGES</span></code> and <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">IVPM_PROJECT</span></code></p></li>
+<li><p>one <code class="docutils literal notranslate"><span class="pre">source_env</span></code> line per package, in dependency order</p></li>
+<li><p>the root project’s <code class="docutils literal notranslate"><span class="pre">env:</span></code> directives last (so the project’s own
+declarations take precedence over package-provided envrc)</p></li>
+</ol>
+</li>
 </ol>
 <p><strong>Configuration:</strong> None.  No <code class="docutils literal notranslate"><span class="pre">with:</span></code> parameters, no CLI options.</p>
 <p><strong>Output:</strong> <code class="docutils literal notranslate"><span class="pre">packages/packages.envrc</span></code></p>

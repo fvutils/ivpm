@@ -239,8 +239,8 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>proje
 <p><strong>For developers:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/org/project.git<span class="w"> </span>-b<span class="w"> </span>develop
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span>pytest
 </pre></div>
 </div>
 </section>
@@ -261,7 +261,7 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate
 </pre></div>
 </div>
 <p><strong>Step 3: Verify</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python -c &#39;import numpy; print(numpy.__version__)&#39;&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python -c &#39;import numpy; print(numpy.__version__)&#39;&quot;</span>
 </pre></div>
 </div>
 </section>
@@ -361,39 +361,39 @@ dependencies instead of recursing into the shared cache. See <a class="reference
 $<span class="w"> </span>git<span class="w"> </span>pull
 $<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">  </span><span class="c1"># Get any new dependencies</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>status<span class="w">  </span><span class="c1"># Check Git package status</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
+$<span class="w"> </span>direnv<span class="w"> </span>allow
 </pre></div>
 </div>
 </section>
 <section id="interactive-development">
 <h3>Interactive Development<a class="headerlink" href="#interactive-development" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start environment</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$
+$<span class="w"> </span>direnv<span class="w"> </span>allow
+$
 
 <span class="c1"># Run your code</span>
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python<span class="w"> </span>src/main.py
+$<span class="w"> </span>python<span class="w"> </span>src/main.py
 
 <span class="c1"># Run tests</span>
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+$<span class="w"> </span>pytest
 
 <span class="c1"># Format code</span>
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>black<span class="w"> </span>src/
+$<span class="w"> </span>black<span class="w"> </span>src/
 
 <span class="c1"># Type check</span>
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>mypy<span class="w"> </span>src/
+$<span class="w"> </span>mypy<span class="w"> </span>src/
 
 <span class="c1"># Done for the session</span>
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+$<span class="w"> </span><span class="nb">exit</span>
 </pre></div>
 </div>
 </section>
 <section id="running-quick-commands">
 <h3>Running Quick Commands<a class="headerlink" href="#running-quick-commands" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># No need to stay in activated environment</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>script.py
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>black<span class="w"> </span>--check<span class="w"> </span>src/
 </pre></div>
 </div>
 </section>
@@ -418,7 +418,7 @@ $<span class="w"> </span>git<span class="w"> </span>push
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
 $<span class="w"> </span><span class="c1"># Edit files</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Uses modified code</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w">  </span><span class="c1"># Uses modified code</span>
 </pre></div>
 </div>
 </section>
@@ -519,7 +519,7 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
 $<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>feature-branch
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 </pre></div>
 </div>
 <p><strong>Permanent branch switch:</strong></p>
@@ -555,33 +555,33 @@ $<span class="w"> </span>ivpm<span class="w"> </span>update
 <section id="running-tests">
 <h3>Running Tests<a class="headerlink" href="#running-tests" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># All tests</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 
 <span class="c1"># Specific test file</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest test/test_feature.py&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w"> </span>test/test_feature.py
 
 <span class="c1"># With coverage</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest --cov=src&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w"> </span>--cov<span class="o">=</span>src
 
 <span class="c1"># Verbose</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest -v&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w"> </span>-v
 </pre></div>
 </div>
 </section>
 <section id="running-linters-and-formatters">
 <h3>Running Linters and Formatters<a class="headerlink" href="#running-linters-and-formatters" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Format code</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black src/ test/&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>black<span class="w"> </span>src/<span class="w"> </span>test/
 
 <span class="c1"># Check formatting</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>black<span class="w"> </span>--check<span class="w"> </span>src/
 
 <span class="c1"># Type checking</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;mypy src/&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>mypy<span class="w"> </span>src/
 
 <span class="c1"># Linting</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pylint src/&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;flake8 src/&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pylint<span class="w"> </span>src/
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>flake8<span class="w"> </span>src/
 </pre></div>
 </div>
 </section>
@@ -610,10 +610,10 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 <span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm update -d default-dev</span>
 
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Run tests</span>
-<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;pytest --cov=src&quot;</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">direnv exec . pytest --cov=src</span>
 
 <span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Check formatting</span>
-<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ivpm activate -c &quot;black --check src/&quot;</span>
+<span class="w">        </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">direnv exec . black --check src/</span>
 </pre></div>
 </div>
 </section>
@@ -627,11 +627,11 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 </pre></div>
 </div>
 <p><strong>Step 2: Run full test suite</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 </pre></div>
 </div>
 <p><strong>Step 3: Build documentation</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;sphinx-build docs/source docs/build&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>sphinx-build<span class="w"> </span>docs/source<span class="w"> </span>docs/build
 </pre></div>
 </div>
 <p><strong>Step 4: Update version</strong></p>
@@ -706,8 +706,8 @@ $<span class="w"> </span>tar<span class="w"> </span>czf<span class="w"> </span>p
 $<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>ivpm
 $<span class="w"> </span>ivpm<span class="w"> </span>clone<span class="w"> </span>https://github.com/company/project.git
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>project
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
+$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span>pytest
 <span class="c1"># Ready to develop!</span>
 </pre></div>
 </div>
@@ -735,8 +735,8 @@ $<span class="w"> </span>sudo<span class="w"> </span>chown<span class="w"> </spa
 <p><strong>Reviewer:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>review-branch
 $<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">  </span><span class="c1"># Get any new dependencies</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Verify tests pass</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black --check src/&quot;</span><span class="w">  </span><span class="c1"># Check formatting</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w">  </span><span class="c1"># Verify tests pass</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>black<span class="w"> </span>--check<span class="w"> </span>src/<span class="w">  </span><span class="c1"># Check formatting</span>
 </pre></div>
 </div>
 </section>
@@ -748,10 +748,10 @@ $<span class="w"> </span>vim<span class="w"> </span>ivpm.yaml<span class="w">  <
 $<span class="w"> </span>ivpm<span class="w"> </span>update
 
 <span class="c1"># Develop</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="c1"># work work work</span>
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pytest
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span><span class="c1"># work work work</span>
+$<span class="w"> </span>pytest
+$<span class="w"> </span><span class="nb">exit</span>
 
 <span class="c1"># Commit</span>
 $<span class="w"> </span>git<span class="w"> </span>add<span class="w"> </span>.
@@ -776,7 +776,7 @@ $<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </s
 $<span class="w"> </span><span class="c1"># Fix the bug</span>
 $<span class="w"> </span>git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;Fix bug&quot;</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Test with fix</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w">  </span><span class="c1"># Test with fix</span>
 </pre></div>
 </div>
 <p><strong>Update project to use fix:</strong></p>
@@ -791,7 +791,7 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-lib
 $<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>v1.0.0
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Test with old version</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w">  </span><span class="c1"># Test with old version</span>
 
 <span class="c1"># Restore</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-lib
@@ -816,11 +816,11 @@ $<span class="w"> </span><span class="c1"># Make changes</span>
 
 <span class="c1"># Test in Project A</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/projects/project-a
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Uses modified library</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w">  </span><span class="c1"># Uses modified library</span>
 
 <span class="c1"># Test in Project B</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>~/projects/project-b
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span><span class="w">  </span><span class="c1"># Also uses modified library</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest<span class="w">  </span><span class="c1"># Also uses modified library</span>
 </pre></div>
 </div>
 </section>

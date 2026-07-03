@@ -753,17 +753,17 @@ $<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w">     <
 <h3>Activate Command<a class="headerlink" href="#activate-command" title="Link to this heading"></a></h3>
 <p>Run commands within the virtual environment:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># One-off command</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python script.py&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>script.py
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 
-<span class="c1"># Interactive shell</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>python
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span>pip<span class="w"> </span>list
-<span class="o">(</span>venv<span class="o">)</span><span class="w"> </span>$<span class="w"> </span><span class="nb">exit</span>
+<span class="c1"># Interactive shell (direnv loads the env on cd into the project)</span>
+$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span>python
+$<span class="w"> </span>pip<span class="w"> </span>list
 </pre></div>
 </div>
-<p><strong>Behind the scenes:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code> sources <code class="docutils literal notranslate"><span class="pre">packages/python/bin/activate</span></code></p>
+<p><strong>Behind the scenes:</strong> the direnv handler emits <code class="docutils literal notranslate"><span class="pre">PATH_add</span> <span class="pre">bin</span></code> into
+<code class="docutils literal notranslate"><span class="pre">packages/python/export.envrc</span></code>, putting the venv’s <code class="docutils literal notranslate"><span class="pre">bin</span></code> on <code class="docutils literal notranslate"><span class="pre">PATH</span></code>.</p>
 </section>
 <section id="direct-access">
 <h3>Direct Access<a class="headerlink" href="#direct-access" title="Link to this heading"></a></h3>
@@ -781,11 +781,10 @@ $<span class="w"> </span>packages/python/bin/pytest
 </section>
 <section id="environment-variables">
 <h3>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading"></a></h3>
-<p>When activated, these variables are set:</p>
+<p>When direnv loads <code class="docutils literal notranslate"><span class="pre">packages.envrc</span></code>:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">VIRTUAL_ENV</span></code> → <code class="docutils literal notranslate"><span class="pre">packages/python</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">PATH</span></code> → <code class="docutils literal notranslate"><span class="pre">packages/python/bin:$PATH</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> → (can be customized via <code class="docutils literal notranslate"><span class="pre">env-sets</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PATH</span></code> → <code class="docutils literal notranslate"><span class="pre">packages/python/bin</span></code> is prepended (<code class="docutils literal notranslate"><span class="pre">PATH_add</span></code>)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code> → (can be customized via <code class="docutils literal notranslate"><span class="pre">env:</span></code> directives)</p></li>
 </ul>
 </section>
 </section>
@@ -826,9 +825,9 @@ $<span class="w"> </span>packages/python/bin/pytest
 </div>
 <p><strong>Usage:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;black src/&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;mypy src/&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>black<span class="w"> </span>src/
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>mypy<span class="w"> </span>src/
 </pre></div>
 </div>
 </section>
@@ -861,10 +860,10 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 </div>
 <p><strong>Usage:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python train.py&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>train.py
 
 <span class="c1"># Edit custom-models or data-utils, changes immediate</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python train.py&quot;</span><span class="w">  </span><span class="c1"># Uses modified code</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>train.py<span class="w">  </span><span class="c1"># Uses modified code</span>
 </pre></div>
 </div>
 </section>
@@ -895,11 +894,11 @@ $<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </
 <p><strong>Usage:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>update<span class="w">       </span><span class="c1"># Fetch and install</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w">        </span><span class="c1"># Build native extensions</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python process.py&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>process.py
 
 <span class="c1"># Debug build</span>
 $<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;gdb python&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>gdb<span class="w"> </span>python
 </pre></div>
 </div>
 </section>

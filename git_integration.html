@@ -738,7 +738,7 @@ $<span class="w"> </span>git<span class="w"> </span>log<span class="w"> </span>H
 <span class="c1"># 4. Test changes</span>
 $<span class="w"> </span>git<span class="w"> </span>checkout<span class="w"> </span>origin/main<span class="w">  </span><span class="c1"># Detached HEAD</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 
 <span class="c1"># 5. If good, merge</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
@@ -758,7 +758,7 @@ $<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </spa
 
 <span class="c1"># Test each commit</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/buggy-lib
 $<span class="w"> </span>git<span class="w"> </span>bisect<span class="w"> </span>good<span class="w">  </span><span class="c1"># or &#39;bad&#39;</span>
 
@@ -773,7 +773,7 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
 <section id="workflow-4-pinning-after-testing">
 <h3>Workflow 4: Pinning After Testing<a class="headerlink" href="#workflow-4-pinning-after-testing" title="Link to this heading"></a></h3>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># 1. Test current state</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 
 <span class="c1"># 2. Get current commit</span>
 $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>packages/my-library
@@ -789,7 +789,7 @@ $<span class="w"> </span><span class="nb">cd</span><span class="w"> </span>../..
 <span class="c1"># 4. Verify</span>
 $<span class="w"> </span>rm<span class="w"> </span>-rf<span class="w"> </span>packages/my-library
 $<span class="w"> </span>ivpm<span class="w"> </span>update
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pytest&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pytest
 </pre></div>
 </div>
 </section>

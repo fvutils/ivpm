@@ -89,11 +89,12 @@
 						}
 					}
 				},
-				"env-sets": {
+				"env": {
 					"type": "array",
-					"title": "Environment variable sets",
+					"title": "Environment variable directives",
+					"description": "Environment variables emitted into packages/packages.envrc for direnv to apply",
 					"items": {
-						"$ref": "#/defs/env-set"
+						"$ref": "#/defs/env-spec"
 					}
 				}
 			}
@@ -310,24 +311,6 @@
 					"type": "boolean",
 					"title": "Opt-in: parse module show output to determine the install prefix",
 					"default": false
-				}
-			}
-		},
-		"env-set": {
-			"title": "Environment variable set",
-			"$$target": "#/defs/env-set",
-			"type": "object",
-			"properties": {
-				"name": {
-					"type": "string",
-					"title": "Environment set identifier"
-				},
-				"env": {
-					"type": "array",
-					"title": "List of environment variable specifications",
-					"items": {
-						"$ref": "#/defs/env-spec"
-					}
 				}
 			}
 		},

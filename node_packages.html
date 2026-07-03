@@ -414,19 +414,15 @@ automatically (e.g., <code class="docutils literal notranslate"><span class="pre
 </section>
 <section id="windows">
 <h3>Windows<a class="headerlink" href="#windows" title="Link to this heading"></a></h3>
-<p>On Windows, IVPM additionally writes:</p>
-<ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">packages/node/activate_node.bat</span></code> — adds <code class="docutils literal notranslate"><span class="pre">node_modules/.bin</span></code> to <code class="docutils literal notranslate"><span class="pre">%PATH%</span></code></p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">packages/node/activate_node.ps1</span></code> — PowerShell equivalent</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">packages/packages_activate.bat</span></code> / <code class="docutils literal notranslate"><span class="pre">.ps1</span></code> — top-level wrappers</p></li>
-</ul>
-<div class="highlight-bat notranslate"><div class="highlight"><pre><span></span><span class="p">:</span><span class="c1">: In a .bat script or CMD session</span>
-<span class="k">call</span> packages\packages_activate.bat
-
-<span class="p">:</span><span class="c1">: In PowerShell</span>
-. packages\packages_activate.ps1
+<p>IVPM emits a single bash <code class="docutils literal notranslate"><span class="pre">export.envrc</span></code> on every platform; there are no
+separate <code class="docutils literal notranslate"><span class="pre">.bat</span></code> / <code class="docutils literal notranslate"><span class="pre">.ps1</span></code> activation scripts.  <code class="docutils literal notranslate"><span class="pre">direnv</span></code> evaluates it
+with bash, so a bash is required even under PowerShell.  The supported setup
+is <code class="docutils literal notranslate"><span class="pre">direnv</span></code> + git-bash (bundled with Git-for-Windows):</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="c"># Native PowerShell: hook direnv (git-bash must be on PATH)</span>
+<span class="nb">Invoke-Expression</span> <span class="s2">&quot;</span><span class="p">$(</span><span class="n">direnv</span> <span class="n">hook</span> <span class="n">pwsh</span><span class="p">)</span><span class="s2">&quot;</span>
 </pre></div>
 </div>
+<p>Inside git-bash or WSL, use <code class="docutils literal notranslate"><span class="pre">direnv</span></code> as on any Unix shell.</p>
 </section>
 </section>
 <section id="node-version-management">

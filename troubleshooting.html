@@ -115,7 +115,7 @@
 <li class="toctree-l3"><a class="reference internal" href="#virtual-environment-issues">Virtual Environment Issues</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#venv-corrupted">Venv Corrupted</a></li>
 <li class="toctree-l4"><a class="reference internal" href="#wrong-python-version">Wrong Python Version</a></li>
-<li class="toctree-l4"><a class="reference internal" href="#activate-not-working">Activate Not Working</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#environment-not-loading">Environment Not Loading</a></li>
 </ul>
 </li>
 </ul>
@@ -382,7 +382,7 @@ $<span class="w"> </span>git<span class="w"> </span>ls-remote<span class="w"> </
 <p><strong>Solutions:</strong></p>
 <ol class="arabic">
 <li><p><strong>Verify installation:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list | grep xyz&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;pip list | grep xyz&#39;</span>
 </pre></div>
 </div>
 </li>
@@ -413,7 +413,7 @@ $<span class="w"> </span>git<span class="w"> </span>ls-remote<span class="w"> </
 <p><strong>Solutions:</strong></p>
 <ol class="arabic">
 <li><p><strong>Check installation mode:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list | grep xyz&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>bash<span class="w"> </span>-c<span class="w"> </span><span class="s1">&#39;pip list | grep xyz&#39;</span>
 <span class="c1"># Should show: xyz  &lt;version&gt;  &lt;path-to-packages&gt;</span>
 </pre></div>
 </div>
@@ -442,7 +442,7 @@ $<span class="w"> </span>git<span class="w"> </span>ls-remote<span class="w"> </
 <p><strong>Solutions:</strong></p>
 <ol class="arabic">
 <li><p><strong>Identify conflict:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip check&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pip<span class="w"> </span>check
 </pre></div>
 </div>
 </li>
@@ -460,7 +460,7 @@ $<span class="w"> </span>git<span class="w"> </span>ls-remote<span class="w"> </
 </div>
 </li>
 <li><p><strong>Check dependency tree:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip show package-name&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pip<span class="w"> </span>show<span class="w"> </span>package-name
 </pre></div>
 </div>
 </li>
@@ -494,7 +494,7 @@ $<span class="w"> </span>xcode-select<span class="w"> </span>--install
 </li>
 <li><p><strong>Debug build:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>build<span class="w"> </span>--debug
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;python setup.py build_ext --verbose&quot;</span>
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>python<span class="w"> </span>setup.py<span class="w"> </span>build_ext<span class="w"> </span>--verbose
 </pre></div>
 </div>
 </li>
@@ -656,16 +656,18 @@ $<span class="w"> </span>git<span class="w"> </span>push<span class="w"> </span>
 <section id="variables-not-set">
 <h4>Variables Not Set<a class="headerlink" href="#variables-not-set" title="Link to this heading"></a></h4>
 <p><strong>Problem:</strong> Environment variables not available</p>
-<p><strong>Cause:</strong> Not using <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code> or <code class="docutils literal notranslate"><span class="pre">env-sets</span></code> not defined</p>
+<p><strong>Cause:</strong> <code class="docutils literal notranslate"><span class="pre">direnv</span></code> not allowed for this directory, or no <code class="docutils literal notranslate"><span class="pre">env:</span></code> defined</p>
 <p><strong>Solutions:</strong></p>
 <ol class="arabic">
-<li><p><strong>Use activate:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;echo \$MY_VAR&quot;</span>
+<li><p><strong>Allow direnv (then check):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span>allow
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span><span class="nb">echo</span><span class="w"> </span><span class="se">\$</span>MY_VAR
 </pre></div>
 </div>
 </li>
-<li><p><strong>Check env-sets:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">  </span><span class="c1"># Verify env-sets section</span>
+<li><p><strong>Check env: directives:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>cat<span class="w"> </span>ivpm.yaml<span class="w">            </span><span class="c1"># Verify the env: section</span>
+$<span class="w"> </span>cat<span class="w"> </span>packages/packages.envrc<span class="w">  </span><span class="c1"># Verify it was emitted</span>
 </pre></div>
 </div>
 </li>
@@ -715,18 +717,25 @@ $<span class="w"> </span>python3.10<span class="w"> </span>-m<span class="w"> </
 </pre></div>
 </div>
 </section>
-<section id="activate-not-working">
-<h4>Activate Not Working<a class="headerlink" href="#activate-not-working" title="Link to this heading"></a></h4>
-<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">ivpm</span> <span class="pre">activate</span></code> fails or doesn’t change environment</p>
-<p><strong>Cause:</strong> Shell issues or venv not created</p>
+<section id="environment-not-loading">
+<h4>Environment Not Loading<a class="headerlink" href="#environment-not-loading" title="Link to this heading"></a></h4>
+<p><strong>Problem:</strong> <code class="docutils literal notranslate"><span class="pre">direnv</span></code> doesn’t change the environment in the project</p>
+<p><strong>Cause:</strong> <code class="docutils literal notranslate"><span class="pre">direnv</span></code> not installed/hooked, directory not allowed, or venv
+not created</p>
 <p><strong>Solutions:</strong></p>
 <ol class="arabic">
-<li><p><strong>Check venv exists:</strong></p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ls<span class="w"> </span>packages/python/bin/activate
+<li><p><strong>Check direnv is hooked into your shell:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span>version
+<span class="c1"># bash/zsh: ensure `eval &quot;$(direnv hook bash)&quot;` is in your rc file</span>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Try direct activation:</strong></p>
+<li><p><strong>Allow the directory (required after each envrc change):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span>allow
+</pre></div>
+</div>
+</li>
+<li><p><strong>Try direct activation of the venv:</strong></p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span><span class="nb">source</span><span class="w"> </span>packages/python/bin/activate
 </pre></div>
 </div>
@@ -766,15 +775,15 @@ $<span class="w"> </span>python3<span class="w"> </span>-m<span class="w"> </spa
 </section>
 <section id="list-installed-packages">
 <h3>List Installed Packages<a class="headerlink" href="#list-installed-packages" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip list --format=json&quot;</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pip<span class="w"> </span>list
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pip<span class="w"> </span>list<span class="w"> </span>--format<span class="o">=</span>json
 </pre></div>
 </div>
 </section>
 <section id="check-dependency-tree">
 <h3>Check Dependency Tree<a class="headerlink" href="#check-dependency-tree" title="Link to this heading"></a></h3>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pip show package-name&quot;</span>
-$<span class="w"> </span>ivpm<span class="w"> </span>activate<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;pipdeptree&quot;</span><span class="w">  </span><span class="c1"># If installed</span>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pip<span class="w"> </span>show<span class="w"> </span>package-name
+$<span class="w"> </span>direnv<span class="w"> </span><span class="nb">exec</span><span class="w"> </span>.<span class="w"> </span>pipdeptree<span class="w">  </span><span class="c1"># If installed</span>
 </pre></div>
 </div>
 </section>

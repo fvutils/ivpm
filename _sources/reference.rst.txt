@@ -14,49 +14,34 @@ Commands
 Command Details
 ===============
 
-activate
---------
+Activating the environment (direnv)
+-----------------------------------
 
-Activate the project-local Python virtual environment.
-
-**Synopsis:**
-
-.. code-block:: text
-
-    ivpm activate [-c <command>] [-p <project-dir>] [args ...]
-
-**Options:**
-
-``-c <command>``
-    Execute a command in the activated environment and exit
-
-``-p, --project-dir <dir>``
-    Specify project directory (default: current directory)
-
-``args``
-    Arguments passed to shell or command
+IVPM no longer provides an ``ivpm activate`` command.  Environment
+activation is delegated to `direnv <https://direnv.net>`_: ``ivpm update``
+generates ``packages/packages.envrc`` (Python venv ``PATH``, Node paths,
+FuseSoC config, per-package ``export.envrc`` fragments, and any ``env:``
+directives), which ``direnv`` loads.
 
 **Examples:**
 
 .. code-block:: bash
 
-    # Start interactive shell
-    $ ivpm activate
-    
-    # Run single command
-    $ ivpm activate -c "python script.py"
-    $ ivpm activate -c "pytest"
-    
-    # Different project directory
-    $ ivpm activate -p /path/to/project -c "pytest"
+    # Authorize the generated envrc once; the environment then loads
+    # automatically whenever you cd into the project
+    $ direnv allow
 
-**Behavior:**
+    # Run a single command in the project environment
+    $ direnv exec . python script.py
+    $ direnv exec . pytest
 
-- Sources ``packages/python/bin/activate``
-- Sets ``VIRTUAL_ENV`` and modifies ``PATH``
-- Applies environment variables from ``env-sets``
-- Without ``-c``, starts an interactive shell
-- With ``-c``, runs command and exits
+**Windows:** ``direnv`` evaluates ``packages.envrc`` with bash, so a bash is
+required even under PowerShell.  Use ``direnv`` + git-bash (Git-for-Windows);
+for native PowerShell add ``Invoke-Expression "$(direnv hook pwsh)"`` to your
+``$PROFILE``.
+
+See :doc:`environment_paths` for the ``env:`` directive and generated
+``packages.envrc``.
 
 build
 -----
@@ -940,16 +925,18 @@ See :doc:`performance`.
 IVPM_PROJECT
 ------------
 
-Set automatically by IVPM to project root directory.
+Exported into ``packages/packages.envrc`` (loaded by direnv) as the project
+root directory.
 
-Available in ``env-sets`` as ``${IVPM_PROJECT}``.
+Available to ``env:`` directives as ``${IVPM_PROJECT}``.
 
 IVPM_PACKAGES
 -------------
 
-Set automatically by IVPM to packages directory.
+Exported into ``packages/packages.envrc`` (loaded by direnv) as the packages
+directory.
 
-Available in ``env-sets`` as ``${IVPM_PACKAGES}``.
+Available to ``env:`` directives as ``${IVPM_PACKAGES}``.
 
 GITHUB_TOKEN
 ------------
@@ -1027,13 +1014,10 @@ Package Dependency
 
 .. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/package-dep
 
-Environment Set
----------------
-
-.. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/env-set
-
 Environment Specification
 --------------------------
+
+A single ``env:`` directive (emitted into ``packages.envrc`` for direnv).
 
 .. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/env-spec
 

@@ -91,8 +91,8 @@ Cloning an Existing Project
 
     $ ivpm clone https://github.com/org/project.git -b develop
     $ cd project
-    $ ivpm activate
-    (venv) $ pytest
+    $ direnv allow
+    $ pytest
 
 Working with Dependencies
 =========================
@@ -119,7 +119,7 @@ Adding a New Dependency
 
 .. code-block:: bash
 
-    $ ivpm activate -c "python -c 'import numpy; print(numpy.__version__)'"
+    $ direnv exec . bash -c "python -c 'import numpy; print(numpy.__version__)'"
 
 Adding a Git Dependency
 ------------------------
@@ -240,7 +240,7 @@ Morning Routine
     $ git pull
     $ ivpm update  # Get any new dependencies
     $ ivpm status  # Check Git package status
-    $ ivpm activate
+    $ direnv allow
 
 Interactive Development
 -----------------------
@@ -248,23 +248,23 @@ Interactive Development
 .. code-block:: bash
 
     # Start environment
-    $ ivpm activate
-    (venv) $ 
+    $ direnv allow
+    $ 
     
     # Run your code
-    (venv) $ python src/main.py
+    $ python src/main.py
     
     # Run tests
-    (venv) $ pytest
+    $ pytest
     
     # Format code
-    (venv) $ black src/
+    $ black src/
     
     # Type check
-    (venv) $ mypy src/
+    $ mypy src/
     
     # Done for the session
-    (venv) $ exit
+    $ exit
 
 Running Quick Commands
 ----------------------
@@ -272,9 +272,9 @@ Running Quick Commands
 .. code-block:: bash
 
     # No need to stay in activated environment
-    $ ivpm activate -c "pytest"
-    $ ivpm activate -c "python script.py"
-    $ ivpm activate -c "black --check src/"
+    $ direnv exec . pytest
+    $ direnv exec . python script.py
+    $ direnv exec . black --check src/
 
 Working with Editable Packages
 ===============================
@@ -303,7 +303,7 @@ Testing Changes Before Committing
     $ cd packages/my-library
     $ # Edit files
     $ cd ../..
-    $ ivpm activate -c "pytest"  # Uses modified code
+    $ direnv exec . pytest  # Uses modified code
 
 Creating a Branch in a Dependency
 ----------------------------------
@@ -418,7 +418,7 @@ Switching Branches
     $ cd packages/my-library
     $ git checkout feature-branch
     $ cd ../..
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
 
 **Permanent branch switch:**
 
@@ -465,16 +465,16 @@ Running Tests
 .. code-block:: bash
 
     # All tests
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
     
     # Specific test file
-    $ ivpm activate -c "pytest test/test_feature.py"
+    $ direnv exec . pytest test/test_feature.py
     
     # With coverage
-    $ ivpm activate -c "pytest --cov=src"
+    $ direnv exec . pytest --cov=src
     
     # Verbose
-    $ ivpm activate -c "pytest -v"
+    $ direnv exec . pytest -v
 
 Running Linters and Formatters
 -------------------------------
@@ -482,17 +482,17 @@ Running Linters and Formatters
 .. code-block:: bash
 
     # Format code
-    $ ivpm activate -c "black src/ test/"
+    $ direnv exec . black src/ test/
     
     # Check formatting
-    $ ivpm activate -c "black --check src/"
+    $ direnv exec . black --check src/
     
     # Type checking
-    $ ivpm activate -c "mypy src/"
+    $ direnv exec . mypy src/
     
     # Linting
-    $ ivpm activate -c "pylint src/"
-    $ ivpm activate -c "flake8 src/"
+    $ direnv exec . pylint src/
+    $ direnv exec . flake8 src/
 
 Continuous Integration
 ----------------------
@@ -523,10 +523,10 @@ Continuous Integration
             run: ivpm update -d default-dev
           
           - name: Run tests
-            run: ivpm activate -c "pytest --cov=src"
+            run: direnv exec . pytest --cov=src
           
           - name: Check formatting
-            run: ivpm activate -c "black --check src/"
+            run: direnv exec . black --check src/
 
 Release Workflows
 =================
@@ -544,13 +544,13 @@ Preparing a Release
 
 .. code-block:: bash
 
-    $ ivpm activate -c "pytest"
+    $ direnv exec . pytest
 
 **Step 3: Build documentation**
 
 .. code-block:: bash
 
-    $ ivpm activate -c "sphinx-build docs/source docs/build"
+    $ direnv exec . sphinx-build docs/source docs/build
 
 **Step 4: Update version**
 
@@ -644,8 +644,8 @@ Onboarding New Team Members
     $ pip install ivpm
     $ ivpm clone https://github.com/company/project.git
     $ cd project
-    $ ivpm activate
-    (venv) $ pytest
+    $ direnv allow
+    $ pytest
     # Ready to develop!
 
 Shared Cache Setup
@@ -676,8 +676,8 @@ Code Review Workflow
 
     $ git checkout review-branch
     $ ivpm update  # Get any new dependencies
-    $ ivpm activate -c "pytest"  # Verify tests pass
-    $ ivpm activate -c "black --check src/"  # Check formatting
+    $ direnv exec . pytest  # Verify tests pass
+    $ direnv exec . black --check src/  # Check formatting
 
 Feature Branch Workflow
 -----------------------
@@ -690,10 +690,10 @@ Feature Branch Workflow
     $ ivpm update
     
     # Develop
-    $ ivpm activate
-    (venv) $ # work work work
-    (venv) $ pytest
-    (venv) $ exit
+    $ direnv allow
+    $ # work work work
+    $ pytest
+    $ exit
     
     # Commit
     $ git add .
@@ -720,7 +720,7 @@ Scenario 1: Dependency Has a Bug
     $ # Fix the bug
     $ git commit -m "Fix bug"
     $ cd ../..
-    $ ivpm activate -c "pytest"  # Test with fix
+    $ direnv exec . pytest  # Test with fix
 
 **Update project to use fix:**
 
@@ -738,7 +738,7 @@ Scenario 2: Need Older Version Temporarily
     $ cd packages/my-lib
     $ git checkout v1.0.0
     $ cd ../..
-    $ ivpm activate -c "pytest"  # Test with old version
+    $ direnv exec . pytest  # Test with old version
     
     # Restore
     $ cd packages/my-lib
@@ -764,11 +764,11 @@ Scenario 3: Working on Multiple Projects
     
     # Test in Project A
     $ cd ~/projects/project-a
-    $ ivpm activate -c "pytest"  # Uses modified library
+    $ direnv exec . pytest  # Uses modified library
     
     # Test in Project B
     $ cd ~/projects/project-b
-    $ ivpm activate -c "pytest"  # Also uses modified library
+    $ direnv exec . pytest  # Also uses modified library
 
 Scenario 4: Cleaning Up Stale Dependencies
 -------------------------------------------
