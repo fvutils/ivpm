@@ -21,7 +21,7 @@ _KNOWN_PACKAGE_KEYS = {
     "name", "description", "version", "type", "with",
     "deps-dir", "default-dep-set",
     "dep-sets", "setup-deps",
-    "paths", "env", "env-sets",
+    "paths", "env",
     "vars", "include",
     # old-style keys – detected and rejected with a friendlier message
     "deps", "dev-deps",
@@ -212,7 +212,7 @@ class IvpmYamlReader(object):
     _MERGE_HANDLED_KEYS = {
         "name", "version", "dep-sets",
         "with", "vars", "paths",
-        "env", "env-sets", "setup-deps",
+        "env", "setup-deps",
     }
 
     def _merge_pkg(self, local, incl, base, incl_path):
@@ -227,7 +227,7 @@ class IvpmYamlReader(object):
             (no deps concatenation across files).
           - ``with``/``vars`` deep-merge (local wins on scalar/list conflict).
           - ``paths`` deep-merge as a map; leaf lists append.
-          - ``env``/``env-sets``/``setup-deps`` list-append.
+          - ``env``/``setup-deps`` list-append.
           - everything else (``type``, ``deps-dir``, ...): adopt if absent,
             otherwise local wins.
         """
@@ -278,8 +278,8 @@ class IvpmYamlReader(object):
                 self._deep_merge_map(
                     local["paths"], incl["paths"], append_lists=True)
 
-        # env/env-sets/setup-deps: top-level list append (include after local).
-        for k in ("env", "env-sets", "setup-deps"):
+        # env/setup-deps: top-level list append (include after local).
+        for k in ("env", "setup-deps"):
             if k in incl.keys():
                 if k not in local.keys():
                     local[k] = incl[k]

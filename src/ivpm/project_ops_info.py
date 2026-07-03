@@ -97,6 +97,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     python_config: Optional[object] = None  # PythonConfig from root ivpm.yaml
     node_config: Optional[object] = None    # NodeConfig from root ivpm.yaml
     handler_configs: dict = dc.field(default_factory=dict)  # Extra with: keys for plugin handlers
+    env_settings: list = dc.field(default_factory=list)  # Root project env: directives (EnvSpec); emitted to packages.envrc by the direnv handler
     project_dir: Optional[str] = None   # Project root (one level above deps_dir)
     handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
     lock_data: Optional[dict] = None  # Parsed package-lock.json for change detection

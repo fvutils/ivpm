@@ -313,19 +313,17 @@ Without direnv, source the export file manually:
 Windows
 -------
 
-On Windows, IVPM additionally writes:
+IVPM emits a single bash ``export.envrc`` on every platform; there are no
+separate ``.bat`` / ``.ps1`` activation scripts.  ``direnv`` evaluates it
+with bash, so a bash is required even under PowerShell.  The supported setup
+is ``direnv`` + git-bash (bundled with Git-for-Windows):
 
-- ``packages/node/activate_node.bat`` — adds ``node_modules/.bin`` to ``%PATH%``
-- ``packages/node/activate_node.ps1`` — PowerShell equivalent
-- ``packages/packages_activate.bat`` / ``.ps1`` — top-level wrappers
+.. code-block:: powershell
 
-.. code-block:: bat
+    # Native PowerShell: hook direnv (git-bash must be on PATH)
+    Invoke-Expression "$(direnv hook pwsh)"
 
-    :: In a .bat script or CMD session
-    call packages\packages_activate.bat
-
-    :: In PowerShell
-    . packages\packages_activate.ps1
+Inside git-bash or WSL, use ``direnv`` as on any Unix shell.
 
 
 Node Version Management

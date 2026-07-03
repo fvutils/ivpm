@@ -170,6 +170,7 @@ class ProjectOps(object):
                 event_dispatcher=event_dispatcher,
                 python_config=proj_info.python_config,
                 node_config=proj_info.node_config,
+                env_settings=proj_info.env_settings,
             )
             handler_update_info.handler_configs = proj_info.handler_configs
             handler_update_info._tui_ref = tui

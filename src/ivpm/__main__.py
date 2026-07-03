@@ -13,7 +13,6 @@ from typing import Dict, List, Tuple
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
 from ivpm.msg import setup_logging, SrcLoaderError
-from .cmds.cmd_activate import CmdActivate
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
 from .cmds.cmd_perf import CmdPerf
@@ -72,16 +71,6 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     subparser = parser.add_subparsers()
     subparser.required = True
     subparser.dest = 'command'
-
-    activate_cmd = subparser.add_parser("activate",
-        help="Starts a new shell that contains the activated python virtual environment")
-    activate_cmd.add_argument("-c",
-        help="When specified, executes the specified string")
-    activate_cmd.add_argument("-p", "--project-dir", dest="project_dir",
-        help="Specifies the project directory to use (default: cwd)")
-    activate_cmd.add_argument("args", nargs='*')
-    activate_cmd.set_defaults(func=CmdActivate())
-    subcommands["activate"] = activate_cmd
 
     build_cmd = subparser.add_parser("build",
         help="Build all sub-projects with an IVPM-supported build infrastructure (Python)")

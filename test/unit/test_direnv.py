@@ -122,6 +122,44 @@ class TestDirenv(TestBase):
         self.assertLess(idx_leaf3, idx_nonleaf,
                         "envrc_leaf3 should appear before envrc_nonleaf")
 
+    def test_env_directive_emitted_to_envrc(self):
+        """Root env: directives are emitted into packages.envrc as direnv
+        directives, and IVPM_PROJECT/IVPM_PACKAGES are present, even when no
+        package publishes an envrc file."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_direnv_env
+            env:
+                - name: MY_VAR
+                  value: "hello world"
+                - name: LD_LIBRARY_PATH
+                  path:
+                    - "${IVPM_PACKAGES}/lib"
+                    - "/usr/local/lib"
+                - name: PATH
+                  path-prepend: "${IVPM_PROJECT}/scripts"
+                - name: EXTRA
+                  path-append: "${IVPM_PACKAGES}/extra/bin"
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
+        self.assertTrue(os.path.isfile(envrc_path),
+                        "packages.envrc should be generated when env: is present")
+        with open(envrc_path) as f:
+            content = f.read()
+
+        self.assertIn("export IVPM_PACKAGES=", content)
+        self.assertIn("export IVPM_PROJECT=", content)
+        self.assertIn('export MY_VAR="hello world"', content)
+        self.assertIn('export LD_LIBRARY_PATH="${IVPM_PACKAGES}/lib:/usr/local/lib"', content)
+        self.assertIn('path_add PATH "${IVPM_PROJECT}/scripts"', content)
+        self.assertIn('export EXTRA="${EXTRA:+$EXTRA:}${IVPM_PACKAGES}/extra/bin"', content)
+
     def test_export_envrc_preferred_over_dotenvrc(self):
         """export.envrc is preferred when a package has both files."""
         # Create a package with both files in the test run directory

@@ -77,7 +77,7 @@ Unknown key at the package level::
 
     ivpm.yaml:3:3: fatal: Unknown tag 'bogus_key' at package level in ivpm.yaml.
      Valid tags: default-dep-set, dep-sets, deps, deps-dir, dev-deps, env,
-     env-sets, name, paths, setup-deps, type, vars, version, with
+     name, paths, setup-deps, type, vars, version, with
       bogus_key: 1
       ^
 

@@ -1,6 +1,16 @@
 
 # 2.17.0
 - Enhance performance-monitoring features. Runs now record stats to a file for later review
+- Environment management is now fully delegated to `direnv`. The `ivpm activate`
+  command has been removed: `ivpm update` generates `packages/packages.envrc`
+  (now including `IVPM_PROJECT` alongside `IVPM_PACKAGES`), which `direnv` loads.
+  The `env:` directive is retained but re-sinked — its `value`/`path`/
+  `path-append`/`path-prepend` actions are emitted as `direnv` directives into
+  `packages.envrc` (project directives last, so they win over packages) rather
+  than applied by `ivpm activate`. The never-implemented `env-sets` key is
+  removed. The Windows `.bat`/`.ps1` activation scripts are removed; the
+  supported Windows setup is `direnv` + git-bash (`direnv hook pwsh` for native
+  PowerShell).
 
 # 2.16.0
 - New `ivpm destroy` command: tears down a workspace (root + imports) or, with

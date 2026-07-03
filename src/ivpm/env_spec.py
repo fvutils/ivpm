@@ -19,9 +19,8 @@
 #*     Author: 
 #*
 #****************************************************************************
-import sys
 import enum
-from typing import Any, Dict
+from typing import Any
 
 class EnvSpec(object):
 
@@ -39,57 +38,43 @@ class EnvSpec(object):
         self.val = val
         self.act = act
 
-    def apply(self, env : Dict[str,str]):
-        if isinstance(self.val, list):
-            for i,v in enumerate(self.val):
-                self.val[i] = self.expand(v, env)
-        else:
-            self.val = self.expand(self.val, env)
-                
+    def as_direnv(self) -> str:
+        """Render this spec as a single ``direnv``/bash directive for
+        ``packages.envrc``.
+
+        IVPM no longer applies environment variables itself; it emits
+        ``direnv`` directives and lets ``direnv`` (via bash) apply them.
+        ``${VAR}`` references are emitted verbatim and expanded by bash at
+        ``direnv``-eval time -- there is no Python-side expansion.
+
+        The mapping mirrors the four ``env:`` actions:
+
+        ==============  ================================================
+        Action          Emitted line
+        ==============  ================================================
+        ``value``       ``export VAR="val"``
+        ``path``        ``export VAR="a:b:c"``
+        ``path-prepend``  ``path_add VAR "a" "b"`` (direnv stdlib)
+        ``path-append``   ``export VAR="${VAR:+$VAR:}a:b"``
+        ==============  ================================================
+        """
         if self.act == EnvSpec.Act.Set:
-            val = self.val
-            if isinstance(val, list):
-                val = " ".join(val)
-            env[self.var] = val
+            val = " ".join(self.val) if isinstance(self.val, list) else self.val
+            return 'export %s="%s"' % (self.var, val)
         elif self.act == EnvSpec.Act.Path:
-            val = self.val
-            if isinstance(val, list):
-                val = ":".join(val)
-            env[self.var] = val
-        elif self.act == EnvSpec.Act.PathAppend:
-            val = self.val
-            if isinstance(val, list):
-                val = ":".join(val)
-            if self.var in env.keys():
-                env[self.var] = env[self.var] + ":" + val
-            else:
-                env[self.var] = val
+            val = ":".join(self.val) if isinstance(self.val, list) else self.val
+            return 'export %s="%s"' % (self.var, val)
         elif self.act == EnvSpec.Act.PathPrepend:
-            val = self.val
-            if isinstance(val, list):
-                val = ":".join(val)
-            if self.var in env.keys():
-                env[self.var] = val + ":" + env[self.var]
-            else:
-                env[self.var] = val
+            # direnv stdlib path_add prepends its args (in order) to the
+            # colon-list variable and de-duplicates on re-source.
+            vals = self.val if isinstance(self.val, list) else [self.val]
+            quoted = " ".join('"%s"' % v for v in vals)
+            return "path_add %s %s" % (self.var, quoted)
+        elif self.act == EnvSpec.Act.PathAppend:
+            # No direnv stdlib append helper; emit an explicit bash form that
+            # appends only a leading ':' separator when the var is already set.
+            val = ":".join(self.val) if isinstance(self.val, list) else self.val
+            return 'export %s="${%s:+$%s:}%s"' % (self.var, self.var, self.var, val)
         else:
             raise Exception("Unknown action: %s" % str(self.act))
-        
-    def expand(self, var, env):
-        idx = 0
-        while idx < len(var):
-            idx1 = var.find('${', idx)
-
-            if idx1 == -1:
-                break
-            idx2 = var.find('}', idx1)
-            if idx2 == -1:
-                idx = idx1+2
-            else:
-                key = var[idx1+2:idx2]
-                if key in env.keys():
-                    var = var[:idx1] + env[key] + var[idx2+1:]
-                else:
-                    idx = idx2+1
-        return var
 

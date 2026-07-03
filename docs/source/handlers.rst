@@ -213,7 +213,7 @@ Runs when at least one Node.js package was detected *or* when the project has
    ``node_modules/`` exists
 3. Run ``npm install --prefix packages/node`` (or pnpm/yarn equivalent)
 4. Run ``npm link <path>`` for each source package with ``link: true``
-5. Write ``packages/node/export.envrc`` (and Windows ``.bat``/``.ps1`` helpers)
+5. Write ``packages/node/export.envrc`` (a direnv snippet, all platforms)
 6. Patch sentinel section in ``packages/packages.envrc``
 7. Write ``packages/node/.nvmrc`` if ``version:`` is set
 
@@ -269,11 +269,17 @@ root phase.
 
 **Root phase**
 
-Runs when at least one package with an envrc file was found.  Steps:
+Runs when at least one package with an envrc file was found, or when the
+root project declares ``env:`` directives.  Steps:
 
 1. Build a dependency map among envrc-providing packages
 2. Topologically sort them (dependencies before dependents)
-3. Write ``packages/packages.envrc`` with ``source_env`` lines in order
+3. Write ``packages/packages.envrc``:
+
+   a. ``export IVPM_PACKAGES`` and ``export IVPM_PROJECT``
+   b. one ``source_env`` line per package, in dependency order
+   c. the root project's ``env:`` directives last (so the project's own
+      declarations take precedence over package-provided envrc)
 
 **Configuration:** None.  No ``with:`` parameters, no CLI options.
 

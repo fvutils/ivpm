@@ -296,7 +296,7 @@ The recommended workflow for CI reproducibility:
       run: ivpm update --lock-file ./ivpm.lock
 
     - name: Run tests
-      run: ivpm activate -c "pytest"
+      run: direnv exec . pytest
 
 Syncing and the Lock File
 =========================

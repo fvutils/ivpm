@@ -32,11 +32,11 @@ ivpm clone <git-url>
 # Update dependencies (only needed after manual git clone, or to refresh deps)
 ivpm update
 
-# Activate the Python virtual environment
-ivpm activate
+# Load the project environment (delegated to direnv). Authorize once:
+direnv allow
 
-# Run a command in the virtual environment
-ivpm activate -c "<command>"
+# Run a command in the project environment
+direnv exec . <command>
 
 # Check status of Git dependencies
 ivpm status
@@ -214,16 +214,15 @@ packages `(deps-source)` or `(auto: worktree)`.
 ### Daily Development
 ```bash
 cd my-project
-ivpm activate
-# Work in virtual environment
+direnv allow          # once; env then loads automatically on cd
+# Work in the project environment
 pytest
-exit
 ```
 
 ### Adding a Dependency
 1. Edit `ivpm.yaml` to add the dependency
 2. Run `ivpm update`
-3. Verify with `ivpm activate -c "python -c 'import new_package'"`
+3. Verify with `direnv exec . python -c "import new_package"`
 
 ### Updating Git Dependencies
 ```bash
@@ -373,7 +372,7 @@ ivpm show deps --json | jq '[.[] | select(.commit != null) | {name, commit}]'
 | `ivpm clone` | Clone a project and automatically run update |
 | `ivpm init` | Create initial ivpm.yaml |
 | `ivpm update` | Fetch dependencies and create venv |
-| `ivpm activate` | Activate Python virtual environment |
+| `direnv allow` | Load the project environment (IVPM delegates env to direnv) |
 | `ivpm status` | Check status of Git dependencies |
 | `ivpm sync` | Sync Git packages with upstream |
 | `ivpm build` | Build Python packages with native extensions |

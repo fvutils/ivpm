@@ -52,8 +52,7 @@ Core Commands
 - Is this something that belongs in IVPM files as well?
 
 # Environment Management
-- env-sets
-- value, path, path-prepend, path-append
+- env: directives (value, path, path-prepend, path-append) emitted to packages.envrc for direnv
 - $IVPM_PACKAGES, $IVPM_PROJECT
 
 # Project Paths Management

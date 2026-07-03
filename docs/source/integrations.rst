@@ -144,7 +144,7 @@ Create ``.vscode/tasks.json`` for IVPM commands:
         {
           "label": "IVPM Activate & Test",
           "type": "shell",
-          "command": "ivpm activate -c pytest",
+          "command": "direnv exec . pytest",
           "problemMatcher": [],
           "group": {
             "kind": "test",
@@ -237,7 +237,7 @@ GitHub Actions
               ivpm update -a -d default-dev
           
           - name: Run tests
-            run: ivpm activate -c "pytest --cov=src"
+            run: direnv exec . pytest --cov=src
           
           - name: Upload coverage
             uses: codecov/codecov-action@v3
@@ -282,7 +282,7 @@ Matrix Testing
         run: ivpm update -a
       
       - name: Test
-        run: ivpm activate -c pytest
+        run: direnv exec . pytest
 
 GitLab CI
 ---------
@@ -320,8 +320,8 @@ GitLab CI
     test:
       stage: test
       script:
-        - ivpm activate -c "pytest --cov=src"
-        - ivpm activate -c "black --check src/"
+        - direnv exec . pytest --cov=src
+        - direnv exec . black --check src/
       coverage: '/TOTAL.*\s+(\d+%)$/'
 
 Jenkins
@@ -354,13 +354,13 @@ Jenkins
             
             stage('Test') {
                 steps {
-                    sh 'ivpm activate -c "pytest --junitxml=results.xml"'
+                    sh 'direnv exec . pytest --junitxml=results.xml'
                 }
             }
             
             stage('Lint') {
                 steps {
-                    sh 'ivpm activate -c "black --check src/"'
+                    sh 'direnv exec . black --check src/'
                 }
             }
         }
@@ -422,7 +422,7 @@ Multi-stage Build
     RUN ivpm update -a -d default
     
     COPY src/ ./src/
-    RUN ivpm activate -c "python setup.py bdist_wheel"
+    RUN direnv exec . python setup.py bdist_wheel
     
     # Runtime stage
     FROM python:3.10-slim
@@ -472,16 +472,16 @@ Makefile with IVPM
     
     # Run tests
     test:
-    	ivpm activate -c "pytest"
+    	direnv exec . pytest
     
     # Run linters
     lint:
-    	ivpm activate -c "black --check src/"
-    	ivpm activate -c "mypy src/"
+    	direnv exec . black --check src/
+    	direnv exec . mypy src/
     
     # Format code
     format:
-    	ivpm activate -c "black src/"
+    	direnv exec . black src/
     
     # Clean build artifacts
     clean:
@@ -539,13 +539,13 @@ Pre-commit Hooks
           
           - id: black
             name: Format with Black
-            entry: ivpm activate -c "black"
+            entry: direnv exec . black
             language: system
             types: [python]
           
           - id: pytest
             name: Run tests
-            entry: ivpm activate -c "pytest"
+            entry: direnv exec . pytest
             language: system
             pass_filenames: false
             stages: [push]
