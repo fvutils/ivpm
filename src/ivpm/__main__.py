@@ -16,6 +16,7 @@ from ivpm.msg import setup_logging, SrcLoaderError
 from .cmds.cmd_activate import CmdActivate
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
+from .cmds.cmd_perf import CmdPerf
 from .cmds.cmd_init import CmdInit
 from .cmds.cmd_update import CmdUpdate
 from .cmds.cmd_clone import CmdClone
@@ -124,6 +125,47 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="List entries that would be removed without deleting anything")
 
     _finalize_subparser_help(cache_subparser)
+
+    # 'perf' command — inspect persisted performance records
+    perf_cmd = subparser.add_parser("perf",
+        help="Inspect update performance records (deps/.ivpm/perf-*.json)")
+    perf_subparser = perf_cmd.add_subparsers(dest="perf_cmd")
+    perf_subparser.required = True
+
+    def _add_project_dir(p):
+        p.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+            help="Project directory (default: current directory)")
+
+    perf_list_cmd = perf_subparser.add_parser("list",
+        help="List available performance records, newest first")
+    _add_project_dir(perf_list_cmd)
+
+    perf_show_cmd = perf_subparser.add_parser("show",
+        help="Show the breakdown for a record (default: the latest)")
+    perf_show_cmd.add_argument("runid", nargs="?", default=None,
+        help="Record runid (default: newest)")
+    perf_show_cmd.add_argument("--compact", dest="compact", action="store_true",
+        help="Omit the waterfall panel")
+    _add_project_dir(perf_show_cmd)
+
+    perf_export_cmd = perf_subparser.add_parser("export",
+        help="Export a record to Chrome Trace format (Perfetto / chrome://tracing)")
+    perf_export_cmd.add_argument("runid", nargs="?", default=None,
+        help="Record runid (default: newest)")
+    perf_export_cmd.add_argument("--format", dest="format", default="chrome",
+        help="Export format (only 'chrome')")
+    perf_export_cmd.add_argument("-o", "--output", dest="output", default=None,
+        help="Write to FILE instead of stdout")
+    _add_project_dir(perf_export_cmd)
+
+    perf_diff_cmd = perf_subparser.add_parser("diff",
+        help="Compare two records (runids or file paths)")
+    perf_diff_cmd.add_argument("run_a", help="Baseline runid or perf-*.json path")
+    perf_diff_cmd.add_argument("run_b", help="Comparison runid or perf-*.json path")
+    _add_project_dir(perf_diff_cmd)
+
+    perf_cmd.set_defaults(func=CmdPerf())
+    _finalize_subparser_help(perf_subparser)
 
     cache_cmd.set_defaults(func=CmdCache())
     subcommands["cache"] = cache_cmd
@@ -256,6 +298,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Disable the cache for this update; forces a null cache provider")
     update_cmd.add_argument("-v", "--verbose", action="count", default=0,
         help="Increase transcript output detail (-v: activity, -vv: subprocess lines)")
+    update_cmd.add_argument("--timing", "--profile", dest="timing",
+        action="store_true", default=False,
+        help="After the update, print a breakdown of where time was spent "
+             "(also persisted to deps/.ivpm/perf-<runid>.json)")
     subcommands["update"] = update_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     

@@ -1,4 +1,7 @@
 
+# 2.17.0
+- Enhance performance-monitoring features. Runs now record stats to a file for later review
+
 # 2.16.0
 - New `ivpm destroy` command: tears down a workspace (root + imports) or, with
   `--deps-only`, just the imports — the inverse of `clone`/`update`. A delegated

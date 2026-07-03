@@ -406,6 +406,53 @@ Creates ``ivpm.yaml`` with:
       name: my-project
       version: "0.0.1"
 
+perf
+----
+
+Inspect persisted performance records written by ``ivpm update`` (under
+``deps/.ivpm/perf-<runid>.json``).  See :doc:`performance`.
+
+**Synopsis:**
+
+.. code-block:: text
+
+    ivpm perf list [-p <project-dir>]
+    ivpm perf show [runid] [--compact] [-p <project-dir>]
+    ivpm perf export [runid] --format chrome [-o <file>] [-p <project-dir>]
+    ivpm perf diff <A> <B> [-p <project-dir>]
+
+**Subcommands:**
+
+``list``
+    List available records, newest first (runid, wall-clock, package count).
+
+``show [runid]``
+    Print the four-panel breakdown (long pole, hot spots, packages, waterfall)
+    for a record; defaults to the newest.  ``--compact`` omits the waterfall.
+
+``export [runid] --format chrome [-o <file>]``
+    Emit Chrome Trace Event JSON for the record; load it in
+    https://ui.perfetto.dev or ``chrome://tracing``.  Writes to stdout unless
+    ``-o`` is given.
+
+``diff <A> <B>``
+    Compare two records (runids or ``perf-*.json`` paths): per-category
+    self-time deltas, new/vanished phases, and the total wall-clock change.
+
+**Examples:**
+
+.. code-block:: bash
+
+    # Show the most recent update's breakdown
+    $ ivpm perf show
+
+    # Open the timeline in Perfetto
+    $ ivpm perf export -o trace.json
+
+    # Compare the two most recent runs
+    $ ivpm perf diff $(ivpm perf list | awk 'NR==3{print $1}') \
+                     $(ivpm perf list | awk 'NR==2{print $1}')
+
 pkg-info
 --------
 
@@ -796,6 +843,12 @@ Fetch dependencies and initialize environment.
     Suppress safety errors during refresh (e.g. uncommitted local changes)
     and implies ``--refresh-all``.
 
+``--timing``, ``--profile``
+    After the update, print a breakdown of where time was spent (parse, hash
+    resolution, queue-wait, clone, cache store/materialize, venv/pip).  A
+    machine-readable record is written to ``deps/.ivpm/perf-<runid>.json`` every
+    run regardless of this flag; see :doc:`performance` and ``ivpm perf``.
+
 .. code-block:: bash
 
     # Basic update
@@ -827,6 +880,9 @@ Fetch dependencies and initialize environment.
 
     # Re-fetch all packages (pull upstream changes)
     $ ivpm update --refresh-all
+
+    # Print a timing breakdown after the update
+    $ ivpm update --timing
 
 **Behavior:**
 
@@ -869,6 +925,17 @@ Path to the package cache directory.
     export IVPM_CACHE=~/.cache/ivpm
 
 Used by caching system. See :doc:`caching`.
+
+IVPM_PERF_KEEP
+--------------
+
+Number of performance records to retain under ``deps/.ivpm/`` (default: 20).
+Older records are pruned after each update; set to ``0`` to disable pruning.
+See :doc:`performance`.
+
+.. code-block:: bash
+
+    export IVPM_PERF_KEEP=50
 
 IVPM_PROJECT
 ------------

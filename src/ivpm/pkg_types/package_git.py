@@ -32,6 +32,7 @@ from ..utils import note, fatal, resolve_clone_url
 from ..cache import is_github_url, parse_github_url
 from ..git_progress import run_git_with_progress
 from ..update_event import UpdateEvent, UpdateEventType
+from ..perf import span_or_null
 
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
 
@@ -262,11 +263,13 @@ class PackageGit(PackageURL):
             # so a changed patch set is picked up.
             if patched or manifest:
                 return self._update_with_patches(update_info, pkg_dir)
-            note("package %s is already loaded" % self.name)
-            self._capture_resolved_commit(pkg_dir)
-            # Refresh the cache entry's last-referenced timestamp when this dep
-            # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
-            update_info.get_cache_provider().note_reference(self)
+            with span_or_null(getattr(update_info, "perf", None), "pkg.fast_path", package=self.name):
+                note("package %s is already loaded" % self.name)
+                self._capture_resolved_commit(pkg_dir)
+                # Refresh the cache entry's last-referenced timestamp when this
+                # dep is a cache symlink (no-op otherwise), so stale-GC sees it
+                # as used.
+                update_info.get_cache_provider().note_reference(self)
         else:
             # Patched deps go through the patch-aware resolver (which owns the
             # cache interaction). It deliberately bypasses the not-yet-patch-aware
@@ -276,10 +279,13 @@ class PackageGit(PackageURL):
 
             # Try deps-source first — resolve commit, then check parent deps-dir(s)
             if update_info.deps_source is not None:
-                self._resolve_commit_for_deps_source(update_info)
-                if update_info.try_deps_source(self):
-                    note("deps-source hit for %s" % self.name)
-                    return ProjInfo.mkFromProj(pkg_dir)
+                with span_or_null(getattr(update_info, "perf", None), "git.deps_source", package=self.name) as s:
+                    self._resolve_commit_for_deps_source(update_info)
+                    if update_info.try_deps_source(self):
+                        s.meta["hit"] = True
+                        note("deps-source hit for %s" % self.name)
+                        return ProjInfo.mkFromProj(pkg_dir)
+                    s.meta["hit"] = False
 
             # Check if caching is enabled and supported
             if self.cache is True:
@@ -408,20 +414,26 @@ class PackageGit(PackageURL):
         
         # Get the commit hash - use GitHub API for GitHub URLs, git ls-remote otherwise
         commit_hash = None
-        if is_github_url(self.url):
-            owner, repo = parse_github_url(self.url)
-            commit_hash = self._get_github_commit_hash(owner, repo, ref, update_info)
-        else:
-            # Use git ls-remote for general git URLs
-            commit_hash = self._get_commit_hash_ls_remote(ref, update_info)
-        
+        with span_or_null(getattr(update_info, "perf", None), "git.resolve_hash", package=self.name) as s:
+            if is_github_url(self.url):
+                s.meta["path"] = "github_api"
+                owner, repo = parse_github_url(self.url)
+                commit_hash = self._get_github_commit_hash(owner, repo, ref, update_info)
+            else:
+                # Use git ls-remote for general git URLs
+                s.meta["path"] = "ls_remote"
+                commit_hash = self._get_commit_hash_ls_remote(ref, update_info)
+
         if commit_hash is None:
             fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
-        
+
         self.resolved_commit = commit_hash
 
         provider = update_info.get_cache_provider()
-        result = provider.lookup(self, commit_hash)
+        with span_or_null(getattr(update_info, "perf", None), "cache.lookup", package=self.name) as s:
+            result = provider.lookup(self, commit_hash)
+            s.meta["state"] = ("disabled" if result.is_disabled
+                               else "hit" if result.is_hit else "miss")
 
         # If this dependency is not cacheable (no cache dir resolved),
         # fall back to a full editable clone.
@@ -432,7 +444,8 @@ class PackageGit(PackageURL):
         # Cache hit - symlink to deps
         if result.is_hit:
             note("Cache hit for %s at %s" % (self.name, commit_hash[:12]))
-            provider.materialize(self, commit_hash)
+            with span_or_null(getattr(update_info, "perf", None), "cache.materialize", package=self.name):
+                provider.materialize(self, commit_hash)
             update_info.report_cache_hit()
             return ProjInfo.mkFromProj(pkg_dir)
 
@@ -449,8 +462,10 @@ class PackageGit(PackageURL):
         self._clone_to_dir(update_info, temp_dir, depth=1)
 
         # Store in cache and link
-        provider.store(self, commit_hash, temp_dir)
-        provider.materialize(self, commit_hash)
+        with span_or_null(getattr(update_info, "perf", None), "cache.store", package=self.name):
+            provider.store(self, commit_hash, temp_dir)
+        with span_or_null(getattr(update_info, "perf", None), "cache.materialize", package=self.name):
+            provider.materialize(self, commit_hash)
 
         return ProjInfo.mkFromProj(pkg_dir)
 
@@ -475,9 +490,11 @@ class PackageGit(PackageURL):
     def _update_with_patches(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
         """Resolve the commit, then hand off to the patch-aware resolver."""
         from ..patch import PatchAwareResolver
-        commit_hash = self._resolve_commit(update_info)
+        with span_or_null(getattr(update_info, "perf", None), "git.resolve_hash", package=self.name):
+            commit_hash = self._resolve_commit(update_info)
         self.resolved_commit = commit_hash
-        return PatchAwareResolver().resolve(update_info, self, commit_hash)
+        with span_or_null(getattr(update_info, "perf", None), "patch.apply", package=self.name):
+            return PatchAwareResolver().resolve(update_info, self, commit_hash)
 
     def _update_no_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str) -> ProjInfo:
         """Editable clone without shared cache (cache=False). Depth controlled by self.depth."""
@@ -616,7 +633,9 @@ class PackageGit(PackageURL):
         _logger.debug("git_cmd: %s", str(git_cmd))
 
         # Stream fetch progress to the TUI when output is suppressed
-        rc = self._run_git(git_cmd, update_info, progress=True)
+        with span_or_null(getattr(update_info, "perf", None), "git.clone", package=self.name,
+                          depth=depth):
+            rc = self._run_git(git_cmd, update_info, progress=True)
 
         if rc != 0:
             fatal("Git command \"%s\" failed" % str(git_cmd))
@@ -625,7 +644,8 @@ class PackageGit(PackageURL):
         if self.commit is not None:
             git_cmd = ["git", "reset", "--hard", self.commit]
             _logger.debug("git_cmd: %s", str(git_cmd))
-            rc = self._run_git(git_cmd, update_info, cwd=target_dir)
+            with span_or_null(getattr(update_info, "perf", None), "git.checkout", package=self.name):
+                rc = self._run_git(git_cmd, update_info, cwd=target_dir)
 
             if rc != 0:
                 fatal("Git command \"%s\" failed" % str(git_cmd))
@@ -637,7 +657,8 @@ class PackageGit(PackageURL):
             self._emit_progress(update_info, "updating submodules")
             git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
             _logger.debug("git_cmd: %s", str(git_cmd))
-            rc = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
+            with span_or_null(getattr(update_info, "perf", None), "git.submodule", package=self.name):
+                rc = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
 
     def status(self, status_info: ProjectStatusInfo):
         from ..pkg_status import PkgVcsStatus

@@ -44,6 +44,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    integrations
    extending_ivpm
    diagnostics
+   performance
    troubleshooting
    reference
 

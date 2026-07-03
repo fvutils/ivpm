@@ -22,7 +22,7 @@
 import dataclasses as dc
 import enum
 import logging
-import time
+import threading
 from typing import List, Optional, Tuple
 
 from .update_event import UpdateEvent, UpdateEventType, UpdateEventDispatcher
@@ -105,10 +105,20 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)
     disable_cache: bool = False  # When True, force a null cache provider (--no-cache)
-    _current_package_start: Optional[float] = None
-    _current_package_name: Optional[str] = None
-    _current_cache_hit: Optional[bool] = None
-    
+    # Performance-span collector (perf.py). Always constructed by update();
+    # --timing only gates the after-run display, not collection.
+    perf: Optional['PerfCollector'] = None
+    # span_id of the enclosing "fetch" phase, so per-package spans opened on
+    # worker threads parent onto it across the executor boundary.
+    _fetch_parent_id: Optional[int] = None
+    # Thread-local handle to the current package's open fetch span. package
+    # loads run one-per-worker-thread, so keeping "the current package" thread-
+    # local lets report_cache_hit/miss (which carry no package name) annotate
+    # the right span -- replacing the old single-slot _current_* timer that
+    # interleaved under parallelism.
+    _pkg_local: object = dc.field(
+        default_factory=threading.local, repr=False, compare=False)
+
     def get_prompt_callback(self):
         """Return a prompt callback appropriate for the current TUI.
     
@@ -185,12 +195,22 @@ class ProjectUpdateInfo(ProjectOpsInfo):
 
     def report_cache_hit(self):
         self.cache_hits += 1
-        self._current_cache_hit = True
-    
+        self._annotate_pkg_span("cache_hit", True)
+
     def report_cache_miss(self):
         self.cache_misses += 1
-        self._current_cache_hit = False
-    
+        self._annotate_pkg_span("cache_hit", False)
+
+    def _annotate_pkg_span(self, key, value):
+        """Set a meta field on the calling thread's current package span, if any.
+
+        Called from within pkg.update() (same worker thread as package_start),
+        so it targets the correct package even under parallel loads.
+        """
+        span = getattr(self._pkg_local, "span", None)
+        if span is not None:
+            span.meta[key] = value
+
     def report_package(self, cacheable: bool = False, editable: bool = False):
         """Report a package for statistics.
         
@@ -206,10 +226,18 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     
     def package_start(self, name: str, pkg_type: str = None, pkg_src: str = None):
         """Signal that loading of a package has started."""
-        self._current_package_start = time.time()
-        self._current_package_name = name
-        self._current_cache_hit = None
-        
+        # Open the per-package "fetch" span, parented onto the enclosing fetch
+        # phase across the executor boundary. Stash it thread-locally so the
+        # matching package_complete (same worker thread) closes it and
+        # report_cache_hit/miss can annotate it.
+        span = None
+        if self.perf is not None:
+            span = self.perf.open_span(
+                "fetch.pkg", package=name,
+                parent_id=self._fetch_parent_id,
+                type=pkg_type, src=pkg_src)
+        self._pkg_local.span = span
+
         if self.event_dispatcher:
             event = UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_START,
@@ -222,25 +250,29 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     
     def package_complete(self, name: str, version: str = None):
         """Signal that loading of a package has completed."""
+        # Close the per-package span opened in package_start (same worker
+        # thread); read the honest duration and cache-hit off the span rather
+        # than a shared slot.
+        span = getattr(self._pkg_local, "span", None)
         duration = None
-        if self._current_package_start and self._current_package_name == name:
-            duration = time.time() - self._current_package_start
-        
+        cache_hit = None
+        if span is not None:
+            cache_hit = span.meta.get("cache_hit")
+            self.perf.close_span(span)
+            duration = span.duration
+            self._pkg_local.span = None
+
         if self.event_dispatcher:
             event = UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_COMPLETE,
                 package_name=name,
                 duration=duration,
-                cache_hit=self._current_cache_hit,
+                cache_hit=cache_hit,
                 version=version
             )
             self.event_dispatcher.dispatch(event)
         _logger.debug("Package complete: %s (%.2fs)", name, duration or 0)
-        
-        self._current_package_start = None
-        self._current_package_name = None
-        self._current_cache_hit = None
-    
+
     def package_error(self, name: str, error_message: str, loc=None):
         """Signal that loading of a package has failed.
 
@@ -248,6 +280,14 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         carrying a ``.srcinfo``); when present it is stringified to
         ``file:line:col`` and attached to the event so the TUI can point the
         user at the exact ivpm.yaml entry that failed."""
+        # Close the package span (if open) so it is recorded and the worker
+        # thread's parent stack unwinds; tag it as errored.
+        span = getattr(self._pkg_local, "span", None)
+        if span is not None:
+            span.meta["error"] = True
+            self.perf.close_span(span)
+            self._pkg_local.span = None
+
         package_loc = None
         si = getattr(loc, "srcinfo", loc)
         if si is not None and getattr(si, "filename", None) is not None \

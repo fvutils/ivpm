@@ -220,7 +220,19 @@ class PackageUpdater(object):
     
     async def _update_pkg_async(self, pkg: Package, semaphore: asyncio.Semaphore) -> Tuple[Package, ProjInfo]:
         """Async wrapper for updating a single package with semaphore limiting."""
+        # Measure the real "wait" — time queued for a worker slot (there is no
+        # cache lock to wait on). This span opens/closes on the event-loop
+        # thread and parents onto the enclosing fetch phase; the per-package
+        # fetch.pkg span (opened in the executor by package_start) is a sibling.
+        perf = self.update_info.perf
+        qspan = None
+        if perf is not None:
+            qspan = perf.open_span(
+                "pkg.queue_wait", package=pkg.name,
+                parent_id=self.update_info._fetch_parent_id)
         async with semaphore:
+            if qspan is not None:
+                perf.close_span(qspan)
             return await asyncio.get_event_loop().run_in_executor(
                 None, self._update_pkg, pkg
             )

@@ -39,6 +39,7 @@ from ..package import get_type_data
 from ..package import Package, SourceType
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
+from ..perf import span_or_null
 # HasType no longer used in root_when (handler self-gates via on_root_post_load)
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_python")
@@ -482,7 +483,8 @@ class PackageHandlerPython(PackageHandler):
                 uv_pip = "auto"
 
             suppress_output = getattr(update_info, 'suppress_output', False)
-            with self.task_context(update_info, "venv-create", "Creating Python virtual environment") as task:
+            with span_or_null(getattr(update_info, "perf", None), "venv.create", mode=uv_pip), \
+                 self.task_context(update_info, "venv-create", "Creating Python virtual environment") as task:
                 try:
                     setup_venv(
                         python_dir,
@@ -495,8 +497,9 @@ class PackageHandlerPython(PackageHandler):
         else:
             note("python virtual environment already exists")
 
-        _write_python_envrc(update_info.deps_dir)
-        _patch_packages_envrc_python(update_info.deps_dir)
+        with span_or_null(getattr(update_info, "perf", None), "envrc.write"):
+            _write_python_envrc(update_info.deps_dir)
+            _patch_packages_envrc_python(update_info.deps_dir)
 
         if getattr(update_info.args, "py_uv", False):
             self.use_uv = True
@@ -518,7 +521,13 @@ class PackageHandlerPython(PackageHandler):
             note("Installing Python packages")
 
 
-        # Build up a dependency map for Python package installation        
+        # Assemble the per-phase requirements files. Opened as an explicit
+        # span (not a with-block) to avoid reindenting the long assembly body;
+        # closed just before the install phase below.
+        _perf = getattr(update_info, "perf", None)
+        _reqs_span = _perf.open_span("reqs.assemble") if _perf is not None else None
+
+        # Build up a dependency map for Python package installation
         python_deps_m = {}
 #        python_pkgs_s = set()
 
@@ -659,6 +668,9 @@ class PackageHandlerPython(PackageHandler):
                     requirements_path)
                 python_requirements_paths.append(requirements_path)
             
+        if _reqs_span is not None:
+            _perf.close_span(_reqs_span)
+
         if len(python_requirements_paths):
             import sys
             import platform
@@ -670,7 +682,9 @@ class PackageHandlerPython(PackageHandler):
             n = len(python_requirements_paths)
             note("Installing Python dependencies in %d phases" % n)
             suppress_output = getattr(update_info, 'suppress_output', False)
-            with self.task_context(update_info, "python-install", "Installing Python packages") as task:
+            with span_or_null(getattr(update_info, "perf", None), "pip.install",
+                              phases=n, mode=("uv" if self.use_uv else "pip")), \
+                 self.task_context(update_info, "python-install", "Installing Python packages") as task:
                 for i, reqfile in enumerate(python_requirements_paths, 1):
                     task.progress(
                         f"Installing package set {i}/{n}",

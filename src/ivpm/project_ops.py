@@ -51,8 +51,10 @@ class ProjectOps(object):
                force : bool = False,
                cli_overrides = None,
                from_manifest : str = None,
-               deps_dir_override : str = None):
+               deps_dir_override : str = None,
+               timing : bool = False):
         from .update_event import UpdateEvent, UpdateEventType
+        from .perf import PerfCollector
 
         if from_manifest is not None and lock_file is not None:
             fatal("--from and --lock-file are mutually exclusive "
@@ -76,11 +78,23 @@ class ProjectOps(object):
         if isinstance(tui, RichUpdateTUI):
             tui.start()
 
+        # Performance-span collection is always on; the --timing flag (P5) only
+        # gates the after-run display. The root span wraps the whole operation
+        # so total wall-clock is a single span and every phase parents under it.
+        perf = PerfCollector(enabled=True)
+        root_span = perf.open_span("update")
+        # Expose the collector for after-run persistence/report (P5) and tests.
+        self._perf = perf
+        # Pre-declared so the finally block can persist even if _init() raises.
+        deps_dir = None
+        updater = None
+
         try:
-            proj_info, deps_dir, dep_sets, source_manifest = self._init(
-                dep_set, cli_overrides=cli_overrides,
-                from_manifest=from_manifest,
-                deps_dir_override=deps_dir_override)
+            with perf.span("init"):
+                proj_info, deps_dir, dep_sets, source_manifest = self._init(
+                    dep_set, cli_overrides=cli_overrides,
+                    from_manifest=from_manifest,
+                    deps_dir_override=deps_dir_override)
 
             _logger.info("Processing root package %s", proj_info.name)
 
@@ -97,11 +111,13 @@ class ProjectOps(object):
                 lock_reader = IvpmLockReader(lock_file)
                 ds = lock_reader.build_packages_info()
             else:
-                dep_sets, ds = self._getDepSets(proj_info, dep_sets)
+                with perf.span("depset.resolve"):
+                    dep_sets, ds = self._getDepSets(proj_info, dep_sets)
 
                 # Change detection: compare current specs against existing lock
                 if not refresh_all and not force:
-                    diffs = check_lock_changes(deps_dir, ds.packages)
+                    with perf.span("lock.detect_changes"):
+                        diffs = check_lock_changes(deps_dir, ds.packages)
                     if diffs:
                         note("The following packages have changed specs vs package-lock.json:")
                         for name, diff in diffs.items():
@@ -118,6 +134,7 @@ class ProjectOps(object):
             updater.update_info.project_version = proj_info.version
             updater.update_info.project_dir     = self.root_dir
             updater.update_info.disable_cache   = getattr(args, "no_cache", False)
+            updater.update_info.perf            = perf
             # Construct the session cache provider eagerly, before parallel
             # package loads, so the memoized getter never races.
             updater.update_info.get_cache_provider()
@@ -156,6 +173,7 @@ class ProjectOps(object):
             )
             handler_update_info.handler_configs = proj_info.handler_configs
             handler_update_info._tui_ref = tui
+            handler_update_info.perf = perf
 
             # Load previous handler state from ivpm.json (for stale-entry cleanup)
             _ivpm_json_path = os.path.join(deps_dir, "ivpm.json")
@@ -169,16 +187,23 @@ class ProjectOps(object):
             handler_update_info.handler_state = _prev_ivpm.get("handlers", {})
 
             # Root pre-load: let handlers initialise before any packages are fetched
-            pkg_handler.on_root_pre_load(handler_update_info)
+            with perf.span("handler.pre_load"):
+                pkg_handler.on_root_pre_load(handler_update_info)
 
             # Prevent an attempt to load the top-level project as a depedency
             updater.all_pkgs[proj_info.name] = None
-            pkgs_info = updater.update(ds)
+            # The fetch phase runs packages on worker threads; hand its span_id
+            # to update_info so per-package spans parent onto it across the
+            # executor boundary.
+            with perf.span("fetch") as fetch_span:
+                updater.update_info._fetch_parent_id = fetch_span.span_id
+                pkgs_info = updater.update(ds)
 
             _logger.debug("Setup-deps: %s", str(pkgs_info.setup_deps))
 
             # Root post-load: handlers do their main work (venv, pip install, envrc, etc.)
-            pkg_handler.on_root_post_load(handler_update_info)
+            with perf.span("handler.post_load"):
+                pkg_handler.on_root_post_load(handler_update_info)
 
             # Signal update complete
             updater.update_info.update_complete()
@@ -192,27 +217,62 @@ class ProjectOps(object):
                     source_manifest["dep_sets"] = list(dep_sets)
                 elif dep_sets:
                     source_manifest["dep_set"] = dep_sets[0]
-            handler_contributions = pkg_handler.get_lock_entries(deps_dir)
-            write_lock(deps_dir, updater.all_pkgs, handler_contributions,
-                       source_manifest=source_manifest)
+            with perf.span("lock.write"):
+                handler_contributions = pkg_handler.get_lock_entries(deps_dir)
+                write_lock(deps_dir, updater.all_pkgs, handler_contributions,
+                           source_manifest=source_manifest)
 
-            # Write ivpm.json with dep-set(s) and handler state. "dep-set"
-            # always names the primary set (back-compat); "dep-sets" records the
-            # full list when more than one was installed.
-            ivpm_json = {"dep-set": dep_sets[0] if dep_sets else None}
-            if dep_sets is not None and len(dep_sets) > 1:
-                ivpm_json["dep-sets"] = list(dep_sets)
-            if proj_info.resolved_vars:
-                ivpm_json["vars"] = proj_info.resolved_vars
-            state_contributions = pkg_handler.get_state_entries()
-            if state_contributions:
-                ivpm_json["handlers"] = state_contributions
-            with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
-                json.dump(ivpm_json, fp)
+                # Write ivpm.json with dep-set(s) and handler state. "dep-set"
+                # always names the primary set (back-compat); "dep-sets" records
+                # the full list when more than one was installed.
+                ivpm_json = {"dep-set": dep_sets[0] if dep_sets else None}
+                if dep_sets is not None and len(dep_sets) > 1:
+                    ivpm_json["dep-sets"] = list(dep_sets)
+                if proj_info.resolved_vars:
+                    ivpm_json["vars"] = proj_info.resolved_vars
+                state_contributions = pkg_handler.get_state_entries()
+                if state_contributions:
+                    ivpm_json["handlers"] = state_contributions
+                with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
+                    json.dump(ivpm_json, fp)
         finally:
+            # Close the root span so total wall-clock is recorded even on an
+            # exception.
+            perf.close_span(root_span)
             # Ensure TUI is stopped on exception
             if isinstance(tui, RichUpdateTUI):
                 tui.stop()
+            # After the TUI has torn down: persist the record and, with
+            # --timing, print the breakdown (so it survives the TUI). Best
+            # effort -- perf logging must never break an update.
+            try:
+                self._persist_and_report(perf, root_span, deps_dir, updater, timing)
+            except Exception:
+                _logger.debug("perf persist/report failed", exc_info=True)
+
+    def _persist_and_report(self, perf, root_span, deps_dir, updater, timing):
+        """Persist the perf record under deps/.ivpm/, prune to the retention
+        limit, and print the breakdown when --timing is set."""
+        if deps_dir is None:
+            return
+        from .perf import write_record, prune_perf_dir
+        mp = getattr(getattr(updater, "update_info", None), "max_parallel", None)
+        header = {
+            "runid": perf.runid(),
+            "total_wall": root_span.duration,
+            "max_parallel": mp,
+        }
+        record = perf.to_json(header=header)
+        write_record(deps_dir, record, perf.runid())
+        # Retention: keep the newest N (IVPM_PERF_KEEP override; default 20).
+        try:
+            keep = int(os.environ.get("IVPM_PERF_KEEP", "20"))
+        except ValueError:
+            keep = 20
+        prune_perf_dir(deps_dir, keep)
+        if timing:
+            from .perf_report import render
+            print(render(record))
 
     def build(self, dep_set : str = None, args = None, debug : bool = False):
         proj_info, deps_dir, dep_sets, _ = self._init(dep_set)

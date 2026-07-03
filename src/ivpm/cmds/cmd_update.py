@@ -47,7 +47,8 @@ class CmdUpdate(object):
             force=getattr(args, "force", False),
             cli_overrides=cli_overrides,
             from_manifest=getattr(args, "from_manifest", None),
-            deps_dir_override=getattr(args, "deps_dir_override", None))
+            deps_dir_override=getattr(args, "deps_dir_override", None),
+            timing=getattr(args, "timing", False))
 
 
 
