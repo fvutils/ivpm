@@ -39,6 +39,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    workflows
    destroy
    git_integration
+   clone_providers
    git_worktrees
    show_deps
    integrations

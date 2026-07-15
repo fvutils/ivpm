@@ -63,6 +63,17 @@ def _provenance_label(s: PkgVcsStatus) -> str:
     return "(deps-source)"
 
 
+def _state_label(s: PkgVcsStatus):
+    """Return (marker, state_text) for a git status row."""
+    if s.error:
+        return "!", s.error
+    if s.is_dirty:
+        return "✎", "modified"
+    if s.untracked:
+        return "✎", "untracked"
+    return "✓", "clean"
+
+
 # ---------------------------------------------------------------------------
 # Rich TUI
 # ---------------------------------------------------------------------------
@@ -70,20 +81,32 @@ def _provenance_label(s: PkgVcsStatus) -> str:
 class RichStatusTUI:
     """Render status results as a Rich table."""
 
-    def render(self, results: List[PkgVcsStatus], verbose: int = 0):
+    def render(self, results: List[PkgVcsStatus], verbose: int = 0,
+               root_status: PkgVcsStatus = None):
         from rich.console import Console
         from rich.table import Table
         from rich.text import Text
         from rich.panel import Panel
 
         console = Console()
+
+        # Root-project header (omitted when the root type is unknown).
+        if root_status is not None:
+            self._render_root(console, root_status, verbose)
+
+        # Underline the header from the "Package" column to the end of the line
+        # (the leading indent column stays plain), so the table reads as an
+        # indented block separated from the root-project content above.  The
+        # per-row status marker is merged into the Package cell so it aligns
+        # under the "P" of the header rather than sitting further left.
+        hdr = "bold underline"
         table = Table(show_header=True, header_style="bold", box=None, padding=(0, 1))
-        table.add_column("", width=2, no_wrap=True)
-        table.add_column("Package", style="bold", no_wrap=True)
-        table.add_column("Branch / Tag", no_wrap=True)
-        table.add_column("Commit", no_wrap=True)
-        table.add_column("State", no_wrap=True)
-        table.add_column("Upstream", no_wrap=True)
+        table.add_column("", width=2, no_wrap=True)   # indent spacer (no header)
+        table.add_column("Package", style="bold", no_wrap=True, header_style=hdr)
+        table.add_column("Branch / Tag", no_wrap=True, header_style=hdr)
+        table.add_column("Commit", no_wrap=True, header_style=hdr)
+        table.add_column("State", no_wrap=True, header_style=hdr)
+        table.add_column("Upstream", no_wrap=True, header_style=hdr)
 
         git_total = dirty_count = non_vcs_count = pypi_count = 0
 
@@ -130,11 +153,15 @@ class RichStatusTUI:
                 state = Text(s.src_type, style="dim")
                 up_text = Text("—", style="dim")
 
-            name_text = Text(s.name)
+            # Marker is merged into the Package cell (aligned under "P").
+            name_text = Text()
+            name_text.append_text(marker)
+            name_text.append(" ")
+            name_text.append(s.name)
             prov = _provenance_label(s)
             if prov:
                 name_text.append(" " + prov, style="dim")
-            table.add_row(marker, name_text, branch_text, commit_text, state, up_text)
+            table.add_row(Text(""), name_text, branch_text, commit_text, state, up_text)
 
             # Dirty file details — only with -v
             if verbose >= 1 and s.vcs == "git":
@@ -166,6 +193,36 @@ class RichStatusTUI:
         border = "green" if dirty_count == 0 else "cyan"
         console.print(Panel(summary, border_style=border, title="Status"))
 
+    def _render_root(self, console, s: PkgVcsStatus, verbose: int = 0):
+        from rich.text import Text
+
+        marker, state = _state_label(s)
+        line = Text()
+        line.append("Root", style="bold")
+        prov = getattr(s, "provider", None)
+        if prov:
+            line.append(" [%s]" % prov, style="dim")
+        line.append("  ")
+        if s.vcs == "git":
+            line.append(_branch_label(s))
+            if s.commit:
+                line.append("  " + s.commit, style="dim")
+            style = "yellow" if s.error else ("cyan" if state != "clean" else "green")
+            line.append("  %s %s" % (marker, state), style=style)
+            upstream = _upstream_label(s)
+            if upstream not in ("=", "?", "—"):
+                line.append("  " + upstream, style="yellow")
+        else:
+            line.append(s.src_type or "unknown", style="dim")
+        console.print(line)
+
+        # Modified/untracked file details — only with -v, mirroring packages.
+        if verbose >= 1 and s.vcs == "git":
+            for fline in s.modified:
+                console.print(Text("    " + fline, style="dim"))
+            for fline in s.untracked:
+                console.print(Text("    " + fline, style="dim"))
+
 
 # ---------------------------------------------------------------------------
 # Transcript (plain-text) TUI
@@ -174,7 +231,12 @@ class RichStatusTUI:
 class TranscriptStatusTUI:
     """Render status results as plain text."""
 
-    def render(self, results: List[PkgVcsStatus], verbose: int = 0):
+    def render(self, results: List[PkgVcsStatus], verbose: int = 0,
+               root_status: PkgVcsStatus = None):
+        # Root-project header (omitted when the root type is unknown).
+        if root_status is not None:
+            self._render_root(root_status, verbose)
+
         git_total = dirty_count = non_vcs_count = pypi_count = 0
 
         for s in results:
@@ -232,6 +294,24 @@ class TranscriptStatusTUI:
                 print(" · %d pypi (hidden, use -vv to show)" % pypi_count, end="")
             else:
                 print(" · %d pypi" % pypi_count, end="")
+        print("")
+
+    def _render_root(self, s: PkgVcsStatus, verbose: int = 0):
+        prov = getattr(s, "provider", None)
+        head = "Root" + (" [%s]" % prov if prov else "")
+        if s.vcs == "git":
+            marker, state = _state_label(s)
+            upstream = _upstream_label(s)
+            print("%s  %s  %s  %s  %s  upstream:%s" % (
+                head, marker, _branch_label(s), s.commit or "?", state, upstream))
+            # Modified/untracked file details — only with -v, mirroring packages.
+            if verbose >= 1:
+                for fline in s.modified:
+                    print("       %s" % fline)
+                for fline in s.untracked:
+                    print("       %s" % fline)
+        else:
+            print("%s  (%s)" % (head, s.src_type or "unknown"))
         print("")
 
 

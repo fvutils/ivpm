@@ -11,7 +11,7 @@ import shutil
 import subprocess
 from typing import List
 from ivpm.msg import note, fatal, warning
-from ivpm.site_config import get_site_config, resolve_git_auth_order
+from ivpm.site_config import apply_git_url_map, get_site_config, resolve_git_auth_order
 from pathlib import Path
 
 _logger = logging.getLogger("ivpm.utils")
@@ -95,7 +95,12 @@ def resolve_clone_url(url, ssh_pref, auth_order=None):
     ``IVPM_GIT_AUTH_ORDER`` / the default order.  The first applicable method
     wins; ``ssh``/``https`` always apply.  If the order yields nothing, fall
     back to the SSH rewrite (the historical default).
+
+    Any ``git-url-map`` rewrite is applied first, so ssh/auth resolution below
+    operates on the remapped URL (and its host).
     """
+    url = apply_git_url_map(url)
+
     if ssh_pref is True:
         return https_to_ssh_url(url)
     if ssh_pref is False:

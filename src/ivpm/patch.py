@@ -35,6 +35,7 @@
 import os
 import json
 import enum
+import uuid
 import shutil
 import hashlib
 import datetime
@@ -497,7 +498,12 @@ class PatchAwareResolver:
         # MISS: derive the variant from the cached pristine base.
         update_info.report_cache_miss()
         base_path = self._ensure_base(provider, pkg, base_version, update_info)
-        staging = os.path.join(deps_dir, ".patch_stage_%s" % pkg.name)
+        # Build on the cache filesystem so provider.store publishes with a
+        # same-FS rename (not a cross-device copy).  Unique per-build name so
+        # two concurrent runs never rmtree/copy into one path.  Falls back to a
+        # unique deps_dir path if the provider offers no cache-side staging.
+        staging = provider.new_staging(pkg) or os.path.join(
+            deps_dir, ".patch_stage_%s.%s" % (pkg.name, uuid.uuid4().hex))
         _rmtree_if_exists(staging)
         try:
             _copy_tree(base_path, staging)
@@ -519,7 +525,11 @@ class PatchAwareResolver:
         res = provider.lookup(pkg, base_version)
         if res.is_hit:
             return res.cached_path
-        tmp = os.path.join(update_info.deps_dir, ".patch_base_%s" % pkg.name)
+        # Fetch onto the cache filesystem so store() renames the pristine base
+        # into place instead of copying it across devices.
+        tmp = provider.new_staging(pkg) or os.path.join(
+            update_info.deps_dir,
+            ".patch_base_%s.%s" % (pkg.name, uuid.uuid4().hex))
         _rmtree_if_exists(tmp)
         pkg.fetch_pristine(update_info, tmp, base_version)   # network fetch, once
         return provider.store(pkg, base_version, tmp)        # base now shared, RO

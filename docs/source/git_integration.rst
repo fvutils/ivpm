@@ -12,6 +12,15 @@ upstream sources.
 Clone Options
 =============
 
+.. note::
+
+   Git is one of several pluggable *clone providers* (see
+   :doc:`clone_providers`).  It is the default and the fallback for generic
+   URLs.  The git-specific flags below (``--ssh``, ``--anonymous``,
+   ``--git-auth-order``) belong to the git provider; they remain accepted
+   directly on ``ivpm clone`` during the deprecation window, and are listed by
+   ``ivpm show clone-providers git``.
+
 Authentication and Transport
 ----------------------------
 
@@ -126,6 +135,53 @@ wins):
 
 Missing files are ignored.  A malformed file (bad YAML, or a top level that is
 not a mapping) is logged at ``WARNING`` and skipped -- it never aborts a clone.
+
+URL remapping
+~~~~~~~~~~~~~
+
+The ``git-url-map`` key rewrites git URLs on the fly, before any auth/ssh
+resolution.  Use it to redirect fetches to a local mirror, an internal forge, or
+an air-gapped cache without editing project manifests.  Each rule has a ``from``
+pattern and a ``to`` replacement:
+
+.. code-block:: yaml
+
+    git-url-map:
+      # Everything under github.com -> a local mirror ...
+      - from: "https://github.com/"
+        to:   "file:///repos/"
+      # ... except keep the fvutils org on real GitHub (more specific -> wins)
+      - from: "https://github.com/fvutils/"
+        to:   "https://github.com/fvutils/"
+
+``from`` is anchored at the start of the URL and matched **by path element**: a
+literal segment must line up on a ``/`` boundary (so ``.../ORG`` does not match
+``.../ORGANIZATION``).  Wildcards are path-scoped -- ``*`` matches within one
+segment, ``**`` spans segments -- and their captures are available in ``to`` as
+``\1``, ``\2``, ... (use single-quoted YAML so the backslash is preserved).  The
+unmatched tail of the URL is appended automatically:
+
+.. code-block:: yaml
+
+    git-url-map:
+      - from: "https://github.com/*/"
+        to:   'file:///mirror/\1/'      # .../fvutils/lib.git -> file:///mirror/fvutils/lib.git
+
+When several rules match, the **most specific wins**: the rule constraining the
+most path segments, then the most literal characters, then the fewest wildcards,
+then declaration order.  Rules are gathered from ``IVPM_GIT_URL_MAP`` (highest
+tie-break priority), then the user file, then the site file.
+
+A rewrite that lands on a non-http target (``file://``, ``git@``/``ssh://``) is
+used as-is; a rewrite to another https host is then re-evaluated for auth against
+that new host.
+
+The ``IVPM_GIT_URL_MAP`` env var injects rules without a file, as a
+semicolon-separated list of ``from=to`` pairs::
+
+    IVPM_GIT_URL_MAP="https://github.com/fvutils/=file:///repos/fvutils/"
+
+Malformed rules (missing ``from``/``to``) are logged at ``WARNING`` and skipped.
 
 Org-managed defaults
 ~~~~~~~~~~~~~~~~~~~~~
@@ -408,7 +464,7 @@ Status Command
 Checking Package Status
 -----------------------
 
-View the status of all Git dependencies:
+View the status of the root project and all Git dependencies:
 
 .. code-block:: bash
 
@@ -418,13 +474,15 @@ View the status of all Git dependencies:
 
 .. code-block:: text
 
+    Root [git]  main  a1b2c3d  ✓ clean  =
+
     Package: my-library
       Path: packages/my-library
       Branch: main
       Status: Clean
       Remote: origin/main
       Ahead: 0, Behind: 0
-    
+
     Package: test-utils
       Path: packages/test-utils
       Branch: develop
@@ -434,6 +492,17 @@ View the status of all Git dependencies:
         ?? new_file.py
       Remote: origin/develop
       Ahead: 2, Behind: 1
+
+Root project status
+-------------------
+
+The leading ``Root`` line reports the state of the *root* workspace itself, not
+a dependency. A workspace created by ``ivpm clone <git-url>`` reports its root
+status directly (the clone provider is recorded in the lock file); a plain git
+checkout that was **not** created by ``ivpm clone`` still reports it, because
+IVPM probes the root and recognizes the ``.git`` checkout. When no installed
+clone provider recognizes the root, the ``Root`` line is simply omitted. See
+:doc:`clone_providers` for how the provider is selected.
 
 What It Shows
 -------------

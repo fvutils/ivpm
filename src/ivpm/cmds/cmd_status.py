@@ -12,8 +12,8 @@ class CmdStatus(object):
         if args.project_dir is None:
             args.project_dir = os.getcwd()
 
-        results = ProjectOps(args.project_dir).status(args=args)
+        root_status, results = ProjectOps(args.project_dir).status(args=args)
         verbose = getattr(args, "verbose", 0)
         tui = create_status_tui(args)
-        tui.render(results, verbose=verbose)
+        tui.render(results, verbose=verbose, root_status=root_status)
 

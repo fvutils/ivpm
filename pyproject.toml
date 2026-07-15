@@ -45,3 +45,6 @@ fusesoc = "ivpm.handlers.package_handler_fusesoc:PackageHandlerFuseSoC"
 modules = "ivpm.handlers.package_handler_modules:PackageHandlerModules"
 node = "ivpm.handlers.package_handler_node:PackageHandlerNode"
 dv-flow = "ivpm.handlers.package_handler_dv_flow:PackageHandlerDvFlow"
+
+[project.entry-points."ivpm.clone_providers"]
+git = "ivpm.clone.git_clone_provider:GitCloneProvider"

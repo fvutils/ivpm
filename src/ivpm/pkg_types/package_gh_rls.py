@@ -28,6 +28,7 @@ import re
 import platform
 import subprocess
 import shutil
+import xml.etree.ElementTree as ET
 import dataclasses as dc
 from typing import Optional
 from ..proj_info import ProjInfo
@@ -36,19 +37,11 @@ from .package_http import PackageHttp
 
 _logger = logging.getLogger("ivpm.pkg_types.package_gh_rls")
 
-# Semver-compatible version regex (per semver.org), with optional leading 'v' and
-# support for partial versions (major-only or major.minor) used as specifiers.
-_SEMVER_RE = re.compile(
-    r'^v?(?P<major>0|[1-9]\d*)'
-    r'(?:\.(?P<minor>0|[1-9]\d*)'
-    r'(?:\.(?P<patch>0|[1-9]\d*)'
-    r'(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?'
-    r'(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?'
-    r')?)?$'
-)
-
-# Semver component (no leading zeros) for use in range-spec regex
-_SEMVER_COMP = r'(?:0|[1-9]\d*)'
+# Numeric component for the range-spec regex.  Leading zeros are intentionally
+# allowed so specs like '>=5.049' work against upstream tags that zero-pad their
+# minor (see _parse_version_tuple).  Strict SemVer would reject a leading zero,
+# but real-world schemes such as Verilator's '5.049' cannot be changed.
+_VERSION_COMP = r'\d+'
 
 @dc.dataclass
 class PackageGhRls(PackageHttp):
@@ -142,6 +135,16 @@ class PackageGhRls(PackageHttp):
         github_com_idx = self.url.find("github.com")
         return "https://api.github.com/repos/" + self.url[github_com_idx + len("github.com") + 1:]
 
+    def _repo_web_url(self):
+        """Return the base github.com *web* URL for this repo (no trailing slash).
+
+        Used for the non-REST endpoints (releases.atom, the releases page,
+        expanded_assets, and archive/refs/tags), none of which are subject to
+        the api.github.com rate limit or require a token.
+        """
+        github_com_idx = self.url.find("github.com")
+        return "https://github.com/" + self.url[github_com_idx + len("github.com") + 1:]
+
     def _github_headers(self):
         """Return headers for GitHub API requests, including auth token if available."""
         headers = {"Accept": "application/vnd.github+json"}
@@ -172,11 +175,183 @@ class PackageGhRls(PackageHttp):
         return normalized
 
     def _resolve_release(self):
-        """Query GitHub API and resolve the release and asset to download.
-        
+        """Resolve the release and asset to download.
+
+        Prefers non-REST github.com endpoints (the releases.atom feed plus the
+        release pages) so resolving a version neither consumes the
+        api.github.com 60-requests/hour quota nor depends on a valid
+        GITHUB_TOKEN.  Falls back to the REST API when the web path cannot
+        resolve the request: an empty atom feed (tag-only repos), a version
+        older than the ~10-entry atom window, a private repo, an undeterminable
+        prerelease status, or any transport/parse failure.
+
         Returns:
             Tuple of (rls_info, rls, file_url, forced_ext)
         """
+        try:
+            result = self._resolve_release_web()
+            if result is not None:
+                return result
+            _logger.debug("%s: web endpoints could not resolve '%s'; falling back to REST",
+                          self.name, self.version)
+        except Exception as e:
+            _logger.debug("%s: web release resolution failed (%s); falling back to REST",
+                          self.name, e)
+        return self._resolve_release_rest()
+
+    # --- Non-REST (github.com web) resolution --------------------------------
+
+    def _resolve_release_web(self):
+        """Resolve the release using non-REST github.com endpoints.
+
+        Returns the same (rls_info, rls, file_url, forced_ext) tuple as the REST
+        path, or None to signal the caller to fall back to REST (empty atom
+        feed, no matching version within the atom window, or a prerelease status
+        that could not be determined -- filtering on it would be unsafe).
+        """
+        index = self._fetch_release_index_web()
+        if not index:
+            return None
+
+        if self.version == "latest":
+            rls = None
+            for r in index:
+                if r["prerelease"] and not self.prerelease:
+                    continue
+                rls = r
+                break
+            if rls is None:
+                return None
+        else:
+            rls = self._select_release_by_version(index)
+            if rls is None:
+                return None
+
+        # Populate the chosen release with assets + source URLs, then reuse the
+        # shared platform-aware asset selection.
+        self._populate_assets_web(rls)
+        _logger.debug("%s: resolved '%s' -> tag=%s via web endpoints (prerelease=%s, assets=%d)",
+                      self.name, self.version, rls["tag_name"], rls["prerelease"], len(rls["assets"]))
+        file_url, forced_ext = self._select_asset_from_release(rls)
+        return [rls], rls, file_url, forced_ext
+
+    def _fetch_release_index_web(self):
+        """Build a newest-first list of {tag_name, prerelease} from the atom feed.
+
+        The atom feed carries the ordered tag list but not the prerelease flag,
+        so when prerelease filtering is in effect the flags are read from the
+        releases HTML page.  Returns None if the feed is empty or the prerelease
+        status can't be determined (caller should fall back to REST).
+        """
+        tags = self._fetch_tags_atom()
+        if not tags:
+            return None
+        flags = {}
+        if not self.prerelease:
+            flags = self._fetch_prerelease_flags_web()
+            if flags is None:
+                # Prerelease status undeterminable -> filtering would be unsafe.
+                return None
+        return [{"tag_name": t, "prerelease": flags.get(t, False)} for t in tags]
+
+    def _fetch_tags_atom(self):
+        """Return release tags newest-first from releases.atom, or [] if empty.
+
+        Not subject to the api.github.com rate limit and needs no token.
+        """
+        url = self._repo_web_url() + "/releases.atom"
+        resp = httpx.get(url, follow_redirects=True)
+        if resp.status_code != 200:
+            return []
+        try:
+            root = ET.fromstring(resp.content)
+        except ET.ParseError:
+            return []
+        ns = {"a": "http://www.w3.org/2005/Atom"}
+        tags = []
+        for e in root.findall("a:entry", ns):
+            idel = e.find("a:id", ns)
+            if idel is None or not idel.text:
+                continue
+            # <id> looks like 'tag:github.com,2008:Repository/<repo-id>/<tag>'
+            tag = idel.text.rsplit("/", 1)[-1]
+            if tag:
+                tags.append(tag)
+        return tags
+
+    def _fetch_prerelease_flags_web(self):
+        """Parse the releases HTML page into a {tag: is_prerelease} map.
+
+        The atom feed omits the prerelease flag; the releases page labels each
+        release card 'Pre-release' or 'Latest'.  Returns the map, or None if the
+        page is unavailable or no release cards were found (a parse failure, in
+        which case the caller falls back to REST rather than risk mis-filtering).
+        """
+        url = self._repo_web_url() + "/releases"
+        resp = httpx.get(url, follow_redirects=True)
+        if resp.status_code != 200:
+            return None
+        html = resp.text
+        # Each release card links to /releases/tag/<tag>; the 'Pre-release'
+        # label (when present) sits within that card, before the next release's
+        # tag link.  A card may repeat its own tag link, so extend each card to
+        # the next occurrence of a *different* tag.
+        matches = list(re.finditer(r'/releases/tag/([^"\s?]+)', html))
+        if not matches:
+            return None
+        flags = {}
+        n = len(matches)
+        for i, m in enumerate(matches):
+            tag = m.group(1)
+            if tag in flags:
+                continue
+            seg_end = len(html)
+            for j in range(i + 1, n):
+                if matches[j].group(1) != tag:
+                    seg_end = matches[j].start()
+                    break
+            flags[tag] = "Pre-release" in html[m.end():seg_end]
+        return flags
+
+    def _populate_assets_web(self, rls):
+        """Fill a resolved release dict with binary assets and source URLs.
+
+        Assets come from the release's expanded_assets HTML fragment; the source
+        archive URLs are constructed directly (no API call needed).
+        """
+        tag = rls["tag_name"]
+        rls["assets"] = self._fetch_assets_web(tag)
+        rls["tarball_url"] = self._repo_web_url() + "/archive/refs/tags/" + tag + ".tar.gz"
+        rls["zipball_url"] = self._repo_web_url() + "/archive/refs/tags/" + tag + ".zip"
+
+    def _fetch_assets_web(self, tag):
+        """Return [{name, browser_download_url}] for a tag via expanded_assets.
+
+        This is the non-REST equivalent of the API's release 'assets' array.
+        Returns [] when the release has no attached assets (source-only).
+        """
+        url = self._repo_web_url() + "/releases/expanded_assets/" + tag
+        resp = httpx.get(url, follow_redirects=True)
+        if resp.status_code != 200:
+            return []
+        assets = []
+        seen = set()
+        for m in re.finditer(r'href="([^"]*?/releases/download/[^"]+)"', resp.text):
+            path = m.group(1)
+            name = path.rsplit("/", 1)[-1]
+            if name in seen:
+                continue
+            seen.add(name)
+            assets.append({
+                "name": name,
+                "browser_download_url": "https://github.com" + path,
+            })
+        return assets
+
+    # --- REST resolution (fallback) ------------------------------------------
+
+    def _resolve_release_rest(self):
+        """Resolve the release via the GitHub REST API (fallback path)."""
         releases_url = self._repo_base_url() + "/releases"
         rls_info_resp = httpx.get(releases_url, headers=self._github_headers(), follow_redirects=True)
 
@@ -192,7 +367,7 @@ class PackageGhRls(PackageHttp):
                 if r["prerelease"] and not self.prerelease:
                     continue
                 # Skip releases with no usable assets (no assets, or all with broken untagged URLs)
-                if not self.source and not self._filter_valid_assets(r.get("assets", [])): 
+                if not self.source and not self._filter_valid_assets(r.get("assets", [])):
                     continue
                 rls = r
                 break
@@ -224,6 +399,18 @@ class PackageGhRls(PackageHttp):
                               self.name, self.version, rls.get("tag_name",""),
                               rls.get("prerelease"), len(rls.get("assets", [])))
 
+        file_url, forced_ext = self._select_asset_from_release(rls)
+        return rls_info, rls, file_url, forced_ext
+
+    # --- Shared asset selection ----------------------------------------------
+
+    def _select_asset_from_release(self, rls):
+        """Pick the file to download from a resolved release dict.
+
+        Operates purely on the release's 'assets' list and source URLs, so it is
+        shared by both the web and REST resolution paths.  Returns
+        (file_url, forced_ext).
+        """
         # Determine file to download
         file_url = None
         forced_ext = None
@@ -292,7 +479,7 @@ class PackageGhRls(PackageHttp):
 
             file_url = selected["browser_download_url"]
 
-        return rls_info, rls, file_url, forced_ext
+        return file_url, forced_ext
 
     def _determine_src_type(self, file_url, forced_ext):
         """Determine the source type for unpacking."""
@@ -377,22 +564,49 @@ class PackageGhRls(PackageHttp):
         os.unlink(download_dst)
 
     def _parse_version_tuple(self, v):
-        """Parse a version string using the semver regex.
+        """Parse a version string into a tuple of integer components for comparison.
 
-        Returns a tuple of the available numeric components (major, minor, patch),
-        or None if the string does not match the semver format.  Partial versions
-        (major-only or major.minor) are accepted so they can be used as prefix
-        specifiers in version matching.
+        Deliberately *looser* than strict SemVer so real-world tag schemes work:
+
+          * an optional leading 'v'/'V' is stripped;
+          * leading zeros in numeric components are tolerated and parsed
+            numerically (e.g. Verilator's '5.049' -> (5, 49)).  Strict SemVer
+            forbids these, but they are an upstream convention we cannot change;
+          * an arbitrary number of dot-separated components is accepted, so a
+            trailing build/sequence stamp is kept and compared numerically
+            (e.g. '5.049.27094495137' -> (5, 49, 27094495137)).  SemVer has no
+            sortable field for such a stamp -- build metadata is ignored in
+            precedence and a pre-release tail sorts *below* the release -- so we
+            treat it as an ordinary trailing component instead;
+          * a pre-release / build-metadata suffix ('-...' or '+...') is dropped
+            before parsing, matching the prior release-core-only behavior.
+
+        Parsing stops at the first non-numeric component.  Returns a tuple of
+        ints, or None if there is no leading numeric component at all.  Partial
+        specs (major-only or major.minor) are accepted so they can be used as
+        prefix specifiers in version matching.
+
+        Caveat of tolerating leading zeros: '5.049' and '5.49' parse equal -- the
+        very ambiguity SemVer bans -- but it is harmless here (no repo publishes
+        both) and lets a user pin either spelling.
         """
-        m = _SEMVER_RE.match(v or '')
-        if not m:
-            return None
-        parts = [int(m.group('major'))]
-        if m.group('minor') is not None:
-            parts.append(int(m.group('minor')))
-            if m.group('patch') is not None:
-                parts.append(int(m.group('patch')))
-        return tuple(parts)
+        s = (v or "").strip()
+        if s[:1] in ("v", "V"):
+            s = s[1:]
+        # Keep only the numeric release core; drop any pre-release/build suffix.
+        for sep in ("-", "+"):
+            idx = s.find(sep)
+            if idx != -1:
+                s = s[:idx]
+        parts = []
+        for comp in s.split("."):
+            try:
+                parts.append(int(comp))
+            except ValueError:
+                # Stop at the first non-numeric component (e.g. a date-word or
+                # a stray suffix); what precedes it is still a usable version.
+                break
+        return tuple(parts) if parts else None
 
     def _cmp_versions(self, a, b):
         la = len(a); lb = len(b)
@@ -410,7 +624,7 @@ class PackageGhRls(PackageHttp):
         # which has no binary assets, resulting in an unintended source download.
         spec = self.version.strip()
         m = re.match(
-            r'(>=|<=|>|<)\s*v?(' + _SEMVER_COMP + r'(?:\.' + _SEMVER_COMP + r'(?:\.' + _SEMVER_COMP + r')?)?)$',
+            r'(>=|<=|>|<)\s*v?(' + _VERSION_COMP + r'(?:\.' + _VERSION_COMP + r'(?:\.' + _VERSION_COMP + r')?)?)$',
             spec
         )
         if m:
@@ -762,8 +976,13 @@ class PackageGhRls(PackageHttp):
                 ParamInfo("cache", "Cache this release (true=shared cache+symlink, false=no cache)", type_hint="bool"),
             ],
             notes=(
-                "IVPM queries the GitHub Releases API to find the matching release, then "
-                "selects a platform-appropriate asset automatically if 'file:' is not set.  "
-                "Set GITHUB_TOKEN to avoid API rate limits."
+                "IVPM resolves the matching release from GitHub's public web endpoints "
+                "(the releases.atom feed and release pages), then selects a "
+                "platform-appropriate asset automatically if 'file:' is not set.  These "
+                "endpoints need no account and are not subject to the REST API rate limit.  "
+                "IVPM falls back to the REST API (github.com/repos/.../releases) only when "
+                "the web path can't resolve the request -- e.g. a private repo or a version "
+                "older than the recent-releases window; set GITHUB_TOKEN to raise the rate "
+                "limit or reach private repos on that fallback path."
             ),
         )

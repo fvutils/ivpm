@@ -101,7 +101,16 @@ class TestCache(unittest.TestCase):
     def test_has_version_true(self):
         version_dir = self.cache.get_version_cache_dir("mypackage", "abc123")
         os.makedirs(version_dir)
+        with open(os.path.join(version_dir, "test.txt"), "w") as f:
+            f.write("content")
         self.assertTrue(self.cache.has_version("mypackage", "abc123"))
+
+    def test_has_version_empty_dir_is_absent(self):
+        # H4: an empty leftover directory (interrupted rmtree / crash) must not
+        # be mistaken for a real cache entry.
+        version_dir = self.cache.get_version_cache_dir("mypackage", "abc123")
+        os.makedirs(version_dir)
+        self.assertFalse(self.cache.has_version("mypackage", "abc123"))
         
     def test_ensure_cache_dir(self):
         pkg_dir = self.cache.ensure_cache_dir("mypackage")

@@ -195,6 +195,36 @@ self-describing without a local manifest: tooling can locate the lock file by
 knowing the deps directory and re-resolve against the recorded source.  The
 field is absent for ordinary (local ``ivpm.yaml``) workspaces.
 
+Root Project (``root``)
+=======================
+
+When a workspace is created by ``ivpm clone``, the lock file records which
+**clone provider** produced the root in a top-level ``root`` block:
+
+.. code-block:: json
+
+    {
+      "ivpm_lock_version": 1,
+      "root": {
+        "provider": "git",
+        "src": "https://github.com/fvutils/ivpm",
+        "resolved_revision": "138f994..."
+      },
+      "packages": { }
+    }
+
+* ``provider`` — the registered name of the clone provider (e.g. ``git``).  This
+  is the only field ``ivpm status`` needs to select the provider that describes
+  the root project (see :doc:`clone_providers`).
+* ``src`` — the original locator passed to ``ivpm clone``.  Optional; for
+  display and diagnostics.
+* ``resolved_revision`` — the concrete revision the provider reported.  Optional.
+
+The block is **additive** (no lock-version bump) and **absent** for workspaces
+not created by ``ivpm clone`` — those rely on ``ivpm status`` probing the root.
+It is written by ``ivpm clone`` and **preserved** across subsequent
+``ivpm update`` re-writes of the lock.
+
 Change Detection
 ================
 

@@ -1,4 +1,33 @@
 
+# 2.18.0
+- Git URL remapping via the config files. A new `git-url-map` key (in the user
+  and site `config.yaml`, or the `IVPM_GIT_URL_MAP` env var) rewrites git URLs
+  on the fly before auth/ssh resolution — e.g. redirect `https://github.com/ORG`
+  to a `file:///repos/ORG` mirror. Patterns match by path element, support `*`
+  (within a segment) and `**` (across segments) wildcards with `\1..\n` captures,
+  and resolve most-specific-wins (by path depth). See the *Git Integration* docs.
+- `ivpm clone` now supports **pluggable clone providers**. The source of the
+  root workspace is extensible: a provider claims a URL by dedicated scheme
+  (`cdb://…`) or by pattern (`https://myserver/…`), with a dedicated scheme
+  taking precedence and an ambiguous match reported as an error. Providers can
+  declare their own command-line options (e.g.
+  `ivpm clone cdb://codeline -branch abc -node xyz`). Register a provider via
+  the `ivpm.clone_providers` entry-point group; see the *Clone Providers* docs.
+  The existing git behavior is unchanged: git is the default provider and the
+  fallback for generic URLs. The git-specific flags (`--ssh`, `--anonymous`,
+  `--git-auth-order`) now belong to the git provider and are listed by
+  `ivpm show clone-providers git`; they remain accepted on `ivpm clone` during a
+  deprecation window. New: `ivpm clone --provider NAME` and
+  `ivpm show clone-providers`.
+- `ivpm status` now reports the **root project** in addition to its Git
+  dependencies, described by the clone provider that produced the workspace.
+  `ivpm clone` records the root's clone-provider type in the lock file (a new
+  additive top-level `root` block, preserved across `ivpm update`); when the
+  workspace was not created by `ivpm clone`, IVPM probes the installed providers
+  to recognize the root on disk. The root line is omitted (never an error) when
+  the type cannot be determined. Clone providers gain two optional hooks —
+  `probe()` and `root_status()` — to participate; see the *Clone Providers* docs.
+
 # 2.17.0
 - Enhance performance-monitoring features. Runs now record stats to a file for later review
 - Environment management is now fully delegated to `direnv`. The `ivpm activate`

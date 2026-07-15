@@ -32,8 +32,9 @@ Key Capabilities
   creates a project-local venv and installs packages via pip or uv.
   Source packages are installed in editable mode for co-development.
 
-- **Git integration** -- ``ivpm status`` and ``ivpm sync`` let you track
-  changes, update from upstream, and work with editable Git dependencies.
+- **Git integration** -- ``ivpm status`` (covering the root project as well as
+  Git dependencies) and ``ivpm sync`` let you track changes, update from
+  upstream, and work with editable Git dependencies.
 
 - **Caching and reproducibility** -- cached packages are shared across
   projects via symlinks.  A lock file records exact resolved versions for

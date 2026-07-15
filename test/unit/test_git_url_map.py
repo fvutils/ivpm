@@ -1,0 +1,225 @@
+"""Unit tests for git-url-map (on-the-fly git URL rewriting).
+
+Covers boundary-aligned path matching, most-specific (path-depth) selection,
+wildcards + captures, env/file layering, the IVPM_GIT_URL_MAP fast-path, and
+integration through resolve_clone_url (remap-before-auth).
+"""
+import os
+import sys
+import unittest
+from unittest.mock import patch
+
+# Ensure src is on the path (mirrors CI setup)
+_ROOTDIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.join(_ROOTDIR, "src"))
+
+import ivpm.utils as utils
+from ivpm.utils import resolve_clone_url
+import ivpm.site_config as sc
+from ivpm.site_config import (
+    apply_git_url_map, _env_git_url_map, _file_git_url_map, reset_site_config,
+)
+
+
+def _apply(rules, url, env=""):
+    """apply_git_url_map with *rules* as the file rules and *env* as IVPM_GIT_URL_MAP."""
+    with patch.object(sc, "_file_git_url_map", lambda: list(rules)):
+        with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": env}):
+            return apply_git_url_map(url)
+
+
+# ---------------------------------------------------------------------------
+# Boundary-aligned prefix matching
+# ---------------------------------------------------------------------------
+
+class TestBoundaryMatch(unittest.TestCase):
+
+    RULE = [("https://github.com/ORG", "file:///repos/ORG")]
+
+    def test_tail_appended(self):
+        self.assertEqual(_apply(self.RULE, "https://github.com/ORG/lib.git"),
+                         "file:///repos/ORG/lib.git")
+
+    def test_exact_match(self):
+        self.assertEqual(_apply(self.RULE, "https://github.com/ORG"),
+                         "file:///repos/ORG")
+
+    def test_no_partial_segment_match(self):
+        # "ORG" must not match the "ORGANIZATION" segment
+        self.assertEqual(_apply(self.RULE, "https://github.com/ORGANIZATION/x"),
+                         "https://github.com/ORGANIZATION/x")
+
+    def test_non_matching_passthrough(self):
+        self.assertEqual(_apply(self.RULE, "https://github.com/OTHER/x"),
+                         "https://github.com/OTHER/x")
+
+    def test_no_rules_passthrough(self):
+        self.assertEqual(_apply([], "https://github.com/o/r"),
+                         "https://github.com/o/r")
+
+    def test_trailing_slash_prefix(self):
+        self.assertEqual(
+            _apply([("https://github.com/", "file:///repos/")],
+                   "https://github.com/o/lib.git"),
+            "file:///repos/o/lib.git")
+
+
+# ---------------------------------------------------------------------------
+# Most-specific selection (by path-element depth)
+# ---------------------------------------------------------------------------
+
+class TestMostSpecific(unittest.TestCase):
+
+    def test_deeper_literal_beats_wildcard(self):
+        # a-b/c (2 segments) beats a-* (1 segment) even though a-* also matches,
+        # and even though the wildcard rule is declared first (not first-match).
+        rules = [("https://github.com/a-*", "file:///Q"),
+                 ("https://github.com/a-b/c", "file:///P")]
+        self.assertEqual(_apply(rules, "https://github.com/a-b/c"), "file:///P")
+
+    def test_deeper_prefix_beats_shallow(self):
+        rules = [("https://github.com/", "file:///A/"),
+                 ("https://github.com/fvutils/", "file:///B/")]
+        self.assertEqual(_apply(rules, "https://github.com/fvutils/a"),
+                         "file:///B/a")
+        self.assertEqual(_apply(rules, "https://github.com/fvutils/b"),
+                         "file:///B/b")
+
+    def test_shallow_used_when_deep_does_not_match(self):
+        rules = [("https://github.com/", "file:///A/"),
+                 ("https://github.com/fvutils/", "file:///B/")]
+        self.assertEqual(_apply(rules, "https://github.com/other/bar"),
+                         "file:///A/other/bar")
+
+    def test_literal_breaks_tie_within_same_depth(self):
+        # same depth (1 segment): the literal a-b beats the wildcard a-*
+        rules = [("https://github.com/a-*", "file:///Q/"),
+                 ("https://github.com/a-b", "file:///P")]
+        self.assertEqual(_apply(rules, "https://github.com/a-b/x"),
+                         "file:///P/x")
+
+
+# ---------------------------------------------------------------------------
+# Wildcards and captures
+# ---------------------------------------------------------------------------
+
+class TestWildcards(unittest.TestCase):
+
+    def test_single_segment_capture(self):
+        rules = [("https://github.com/*/", "file:///mirror/\\1/")]
+        self.assertEqual(_apply(rules, "https://github.com/fvutils/lib.git"),
+                         "file:///mirror/fvutils/lib.git")
+
+    def test_star_does_not_cross_segment(self):
+        # '*' matches within one segment; org "a/b" is not a single segment
+        rules = [("https://github.com/*", "file:///m/\\1")]
+        self.assertEqual(_apply(rules, "https://github.com/org/repo.git"),
+                         "file:///m/org/repo.git")   # \1=org, tail=/repo.git
+
+    def test_doublestar_crosses_segments(self):
+        rules = [("https://github.com/**", "file:///all/\\1")]
+        self.assertEqual(_apply(rules, "https://github.com/a/b/c.git"),
+                         "file:///all/a/b/c.git")
+
+
+# ---------------------------------------------------------------------------
+# Layering / tie-break ordering
+# ---------------------------------------------------------------------------
+
+class TestOrdering(unittest.TestCase):
+
+    def test_env_wins_tie_over_file(self):
+        rules = [("https://github.com/x", "file:///FILE")]
+        self.assertEqual(
+            _apply(rules, "https://github.com/x",
+                   env="https://github.com/x=file:///ENV"),
+            "file:///ENV")
+
+    def test_first_file_rule_wins_tie(self):
+        rules = [("https://github.com/x", "file:///1"),
+                 ("https://github.com/x", "file:///2")]
+        self.assertEqual(_apply(rules, "https://github.com/x"), "file:///1")
+
+
+# ---------------------------------------------------------------------------
+# IVPM_GIT_URL_MAP parsing
+# ---------------------------------------------------------------------------
+
+class TestEnvParsing(unittest.TestCase):
+
+    def _parse(self, spec):
+        with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": spec}):
+            return _env_git_url_map()
+
+    def test_multiple_pairs(self):
+        self.assertEqual(self._parse("a=b; c=d "), [("a", "b"), ("c", "d")])
+
+    def test_malformed_entries_skipped(self):
+        # no '=', empty from, empty to -> all skipped; the good pair survives
+        self.assertEqual(self._parse("bad; =e; f=; g=h"), [("g", "h")])
+
+    def test_unset_is_empty(self):
+        with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": ""}):
+            self.assertEqual(_env_git_url_map(), [])
+
+
+# ---------------------------------------------------------------------------
+# File-rule parsing robustness
+# ---------------------------------------------------------------------------
+
+class TestFileParsing(unittest.TestCase):
+
+    def tearDown(self):
+        reset_site_config()
+
+    def test_malformed_rules_skipped(self):
+        data = {"git-url-map": [
+            {"from": "a", "to": "b"},
+            {"from": "a"},          # missing to
+            {"to": "x"},            # missing from
+            "not-a-dict",
+        ]}
+        with patch.object(sc, "_load_config_files", lambda: [("cfg.yaml", data)]):
+            self.assertEqual(_file_git_url_map(), [("a", "b")])
+
+    def test_absent_key_is_empty(self):
+        with patch.object(sc, "_load_config_files", lambda: [("cfg.yaml", {})]):
+            self.assertEqual(_file_git_url_map(), [])
+
+
+# ---------------------------------------------------------------------------
+# Integration through resolve_clone_url (remap before auth)
+# ---------------------------------------------------------------------------
+
+class TestResolveCloneUrlIntegration(unittest.TestCase):
+
+    def _resolve(self, rules, url, ssh_pref, order, gh_ok=False):
+        with patch.object(sc, "_file_git_url_map", lambda: list(rules)):
+            with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": ""}):
+                with patch.object(utils, "gh_auth_available", lambda h: gh_ok):
+                    return resolve_clone_url(url, ssh_pref, order)
+
+    def test_remap_to_file_bypasses_auth(self):
+        # https -> file:// : auth handling must leave the file URL untouched
+        rules = [("https://github.com/o/r", "file:///repos/o/r")]
+        self.assertEqual(
+            self._resolve(rules, "https://github.com/o/r", None, ["gh", "ssh"]),
+            "file:///repos/o/r")
+
+    def test_remap_to_other_host_applies_auth(self):
+        # https -> https(other host): ssh rewrite applies to the *new* host
+        rules = [("https://github.com/o/r", "https://mirror.internal/o/r")]
+        self.assertEqual(
+            self._resolve(rules, "https://github.com/o/r", None, ["ssh"]),
+            "git@mirror.internal:o/r")
+
+    def test_explicit_ssh_pref_noop_on_file_target(self):
+        # ssh_pref=True can't ssh-rewrite a file:// URL -> left as-is, no error
+        rules = [("https://github.com/o/r", "file:///repos/o/r")]
+        self.assertEqual(
+            self._resolve(rules, "https://github.com/o/r", True, None),
+            "file:///repos/o/r")
+
+
+if __name__ == "__main__":
+    unittest.main()

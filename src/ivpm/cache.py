@@ -17,13 +17,33 @@
 #*
 #****************************************************************************
 import os
+import errno
 import stat
 import json
 import time
+import uuid
 import shutil
 from typing import Optional
 from .msg import note
 from .site_config import get_site_config
+
+
+class CacheStoreError(Exception):
+    """A cache publish failed for a reason other than losing the store race.
+
+    The benign lost-race path (another worker published the same entry first)
+    adopts the winner's entry instead of raising.  This exception is reserved
+    for *genuine* failures — ``ENOSPC``, ``EACCES``, ``EROFS``, a vanished
+    entry at link time — so they surface with context rather than being
+    silently mistaken for a cache miss.
+    """
+
+    def __init__(self, package_name: str, version: str, cause):
+        super().__init__("failed to store %s/%s: %s" % (
+            package_name, version, cause))
+        self.package_name = package_name
+        self.version = version
+        self.cause = cause
 
 
 class DirectoryCacheStore:
@@ -54,10 +74,24 @@ class DirectoryCacheStore:
         """Get the cache directory for a specific package version."""
         return os.path.join(self.cache_dir, package_name, version)
     
+    def _is_populated(self, version_dir: str) -> bool:
+        """A cache entry counts as present only when it is a NON-EMPTY directory.
+
+        An atomic publish (:meth:`store_version`) makes IVPM's own entries
+        complete-or-absent, but an interrupted external ``rmtree`` or a crashed
+        run can leave an *empty* ``version_dir``.  Treating that as absent means
+        it is never mistaken for a HIT (and the atomic rename in
+        :meth:`store_version` will replace it on rebuild).
+        """
+        try:
+            return os.path.isdir(version_dir) and bool(os.listdir(version_dir))
+        except OSError:
+            return False
+
     def has_version(self, package_name: str, version: str) -> bool:
-        """Check if a specific version is cached."""
+        """Check if a specific version is cached (present and non-empty)."""
         version_dir = self.get_version_cache_dir(package_name, version)
-        return os.path.isdir(version_dir)
+        return self._is_populated(version_dir)
     
     def ensure_cache_dir(self, package_name: str) -> str:
         """Ensure the package cache directory exists (with setgid)."""
@@ -68,8 +102,63 @@ class DirectoryCacheStore:
                 os.chmod(pkg_cache_dir, self._DIR_MODE)
             except OSError:
                 pass
+        else:
+            # Opportunistically clear crash-leftover staging trees so unique
+            # (uuid4) names don't accumulate over time.
+            self._sweep_stale_staging(pkg_cache_dir)
         return pkg_cache_dir
+
+    _STAGING_MARKER = ".staging."
+    _STALE_STAGING_AGE_S = 24 * 60 * 60  # 24h — far beyond any live build
+
+    def _sweep_stale_staging(self, pkg_cache_dir: str):
+        """Best-effort removal of orphaned ``<version>.staging.<uuid>`` trees.
+
+        Unique staging names mean a leftover never collides with a live build;
+        this only keeps crashed/killed-run residue from piling up.  Only trees
+        older than :attr:`_STALE_STAGING_AGE_S` are removed, so an in-flight
+        publish is never disturbed.  Fully best-effort (``OSError``-tolerant).
+
+        Staleness keys on ``max(mtime, ctime)``: a staging dir built with
+        ``copytree`` inherits the *source* tree's (possibly old) mtime via
+        ``copystat``, but its ``ctime`` reflects its actual just-now creation —
+        so a live build is never mistaken for stale, while a genuine leftover
+        (untouched since a crash) still ages out on both stamps.
+        """
+        try:
+            entries = os.listdir(pkg_cache_dir)
+        except OSError:
+            return
+        cutoff = time.time() - self._STALE_STAGING_AGE_S
+        for name in entries:
+            if self._STAGING_MARKER not in name:
+                continue
+            path = os.path.join(pkg_cache_dir, name)
+            if not os.path.isdir(path):
+                continue
+            try:
+                st = os.stat(path)
+                if max(st.st_mtime, st.st_ctime) >= cutoff:
+                    continue
+            except OSError:
+                continue
+            self._make_writable(path)
+            shutil.rmtree(path, ignore_errors=True)
     
+    def new_staging(self, package_name: str) -> str:
+        """A unique, not-yet-created staging path on the CACHE filesystem.
+
+        Returned as a *sibling* of the package's version directories, so a
+        tree built here and handed to :meth:`store_version` publishes with a
+        same-filesystem ``rename`` instead of a cross-device copy.  The caller
+        populates the path (it does not exist yet) and passes it to
+        :meth:`store_version`.  The ``.staging.`` marker keeps it out of cache
+        scans (:meth:`get_cache_info`, :meth:`clean_older_than`) and makes it
+        eligible for the stale-staging sweep if a build crashes.
+        """
+        pkg_cache_dir = self.ensure_cache_dir(package_name)
+        return os.path.join(pkg_cache_dir, "build.staging." + uuid.uuid4().hex)
+
     def store_version(self, package_name: str, version: str, source_path: str) -> str:
         """Store a package version in the cache.
         
@@ -82,34 +171,48 @@ class DirectoryCacheStore:
             Path to the cached version directory
         """
         version_dir = self.get_version_cache_dir(package_name, version)
-        
-        if os.path.exists(version_dir):
+
+        # An empty leftover version_dir (interrupted rmtree / crashed run) is
+        # NOT a hit — fall through and rebuild; the atomic rename below replaces
+        # an empty target.
+        if self._is_populated(version_dir):
             # Already cached — clean up the source that is no longer needed
             if os.path.exists(source_path):
-                shutil.rmtree(source_path)
+                shutil.rmtree(source_path, ignore_errors=True)
             # Re-storing an extant entry still counts as using it.
             self._touch_last_linked(package_name, version)
             return version_dir
-        
+
         self.ensure_cache_dir(package_name)
-        
-        # Move to a temporary name first, then atomically rename.
-        # This prevents a race where two parallel workers both pass
-        # the existence check and try to populate the same directory.
-        staging_dir = version_dir + ".staging.%d" % os.getpid()
+
+        # --- Atomic publish (the mutual-exclusion primitive) --------------
+        # Build under a unique staging name, then publish with a single
+        # ``os.rename``.  Two invariants make this race-safe WITHOUT a lock:
+        #
+        #  * INVARIANT (H1): staging is a SIBLING of version_dir (same
+        #    directory => same filesystem), so ``os.rename`` is atomic and its
+        #    ``ENOTEMPTY`` failure when version_dir already exists IS the
+        #    serialization point.  Do not relocate staging off this filesystem.
+        #  * The staging name is uuid4-unique (H2), so concurrent worker
+        #    threads (which share a PID), separate processes, and reused PIDs
+        #    from a prior crashed run can never collide — ``shutil.move`` can
+        #    never nest ``source_path`` inside a stale staging dir.
+        staging_dir = version_dir + ".staging." + uuid.uuid4().hex
+        assert os.path.dirname(staging_dir) == os.path.dirname(version_dir)
         try:
             shutil.move(source_path, staging_dir)
             os.rename(staging_dir, version_dir)
-        except OSError:
-            # Another process won the race — clean up our staging copy
-            if os.path.exists(staging_dir):
-                shutil.rmtree(staging_dir)
-            if os.path.exists(source_path):
-                shutil.rmtree(source_path)
-            if os.path.exists(version_dir):
+        except OSError as e:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            # Only a lost race adopts the winner's (atomically complete) entry;
+            # any other errno (ENOSPC/EACCES/EROFS/...) is a genuine failure.
+            if e.errno in (errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR) \
+                    and self._is_populated(version_dir):
+                shutil.rmtree(source_path, ignore_errors=True)
                 return version_dir
-            raise
-        
+            shutil.rmtree(source_path, ignore_errors=True)
+            raise CacheStoreError(package_name, version, e) from e
+
         # Make all files read-only
         self._make_readonly(version_dir)
 
@@ -137,8 +240,15 @@ class DirectoryCacheStore:
             Path to the symlink in deps_dir
         """
         version_dir = self.get_version_cache_dir(package_name, version)
+        # Defensive backstop: materialize is only called after a HIT or a
+        # successful store (both guarantee populated), but a concurrent GC
+        # removing the entry between lookup and here would otherwise symlink a
+        # vanishing/empty target.
+        if not self._is_populated(version_dir):
+            raise CacheStoreError(
+                package_name, version, "entry missing or empty at link time")
         link_path = os.path.join(deps_dir, package_name)
-        
+
         if os.path.islink(link_path):
             os.unlink(link_path)
         elif os.path.exists(link_path):
@@ -329,6 +439,8 @@ class DirectoryCacheStore:
                 version_dir = os.path.join(pkg_dir, version)
                 if not os.path.isdir(version_dir):
                     continue  # skip *.meta.json sidecars and other non-dirs
+                if self._STAGING_MARKER in version:
+                    continue  # skip in-flight / stale staging build dirs
 
                 size = self._get_dir_size(version_dir)
                 mtime = os.path.getmtime(version_dir)
@@ -421,6 +533,17 @@ class DirectoryCacheStore:
                 version_dir = os.path.join(pkg_dir, version)
                 if not os.path.isdir(version_dir):
                     continue  # skip sidecars and other non-dir siblings
+                if self._STAGING_MARKER in version:
+                    continue  # staging residue — handled by the sweep below
+
+                # An empty version dir is a crash leftover, not a real entry;
+                # drop it regardless of age so it never poses as a HIT.
+                if not self._is_populated(version_dir):
+                    if not dry_run:
+                        self._make_writable(version_dir)
+                        shutil.rmtree(version_dir, ignore_errors=True)
+                        self._delete_meta(pkg_name, version)
+                    continue
 
                 if self.entry_last_used(pkg_name, version) < cutoff:
                     if not dry_run:
@@ -436,8 +559,10 @@ class DirectoryCacheStore:
             if dry_run:
                 continue
 
-            # Sweep orphaned sidecars, then drop now-empty package directories.
+            # Sweep orphaned sidecars and stale staging, then drop now-empty
+            # package directories.
             self._sweep_orphan_meta(pkg_dir)
+            self._sweep_stale_staging(pkg_dir)
             if not os.listdir(pkg_dir):
                 os.rmdir(pkg_dir)
 

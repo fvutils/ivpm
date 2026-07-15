@@ -108,6 +108,17 @@ class CacheProvider:
         """
         raise NotImplementedError
 
+    def new_staging(self, pkg) -> Optional[str]:
+        """A unique, not-yet-created build directory on the cache filesystem.
+
+        A caller that must *build* a tree before :meth:`store` (e.g. the patch
+        resolver copying a base and applying patches) should build here so the
+        subsequent ``store`` is a same-filesystem rename rather than a
+        cross-device copy.  Returns ``None`` when the provider has no cache-side
+        staging (the caller then falls back to its own scratch dir).
+        """
+        return None
+
     def store(self, pkg, version: str, source_path: str) -> str:
         """Adopt a freshly fetched tree into the cache.
 
@@ -173,6 +184,10 @@ class DirectoryCacheProvider(CacheProvider):
             path = self._store.get_version_cache_dir(pkg.name, version)
             return CacheLookupResult(CacheState.HIT, path)
         return CacheLookupResult(CacheState.MISS)
+
+    def new_staging(self, pkg) -> Optional[str]:
+        # On the cache filesystem, so store() renames instead of copying.
+        return self._store.new_staging(pkg.name)
 
     def store(self, pkg, version: str, source_path: str) -> str:
         return self._store.store_version(pkg.name, version, source_path)

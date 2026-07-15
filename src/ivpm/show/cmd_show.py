@@ -45,8 +45,11 @@ class CmdShow:
         elif sub in ("site-config", "config"):
             from .show_config import ShowConfig
             ShowConfig()(args)
+        elif sub in ("clone-providers", "clone-provider"):
+            from .show_clone_providers import ShowCloneProviders
+            ShowCloneProviders()(args)
         else:
-            # No sub-command: show all three categories
+            # No sub-command: show all categories
             _show_all(args)
 
 
@@ -58,10 +61,13 @@ def _show_all(args):
     from .show_source import _get_all_source_infos, _rich_list as src_rich, _plain_list as src_plain
     from .show_type import _get_all_type_infos, _rich_list as type_rich, _plain_list as type_plain
     from .show_handler import _get_all_handler_infos, _rich_list as handler_rich, _plain_list as handler_plain
+    from .show_clone_providers import _get_all_infos as _get_all_clone_infos, \
+        _rich_list as clone_rich, _plain_list as clone_plain
 
     src_infos = _get_all_source_infos()
     type_infos = _get_all_type_infos()
     handler_infos = _get_all_handler_infos()
+    clone_infos = _get_all_clone_infos()
 
     if as_json:
         import dataclasses
@@ -69,6 +75,7 @@ def _show_all(args):
             "sources": [dataclasses.asdict(i) for i in src_infos],
             "types":   [dataclasses.asdict(i) for i in type_infos],
             "handlers":[dataclasses.asdict(i) for i in handler_infos],
+            "clone_providers": [dataclasses.asdict(i) for i in clone_infos],
         }, indent=2))
         return
 
@@ -79,6 +86,8 @@ def _show_all(args):
         type_plain(type_infos)
         print("\n=== Handlers ===")
         handler_plain(handler_infos)
+        print("\n=== Clone Providers ===")
+        clone_plain(clone_infos)
     else:
         from rich.console import Console
         console = Console()
@@ -88,6 +97,8 @@ def _show_all(args):
         type_rich(type_infos)
         console.print("[bold underline]Handlers[/]  [dim](ivpm show handler <name> for details)[/]")
         handler_rich(handler_infos)
+        console.print("[bold underline]Clone Providers[/]  [dim](ivpm show clone-providers <name> for details)[/]")
+        clone_rich(clone_infos)
 
 
 def _emit_schema():

@@ -52,6 +52,7 @@ key.  Use ``ivpm show site-config`` to see what is registered and which is activ
 import fnmatch
 import logging
 import os
+import re
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 import yaml
@@ -357,6 +358,118 @@ def resolve_git_auth_order(host: Optional[str] = None) -> List[str]:
         return file_default
 
     return parse_git_auth_order(cfg.get_default_git_auth_order())
+
+
+# --------------------------------------------------------------------------
+# git-url-map: on-the-fly rewrite of git URLs before cloning
+# --------------------------------------------------------------------------
+#
+# Config-file key (user + site), a list of prefix-pattern rewrite rules:
+#
+#   git-url-map:
+#     - from: "https://github.com/"          # broad: everything under github
+#       to:   "file:///repos/"
+#     - from: "https://github.com/fvutils/"  # more specific -> wins for fvutils
+#       to:   "https://github.com/fvutils/"
+#
+# `from` is anchored at the start of the URL and matched by path element.
+# Wildcards: `*` matches within one path segment (no `/`), `**` spans segments.
+# Captures from `*`/`**` are available in `to` as \1, \2, ... (use single-quoted
+# YAML so the backslash is preserved).  The unmatched tail of the URL is appended
+# automatically.  When several rules match, the *most specific* wins: most path
+# segments constrained, then most literal characters, then fewest wildcards, then
+# declaration order (env before user before site).  IVPM_GIT_URL_MAP contributes
+# additional rules (highest tie-break priority); its format is a semicolon-
+# separated list of ``from=to`` pairs.
+
+
+def _path_seg_count(frm: str) -> int:
+    """Number of non-empty path segments the pattern constrains (after host)."""
+    d = frm.find("://")
+    rest = frm[d + 3:] if d >= 0 else frm
+    slash = rest.find("/")
+    if slash < 0:
+        return 0
+    return len([s for s in rest[slash + 1:].split("/") if s])
+
+
+def _compile_git_url_pattern(frm: str) -> Tuple["re.Pattern", int, int, int]:
+    """Compile *frm* into (anchored regex, path-seg count, literal count, wildcard count)."""
+    parts: List[str] = []
+    i = lit = wc = 0
+    while i < len(frm):
+        if frm.startswith("**", i):
+            parts.append("(.*)"); wc += 1; i += 2
+        elif frm[i] == "*":
+            parts.append("([^/]*)"); wc += 1; i += 1
+        else:
+            parts.append(re.escape(frm[i])); lit += 1; i += 1
+    tail = frm[-1:]
+    boundary = "" if (tail == "/" or tail == "*") else r"(?=/|$)"
+    return (re.compile("^" + "".join(parts) + boundary),
+            _path_seg_count(frm), lit, wc)
+
+
+def _env_git_url_map() -> List[Tuple[str, str]]:
+    """(from, to) rules from ``IVPM_GIT_URL_MAP`` (``from=to;from=to``)."""
+    spec = os.environ.get("IVPM_GIT_URL_MAP")
+    if not spec:
+        return []
+    rules: List[Tuple[str, str]] = []
+    for entry in spec.split(";"):
+        entry = entry.strip()
+        if not entry:
+            continue
+        frm, sep, to = entry.partition("=")
+        frm, to = frm.strip(), to.strip()
+        if sep and frm and to:
+            rules.append((frm, to))
+        else:
+            _logger.warning("ignoring malformed IVPM_GIT_URL_MAP entry: %r", entry)
+    return rules
+
+
+def _file_git_url_map() -> List[Tuple[str, str]]:
+    """(from, to) rewrite rules from the config files, user first."""
+    rules: List[Tuple[str, str]] = []
+    for _path, data in _load_config_files():
+        for rule in (data.get("git-url-map") or []):
+            if not isinstance(rule, dict):
+                continue
+            frm, to = rule.get("from"), rule.get("to")
+            if frm and to:
+                rules.append((str(frm), str(to)))
+            else:
+                _logger.warning("ignoring git-url-map rule missing from/to: %r", rule)
+    return rules
+
+
+def apply_git_url_map(url: str) -> str:
+    """Rewrite *url* by the most-specific matching git-url-map rule.
+
+    Returns *url* unchanged when no rule matches.  Applied by
+    :func:`ivpm.utils.resolve_clone_url` before any ssh/auth handling, so a
+    rule that redirects an https URL to a ``file://`` mirror or an internal
+    host is honored and then re-evaluated for auth against the new host.
+    """
+    best = None  # (specificity key, match end, capture groups, replacement)
+    for idx, (frm, to) in enumerate(_env_git_url_map() + _file_git_url_map()):
+        rx, segs, lit, wc = _compile_git_url_pattern(frm)
+        m = rx.match(url)
+        if not m:
+            continue
+        key = (segs, lit, -wc, -idx)   # depth, literal, wildcards, declaration order
+        if best is None or key > best[0]:
+            best = (key, m.end(), m.groups(), to)
+    if best is None:
+        return url
+    _, end, groups, to = best
+    for n, g in enumerate(groups, start=1):
+        to = to.replace("\\%d" % n, g or "")
+    result = to + url[end:]
+    if result != url:
+        _logger.debug("git-url-map: %s -> %s", url, result)
+    return result
 
 
 def reset_site_config() -> None:

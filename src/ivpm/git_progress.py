@@ -28,6 +28,8 @@ stderr on ``\\r``/``\\n``, and invokes a callback with a short progress message
 """
 import re
 import subprocess
+import sys
+from collections import deque
 from typing import Callable, List, Optional
 
 # Matches git progress lines such as:
@@ -48,13 +50,23 @@ def parse_progress_line(line: str) -> Optional[str]:
 def run_git_with_progress(
         cmd: List[str],
         cwd: Optional[str] = None,
-        on_progress: Optional[Callable[[str], None]] = None) -> int:
+        on_progress: Optional[Callable[[str], None]] = None,
+        stderr_sink: Optional[List[str]] = None,
+        echo: bool = False,
+        max_capture: int = 60) -> int:
     """Run a git command, reporting progress via ``on_progress``.
 
     ``cmd`` should already include ``--progress`` so git emits progress even
     though stderr is a pipe.  ``on_progress`` is called with a short message
     each time the reported percentage changes (consecutive duplicates are
     suppressed).  stdout is discarded.  Returns the process exit code.
+
+    When ``stderr_sink`` is provided, the last ``max_capture`` non-progress
+    stderr lines are appended to it so a failing command can be diagnosed
+    (e.g. "remote: Repository not found").  When ``echo`` is set, git's raw
+    stderr is streamed to ``sys.stderr`` as it arrives (preserving the ``\\r``
+    in-place progress updates) -- used outside the Rich TUI so the user still
+    sees git's native output while we also capture it.
     """
     proc = subprocess.Popen(
         cmd,
@@ -62,6 +74,7 @@ def run_git_with_progress(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE)
 
+    captured = deque(maxlen=max_capture) if stderr_sink is not None else None
     last_msg = None
     buf = ""
     try:
@@ -69,19 +82,30 @@ def run_git_with_progress(
             chunk = proc.stderr.read(256)
             if not chunk:
                 break
-            buf += chunk.decode("utf-8", "replace")
+            text = chunk.decode("utf-8", "replace")
+            if echo:
+                # Write raw so \r-based in-place progress renders as git intends.
+                sys.stderr.write(text)
+                sys.stderr.flush()
+            buf += text
             # git terminates in-place updates with \r and final lines with \n;
             # split on either and keep any trailing partial segment in buf.
             segments = re.split(r'[\r\n]', buf)
             buf = segments.pop()
-            if on_progress is None:
-                continue
             for seg in segments:
                 msg = parse_progress_line(seg)
-                if msg is not None and msg != last_msg:
-                    last_msg = msg
-                    on_progress(msg)
+                if msg is not None:
+                    if on_progress is not None and msg != last_msg:
+                        last_msg = msg
+                        on_progress(msg)
+                    continue  # don't retain transient progress lines
+                if captured is not None and seg.strip():
+                    captured.append(seg.rstrip())
     finally:
         proc.stderr.close()
     proc.wait()
+    if captured is not None:
+        if buf.strip():
+            captured.append(buf.rstrip())
+        stderr_sink.extend(captured)
     return proc.returncode

@@ -10,4 +10,5 @@ rundir/
 
 .venv/
 build/
+dist/
 tmp/

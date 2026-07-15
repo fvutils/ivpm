@@ -218,6 +218,91 @@ unchanged — the default ``get_cache_provider()`` is built on top of it.
    Patched dependencies (a future feature) layer on this same provider seam, so
    no configuration changes will be required to benefit from it.
 
+Writing a Race-Safe Cache Provider
+==================================
+
+Several ``ivpm update`` runs may hit one shared cache at the same time — separate
+projects sharing an ``IVPM_CACHE``, two CI jobs on one workspace, or parallel
+worker threads within a single run. If you implement a **custom backend** (a
+:class:`~ivpm.cache_provider.CacheProvider` subclass with its own storage rather
+than the built-in directory store), it must stay correct under that concurrency.
+The built-in :class:`~ivpm.cache.DirectoryCacheStore` is the reference
+implementation of the rules below.
+
+**The core principle: don't lock — publish atomically.** A cache entry is
+*immutable* and *version-addressed*: its bytes are a pure function of its version
+key (a commit hash, an ETag, a patched effective-version, …). Because any two
+builders of the same key produce equivalent trees, it does not matter *which*
+racing builder wins. That makes a lock unnecessary for correctness — and a lock
+is actually worse, since it adds stale-lock recovery after a crash, unreliable
+locking over NFS, cross-user ownership problems, and deadlock risk. Correctness
+comes instead from an atomic *publish* plus *adopt-on-conflict*.
+
+Concretely, a race-safe provider follows these rules:
+
+* **Keep entries immutable and version-addressed.** Never edit a published entry
+  in place; a changed input is a *new* version (a new key), stored alongside the
+  old one. This is the invariant every other rule depends on.
+* **Publish atomically.** Build into a private staging location, then make the
+  finished entry appear in a single indivisible step — a same-filesystem
+  ``rename`` for a directory store, or the backend's equivalent conditional
+  put / compare-and-swap. A reader must never observe a half-built entry.
+* **Adopt on conflict; losing the race is normal.** If another builder published
+  the same version first, discard your own copy and return the winner's entry —
+  it is already complete because the publish was atomic. Do **not** treat this as
+  an error.
+* **Separate "lost the race" from a genuine failure.** Only a publish collision
+  leads to adopt. A real error (out of space, permission denied, network loss)
+  must surface — never be swallowed and reported as a cache miss. The directory
+  store raises :class:`~ivpm.cache.CacheStoreError` for this case.
+* **Treat presence as "complete," not merely "exists."** A ``HIT`` must mean a
+  fully-materialized entry. Guard against an empty or partial artifact left by an
+  interrupted run (a completion marker, a non-empty check, or the backend's own
+  atomic-visibility guarantee). Never report a partial entry as present.
+* **Use collision-proof staging names.** Make each build's staging location
+  unique (e.g. a ``uuid4`` suffix) so concurrent builders — threads that share a
+  PID, separate processes, or a reused PID after a crash — never share a staging
+  path or nest into one another.
+* **Stage on the medium you publish to.** So the publish is a cheap atomic move,
+  not an interruptible cross-device copy. Providers expose this via
+  ``new_staging`` (below).
+* **Never require a lock for correctness.** A lock is fine purely as an
+  *optimization* — e.g. to avoid two runs fetching the same large artifact — but
+  correctness must still hold when the lock is unavailable (NFS, cross-user, or
+  stale after a crash). Any lock failure must fall back to the optimistic
+  build-and-publish path.
+* **Clean up crash leftovers conservatively.** Sweep orphaned staging only past a
+  generous age, and key that age on a timestamp that reflects real creation
+  (``ctime``), not one a copy can backdate (``mtime``), so a live build is never
+  reaped.
+* **Keep ``materialize`` last-writer-wins.** Placing the immutable entry into
+  ``deps/`` (a symlink for the directory store) must tolerate a concurrent
+  re-materialization of the same target.
+
+The ``new_staging`` hook
+------------------------
+
+To make "stage on the medium you publish to" easy, a provider may implement:
+
+.. code-block:: python
+
+   def new_staging(self, pkg) -> Optional[str]:
+       """A unique, not-yet-created build directory on the cache's own storage.
+       Callers that must build a tree before store() (e.g. the patch resolver)
+       build here so store() publishes by a same-filesystem move, not a copy."""
+
+The base class returns ``None`` (callers then fall back to their own scratch
+directory), so implementing it is **optional** — a provider that omits it stays
+correct, just without the same-filesystem-publish optimization.
+
+.. note::
+
+   A custom provider must be a genuine
+   :class:`~ivpm.cache_provider.CacheProvider` **subclass**, not a duck-typed
+   look-alike. Subclassing guarantees you inherit safe defaults (such as
+   ``new_staging`` and ``note_reference``) as the provider API grows, rather than
+   breaking when a new hook is introduced.
+
 Cache Organization
 ==================
 

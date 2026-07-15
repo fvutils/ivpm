@@ -188,6 +188,8 @@ Remove old cache entries.
     $ ivpm cache clean --days 30
     $ ivpm cache clean --cache-dir /shared/cache --days 14
 
+.. _cmd-clone:
+
 clone
 -----
 
@@ -202,12 +204,21 @@ Create a new workspace from a Git repository.
 **Arguments:**
 
 ``src``
-    Git URL or local path to clone
+    Source locator to clone.  A Git URL or local path by default; other
+    locator kinds are handled by pluggable *clone providers* (see
+    :doc:`clone_providers`).
 
 ``workspace_dir``
     Target directory (default: basename of src)
 
 **Options:**
+
+``--provider <name>``
+    Force a specific clone provider instead of inferring it from ``src``.
+    See ``ivpm show clone-providers`` for the available providers.  Providers
+    may accept their own options, given after ``src``
+    (e.g. ``ivpm clone cdb://codeline -branch abc``); run
+    ``ivpm clone <scheme> --help`` to list them.
 
 ``--here``
     Set up the workspace in the current directory instead of a new
@@ -218,6 +229,10 @@ Create a new workspace from a Git repository.
     ``checkout``); if it is empty, a plain clone is performed. If the
     directory already holds a git repository for a *different* source, the
     command fails rather than overwriting it.
+
+The following three flags belong to the **git** provider (see
+:doc:`clone_providers`); they remain accepted here during the deprecation
+window and are also listed by ``ivpm show clone-providers git``.
 
 ``--ssh``
     Force SSH: rewrite an ``https://`` URL to ``git@host:path`` form
@@ -522,6 +537,7 @@ the current project's resolved dependency graph.
     ivpm show src     [--json] [--no-rich] [<name>]   # alias for source
     ivpm show type    [--json] [--no-rich] [<name>]
     ivpm show handler [--json] [--no-rich] [<name>]
+    ivpm show clone-providers [--json] [--no-rich] [<name>]
     ivpm show site-config [--json] [--no-rich] [<name>]
     ivpm show config      [--json] [--no-rich] [<name>]   # alias for site-config
     ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [<name>]
@@ -539,6 +555,12 @@ the current project's resolved dependency graph.
 ``handler`` *[name]*
     List all registered package handlers, or show full details for a specific
     handler including activation conditions and CLI options.
+
+``clone-providers`` *[name]*
+    List all registered ``ivpm clone`` source providers (the default is
+    flagged, and each provider's owned URL schemes are shown), or show the full
+    option table for a specific provider (e.g. ``ivpm show clone-providers
+    git``).  See :doc:`clone_providers`.
 
 ``site-config`` / ``config`` *[name]*
     List all registered site configurations (the active one is flagged) and the
@@ -685,7 +707,7 @@ Creates directory with:
 status
 ------
 
-Check status of Git dependencies.
+Check the status of the root project and its Git dependencies.
 
 **Synopsis:**
 
@@ -701,7 +723,8 @@ Check status of Git dependencies.
 
 **Output:**
 
-For each Git package:
+A **root-project** header (branch/tag, commit, clean/modified state, and
+ahead/behind upstream) followed by a table with, for each Git package:
 
 - Package name
 - Current branch
@@ -709,7 +732,16 @@ For each Git package:
 - Untracked files
 - Commits ahead/behind remote
 
-**Use case:** See which dependencies have uncommitted changes.
+**Root project.** The root header is described by the clone provider that
+produced the workspace: the provider recorded in the lock file's ``root`` block
+when the workspace was created by :ref:`ivpm clone <cmd-clone>`, otherwise the
+provider discovered by probing the installed clone providers (see
+:doc:`clone_providers`). The header is **omitted** — never an error — when the
+root type cannot be determined (a workspace not created by ``ivpm clone`` and
+unrecognized by any provider, or one that two providers recognize equally).
+
+**Use case:** See whether the root project and any dependencies have
+uncommitted changes.
 
 sync
 ----

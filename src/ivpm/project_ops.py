@@ -350,7 +350,34 @@ class ProjectOps(object):
         # "(auto: worktree)" vs a user-requested "(deps-source)".
         self._mark_worktree_provenance(results, proj_info.deps_dir)
 
-        return sorted(results, key=lambda r: r.name)
+        root_status = self._compute_root_status(lock)
+
+        return root_status, sorted(results, key=lambda r: r.name)
+
+    def _compute_root_status(self, lock):
+        """Describe the root project, or return None to omit it (design §6).
+
+        The provider is taken from the lock's recorded ``root`` block when
+        present, else discovered by probing installed clone providers.  Never
+        raises: any failure yields None so the dependency table still renders.
+        """
+        from .clone.clone_provider_rgy import CloneProviderRgy
+
+        recorded = (lock.get("root") or {}).get("provider")
+        provider = CloneProviderRgy.inst().resolve_root(self.root_dir, recorded)
+        if provider is None:
+            return None
+        try:
+            st = provider.root_status(self.root_dir)
+        except Exception as e:
+            _logger.debug("root_status(%s) failed: %s", self.root_dir, e)
+            return None
+        if st is not None:
+            st.is_root = True
+            st.provider = provider.provider_info().name
+            if not st.name:
+                st.name = "(root)"
+        return st
 
     def _mark_worktree_provenance(self, results, deps_dir_name):
         """Set ``deps_source_auto`` on any result whose ``from_deps_source``

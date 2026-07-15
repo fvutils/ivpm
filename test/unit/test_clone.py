@@ -33,61 +33,10 @@ class TestClone(TestBase):
         subprocess.check_call(["git", "add", "-A"], cwd=path, env=ENV)
         subprocess.check_call(["git", "commit", "-m", "init"], cwd=path, env=ENV)
 
-    def _cmd(self):
-        from ivpm.cmds.cmd_clone import CmdClone
-        from ivpm.update_event import UpdateEventDispatcher
-        return CmdClone(), UpdateEventDispatcher()
-
-    def test_url_identity_ssh_https_equal(self):
-        from ivpm.cmds.cmd_clone import CmdClone
-        c = CmdClone()
-        self.assertEqual(
-            c._git_url_identity("git@github.com:fvutils/ivpm.git"),
-            c._git_url_identity("https://github.com/fvutils/ivpm"))
-
-    def test_populate_empty_target_clones(self):
-        src_repo = os.path.join(self.testdir, 'idr_src')
-        self._init_git_repo(src_repo)
-        target = os.path.join(self.testdir, 'idr_empty')
-        cmd, disp = self._cmd()
-        rc = cmd._populate_repo(src_repo, src_repo, target, disp, False)
-        self.assertEqual(rc, 0)
-        self.assertTrue(os.path.isfile(os.path.join(target, 'ivpm.yaml')))
-
-    def test_populate_reuses_existing_same_src(self):
-        src_repo = os.path.join(self.testdir, 'reuse_src')
-        self._init_git_repo(src_repo)
-        target = os.path.join(self.testdir, 'reuse_ws')
-        subprocess.check_call(["git", "clone", src_repo, target], env=ENV)
-        cmd, disp = self._cmd()
-        rc = cmd._populate_repo(src_repo, src_repo, target, disp, False)
-        self.assertEqual(rc, 0)
-
-    def test_populate_rejects_existing_different_src(self):
-        from ivpm.diagnostics import SrcLoaderError
-        src_a = os.path.join(self.testdir, 'diff_a')
-        src_b = os.path.join(self.testdir, 'diff_b')
-        self._init_git_repo(src_a)
-        self._init_git_repo(src_b)
-        target = os.path.join(self.testdir, 'diff_ws')
-        subprocess.check_call(["git", "clone", src_a, target], env=ENV)
-        cmd, disp = self._cmd()
-        with self.assertRaises(SrcLoaderError):
-            cmd._populate_repo(src_b, src_b, target, disp, False)
-
-    def test_populate_clones_into_non_empty_dir(self):
-        src_repo = os.path.join(self.testdir, 'inplace_src')
-        self._init_git_repo(src_repo)
-        target = os.path.join(self.testdir, 'inplace_ws')
-        os.makedirs(target)
-        with open(os.path.join(target, 'preexisting.txt'), 'w') as f:
-            f.write("keep me")
-        cmd, disp = self._cmd()
-        rc = cmd._populate_repo(src_repo, src_repo, target, disp, False)
-        self.assertEqual(rc, 0)
-        self.assertTrue(os.path.isdir(os.path.join(target, '.git')))
-        self.assertTrue(os.path.isfile(os.path.join(target, 'ivpm.yaml')))
-        self.assertTrue(os.path.isfile(os.path.join(target, 'preexisting.txt')))
+    # NOTE: the git mechanics (_git_url_identity, _populate_repo, clone-in-place,
+    # reuse, reject-different-src) moved to ivpm.clone.git_clone_provider and are
+    # covered by test_git_clone_provider.py.  The end-to-end CLI tests below
+    # exercise the full `ivpm clone` dispatch through the provider.
 
     @unittest.skip("CI path issues")
     def test_clone_local_git_default(self):

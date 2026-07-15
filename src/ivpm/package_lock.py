@@ -285,6 +285,17 @@ def write_lock(
         "packages": packages,
     }
 
+    # Carry forward the root-project record (written by `ivpm clone` via
+    # stamp_root_record) so ordinary `ivpm update` re-writes preserve it.
+    lock_path = os.path.join(deps_dir, "package-lock.json")
+    if os.path.isfile(lock_path):
+        try:
+            existing_root = read_lock(lock_path).get("root")
+        except Exception:
+            existing_root = None
+        if existing_root:
+            lock["root"] = existing_root
+
     if source_manifest:
         lock["source_manifest"] = source_manifest
 
@@ -329,6 +340,45 @@ def _write_lock_dict(lock_path: str, lock: dict) -> None:
         json.dump(lock, indent=2, sort_keys=True, fp=f)
         f.write("\n")
     os.replace(tmp_path, lock_path)
+
+
+def stamp_root_record(
+    deps_dir: str,
+    provider: str,
+    src: Optional[str] = None,
+    resolved_revision: Optional[str] = None,
+) -> None:
+    """Insert/replace the top-level ``root`` block in an existing lock file.
+
+    Records which clone provider produced the root workspace so ``ivpm status``
+    can describe the root project.  Called by ``CmdClone`` after the post-clone
+    ``ivpm update`` has written the lock.
+
+    No-op (logged at debug) when the lock does not exist -- e.g. the cloned tree
+    has no ``ivpm.yaml`` so no update/lock ran; root status then falls back to
+    the probe.  Re-uses :func:`_write_lock_dict` so the integrity stamp and
+    timestamp are refreshed in one place.
+    """
+    lock_path = os.path.join(deps_dir, "package-lock.json")
+    if not os.path.isfile(lock_path):
+        _logger.debug(
+            "stamp_root_record: no lock at %s; skipping root record", lock_path)
+        return
+    try:
+        lock = read_lock(lock_path)
+    except Exception as e:
+        _logger.warning("Could not read package-lock.json to stamp root: %s", e)
+        return
+
+    root = {"provider": provider}
+    if src:
+        root["src"] = src
+    if resolved_revision:
+        root["resolved_revision"] = resolved_revision
+    lock["root"] = root
+
+    _write_lock_dict(lock_path, lock)
+    _logger.info("Recorded root clone provider '%s' in package-lock.json", provider)
 
 
 def patch_lock_after_sync(lock_path: str, sync_results) -> None:

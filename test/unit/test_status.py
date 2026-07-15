@@ -65,7 +65,7 @@ class TestStatus(TestBase):
         })
 
         from ivpm.project_ops import ProjectOps
-        results = ProjectOps(self.testdir).status()
+        _root, results = ProjectOps(self.testdir).status()
 
         git_results = [r for r in results if r.name == "mypkg"]
         self.assertEqual(len(git_results), 1)
@@ -90,7 +90,7 @@ class TestStatus(TestBase):
         })
 
         from ivpm.project_ops import ProjectOps
-        results = ProjectOps(self.testdir).status()
+        _root, results = ProjectOps(self.testdir).status()
 
         r = next(x for x in results if x.name == "dirtypkg")
         self.assertEqual(r.vcs, "git")
@@ -110,7 +110,7 @@ class TestStatus(TestBase):
         })
 
         from ivpm.project_ops import ProjectOps
-        results = ProjectOps(self.testdir).status()
+        _root, results = ProjectOps(self.testdir).status()
 
         r = next(x for x in results if x.name == "branchpkg")
         self.assertEqual(r.branch, "feature-x")
@@ -128,7 +128,7 @@ class TestStatus(TestBase):
         })
 
         from ivpm.project_ops import ProjectOps
-        results = ProjectOps(self.testdir).status()
+        _root, results = ProjectOps(self.testdir).status()
 
         r = next(x for x in results if x.name == "dirpkg")
         self.assertEqual(r.vcs, "none")
@@ -143,7 +143,7 @@ class TestStatus(TestBase):
         })
 
         from ivpm.project_ops import ProjectOps
-        results = ProjectOps(self.testdir).status()
+        _root, results = ProjectOps(self.testdir).status()
 
         r = next(x for x in results if x.name == "ghostpkg")
         self.assertEqual(r.vcs, "git")

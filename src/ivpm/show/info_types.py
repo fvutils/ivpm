@@ -118,6 +118,15 @@ class HandlerInfo(RegistryEntryInfo):
 
 
 @dc.dataclass
+class CloneProviderInfo(RegistryEntryInfo):
+    """Self-description for a clone-source provider (registered in
+    CloneProviderRgy).  ``schemes`` are the dedicated URL schemes the provider
+    owns (without ``://``); ``is_default`` flags the fallback provider (git)."""
+    schemes: List[str] = dc.field(default_factory=list)
+    is_default: bool = False
+
+
+@dc.dataclass
 class SiteConfigInfo(RegistryEntryInfo):
     """Self-description for a registered site configuration (in SiteConfigRgy).
 

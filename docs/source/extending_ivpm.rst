@@ -538,5 +538,8 @@ See Also
 
 - :doc:`handlers` -- Built-in handler documentation and the handler summary table
 - :doc:`package_types` -- Package source types and content types
+- :doc:`clone_providers` -- Pluggable ``ivpm clone`` source providers (which
+  also describe the root project for ``ivpm status`` via ``probe()`` /
+  ``root_status()``)
 - :doc:`caching` -- Customizing the cache through a site configuration
 - :doc:`git_integration` -- Site-managed git authentication defaults

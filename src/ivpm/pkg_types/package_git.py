@@ -347,7 +347,10 @@ class PackageGit(PackageURL):
         return None
 
     def _ls_remote(self, url: str, ref: str) -> str:
-        """Run git ls-remote against a single URL/ref. Returns hash or None."""
+        """Run git ls-remote against a single URL/ref. Returns hash or None.
+
+        The stderr of the last (failed) attempt is retained in
+        ``self._last_git_err`` so callers can build a diagnostic message."""
         try:
             # Use git ls-remote to get the hash
             result = subprocess.run(
@@ -356,6 +359,8 @@ class PackageGit(PackageURL):
                 text=True,
                 timeout=30
             )
+            if result.returncode != 0 and result.stderr.strip():
+                self._last_git_err = result.stderr.strip()
             if result.returncode == 0 and result.stdout.strip():
                 # Output format: "hash\tref"
                 return result.stdout.strip().split()[0]
@@ -425,7 +430,9 @@ class PackageGit(PackageURL):
                 commit_hash = self._get_commit_hash_ls_remote(ref, update_info)
 
         if commit_hash is None:
-            fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
+            fatal(self._augment_git_error(
+                "Failed to resolve commit for %s (ref: %s)" % (self.url, ref),
+                self.url, getattr(self, "_last_git_err", ""), update_info=update_info))
 
         self.resolved_commit = commit_hash
 
@@ -478,7 +485,9 @@ class PackageGit(PackageURL):
         else:
             h = self._get_commit_hash_ls_remote(ref, update_info)
         if h is None:
-            fatal("Failed to get commit hash for %s (ref: %s)" % (self.url, ref))
+            fatal(self._augment_git_error(
+                "Failed to resolve commit for %s (ref: %s)" % (self.url, ref),
+                self.url, getattr(self, "_last_git_err", ""), update_info=update_info))
         return h
 
     def fetch_pristine(self, update_info, dest_dir: str, base_version: str) -> None:
@@ -580,26 +589,33 @@ class PackageGit(PackageURL):
             task_message=message,
         ))
 
-    def _run_git(self, git_cmd, update_info: ProjectUpdateInfo, cwd=None, progress=False) -> int:
-        """Run a git command, returning its exit code.
+    def _run_git(self, git_cmd, update_info: ProjectUpdateInfo, cwd=None, progress=False):
+        """Run a git command, returning ``(exit_code, stderr_text)``.
 
-        In Rich TUI mode (``suppress_output``) git's output is captured rather
-        than printed.  When ``progress`` is set and an event dispatcher is
-        available, git's per-phase percentages are streamed to the package's
-        TUI row (e.g. "Receiving objects 42%").  Outside TUI mode git's native
-        output is left untouched.
+        git's stderr is always captured (the last lines are kept) so a failure
+        can be diagnosed, regardless of display mode.  In Rich TUI mode
+        (``suppress_output``) git's output is not printed; when ``progress`` is
+        also set and an event dispatcher is available, git's per-phase
+        percentages are streamed to the package's TUI row (e.g. "Receiving
+        objects 42%").  Outside TUI mode git's native stderr is streamed to the
+        terminal as before (and also captured).
         """
+        captured = []
         if update_info.suppress_output:
             dispatcher = getattr(update_info, "event_dispatcher", None)
+            on_progress = None
             if progress and dispatcher is not None:
-                return run_git_with_progress(
-                    list(git_cmd) + ["--progress"],
-                    cwd=cwd,
-                    on_progress=lambda m: self._emit_progress(update_info, m))
-            return subprocess.run(
-                git_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                cwd=cwd).returncode
-        return subprocess.run(git_cmd, cwd=cwd).returncode
+                on_progress = lambda m: self._emit_progress(update_info, m)
+                git_cmd = list(git_cmd) + ["--progress"]
+            rc = run_git_with_progress(
+                git_cmd, cwd=cwd, on_progress=on_progress, stderr_sink=captured)
+            return rc, "\n".join(captured)
+        # Non-TUI: tee git's stderr to the terminal while capturing it. Ask for
+        # --progress so the in-place progress display survives the pipe.
+        rc = run_git_with_progress(
+            list(git_cmd) + (["--progress"] if progress else []),
+            cwd=cwd, stderr_sink=captured, echo=True)
+        return rc, "\n".join(captured)
 
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
         """Clone the repo to the specified directory.
@@ -635,20 +651,24 @@ class PackageGit(PackageURL):
         # Stream fetch progress to the TUI when output is suppressed
         with span_or_null(getattr(update_info, "perf", None), "git.clone", package=self.name,
                           depth=depth):
-            rc = self._run_git(git_cmd, update_info, progress=True)
+            rc, err = self._run_git(git_cmd, update_info, progress=True)
 
         if rc != 0:
-            fatal("Git command \"%s\" failed" % str(git_cmd))
+            fatal(self._augment_git_error(
+                "Failed to clone %s (git exit %d)" % (url, rc), url, err,
+                update_info=update_info))
 
         # Checkout a specific commit
         if self.commit is not None:
             git_cmd = ["git", "reset", "--hard", self.commit]
             _logger.debug("git_cmd: %s", str(git_cmd))
             with span_or_null(getattr(update_info, "perf", None), "git.checkout", package=self.name):
-                rc = self._run_git(git_cmd, update_info, cwd=target_dir)
+                rc, err = self._run_git(git_cmd, update_info, cwd=target_dir)
 
             if rc != 0:
-                fatal("Git command \"%s\" failed" % str(git_cmd))
+                fatal(self._augment_git_error(
+                    "Failed to check out commit %s of %s (git exit %d)"
+                    % (self.commit, url, rc), url, err, update_info=update_info))
 
 
         # TODO: Existence of .gitmodules should trigger this
@@ -658,14 +678,36 @@ class PackageGit(PackageURL):
             git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
             _logger.debug("git_cmd: %s", str(git_cmd))
             with span_or_null(getattr(update_info, "perf", None), "git.submodule", package=self.name):
-                rc = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
+                rc, err = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
+
+    def _augment_git_error(self, base_msg, url, stderr_text, update_info=None):
+        """Build a fatal message from *base_msg* plus git's captured stderr and
+        an offline diagnosis hint.  The result is multi-line: the summary, the
+        tail of git's own output, then any 'hint:' lines."""
+        from ..git_diagnose import diagnose_git_failure
+        parts = [base_msg]
+
+        tail = [ln for ln in (stderr_text or "").splitlines() if ln.strip()]
+        if tail:
+            parts.append("git reported:")
+            parts.extend("  " + ln for ln in tail[-8:])
+
+        ssh_pref = self._ssh_pref(update_info) if update_info is not None else self.ssh
+        for hint in diagnose_git_failure(url, stderr_text, ssh_pref):
+            parts.append("hint: " + hint)
+
+        return "\n".join(parts)
 
     def status(self, status_info: ProjectStatusInfo):
-        from ..pkg_status import PkgVcsStatus
+        from ..pkg_status import PkgVcsStatus, git_working_tree_status
 
         pkg_dir = os.path.join(status_info.deps_dir, self.name)
 
-        if not os.path.isdir(os.path.join(pkg_dir, ".git")):
+        # git_working_tree_status is the single source of truth shared with
+        # GitCloneProvider.root_status(); it returns None for a non-repo, which
+        # we render as the "(not fetched)" placeholder here.
+        st = git_working_tree_status(pkg_dir, self.name)
+        if st is None:
             return PkgVcsStatus(
                 name=self.name,
                 src_type="git",
@@ -674,60 +716,8 @@ class PackageGit(PackageURL):
                 branch="(not fetched)",
                 error="directory not found or not a git repo",
             )
+        return st
 
-        def _git(args):
-            r = subprocess.run(
-                ["git"] + args,
-                capture_output=True, text=True, cwd=pkg_dir, timeout=10
-            )
-            return r.returncode, r.stdout.strip()
-
-        # Branch
-        _, branch_raw = _git(["rev-parse", "--abbrev-ref", "HEAD"])
-        branch = None if branch_raw == "HEAD" else branch_raw
-
-        # Tag (only when exactly on a tag)
-        rc_tag, tag_raw = _git(["describe", "--tags", "--exact-match", "HEAD"])
-        tag = tag_raw if rc_tag == 0 else None
-
-        # Short commit hash
-        _, commit = _git(["rev-parse", "--short", "HEAD"])
-
-        # Dirty / modified files
-        _, porcelain = _git(["status", "--porcelain"])
-        all_lines = [line for line in porcelain.splitlines() if line.strip()]
-        untracked = [line for line in all_lines if line.startswith("??")]
-        modified = [line for line in all_lines if not line.startswith("??")]
-        is_dirty = len(modified) > 0
-
-        # Ahead / behind upstream (silenced if no upstream)
-        ahead: Optional[int] = None
-        behind: Optional[int] = None
-        rc_ab, ab_raw = _git(["rev-list", "--left-right", "--count", "@{u}...HEAD"])
-        if rc_ab == 0 and ab_raw:
-            parts = ab_raw.split()
-            if len(parts) == 2:
-                try:
-                    behind = int(parts[0])
-                    ahead = int(parts[1])
-                except ValueError:
-                    pass
-
-        return PkgVcsStatus(
-            name=self.name,
-            src_type="git",
-            path=pkg_dir,
-            vcs="git",
-            branch=branch,
-            tag=tag,
-            commit=commit,
-            is_dirty=is_dirty,
-            modified=modified,
-            untracked=untracked,
-            ahead=ahead,
-            behind=behind,
-        )
-    
     def sync(self, sync_info: ProjectSyncInfo):
         from ..pkg_sync import PkgSyncResult, SyncOutcome
         import stat as _stat

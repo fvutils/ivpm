@@ -48,6 +48,157 @@ def _finalize_subparser_help(subparser, hidden_commands=()):
     subparser.metavar = "{%s}" % ",".join(
         action.dest for action in subparser._choices_actions)
 
+# Common `clone` option strings (do not extract these as provider args).
+_COMMON_CLONE_OPT_STRINGS = {
+    "--provider", "--ssh", "-a", "--anonymous", "--git-auth-order",
+    "-b", "--branch", "--here", "-d", "--dep-set", "--py-uv", "--py-pip",
+    "--py-system-site-packages", "--no-cache", "-D", "-h", "--help",
+}
+# Common `clone` options that consume a following value (used by the light
+# argv scan that locates the src token before argparse runs).
+_COMMON_CLONE_VALUE_OPTS = {
+    "--provider", "--git-auth-order", "-d", "--dep-set", "-b", "--branch",
+    "-D", "--log-level",
+}
+
+
+def _scan_clone_src_provider(rest):
+    """Light scan of the post-'clone' argv for (forced_provider, src) before
+    argparse runs.  Skips values of known value-taking common options so the
+    first bare token found is the source locator, not an option value."""
+    forced = None
+    src = None
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        if a == "--provider" and i + 1 < len(rest):
+            forced = rest[i + 1]
+            i += 2
+            continue
+        if a.startswith("--provider="):
+            forced = a.split("=", 1)[1]
+            i += 1
+            continue
+        if a.startswith("-"):
+            key = a.split("=", 1)[0]
+            if key in _COMMON_CLONE_VALUE_OPTS and "=" not in a:
+                i += 2  # skip the option and its value
+                continue
+            i += 1
+            continue
+        if src is None:
+            src = a
+        i += 1
+    return forced, src
+
+
+def _clone_provider_only_spec(provider):
+    """Map a provider's declared option strings (that don't collide with common
+    clone options) to whether each consumes a value."""
+    spec = {}
+    try:
+        opts = provider.options()
+    except Exception:
+        opts = []
+    for o in opts:
+        for f in o.flags:
+            if f not in _COMMON_CLONE_OPT_STRINGS:
+                spec[f] = (not o.is_flag)
+    return spec
+
+
+def _partition_clone_argv(rest, provider):
+    """Split post-'clone' argv into (common_tokens, provider_tokens).
+
+    Provider-only flags (and their values) are pulled out so the common
+    argparse pass never sees them -- this is what lets a provider define a
+    single-dash long option like ``-branch`` without colliding with the common
+    ``-b`` short flag.  Returns (rest, []) when the provider has no such flags
+    (e.g. git, whose options overlap the common set)."""
+    spec = _clone_provider_only_spec(provider)
+    if not spec:
+        return list(rest), []
+    common, prov = [], []
+    i = 0
+    while i < len(rest):
+        tok = rest[i]
+        key = tok.split("=", 1)[0] if tok.startswith("-") and "=" in tok else tok
+        if key in spec:
+            prov.append(tok)
+            if spec[key] and "=" not in tok and i + 1 < len(rest):
+                prov.append(rest[i + 1])
+                i += 2
+                continue
+            i += 1
+            continue
+        common.append(tok)
+        i += 1
+    return common, prov
+
+
+def _resolve_clone_provider_safe(args):
+    """Resolve the clone provider from parsed args, or None if resolution fails
+    (ambiguous / unknown) -- CmdClone will re-resolve and emit the real error."""
+    try:
+        from .clone.clone_provider_rgy import CloneProviderRgy
+        return CloneProviderRgy.inst().resolve(
+            args.src, forced=getattr(args, 'provider', None))
+    except Exception:
+        return None
+
+
+def _maybe_clone_provider_help(argv):
+    """Handle `ivpm clone [<src>|--provider N] ... --help` for NON-default
+    providers before argparse (which would otherwise show the generic clone
+    help).  Returns True if it printed provider help."""
+    if not argv or argv[0] != "clone":
+        return False
+    rest = argv[1:]
+    if not any(a in ("-h", "--help") for a in rest):
+        return False
+    forced, src = _scan_clone_src_provider(rest)
+    if forced is None and src is None:
+        return False  # `ivpm clone --help` -> generic help
+    try:
+        from .clone.clone_provider_rgy import CloneProviderRgy
+        provider = CloneProviderRgy.inst().resolve(
+            src if src else "https://x", forced=forced)
+    except Exception:
+        return False
+    info = provider.provider_info()
+    # git / default providers fall through to the generic clone help (which
+    # already documents their options).
+    if getattr(info, "is_default", False) and forced is None:
+        return False
+    parser = provider.build_arg_parser()
+    if parser is None:
+        print("Clone provider '%s' accepts no additional options." % info.name)
+    else:
+        parser.print_help()
+    return True
+
+
+def _clone_providers_epilog():
+    """Build the 'Available clone providers' block for `ivpm clone --help`."""
+    try:
+        from .clone.clone_provider_rgy import CloneProviderRgy
+        infos = CloneProviderRgy.inst().all_infos()
+    except Exception:
+        return None
+    if not infos:
+        return None
+    lines = ["Available clone providers:"]
+    for info in infos:
+        schemes = ("%s://" % ", ".join(info.schemes)) if info.schemes else "(by URL)"
+        default = " [default]" if getattr(info, "is_default", False) else ""
+        lines.append("  %-10s %-14s %s%s" % (
+            info.name, schemes, info.description, default))
+    lines.append("")
+    lines.append("Run 'ivpm clone <scheme> --help' or 'ivpm show clone-providers' "
+                 "for provider options.")
+    return "\n".join(lines)
+
+
 def get_parser(parser_ext : List = None, options_ext : List = None):
     """Create the argument parser"""
     subcommands : Dict[str, object] = {}
@@ -179,13 +330,20 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     clone_cmd = subparser.add_parser("clone",
         help="Create a new workspace from a Git URL or path")
     clone_cmd.add_argument("src", help="Source URL or path to clone")
+    clone_cmd.add_argument("--provider", dest="provider", default=None,
+        metavar="NAME",
+        help="Force a specific clone provider (see 'ivpm show clone-providers'); "
+             "by default the provider is inferred from the source URL")
+    # The following flags belong to the git provider (see 'ivpm clone --provider
+    # git --help'); they remain accepted at the top level during the deprecation
+    # window (design §11).
     clone_cmd.add_argument("--ssh", dest="ssh", action="store_true",
-        help="Force SSH: rewrite an https:// URL to git@host:path form before cloning")
+        help="(git provider) Force SSH: rewrite an https:// URL to git@host:path form before cloning")
     clone_cmd.add_argument("-a", "--anonymous", dest="anonymous", action="store_true",
-        help="Force HTTPS: clone the URL as written (do not rewrite to SSH)")
+        help="(git provider) Force HTTPS: clone the URL as written (do not rewrite to SSH)")
     clone_cmd.add_argument("--git-auth-order", dest="git_auth_order",
         type=parse_git_auth_order, default=None,
-        help="Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
+        help="(git provider) Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
     clone_cmd.add_argument("-b", "--branch", dest="branch",
         help="Target branch; checks out existing or creates new")
     clone_cmd.add_argument("workspace_dir", nargs="?",
@@ -211,6 +369,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     clone_cmd.add_argument("-D", dest="definitions", action="append",
         default=[], metavar="VAR=VALUE",
         help="Set variable VAR to VALUE, overriding the default in vars:")
+    clone_cmd.epilog = _clone_providers_epilog()
+    clone_cmd.formatter_class = argparse.RawDescriptionHelpFormatter
 
     update_cmd = subparser.add_parser("update",
         help="Fetches packages specified in ivpm.yaml that have not already been loaded")
@@ -399,6 +559,16 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_type_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
         help="Plain-text output")
 
+    show_clone_cmd = show_subparser.add_parser("clone-providers",
+        aliases=["clone-provider"],
+        help="List clone-source providers (how 'ivpm clone' obtains a workspace)")
+    show_clone_cmd.add_argument("name", nargs="?",
+        help="Show detailed options for this provider (omit to list all)")
+    show_clone_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_clone_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output")
+
     show_handler_cmd = show_subparser.add_parser("handler",
         help="List registered package handlers (post-fetch processing hooks)")
     show_handler_cmd.add_argument("name", nargs="?",
@@ -471,6 +641,11 @@ def main(project_dir=None):
         print(get_version())
         return
 
+    # `ivpm clone <scheme> --help` shows the resolved provider's options before
+    # argparse can intercept --help with the generic clone help (design §5.2).
+    if _maybe_clone_provider_help(sys.argv[1:]):
+        return
+
     # First things first: load any extensions
     if sys.version_info < (3, 10):
         from importlib_metadata import entry_points
@@ -511,9 +686,23 @@ def main(project_dir=None):
     options_ext.append(PackageHandlerRgy.inst().add_handler_options)
 
     parser = get_parser(parser_ext, options_ext)
-    
+
+    raw_argv = sys.argv[1:]
+
     # Custom parsing to allow trailing workspace dir after options for 'clone'
-    args, extras = parser.parse_known_args()
+    args, extras = parser.parse_known_args(raw_argv)
+
+    # For `clone`, pull provider-only options out of argv and reparse the rest
+    # cleanly, so a provider's single-dash long option (e.g. '-branch') never
+    # collides with a common short flag ('-b'). The extracted tokens are handed
+    # to the provider in phase 2 (design §5.1).
+    clone_provider_tokens = []
+    if getattr(args, 'command', None) == 'clone':
+        provider = _resolve_clone_provider_safe(args)
+        if provider is not None:
+            common_argv, clone_provider_tokens = _partition_clone_argv(raw_argv, provider)
+            if clone_provider_tokens:
+                args, extras = parser.parse_known_args(common_argv)
 
     # Handle -D flags that appear before the subcommand (in extras)
     remaining_extras = []
@@ -536,10 +725,17 @@ def main(project_dir=None):
         i += 1
     extras = remaining_extras
 
-    if getattr(args, 'command', None) == 'clone' and getattr(args, 'workspace_dir', None) is None:
-        if len(extras) == 1:
+    if getattr(args, 'command', None) == 'clone':
+        # Rescue a lone trailing workspace_dir that landed in extras because it
+        # followed options (bare token, not a provider option starting with '-').
+        if getattr(args, 'workspace_dir', None) is None and len(extras) == 1 \
+                and not extras[0].startswith('-'):
             args.workspace_dir = extras[0]
             extras = []
+        # Provider-specific args (partitioned out above) are parsed in phase 2
+        # by the resolved clone provider. Any remaining extras are genuine
+        # unrecognized tokens and still error below.
+        args._clone_extras = clone_provider_tokens
     if len(extras) != 0:
         print('ivpm: error: unrecognized arguments: ' + ' '.join(extras))
         sys.exit(2)
