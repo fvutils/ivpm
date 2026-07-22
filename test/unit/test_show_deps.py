@@ -425,6 +425,125 @@ class TestDepLoader(unittest.TestCase):
         self.assertFalse(graph.lock_available)
         self.assertEqual(graph.project, "myproject")
 
+    def test_root_dep_set_via_include(self):
+        """Root ivpm.yaml defines its dep-set in an included file → deps resolve.
+
+        Regression: DepLoader used to raw-parse ivpm.yaml and never merged
+        include: directives, so a root whose dep-sets live in an included file
+        showed no dependencies.
+        """
+        _make_workspace(self.tmp, """
+            package:
+              name: myproject
+              version: "0.1.0"
+              include:
+                - imports.yaml
+        """)
+        # The 'default' dep-set lives entirely in the included file.
+        with open(os.path.join(self.tmp, "imports.yaml"), "w") as f:
+            f.write(textwrap.dedent("""
+                package:
+                  dep-sets:
+                  - name: default
+                    deps:
+                    - name: pyyaml
+                      src: pypi
+                    - name: requests
+                      src: pypi
+            """))
+        graph = self._load()
+        self.assertEqual(graph.project, "myproject")
+        names = [n.name for n in graph.nodes]
+        self.assertIn("pyyaml", names)
+        self.assertIn("requests", names)
+
+    def test_sub_package_deps_via_include(self):
+        """A sub-package whose dep-set lives in an included file contributes
+        its declared deps as additional requesters (exercises _declared_deps)."""
+        lock = {
+            "ivpm_lock_version": 1,
+            "packages": {
+                "foo": {"src": "pypi", "resolved_by": "root", "dep_set": "default",
+                        "reproducible": True},
+                "bar": {"src": "pypi", "resolved_by": "foo", "dep_set": "default",
+                        "reproducible": True},
+            }
+        }
+        _make_workspace(self.tmp, """
+            package:
+              name: root
+              dep-sets:
+              - name: default
+                deps:
+                - name: foo
+                  src: pypi
+        """, lock=lock, sub_pkgs={
+            "foo": """
+                package:
+                  name: foo
+                  include:
+                    - foo-deps.yaml
+            """,
+        })
+        # foo's dep-set (declaring bar) lives in an included file.
+        foo_inc = os.path.join(self.tmp, "packages", "foo", "foo-deps.yaml")
+        with open(foo_inc, "w") as f:
+            f.write(textwrap.dedent("""
+                package:
+                  dep-sets:
+                  - name: default
+                    deps:
+                    - name: bar
+                      src: pypi
+            """))
+        graph = self._load()
+
+        def _find(nodes, name):
+            for n in nodes:
+                if n.name == name:
+                    return n
+            return None
+
+        foo = _find(graph.nodes, "foo")
+        self.assertIsNotNone(foo)
+        # foo's included dep-set should have been resolved, exposing bar as a child.
+        child_names = [n.name for n in foo.deps]
+        self.assertIn("bar", child_names)
+
+    def test_custom_deps_dir_locates_lock(self):
+        """A non-default deps-dir declared in ivpm.yaml is honored: the lock
+        file is read from there (not the conventional 'packages')."""
+        _make_workspace(self.tmp, """
+            package:
+              name: myproject
+              deps-dir: vendor
+              dep-sets:
+              - name: default
+                deps:
+                - name: pyyaml
+                  src: pypi
+        """)
+        # Write the lock under the custom deps-dir 'vendor'.
+        vendor = os.path.join(self.tmp, "vendor")
+        os.makedirs(vendor, exist_ok=True)
+        lock = {
+            "ivpm_lock_version": 1,
+            "packages": {
+                "pyyaml": {
+                    "src": "pypi", "resolved_by": "root", "dep_set": "default",
+                    "version_resolved": "6.0.1", "reproducible": True,
+                }
+            }
+        }
+        with open(os.path.join(vendor, "package-lock.json"), "w") as f:
+            json.dump(lock, f)
+
+        graph = self._load()
+        # Lock was found under 'vendor' → resolved identity is available.
+        self.assertTrue(graph.lock_available)
+        node = next(n for n in graph.nodes if n.name == "pyyaml")
+        self.assertEqual(node.version_resolved, "6.0.1")
+
 
 # ---------------------------------------------------------------------------
 # TestDepNodeLabels

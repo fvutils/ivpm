@@ -59,20 +59,24 @@ def _live_info(src: str, name: str, deps_dir: str) -> dict:
 def _declared_deps(proj_dir: str, dep_set: str) -> List[str]:
     """Return the list of dep names declared in ivpm.yaml for the given dep-set.
 
+    Reads through IvpmYamlReader so that ``include:`` directives are resolved
+    (a raw yaml parse would miss dep-sets that live in included files).
+
     Returns an empty list when ivpm.yaml is absent or the dep-set is not found.
+    This function is called while scanning sub-package dirs, so it must stay
+    lenient: any read/parse/validation error (IvpmYamlReader raises
+    SrcLoaderError on malformed manifests or unknown source types) is swallowed
+    and treated as "no declared deps" rather than aborting the whole graph.
     """
     yaml_path = os.path.join(proj_dir, "ivpm.yaml")
     if not os.path.isfile(yaml_path):
         return []
     try:
-        import yaml
+        from ..ivpm_yaml_reader import IvpmYamlReader
         with open(yaml_path) as f:
-            data = yaml.safe_load(f)
-        pkg = data.get("package", {}) if data else {}
-        dep_sets = pkg.get("dep-sets", [])
-        for ds in dep_sets:
-            if ds.get("name") == dep_set:
-                return [d["name"] for d in ds.get("deps", []) if "name" in d]
+            pi = IvpmYamlReader().read(f, yaml_path, allow_include=True)
+        if dep_set in pi.dep_set_m:
+            return list(pi.dep_set_m[dep_set].packages.keys())
     except Exception:
         pass
     return []
@@ -134,16 +138,17 @@ class DepLoader:
 
     def load(self) -> DepGraph:
         """Build and return the complete DepGraph."""
-        root_name, root_version, root_description, root_dep_set, root_declared = self._load_root()
+        (root_name, root_version, root_description,
+         root_dep_set, root_declared, deps_dir) = self._load_root()
 
-        deps_dir = os.path.join(self.project_dir, "packages")
         lock = _load_lock(deps_dir)
         lock_available = lock is not None
 
         if not lock_available:
+            rel_deps = os.path.relpath(deps_dir, self.project_dir)
             warnings.warn(
-                "packages/package-lock.json not found — resolved identity "
-                "unavailable. Run 'ivpm update' first.",
+                "%s/package-lock.json not found — resolved identity "
+                "unavailable. Run 'ivpm update' first." % rel_deps,
                 stacklevel=3,
             )
             # Build minimal lock-like structure from declared deps only
@@ -179,39 +184,50 @@ class DepLoader:
     # ------------------------------------------------------------------
 
     def _load_root(self):
-        """Parse the root ivpm.yaml; return (name, version, description, dep_set, dep_names)."""
+        """Parse the root ivpm.yaml; return
+        (name, version, description, dep_set, dep_names, deps_dir).
+
+        Reads through IvpmYamlReader (rather than a raw yaml parse) so that
+        ``include:`` directives are resolved and dep-sets defined in included
+        files are visible. Unlike _declared_deps, a malformed root manifest is
+        surfaced: IvpmYamlReader raises SrcLoaderError, which propagates here.
+        """
         yaml_path = os.path.join(self.project_dir, "ivpm.yaml")
         if not os.path.isfile(yaml_path):
             raise FileNotFoundError(
                 f"No ivpm.yaml found in '{self.project_dir}'. "
                 "Run 'ivpm init' or specify -p."
             )
-        import yaml
+        from ..ivpm_yaml_reader import IvpmYamlReader
+        from ..proj_info import resolve_deps_dir
         with open(yaml_path) as f:
-            data = yaml.safe_load(f) or {}
+            pi = IvpmYamlReader().read(f, yaml_path, allow_include=True)
 
-        pkg = data.get("package", {}) or {}
-        name = pkg.get("name", os.path.basename(self.project_dir))
-        version = pkg.get("version")
-        description = pkg.get("description")
-        dep_sets = pkg.get("dep-sets", []) or []
+        name = pi.name or os.path.basename(self.project_dir)
+        version = pi.version
+        description = pi.description
 
-        # Determine which dep-set to use
+        # Deps dir: honor the manifest's deps-dir (reusing the already-parsed
+        # ProjInfo so we don't re-read the file), falling back to a lockfile
+        # search when it isn't declared.
+        deps_dir = resolve_deps_dir(self.project_dir, pi)
+
+        # Determine which dep-set to use: explicit request, else the manifest's
+        # declared default, else the first declared dep-set, else "default".
         if self._requested_dep_set:
             dep_set = self._requested_dep_set
-        elif dep_sets:
-            dep_set = dep_sets[0].get("name", "default")
+        elif pi.default_dep_set:
+            dep_set = pi.default_dep_set
+        elif pi.dep_set_m:
+            dep_set = next(iter(pi.dep_set_m))
         else:
             dep_set = "default"
 
-        # Collect declared dep names
-        dep_names = []
-        for ds in dep_sets:
-            if ds.get("name") == dep_set:
-                dep_names = [d["name"] for d in ds.get("deps", []) if "name" in d]
-                break
+        # Collect declared dep names (insertion-ordered)
+        dep_names = (list(pi.dep_set_m[dep_set].packages.keys())
+                     if dep_set in pi.dep_set_m else [])
 
-        return name, version, description, dep_set, dep_names
+        return name, version, description, dep_set, dep_names, deps_dir
 
     def _build_requesters_index(
         self,

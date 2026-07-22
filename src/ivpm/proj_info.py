@@ -145,6 +145,62 @@ class ProjInfo():
             pass
         return ret
 
-#    @property        
+#    @property
 #    def deps(self):
 #        return self.dependencies
+
+
+# Name of the deps-dir lockfile written by 'ivpm update'.
+_LOCKFILE = "package-lock.json"
+
+
+def find_lockfile_dir(project_dir: str, lockfile: str = _LOCKFILE) -> Optional[str]:
+    """Search the direct sub-directories of *project_dir* for the one holding
+    the lockfile (the deps dir).
+
+    The conventional ``packages`` directory is preferred; otherwise the
+    remaining sub-directories are scanned in a deterministic (sorted) order.
+    Returns the absolute sub-directory path, or None when no lockfile is found.
+    """
+    conventional = os.path.join(project_dir, "packages")
+    if os.path.isfile(os.path.join(conventional, lockfile)):
+        return conventional
+    try:
+        names = sorted(os.listdir(project_dir))
+    except OSError:
+        return None
+    for name in names:
+        d = os.path.join(project_dir, name)
+        if d == conventional:
+            continue  # already checked above
+        if os.path.isdir(d) and os.path.isfile(os.path.join(d, lockfile)):
+            return d
+    return None
+
+
+def resolve_deps_dir(project_dir: str,
+                     proj_info: Optional['ProjInfo'] = None) -> str:
+    """Locate the workspace deps directory (holds package-lock.json and the
+    materialized sub-packages / perf records).
+
+    Resolution order:
+      1. Via ivpm.yaml, if present: use its declared ``deps-dir`` (defaults to
+         ``packages`` when not explicitly set). Pass *proj_info* to reuse an
+         already-parsed manifest and avoid a second read.
+      2. Otherwise (no ivpm.yaml, or it could not be read): search the direct
+         sub-directories for one containing the lockfile.
+      3. Fall back to the conventional ``<project_dir>/packages``.
+    """
+    if proj_info is None:
+        try:
+            proj_info = ProjInfo.mkFromProj(project_dir)
+        except Exception:
+            # A malformed/unreadable manifest must not prevent us from locating
+            # the deps dir; fall through to the lockfile search.
+            proj_info = None
+    if proj_info is not None and getattr(proj_info, "deps_dir", None):
+        return os.path.join(project_dir, proj_info.deps_dir)
+    found = find_lockfile_dir(project_dir)
+    if found is not None:
+        return found
+    return os.path.join(project_dir, "packages")

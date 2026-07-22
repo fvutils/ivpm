@@ -10,20 +10,17 @@ import json
 import os
 import sys
 
-from ..proj_info import ProjInfo
+from ..proj_info import resolve_deps_dir
 from .. import perf_report
 from ..perf import list_record_paths, load_record, perf_dir
 
 
 def _resolve_deps_dir(args) -> str:
     """Resolve the workspace deps dir (holding .ivpm/perf-*.json) from the
-    project directory, mirroring how `ivpm status` locates it."""
+    project directory: via ivpm.yaml when present, otherwise by locating the
+    lockfile in a direct sub-directory."""
     project_dir = getattr(args, "project_dir", None) or os.getcwd()
-    proj_info = ProjInfo.mkFromProj(project_dir)
-    if proj_info is not None and getattr(proj_info, "deps_dir", None):
-        return os.path.join(project_dir, proj_info.deps_dir)
-    # Fall back to the conventional deps dir name.
-    return os.path.join(project_dir, "packages")
+    return resolve_deps_dir(project_dir)
 
 
 def _find_record(deps_dir: str, runid: str = None):
