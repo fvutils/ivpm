@@ -18,11 +18,11 @@ from ivpm.show.show_clone_providers import ShowCloneProviders
 class FakePlugin(CloneProvider):
     @classmethod
     def provider_info(cls):
-        return CloneProviderInfo(name="cdb", description="fake cdb codeline",
-                                 schemes=["cdb"])
+        return CloneProviderInfo(name="myvcs", description="fake myvcs repo",
+                                 schemes=["myvcs"])
 
     def schemes(self):
-        return ["cdb"]
+        return ["myvcs"]
 
     def options(self):
         return [
@@ -46,8 +46,8 @@ class _Args:
 def _install():
     rgy = CloneProviderRgy()
     rgy.register(GitCloneProvider())
-    rgy.register(FakePlugin(), provenance={"origin": "ivpm-cdb",
-                                           "provider": "ivpm-cdb",
+    rgy.register(FakePlugin(), provenance={"origin": "ivpm-myvcs",
+                                           "provider": "ivpm-myvcs",
                                            "version": "1.2.0"})
     CloneProviderRgy._inst = rgy
 
@@ -68,13 +68,13 @@ class TestShowCloneProviders(unittest.TestCase):
     def test_list_shows_git_and_plugin(self):
         out = self._run()
         self.assertIn("git", out)
-        self.assertIn("cdb", out)
+        self.assertIn("myvcs", out)
         self.assertIn("[default]", out)      # git flagged default
-        self.assertIn("cdb://", out)          # scheme shown
-        self.assertIn("ivpm-cdb", out)        # plugin provenance
+        self.assertIn("myvcs://", out)        # scheme shown
+        self.assertIn("ivpm-myvcs", out)      # plugin provenance
 
     def test_detail_renders_option_table(self):
-        out = self._run(name="cdb")
+        out = self._run(name="myvcs")
         self.assertIn("-branch", out)
         self.assertIn("(required)", out)
         self.assertIn("-node", out)
@@ -82,8 +82,8 @@ class TestShowCloneProviders(unittest.TestCase):
 
     def test_detail_parity_with_parser(self):
         # Every declared option must be accepted by the built parser.
-        provider = CloneProviderRgy.inst().get("cdb")
-        info = CloneProviderRgy.inst().info_for("cdb")
+        provider = CloneProviderRgy.inst().get("myvcs")
+        info = CloneProviderRgy.inst().info_for("myvcs")
         parser = provider.build_arg_parser()
         ns = parser.parse_args(["-branch", "b", "-node", "n"])
         self.assertEqual(ns.branch, "b")
@@ -97,11 +97,11 @@ class TestShowCloneProviders(unittest.TestCase):
         out = self._run(as_json=True)
         data = json.loads(out)
         names = [d["name"] for d in data]
-        self.assertEqual(set(names), {"git", "cdb"})
-        cdb = next(d for d in data if d["name"] == "cdb")
-        self.assertEqual(cdb["schemes"], ["cdb"])
-        self.assertEqual(cdb["version"], "1.2.0")
-        self.assertFalse(cdb["is_default"])
+        self.assertEqual(set(names), {"git", "myvcs"})
+        myvcs = next(d for d in data if d["name"] == "myvcs")
+        self.assertEqual(myvcs["schemes"], ["myvcs"])
+        self.assertEqual(myvcs["version"], "1.2.0")
+        self.assertFalse(myvcs["is_default"])
 
     def test_unknown_provider_exits(self):
         with self.assertRaises(SystemExit):

@@ -10,7 +10,7 @@ import sys
 import shutil
 import subprocess
 from typing import List
-from ivpm.msg import note, fatal, warning
+from ivpm.msg import info, note, fatal, warning
 from ivpm.site_config import apply_git_url_map, get_site_config, resolve_git_auth_order
 from pathlib import Path
 

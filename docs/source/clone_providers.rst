@@ -8,14 +8,14 @@ Overview
 ``ivpm clone`` creates a new workspace from a source locator.  By default the
 locator is a Git URL, but the mechanism is **pluggable**: a *clone provider*
 teaches ``ivpm clone`` how to obtain a workspace from some other kind of source
--- a different version-control system, a codeline server, a snapshot store, and
+-- a different version-control system, an artifact server, a snapshot store, and
 so on.
 
 A provider is selected automatically from the locator.  Two mechanisms decide
 which provider handles a given locator:
 
 * **Dedicated URL scheme.** A provider may own one or more schemes such as
-  ``cdb://`` or ``myvcs://``.  A locator using an owned scheme always routes to
+  ``myvcs://`` or ``snapshot://``.  A locator using an owned scheme always routes to
   that provider.
 * **Claiming.** For generic locators (``https://host/path`` and the like) each
   provider is asked how strongly it *claims* the locator.  The strongest
@@ -40,7 +40,7 @@ To see which providers are installed and what options each accepts::
     ivpm show clone-providers            # list all providers
     ivpm show clone-providers git        # options for a specific provider
     ivpm clone --help                    # common options + provider summary
-    ivpm clone cdb:// --help             # options for the 'cdb' provider
+    ivpm clone myvcs:// --help           # options for the 'myvcs' provider
 
 Example listing:
 
@@ -49,7 +49,7 @@ Example listing:
     $ ivpm show clone-providers
     Provider   Default  Schemes    Description
     git        yes       (by URL)   Clone a git/GitHub repository into a new workspace
-    cdb                  cdb://     Check out a CodeBase codeline
+    myvcs                myvcs://   Check out a myvcs repository
 
 Selecting a provider
 ====================
@@ -74,9 +74,9 @@ Provider-specific options
 A provider can accept its own command-line options.  These appear after the
 source locator, e.g.::
 
-    ivpm clone cdb://codeline -branch abc -node xyz
+    ivpm clone myvcs://repo -branch abc -node xyz
 
-Here ``-branch`` and ``-node`` belong to the ``cdb`` provider.  IVPM keeps the
+Here ``-branch`` and ``-node`` belong to the ``myvcs`` provider.  IVPM keeps the
 provider's options separate from the common ``clone`` options, so a provider is
 free to use its own naming conventions (including single-dash long options like
 ``-branch``) without colliding with IVPM's flags.
@@ -89,6 +89,63 @@ free to use its own naming conventions (including single-dash long options like
    documented home is ``ivpm clone --provider git --help`` /
    ``ivpm show clone-providers git``.  ``--branch`` is a *common* option (most
    version-control providers understand "check out this branch/ref").
+
+.. _config-forwarding:
+
+Forwarding configuration from a provider
+========================================
+
+A provider's source of truth often knows things the checked-out tree does not
+-- default permissions, the deps-dir to use, or a whole configuration when the
+tree carries no ``ivpm.yaml`` of its own.  A provider forwards this to the
+post-clone ``ivpm update`` by returning a ``CloneRootConfig`` on its
+``CloneResult`` (``CloneResult.root_config``).  This is a **core** mechanism,
+available to any provider.
+
+``CloneRootConfig`` has two fields:
+
+``default_package``
+    A synthesized ``package:`` mapping, used **only** when the cloned tree has
+    no ``ivpm.yaml``.  It is fed through the normal yaml reader, so it reuses
+    all dep-set / ``with:`` / deps-dir parsing with no new format.
+
+``handler_overlay``
+    Handler configuration merged **underneath** the effective
+    ``handler_configs`` -- the workspace's own ``ivpm.yaml`` always wins on a
+    conflict.  Applied whether or not the tree has an ``ivpm.yaml``.  The merge
+    is generic: a handler the manifest does not configure is adopted wholesale;
+    dicts merge recursively (local keys win); lists union order-stably (overlay
+    values first); scalars keep the local value.
+
+``ivpm clone`` also persists ``root_config`` into the lock's ``root.config``
+block, so a bare workspace (see below) can reproduce its driving configuration
+on a later ``ivpm update``.
+
+.. _bare-workspaces:
+
+Bare workspaces (no root ``ivpm.yaml``)
+=======================================
+
+Some sources produce a workspace that has **no root ``ivpm.yaml``**.  IVPM
+still supports the read-only operations on such a *bare* workspace:
+
+* ``ivpm status`` and ``ivpm sync`` operate off the lock file.  Because the
+  deps-dir name is not known from a manifest, IVPM **discovers** it: it scans
+  the immediate children of the workspace for a directory containing a valid
+  ``package-lock.json`` (one carrying IVPM's lock version).  Conventional names
+  (``import`` > ``packages`` > ``deps``) break a tie; a genuinely ambiguous tree
+  (two unrelated valid locks) is reported rather than guessed.
+
+* ``ivpm update`` works on a bare workspace **when the workspace is
+  self-describing** -- i.e. the provider forwarded a configuration
+  (``root_config`` on its ``CloneResult``) that ``ivpm clone`` persisted into the
+  lock's ``root.config`` block.  On a subsequent ``ivpm update`` with no
+  ``ivpm.yaml``, IVPM reads ``root.config`` back and reproduces the driving
+  configuration (the synthesized ``default_package`` plus any ``handler_overlay``)
+  -- so a config-forwarding provider's bare workspaces refresh normally.  A bare
+  workspace that carries **no** ``root.config`` (a non-forwarding clone, or one
+  created before this record existed) still cannot be updated and fails with a
+  clear message directing you to re-clone.
 
 .. _writing-a-clone-provider:
 
@@ -105,7 +162,7 @@ A clone provider is a class that extends
 
 ``schemes()``
     The dedicated URL schemes the provider owns, without ``://`` (e.g.
-    ``["cdb"]``).  A scheme match beats any claim.  Return ``[]`` if the
+    ``["myvcs"]``).  A scheme match beats any claim.  Return ``[]`` if the
     provider has no dedicated scheme.
 
 ``claim(src)``
@@ -150,7 +207,7 @@ Complete example
 
 .. code-block:: python
 
-    # src/mycompany/ivpm_cdb.py
+    # src/mycompany/ivpm_myvcs.py
     import os
     from ivpm.clone.clone_provider import (
         CloneProvider, CloneOption, CloneResult, ClaimStrength,
@@ -158,24 +215,24 @@ Complete example
     from ivpm.show.info_types import CloneProviderInfo
 
 
-    class CdbCloneProvider(CloneProvider):
+    class MyVcsCloneProvider(CloneProvider):
 
         @classmethod
         def provider_info(cls):
             return CloneProviderInfo(
-                name="cdb",
-                description="Check out a CodeBase codeline",
-                schemes=["cdb"],
-                notes="Locator form: cdb://<codeline>",
+                name="myvcs",
+                description="Check out a myvcs repository",
+                schemes=["myvcs"],
+                notes="Locator form: myvcs://<repo>",
             )
 
         def schemes(self):
-            return ["cdb"]
+            return ["myvcs"]
 
         def options(self):
             return [
                 CloneOption(flags=["-branch"], dest="branch",
-                            help="Codeline branch to check out",
+                            help="Branch to check out",
                             required=True, metavar="BRANCH"),
                 CloneOption(flags=["-node"], dest="node",
                             help="Build node to attach", default="head",
@@ -183,28 +240,28 @@ Complete example
             ]
 
         def default_workspace_name(self, src):
-            # cdb://my.codeline -> my.codeline
+            # myvcs://my.repo -> my.repo
             return src.split("://", 1)[-1] or None
 
         def clone(self, req):
-            codeline = req.src.split("://", 1)[-1]
+            repo = req.src.split("://", 1)[-1]
             branch = req.provider_args.branch
             node = req.provider_args.node
             os.makedirs(req.target_dir, exist_ok=True)
-            # ... run the CodeBase checkout into req.target_dir ...
+            # ... run the myvcs checkout into req.target_dir ...
             return CloneResult(ok=True, resolved_revision=node)
 
         def probe(self, root_dir):
-            # Recognize a CodeBase checkout by its marker directory.
-            if os.path.isdir(os.path.join(root_dir, ".cdb")):
+            # Recognize a myvcs checkout by its marker directory.
+            if os.path.isdir(os.path.join(root_dir, ".myvcs")):
                 return ClaimStrength.STRONG
             return ClaimStrength.NONE
 
         def root_status(self, root_dir):
             from ivpm.pkg_status import PkgVcsStatus
-            # ... query the CodeBase checkout for its codeline/node/dirty state ...
+            # ... query the myvcs checkout for its branch/node/dirty state ...
             return PkgVcsStatus(
-                name="(root)", src_type="cdb", path=root_dir, vcs="cdb",
+                name="(root)", src_type="myvcs", path=root_dir, vcs="myvcs",
                 branch="main", commit="node-42", is_root=True)
 
 Registering via entry points
@@ -216,7 +273,7 @@ group.  Add to your ``pyproject.toml``:
 .. code-block:: toml
 
     [project.entry-points."ivpm.clone_providers"]
-    cdb = "mycompany.ivpm_cdb:CdbCloneProvider"
+    myvcs = "mycompany.ivpm_myvcs:MyVcsCloneProvider"
 
 Each value points to a **class** extending ``CloneProvider``.  After installing
 your package (``pip install -e .``), run ``ivpm show clone-providers`` to

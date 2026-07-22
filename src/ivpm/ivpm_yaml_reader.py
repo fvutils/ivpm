@@ -318,7 +318,7 @@ class IvpmYamlReader(object):
         from .handlers.package_handler_rgy import PackageHandlerRgy
 
         # Build the set of valid keys dynamically from the handler registry so
-        # that plugin handlers (e.g. direnv, cbwa) are accepted without
+        # that plugin handlers (e.g. direnv) are accepted without
         # hardcoding their names here.
         rgy = PackageHandlerRgy.inst()
         known_with_keys = {h.name for h in rgy.handlers if h.name}

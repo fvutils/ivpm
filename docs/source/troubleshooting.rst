@@ -224,6 +224,46 @@ Dependency Not Found
        # For Git
        $ git ls-remote https://github.com/org/package.git
 
+Update Fails: Workspace Has No ivpm.yaml
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``ivpm update`` reports *"This workspace has no ivpm.yaml (it was
+created by an 'ivpm clone' provider from a source without one)"*
+
+**Cause:** The workspace is a *bare* workspace (no root ``ivpm.yaml``) that also
+carries **no** ``root.config`` record in its lock file -- i.e. it was cloned by a
+provider that forwarded no configuration, or created before the ``root.config``
+record existed.  ``ivpm update`` needs a manifest (or a reproducible
+``root.config``) to resolve dependencies.
+
+.. note::
+
+   Bare workspaces produced by a *config-forwarding* provider **can** be
+   updated: ``ivpm clone`` stamps the forwarded configuration into the lock's
+   ``root.config`` block and ``ivpm update`` reproduces it.  This error only
+   appears when that record is absent.
+
+**Solutions:**
+
+1. **Inspect / synchronize instead.** ``ivpm status`` and ``ivpm sync`` *do*
+   work on any bare workspace (they read the discovered lock file):
+
+   .. code-block:: bash
+
+       $ ivpm status
+       $ ivpm sync
+
+2. **Re-clone to refresh dependencies** (also (re)writes ``root.config``):
+
+   .. code-block:: bash
+
+       $ ivpm clone myvcs://<repo>
+
+3. **Add an ``ivpm.yaml``** to the workspace root if you want ``ivpm update`` to
+   manage it going forward.
+
+See :ref:`bare-workspaces` for details.
+
 Python Package Issues
 ---------------------
 

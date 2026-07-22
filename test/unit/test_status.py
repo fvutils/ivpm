@@ -219,3 +219,41 @@ class TestStatus(TestBase):
 
         self.assertIn("foo.py", output)
         self.assertIn("bar.py", output)
+
+
+class TestBareWorkspaceStatus(TestBase):
+    """status/sync must work when there is no root ivpm.yaml (bare clone)."""
+
+    def _make_bare_workspace(self, deps_dir_name="import"):
+        """A workspace with a lock under <deps_dir_name>/ and NO ivpm.yaml."""
+        deps_dir = os.path.join(self.testdir, deps_dir_name)
+        pkg_path = os.path.join(deps_dir, "mypkg")
+        _make_git_repo(pkg_path, name="mypkg")
+        _write_lock(deps_dir, {
+            "mypkg": {"src": "git", "resolved_by": "root", "dep_set": None,
+                      "url": "file://%s" % pkg_path, "branch": "main",
+                      "reproducible": True}
+        })
+        # sanity: no ivpm.yaml at root
+        assert not os.path.isfile(os.path.join(self.testdir, "ivpm.yaml"))
+        return deps_dir
+
+    def test_status_discovers_import_dir(self):
+        self._make_bare_workspace("import")
+        from ivpm.project_ops import ProjectOps
+        _root, results = ProjectOps(self.testdir).status()
+        names = [r.name for r in results]
+        self.assertIn("mypkg", names)
+
+    def test_sync_discovers_import_dir(self):
+        self._make_bare_workspace("import")
+        from ivpm.project_ops import ProjectOps
+        results = ProjectOps(self.testdir).sync()
+        # sync returns per-package results; the git pkg is processed (not fataled)
+        self.assertTrue(any(r.name == "mypkg" for r in results))
+
+    def test_status_fatals_when_no_yaml_and_no_lock(self):
+        os.makedirs(os.path.join(self.testdir, "src"))
+        from ivpm.project_ops import ProjectOps
+        with self.assertRaises(Exception):
+            ProjectOps(self.testdir).status()

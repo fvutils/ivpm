@@ -53,12 +53,12 @@ class TestCloneProviderRgy(unittest.TestCase):
 
     def test_scheme_match_wins(self):
         rgy = CloneProviderRgy()
-        cdb = _mk("cdb", schemes=["cdb"])
+        myvcs = _mk("myvcs", schemes=["myvcs"])
         # git-like fallback also present, would claim WEAK
         git = _mk("git", claim_map={"://": ClaimStrength.WEAK})
         rgy.register(git)
-        rgy.register(cdb)
-        self.assertIs(rgy.resolve("cdb://codeline"), cdb)
+        rgy.register(myvcs)
+        self.assertIs(rgy.resolve("myvcs://repo"), myvcs)
 
     def test_strong_beats_weak(self):
         rgy = CloneProviderRgy()
@@ -96,7 +96,7 @@ class TestCloneProviderRgy(unittest.TestCase):
 
     def test_no_match_is_fatal(self):
         rgy = CloneProviderRgy()
-        rgy.register(_mk("cdb", schemes=["cdb"]))
+        rgy.register(_mk("myvcs", schemes=["myvcs"]))
         with self.assertRaises(SrcLoaderError):
             rgy.resolve("https://nobody/claims/this")
 
@@ -105,11 +105,11 @@ class TestCloneProviderRgy(unittest.TestCase):
     def test_forced_provider(self):
         rgy = CloneProviderRgy()
         git = _mk("git", claim_map={"://": ClaimStrength.WEAK})
-        cdb = _mk("cdb", schemes=["cdb"])
+        myvcs = _mk("myvcs", schemes=["myvcs"])
         rgy.register(git)
-        rgy.register(cdb)
-        # git-shaped URL, but force cdb
-        self.assertIs(rgy.resolve("https://x/y", forced="cdb"), cdb)
+        rgy.register(myvcs)
+        # git-shaped URL, but force myvcs
+        self.assertIs(rgy.resolve("https://x/y", forced="myvcs"), myvcs)
 
     def test_forced_unknown_is_fatal(self):
         rgy = CloneProviderRgy()
@@ -150,7 +150,7 @@ class TestCloneOptionParsing(unittest.TestCase):
     def _opts(self):
         return [
             CloneOption(flags=["-branch"], dest="branch",
-                        help="Codeline branch", required=True, metavar="VALUE"),
+                        help="Branch to check out", required=True, metavar="VALUE"),
             CloneOption(flags=["-node"], dest="node",
                         help="Build node", default="head", metavar="VALUE"),
             CloneOption(flags=["--sparse"], dest="sparse",
@@ -158,20 +158,20 @@ class TestCloneOptionParsing(unittest.TestCase):
         ]
 
     def test_build_parser_roundtrip(self):
-        p = build_parser_from_options("ivpm clone cdb", self._opts())
+        p = build_parser_from_options("ivpm clone myvcs", self._opts())
         ns = p.parse_args(["-branch", "abc", "-node", "xyz", "--sparse"])
         self.assertEqual(ns.branch, "abc")
         self.assertEqual(ns.node, "xyz")
         self.assertTrue(ns.sparse)
 
     def test_defaults_and_flag(self):
-        p = build_parser_from_options("ivpm clone cdb", self._opts())
+        p = build_parser_from_options("ivpm clone myvcs", self._opts())
         ns = p.parse_args(["-branch", "abc"])
         self.assertEqual(ns.node, "head")
         self.assertFalse(ns.sparse)
 
     def test_required_enforced(self):
-        p = build_parser_from_options("ivpm clone cdb", self._opts())
+        p = build_parser_from_options("ivpm clone myvcs", self._opts())
         with self.assertRaises(SystemExit):
             p.parse_args(["-node", "xyz"])
 

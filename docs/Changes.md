@@ -8,10 +8,10 @@
   and resolve most-specific-wins (by path depth). See the *Git Integration* docs.
 - `ivpm clone` now supports **pluggable clone providers**. The source of the
   root workspace is extensible: a provider claims a URL by dedicated scheme
-  (`cdb://…`) or by pattern (`https://myserver/…`), with a dedicated scheme
+  (`myvcs://…`) or by pattern (`https://myserver/…`), with a dedicated scheme
   taking precedence and an ambiguous match reported as an error. Providers can
   declare their own command-line options (e.g.
-  `ivpm clone cdb://codeline -branch abc -node xyz`). Register a provider via
+  `ivpm clone myvcs://repo -branch abc -node xyz`). Register a provider via
   the `ivpm.clone_providers` entry-point group; see the *Clone Providers* docs.
   The existing git behavior is unchanged: git is the default provider and the
   fallback for generic URLs. The git-specific flags (`--ssh`, `--anonymous`,

@@ -347,6 +347,7 @@ def stamp_root_record(
     provider: str,
     src: Optional[str] = None,
     resolved_revision: Optional[str] = None,
+    root_config: Optional[dict] = None,
 ) -> None:
     """Insert/replace the top-level ``root`` block in an existing lock file.
 
@@ -354,10 +355,17 @@ def stamp_root_record(
     can describe the root project.  Called by ``CmdClone`` after the post-clone
     ``ivpm update`` has written the lock.
 
+    *root_config* (optional) is a JSON-serializable dict carrying the provider's
+    forwarded configuration (``default_package`` / ``handler_overlay`` from
+    ``CloneRootConfig``).  When present it is stored under ``root["config"]`` so a
+    later ``ivpm update`` in a *bare* workspace (no ``ivpm.yaml``) can reproduce
+    the driving config from the lock alone.
+
     No-op (logged at debug) when the lock does not exist -- e.g. the cloned tree
-    has no ``ivpm.yaml`` so no update/lock ran; root status then falls back to
-    the probe.  Re-uses :func:`_write_lock_dict` so the integrity stamp and
-    timestamp are refreshed in one place.
+    has no ``ivpm.yaml`` and the provider forwarded no config, so no update/lock
+    ran; root status then falls back to the probe.  Re-uses
+    :func:`_write_lock_dict` so the integrity stamp and timestamp are refreshed
+    in one place.
     """
     lock_path = os.path.join(deps_dir, "package-lock.json")
     if not os.path.isfile(lock_path):
@@ -375,6 +383,8 @@ def stamp_root_record(
         root["src"] = src
     if resolved_revision:
         root["resolved_revision"] = resolved_revision
+    if root_config:
+        root["config"] = root_config
     lock["root"] = root
 
     _write_lock_dict(lock_path, lock)
@@ -453,6 +463,61 @@ def read_lock(lock_path: str) -> dict:
         data["sha256"] = recorded  # restore
 
     return data
+
+
+# Conventional deps-dir names, preferred (in order) when disambiguating a bare
+# workspace. "packages" is the IVPM default; "import"/"deps" are also common.
+_CONVENTIONAL_DEPS_DIRS = ("import", "packages", "deps")
+
+
+def find_ivpm_deps_dir(root_dir: str) -> Optional[str]:
+    """Discover the deps-dir under *root_dir* that holds our package-lock.json.
+
+    Used for "bare" workspaces (no root ``ivpm.yaml`` -- those created by an
+    ``ivpm clone`` provider from a source without one) so ``status``/``sync``
+    can still operate off the lock.  Scans immediate children only (design §6.1
+    / decision §5): a child is
+    a candidate when it contains a ``package-lock.json`` that parses and carries
+    our ``ivpm_lock_version``.
+
+    Returns the absolute path to the single valid deps-dir, or ``None`` when
+    there is none.  When several children qualify, a conventional name
+    (``import`` > ``packages`` > ``deps``) breaks the tie; if the ambiguity
+    remains, this ``fatal``\\ s listing the candidates rather than guessing.
+    """
+    if not os.path.isdir(root_dir):
+        return None
+
+    candidates = []
+    for name in sorted(os.listdir(root_dir)):
+        child = os.path.join(root_dir, name)
+        if not os.path.isdir(child):
+            continue
+        lock_path = os.path.join(child, "package-lock.json")
+        if not os.path.isfile(lock_path):
+            continue
+        try:
+            read_lock(lock_path)
+        except Exception:
+            # Not a valid/compatible IVPM lock -- skip (e.g. a vendored lock).
+            continue
+        candidates.append(child)
+
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0]
+
+    # Multiple valid locks: prefer a conventional name.
+    by_base = {os.path.basename(c): c for c in candidates}
+    for conventional in _CONVENTIONAL_DEPS_DIRS:
+        if conventional in by_base:
+            return by_base[conventional]
+
+    from .utils import fatal
+    fatal("Ambiguous IVPM workspace: multiple deps directories contain a "
+          "package-lock.json (%s). Add an ivpm.yaml with a 'deps-dir' to "
+          "disambiguate." % ", ".join(sorted(os.path.basename(c) for c in candidates)))
 
 
 def check_lock_changes(deps_dir: str, all_pkgs) -> Dict[str, dict]:

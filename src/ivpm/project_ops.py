@@ -30,7 +30,7 @@ from .handlers.package_handler_rgy import PackageHandlerRgy
 from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from .update_event import UpdateEventDispatcher
 from .update_tui import create_update_tui, RichUpdateTUI
-from .utils import fatal, note, warning
+from .utils import fatal, info, note, warning
 from .package_lock import write_lock, check_lock_changes
 
 _logger = logging.getLogger("ivpm.project_ops")
@@ -52,6 +52,8 @@ class ProjectOps(object):
                cli_overrides = None,
                from_manifest : str = None,
                deps_dir_override : str = None,
+               default_config : dict = None,
+               handler_overlay : dict = None,
                timing : bool = False):
         from .update_event import UpdateEvent, UpdateEventType
         from .perf import PerfCollector
@@ -59,6 +61,12 @@ class ProjectOps(object):
         if from_manifest is not None and lock_file is not None:
             fatal("--from and --lock-file are mutually exclusive "
                   "(both specify an alternate manifest source)")
+
+        # Bare workspace (no ivpm.yaml): if the caller supplied no config,
+        # reproduce the provider's forwarded config from the lock's root record
+        # so `ivpm update` can refresh a workspace created by `ivpm clone`.
+        default_config, handler_overlay = self._reproduce_bare_config(
+            default_config, handler_overlay, from_manifest, lock_file)
 
         # Get log level from args for TUI selection
         log_level = getattr(args, 'log_level', 'NONE')
@@ -94,7 +102,14 @@ class ProjectOps(object):
                 proj_info, deps_dir, dep_sets, source_manifest = self._init(
                     dep_set, cli_overrides=cli_overrides,
                     from_manifest=from_manifest,
-                    deps_dir_override=deps_dir_override)
+                    deps_dir_override=deps_dir_override,
+                    default_config=default_config)
+
+            # Merge any clone-provided handler overlay into the effective
+            # handler_configs before the handler update-info is built from them
+            # below.
+            if handler_overlay:
+                self._apply_handler_overlay(proj_info, handler_overlay)
 
             _logger.info("Processing root package %s", proj_info.name)
 
@@ -295,18 +310,83 @@ class ProjectOps(object):
 
         pass
 
-    def status(self, dep_set: str = None, args=None):
+    def _resolve_deps_dir(self, root_dir: str = None):
+        """Resolve ``(proj_info, deps_dir)`` for read-only operations.
+
+        With a root ``ivpm.yaml`` the deps-dir comes from the manifest (as
+        before).  For a "bare" workspace (a workspace created by an ``ivpm
+        clone`` provider from a source with no ``ivpm.yaml``) the deps-dir is
+        discovered from the lock via :func:`find_ivpm_deps_dir`.  Returns
+        ``proj_info=None`` in the bare case, and ``deps_dir=None`` when neither a
+        manifest nor a lock is found.
+        """
         from .proj_info import ProjInfo
+        from .package_lock import find_ivpm_deps_dir
+
+        root = root_dir if root_dir is not None else self.root_dir
+        proj_info = ProjInfo.mkFromProj(root)
+        if proj_info is not None:
+            return proj_info, os.path.join(root, proj_info.deps_dir)
+        return None, find_ivpm_deps_dir(root)
+
+    def _load_root_config_from_lock(self):
+        """Return ``(default_package, handler_overlay)`` persisted in the lock's
+        ``root.config`` block, or ``None`` when unavailable.
+
+        This is what makes a bare workspace self-describing: ``ivpm clone``
+        stamps the provider's ``CloneRootConfig`` here, and ``ivpm update`` reads
+        it back to reconstruct the driving config."""
+        from .package_lock import find_ivpm_deps_dir, read_lock
+
+        deps_dir = find_ivpm_deps_dir(self.root_dir)
+        if deps_dir is None:
+            return None
+        lock_path = os.path.join(deps_dir, "package-lock.json")
+        try:
+            lock = read_lock(lock_path)
+        except Exception as e:
+            _logger.debug("could not read lock for root.config reproduce: %s", e)
+            return None
+        cfg = (lock.get("root") or {}).get("config")
+        if not cfg:
+            return None
+        return cfg.get("default_package"), cfg.get("handler_overlay")
+
+    def _reproduce_bare_config(self, default_config, handler_overlay,
+                               from_manifest, lock_file):
+        """Reproduce a bare workspace's driving config from the lock when needed.
+
+        Returns the ``(default_config, handler_overlay)`` to use.  Only acts when
+        the caller supplied neither, the workspace has no ``ivpm.yaml``, and we
+        are not in ``--from`` / ``--lock-file`` mode; otherwise the inputs are
+        returned unchanged."""
+        if (default_config is not None or handler_overlay is not None
+                or from_manifest is not None or lock_file is not None):
+            return default_config, handler_overlay
+        if os.path.isfile(os.path.join(self.root_dir, "ivpm.yaml")):
+            return default_config, handler_overlay
+
+        persisted = self._load_root_config_from_lock()
+        if persisted is None:
+            return default_config, handler_overlay
+
+        dc, ho = persisted
+        if dc is not None or ho is not None:
+            note("Reproducing workspace configuration from package-lock.json "
+                 "root record")
+        return dc, ho
+
+    def status(self, dep_set: str = None, args=None):
         from .pkg_status import PkgVcsStatus
         from .project_ops_info import ProjectStatusInfo
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         from .package_lock import read_lock
 
-        proj_info = ProjInfo.mkFromProj(self.root_dir)
-        if proj_info is None:
-            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
+        proj_info, deps_dir = self._resolve_deps_dir()
+        if deps_dir is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml) or a "
+                  "package-lock.json under %s" % self.root_dir)
 
-        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
         lock_path = os.path.join(deps_dir, "package-lock.json")
 
         if not os.path.isfile(lock_path):
@@ -348,7 +428,9 @@ class ProjectOps(object):
         # Recompute (do not persist) whether each deps-source package resolves
         # into the current main git worktree, so status can mark those as
         # "(auto: worktree)" vs a user-requested "(deps-source)".
-        self._mark_worktree_provenance(results, proj_info.deps_dir)
+        deps_dir_name = (proj_info.deps_dir if proj_info is not None
+                         else os.path.basename(deps_dir))
+        self._mark_worktree_provenance(results, deps_dir_name)
 
         root_status = self._compute_root_status(lock)
 
@@ -409,7 +491,6 @@ class ProjectOps(object):
         """Resolve + validate the target and build the package list from the
         lock (the authoritative record of what is on disk). Shared by
         destroy_plan() and destroy_apply() so both gate identically."""
-        from .proj_info import ProjInfo
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         from .package_lock import read_lock
         from .project_ops_info import ProjectRemoveInfo
@@ -428,9 +509,12 @@ class ProjectOps(object):
         if not os.path.isdir(target):
             fatal("destroy target does not exist: %s" % target)
 
-        proj_info = ProjInfo.mkFromProj(target)
-        deps_dir_name = proj_info.deps_dir if proj_info is not None else "packages"
-        deps_dir = os.path.join(target, deps_dir_name)
+        # Resolve the deps-dir from the manifest, else discover it from a lock
+        # (a bare workspace may use a non-default deps-dir name).
+        proj_info, deps_dir = self._resolve_deps_dir(target)
+        if deps_dir is None:
+            deps_dir = os.path.join(target, "packages")
+        deps_dir_name = os.path.basename(deps_dir)
         lock_path = os.path.join(deps_dir, "package-lock.json")
         has_yaml = os.path.isfile(os.path.join(target, "ivpm.yaml"))
         has_lock = os.path.isfile(lock_path)
@@ -669,13 +753,12 @@ class ProjectOps(object):
         from .project_ops_info import ProjectSyncInfo
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         from .package_lock import read_lock, patch_lock_after_sync
-        from .proj_info import ProjInfo
 
-        proj_info = ProjInfo.mkFromProj(self.root_dir)
-        if proj_info is None:
-            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
+        _, deps_dir = self._resolve_deps_dir()
+        if deps_dir is None:
+            fatal("Failed to locate IVPM meta-data (eg ivpm.yaml) or a "
+                  "package-lock.json under %s" % self.root_dir)
 
-        deps_dir = os.path.join(self.root_dir, proj_info.deps_dir)
         lock_path = os.path.join(deps_dir, "package-lock.json")
 
         if not os.path.isfile(lock_path):
@@ -803,24 +886,36 @@ class ProjectOps(object):
             if env:
                 paths = [p for p in env.split(os.pathsep) if p]
 
+        # Announce worktree detection independently of deps-sourcing: the user
+        # should always know ivpm recognized the linked worktree and where its
+        # main worktree lives, even when auto-sourcing is disabled
+        # (--no-worktree-deps-source) or an explicit --deps-source was supplied.
+        main = None
+        if proj_info is not None:
+            from .git_worktree import detect_main_worktree
+            main = detect_main_worktree(self.root_dir)
+            if main is not None:
+                # INFO so it surfaces in the TUI too: the RichSink suppresses
+                # NOTE-level output during the live progress display, but always
+                # renders INFO regardless of the verbosity threshold.
+                info("git worktree detected\n"
+                     "      main worktree: %s" % main)
+
         # Auto-detect a parent git worktree only when the user supplied no
         # explicit deps-source. Explicit sources always win.
         auto = False
         if not paths and not getattr(args, "no_worktree_deps_source", False) \
-                and proj_info is not None:
-            from .git_worktree import detect_main_worktree
-            main = detect_main_worktree(self.root_dir)
-            if main is not None:
-                cand = os.path.join(main, proj_info.deps_dir)
-                if os.path.isdir(cand):
-                    paths = [cand]
-                    auto = True
-                    note("git worktree detected: sourcing unchanged packages "
-                         "from main worktree (%s)" % cand)
-                    if not os.path.isfile(os.path.join(cand, "package-lock.json")):
-                        note("  main worktree has no package-lock.json; packages "
-                             "will be re-fetched (run 'ivpm update' there first "
-                             "to enable reuse)")
+                and main is not None:
+            cand = os.path.join(main, proj_info.deps_dir)
+            if os.path.isdir(cand):
+                paths = [cand]
+                auto = True
+                note("sourcing unchanged packages from main worktree (%s)"
+                     % cand)
+                if not os.path.isfile(os.path.join(cand, "package-lock.json")):
+                    note("  main worktree has no package-lock.json; packages "
+                         "will be re-fetched (run 'ivpm update' there first "
+                         "to enable reuse)")
 
         if not paths:
             return
@@ -837,9 +932,57 @@ class ProjectOps(object):
         update_info.deps_source_mode = mode
         update_info.deps_source_auto = auto
 
+    def _apply_handler_overlay(self, proj_info, handler_overlay):
+        """Merge a clone-provided handler overlay into proj_info.handler_configs.
+
+        A clone provider may forward handler configuration alongside the tree it
+        checks out.  The overlay is merged *underneath* whatever the workspace's
+        own ``ivpm.yaml`` declares -- the local manifest always wins on a
+        conflict:
+
+        - a handler the manifest does not configure at all is adopted wholesale;
+        - dicts are merged recursively (local keys win);
+        - lists are unioned order-stably (overlay values first, then local
+          values not already present);
+        - any other (scalar) value keeps the local one.
+
+        The merge is entirely generic: core has no knowledge of any particular
+        handler's name or keys.
+        """
+        configs = proj_info.handler_configs
+        for handler, overlay_cfg in handler_overlay.items():
+            if overlay_cfg is None:
+                continue
+            existing = configs.get(handler)
+            if existing is None:
+                configs[handler] = overlay_cfg
+            else:
+                configs[handler] = self._merge_overlay_value(overlay_cfg, existing)
+
+    @staticmethod
+    def _merge_overlay_value(overlay, existing):
+        """Merge *overlay* underneath *existing* (existing wins on conflict).
+
+        Dicts merge recursively; lists union order-stably (overlay values
+        first); any other value keeps ``existing``."""
+        if isinstance(overlay, dict) and isinstance(existing, dict):
+            merged = dict(existing)
+            for k, ov in overlay.items():
+                merged[k] = (ProjectOps._merge_overlay_value(ov, merged[k])
+                             if k in merged else ov)
+            return merged
+        if isinstance(overlay, list) and isinstance(existing, list):
+            out = list(overlay)
+            for v in existing:
+                if v not in out:
+                    out.append(v)
+            return out
+        return existing
+
     def _init(self, dep_set=None, cli_overrides=None,
               from_manifest : str = None,
-              deps_dir_override : str = None) -> Tuple['ProjInfo', str, List[str], 'dict']:
+              deps_dir_override : str = None,
+              default_config : dict = None) -> Tuple['ProjInfo', str, List[str], 'dict']:
         from .proj_info import ProjInfo
 
         # Normalize the requested dep-set(s) to a list (or None for "default").
@@ -898,7 +1041,33 @@ class ProjectOps(object):
                 cli_overrides=cli_overrides,
                 persisted_vars=persisted_vars)
 
+            # No local ivpm.yaml: drive the update from a clone-provided
+            # synthesized ``package:`` mapping. Feeding it through the normal
+            # reader reuses all dep-set / with: / deps-dir parsing with no new
+            # format.
+            if proj_info is None and default_config is not None:
+                import io
+                import yaml
+                from .ivpm_yaml_reader import IvpmYamlReader
+                note("No ivpm.yaml found; using clone-provided configuration")
+                buf = io.StringIO(yaml.dump({"package": default_config}))
+                proj_info = IvpmYamlReader().read(
+                    buf, "<clone-provided-config>",
+                    cli_overrides=cli_overrides,
+                    persisted_vars=persisted_vars,
+                    allow_include=False)
+
         if proj_info is None:
+            # A "bare" workspace (no ivpm.yaml but a discoverable lock) can be
+            # inspected with status/sync, but update needs a manifest. Give a
+            # precise message instead of the generic meta-data error.
+            if from_manifest is None and default_config is None:
+                from .package_lock import find_ivpm_deps_dir
+                if find_ivpm_deps_dir(self.root_dir) is not None:
+                    fatal("This workspace has no ivpm.yaml (it was created by "
+                          "an 'ivpm clone' provider from a source without one). "
+                          "'ivpm update' needs a manifest; re-clone to refresh, "
+                          "or add an ivpm.yaml.")
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml)")
 
         # Precedence: --deps-dir (CLI) > manifest deps-dir > "packages"

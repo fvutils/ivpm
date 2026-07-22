@@ -27,7 +27,7 @@ See clone-source-provider-design.md.
 """
 import argparse
 import dataclasses as dc
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 
 class ClaimStrength:
@@ -56,6 +56,28 @@ class CloneRequest:
     # The full CLI Namespace, for providers that read common knobs
     # (the git provider reads --ssh/--anonymous/--git-auth-order here).
     args: object
+    # PtyRunner-style ``(context, label, secret) -> str`` callback, so a
+    # provider that shells out to an interactive tool (e.g. one that prompts
+    # for a password) can surface the prompt.
+    # None when running non-interactively.  Built by CmdClone from its TUI.
+    prompt_callback: Optional[Callable] = None
+
+
+@dc.dataclass
+class CloneRootConfig:
+    """Configuration a provider forwards to the post-clone ``ivpm update``.
+
+    A provider's source of truth may know things the checked-out tree does not
+    (permissions, a deps-dir, a fallback configuration).  A provider returns
+    this on its :class:`CloneResult` so CmdClone can drive the update with data
+    that is not present in (or must be merged with) a local ``ivpm.yaml``.
+    """
+    # Used ONLY when the cloned tree has no ivpm.yaml: a synthesized
+    # ``package:`` mapping fed through the normal yaml reader.
+    default_package: Optional[dict] = None
+    # Merged underneath the effective handler_configs (the local ivpm.yaml wins
+    # on conflict).  Applied whether or not the tree has an ivpm.yaml.
+    handler_overlay: Optional[dict] = None
 
 
 @dc.dataclass
@@ -64,6 +86,7 @@ class CloneResult:
     ok: bool
     resolved_revision: Optional[str] = None   # concrete revision, for logging/manifest
     message: str = ""
+    root_config: Optional[CloneRootConfig] = None   # forwarded to post-clone update
 
 
 @dc.dataclass
@@ -86,7 +109,7 @@ class CloneOption:
 def build_parser_from_options(prog: str, options: List[CloneOption]) -> argparse.ArgumentParser:
     """Translate a provider's declarative ``options()`` into an argparse parser.
 
-    ``prog`` is used in the ``--help`` header (e.g. ``ivpm clone cdb``).  Each
+    ``prog`` is used in the ``--help`` header (e.g. ``ivpm clone myvcs``).  Each
     ``CloneOption`` maps to a single ``add_argument`` call; ``is_flag`` options
     become ``store_true`` switches, the rest take a value."""
     parser = argparse.ArgumentParser(prog=prog, add_help=True)
@@ -138,7 +161,7 @@ class CloneProvider:
 
     def schemes(self) -> List[str]:
         """Dedicated URL schemes this provider owns, without ``://``
-        (e.g. ``['cdb', 'myvcs']``).  A scheme match beats any ``claim()``."""
+        (e.g. ``['myvcs']``).  A scheme match beats any ``claim()``."""
         return []
 
     def claim(self, src: str) -> int:

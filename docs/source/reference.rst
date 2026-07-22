@@ -217,7 +217,7 @@ Create a new workspace from a Git repository.
     Force a specific clone provider instead of inferring it from ``src``.
     See ``ivpm show clone-providers`` for the available providers.  Providers
     may accept their own options, given after ``src``
-    (e.g. ``ivpm clone cdb://codeline -branch abc``); run
+    (e.g. ``ivpm clone myvcs://repo -branch abc``); run
     ``ivpm clone <scheme> --help`` to list them.
 
 ``--here``
@@ -1000,14 +1000,14 @@ file.  Override from the command line with ``-Dname=value``.
    package:
      name: my-project
      vars:
-       wacfg: default
-       cl:    7716052
+       branch:  main
+       version: 1.4.0
      dep-sets:
        - name: default
          deps:
-           - name: my_env
-             src: cbwa
-             wacfg: ${wacfg}
+           - name: my_lib
+             url: https://github.com/acme/my_lib.git
+             branch: ${branch}
 
 See :doc:`variables` for full details.
 

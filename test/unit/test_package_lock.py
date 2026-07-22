@@ -11,7 +11,8 @@ import json
 import tempfile
 import unittest
 
-from ivpm.package_lock import write_lock, read_lock, check_lock_changes, LOCK_VERSION
+from ivpm.package_lock import (
+    write_lock, read_lock, check_lock_changes, stamp_root_record, LOCK_VERSION)
 from ivpm.packages_info import PackagesInfo
 
 
@@ -406,6 +407,43 @@ class TestPackageLock(unittest.TestCase):
 
         diffs = check_lock_changes(self.tmpdir, pkgs)
         self.assertEqual(diffs, {})
+
+    # ------------------------------------------------------------------
+    # root record + root.config (self-describing bare workspace)
+    # ------------------------------------------------------------------
+
+    def test_stamp_root_record_with_config(self):
+        write_lock(self.tmpdir, self._make_pkgs())
+        rc = {
+            "default_package": {"name": "myrepo", "deps-dir": "import",
+                                "dep-sets": [{"name": "default", "deps": []}]},
+            "handler_overlay": {"example-handler": {"items": ["a"]}},
+        }
+        stamp_root_record(self.tmpdir, provider="myvcs", src="myvcs://myrepo",
+                          resolved_revision="123", root_config=rc)
+        root = read_lock(os.path.join(self.tmpdir, "package-lock.json"))["root"]
+        self.assertEqual(root["provider"], "myvcs")
+        self.assertEqual(root["src"], "myvcs://myrepo")
+        self.assertEqual(root["config"]["default_package"]["name"], "myrepo")
+        self.assertEqual(root["config"]["handler_overlay"],
+                         {"example-handler": {"items": ["a"]}})
+
+    def test_stamp_root_record_without_config(self):
+        write_lock(self.tmpdir, self._make_pkgs())
+        stamp_root_record(self.tmpdir, provider="git")
+        root = read_lock(os.path.join(self.tmpdir, "package-lock.json"))["root"]
+        self.assertEqual(root["provider"], "git")
+        self.assertNotIn("config", root)
+
+    def test_root_config_carried_forward_across_rewrite(self):
+        write_lock(self.tmpdir, self._make_pkgs())
+        rc = {"default_package": {"name": "x", "deps-dir": "import",
+                                  "dep-sets": [{"name": "default", "deps": []}]}}
+        stamp_root_record(self.tmpdir, provider="myvcs", root_config=rc)
+        # An ordinary update re-writes the lock; the root block must survive.
+        write_lock(self.tmpdir, self._make_pkgs())
+        root = read_lock(os.path.join(self.tmpdir, "package-lock.json"))["root"]
+        self.assertEqual(root["config"]["default_package"]["name"], "x")
 
 
 if __name__ == "__main__":

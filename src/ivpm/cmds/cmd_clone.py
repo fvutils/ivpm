@@ -73,6 +73,13 @@ class CmdClone(object):
         if isinstance(tui, RichUpdateTUI):
             tui.start()
 
+        # A provider that shells out to an interactive tool can surface a
+        # password prompt through this callback, mirroring how `ivpm update`
+        # does it.
+        prompt_callback = None
+        if hasattr(tui, "make_prompt_callback"):
+            prompt_callback = tui.make_prompt_callback()
+
         req = CloneRequest(
             src=src,
             target_dir=target_dir,
@@ -81,6 +88,7 @@ class CmdClone(object):
             event_dispatcher=event_dispatcher,
             suppress_output=suppress_output,
             args=args,
+            prompt_callback=prompt_callback,
         )
 
         try:
@@ -96,8 +104,10 @@ class CmdClone(object):
                 provider.provider_info().name, msg))
 
         # After cloning, run ivpm update in the new workspace so dependencies
-        # are fetched according to options provided.
-        self._post_clone_update(args, target_dir)
+        # are fetched according to options provided.  The provider's result may
+        # carry a root_config (handler overlay and/or synthesized package) that
+        # the update must honor.
+        self._post_clone_update(args, target_dir, result)
 
         # Record which clone provider produced this workspace so `ivpm status`
         # can describe the root project (design: root-status-design.md §3.1).
@@ -174,33 +184,74 @@ class CmdClone(object):
         Best-effort: only meaningful when the post-clone update wrote a lock
         (i.e. the tree is an IVPM project).  stamp_root_record no-ops when the
         lock is absent, so a non-IVPM clone simply relies on the status probe.
+
+        Works for *bare* workspaces too (no root ``ivpm.yaml``): the deps-dir is
+        discovered from the lock, and the provider's forwarded ``root_config``
+        (``default_package`` / ``handler_overlay``) is persisted so a later
+        ``ivpm update`` can reproduce the driving config.
         """
         from ..proj_info import ProjInfo
-        from ..package_lock import stamp_root_record
+        from ..package_lock import stamp_root_record, find_ivpm_deps_dir
 
         proj_info = ProjInfo.mkFromProj(target_dir)
-        if proj_info is None:
-            return
-        deps_dir = os.path.join(target_dir, proj_info.deps_dir)
+        if proj_info is not None:
+            deps_dir = os.path.join(target_dir, proj_info.deps_dir)
+        else:
+            deps_dir = find_ivpm_deps_dir(target_dir)
+            if deps_dir is None:
+                return
+
         stamp_root_record(
             deps_dir,
             provider=provider.provider_info().name,
             src=src,
             resolved_revision=(result.resolved_revision if result else None),
+            root_config=self._serialize_root_config(result),
         )
 
-    def _post_clone_update(self, args, target_dir):
+    @staticmethod
+    def _serialize_root_config(result):
+        """Project a provider's CloneRootConfig onto a JSON-serializable dict for
+        the lock's ``root.config`` block, or None when there is nothing to store."""
+        rc = getattr(result, "root_config", None) if result else None
+        if rc is None:
+            return None
+        out = {}
+        if getattr(rc, "default_package", None) is not None:
+            out["default_package"] = rc.default_package
+        if getattr(rc, "handler_overlay", None) is not None:
+            out["handler_overlay"] = rc.handler_overlay
+        return out or None
+
+    def _post_clone_update(self, args, target_dir, result=None):
+        rc = result.root_config if result is not None else None
+        handler_overlay = rc.handler_overlay if rc is not None else None
+        default_package = rc.default_package if rc is not None else None
+
         dep_set = getattr(args, 'dep_set', None)
         ivpm_yaml_path = os.path.join(target_dir, "ivpm.yaml")
+        cli_overrides = parse_definitions(getattr(args, 'definitions', []))
 
         if os.path.isfile(ivpm_yaml_path):
-            cli_overrides = parse_definitions(getattr(args, 'definitions', []))
+            # A real ivpm.yaml drives the update; the provider's overlay is
+            # merged underneath it (the local manifest wins on conflict).
             ProjectOps(target_dir).update(
                 dep_set=dep_set,
                 args=args,
                 cli_overrides=cli_overrides,
+                handler_overlay=handler_overlay,
+            )
+        elif default_package is not None:
+            # Bare tree (no ivpm.yaml): drive the update from the provider's
+            # synthesized config.
+            ProjectOps(target_dir).update(
+                dep_set=dep_set,
+                args=args,
+                cli_overrides=cli_overrides,
+                default_config=default_package,
+                handler_overlay=handler_overlay,
             )
         else:
             if dep_set is not None:
                 fatal("Dependency set '%s' specified but no ivpm.yaml exists in cloned project" % dep_set)
-            # No ivpm.yaml and no dep_set specified - just skip update
+            # No ivpm.yaml and no provider config - just skip update

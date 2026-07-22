@@ -3,7 +3,7 @@ Tests for TranscriptUpdateTUI and TranscriptSyncTUI.
 
 Covers thread safety (Phase 2), package tagging (Phase 3),
 verbosity gating and percentage throttling (Phase 4),
-p4_mkwa output suppression (Phase 5), and sync TUI verbosity (Phase 6).
+long-running task output suppression (Phase 5), and sync TUI verbosity (Phase 6).
 """
 import io
 import sys
@@ -87,16 +87,16 @@ class TestTranscriptUpdateTUITagging(unittest.TestCase):
         tui, _ = _make_update_tui()
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.PACKAGE_START,
-            package_name="nbio_rtl", package_type="p4_mkwa"))
-        self.assertIn(">> nbio_rtl (p4_mkwa)", output)
+            package_name="mylib", package_type="git"))
+        self.assertIn(">> mylib (git)", output)
 
     def test_package_start_no_type(self):
         """PACKAGE_START with no type omits the parens."""
         tui, _ = _make_update_tui()
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.PACKAGE_START,
-            package_name="nbio_rtl"))
-        self.assertIn(">> nbio_rtl", output)
+            package_name="mylib"))
+        self.assertIn(">> mylib", output)
         self.assertNotIn("(", output)
 
     def test_package_complete_includes_duration(self):
@@ -104,17 +104,17 @@ class TestTranscriptUpdateTUITagging(unittest.TestCase):
         tui, _ = _make_update_tui()
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.PACKAGE_COMPLETE,
-            package_name="nbio_rtl", duration=4.23))
-        self.assertIn("<< nbio_rtl (4.2s)", output)
+            package_name="mylib", duration=4.23))
+        self.assertIn("<< mylib (4.2s)", output)
 
     def test_handler_progress_includes_package_name(self):
         """HANDLER_TASK_PROGRESS lines include [pkg] prefix."""
         tui, _ = _make_update_tui(verbose=1)
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
-            package_name="soc_model", task_id="p4",
-            task_name="p4_mkwa", task_message="Syncing files 50%"))
-        self.assertIn("[soc_model]", output)
+            package_name="mymodel", task_id="p4",
+            task_name="git", task_message="Syncing files 50%"))
+        self.assertIn("[mymodel]", output)
         self.assertIn("Syncing files 50%", output)
 
     def test_handler_progress_without_package_uses_task_name(self):
@@ -133,8 +133,8 @@ class TestTranscriptUpdateTUITagging(unittest.TestCase):
         tui, _ = _make_update_tui(verbose=1)
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.HANDLER_TASK_END,
-            package_name="nbio_rtl", task_id="p4",
-            task_name="p4_mkwa", duration=127.3))
+            package_name="mylib", task_id="p4",
+            task_name="git", duration=127.3))
         self.assertEqual(output.strip(), "")
 
     def test_handler_task_error_includes_package_name(self):
@@ -142,9 +142,9 @@ class TestTranscriptUpdateTUITagging(unittest.TestCase):
         tui, _ = _make_update_tui()
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.HANDLER_TASK_ERROR,
-            package_name="nbio_rtl", task_id="p4",
-            task_name="p4_mkwa", task_message="login failed"))
-        self.assertIn("[nbio_rtl]", output)
+            package_name="mylib", task_id="p4",
+            task_name="git", task_message="login failed"))
+        self.assertIn("[mylib]", output)
         self.assertIn("ERROR", output)
         self.assertIn("login failed", output)
 
@@ -169,7 +169,7 @@ class TestTranscriptUpdateTUIVerbosity(unittest.TestCase):
         tui, _ = _make_update_tui(verbose=0)
         output = _capture(tui, UpdateEvent(
             event_type=UpdateEventType.HANDLER_TASK_START,
-            package_name="pkg", task_id="t", task_name="p4_mkwa"))
+            package_name="pkg", task_id="t", task_name="git"))
         self.assertEqual(output.strip(), "")
 
     def test_verbose_0_shows_root_task_start(self):

@@ -102,7 +102,7 @@ class ProjInfo():
         self.node_config : Optional[NodeConfig] = None
         # Generic handler configuration from 'package.with.<key>:' entries
         # that are not handled by the core reader.  Keyed by the with-key
-        # name (e.g. "cbwa"), value is the raw dict/value from YAML.
+        # name (e.g. "direnv"), value is the raw dict/value from YAML.
         self.handler_configs : Dict[str, object] = {}
         self.resolved_vars : Dict[str, str] = {}
 

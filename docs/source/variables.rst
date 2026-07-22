@@ -3,7 +3,7 @@ Variables
 #########
 
 Variables let you parameterize ``ivpm.yaml`` so that values like
-wacfg names, changelist numbers, or feature flags can be changed from
+branch names, versions, or feature flags can be changed from
 the command line without editing the file.
 
 Overview
@@ -18,32 +18,30 @@ Every variable has a default, so the file always works standalone.
    package:
      name: my_project
      vars:
-       wacfg:  default
-       cl:     7716052
+       branch:  main
+       version: 1.4.0
 
      dep-sets:
        - name: default
          deps:
-           - name: my_env
-             src: cbwa
-             wacfg: ${{wacfg}}
+           - name: my_lib
+             url: https://github.com/acme/my_lib.git
+             branch: ${{branch}}
 
-           - name: smn
-             src: p4_mkwa
-             codeline: smn15
-             branch: smn15_main
-             changelist: ${{cl}}
+           - name: my_tool
+             url: https://github.com/acme/my_tool.git
+             tag: v${{version}}
 
 .. code-block:: bash
 
    # Use defaults
    ivpm update
 
-   # Override wacfg
-   ivpm update -Dwacfg=export
+   # Override branch
+   ivpm update -Dbranch=develop
 
    # Override both
-   ivpm update -Dwacfg=rtl_only -Dcl=8000000
+   ivpm update -Dbranch=develop -Dversion=1.5.0
 
 
 Declaring Variables
@@ -57,13 +55,13 @@ level, alongside ``name``, ``dep-sets``, ``with``, etc.
    package:
      name: my_project
      vars:
-       wacfg:   default
-       version: 7716052
+       branch:  main
+       retries: 3
        cache:   true
 
 Each key is a variable name.  The value is the default.  Defaults are
 always converted to strings internally, so YAML booleans (``true``)
-and numbers (``7716052``) are fine.
+and numbers (``3``) are fine.
 
 **Rules:**
 
@@ -80,8 +78,8 @@ Use ``${{name}}`` in any scalar value anywhere below ``package:``:
 
 .. code-block:: yaml
 
-   changelist: ${{cl}}
-   branch: ${{codeline}}_main
+   tag: v${{version}}
+   branch: ${{branch}}
    url: https://${{host}}/${{repo}}.git
 
 References can be the entire value or embedded in a larger string.
@@ -89,7 +87,7 @@ Multiple references in one value are supported.
 
 **Where references work:**
 
-- Dependency option values (``wacfg:``, ``changelist:``, ``url:``, etc.)
+- Dependency option values (``branch:``, ``tag:``, ``url:``, etc.)
 - ``with:`` section values
 - ``env:`` section values
 - ``paths:`` section values
@@ -119,8 +117,8 @@ It can be repeated:
 
 .. code-block:: bash
 
-   ivpm update -Dwacfg=export -Dcl=8000000
-   ivpm clone https://github.com/my/repo.git -Dwacfg=rtl_only
+   ivpm update -Dbranch=develop -Dversion=1.5.0
+   ivpm clone https://github.com/my/repo.git -Dbranch=develop
 
 Specifying a variable not declared in ``vars:`` is a fatal error.
 
@@ -132,8 +130,8 @@ IVPM checks ``IVPM_VAR_<NAME>`` (uppercased) when a variable has no
 
 .. code-block:: bash
 
-   export IVPM_VAR_WACFG=export
-   ivpm update   # uses wacfg=export
+   export IVPM_VAR_BRANCH=develop
+   ivpm update   # uses branch=develop
 
 Persistence
 -----------
@@ -144,9 +142,9 @@ values are used instead of the defaults.
 
 .. code-block:: bash
 
-   ivpm update -Dwacfg=export    # saves wacfg=export
-   ivpm update                   # still uses wacfg=export
-   ivpm update -Dwacfg=default   # switches back
+   ivpm update -Dbranch=develop  # saves branch=develop
+   ivpm update                   # still uses branch=develop
+   ivpm update -Dbranch=main     # switches back
 
 Precedence Order
 ----------------
@@ -162,27 +160,26 @@ From highest to lowest:
 Examples
 ========
 
-Parameterized wacfg for cbwa
------------------------------
+Parameterized branch for a dependency
+--------------------------------------
 
 .. code-block:: yaml
 
    package:
-     name: nbio_soc
+     name: my_app
      vars:
-       wacfg: default
+       branch: main
      dep-sets:
        - name: default
          deps:
-           - name: nbio_env
-             src: cbwa
-             env-dir: _env/local
-             wacfg: ${{wacfg}}
+           - name: my_lib
+             url: https://github.com/acme/my_lib.git
+             branch: ${{branch}}
 
 .. code-block:: bash
 
-   ivpm update                   # full development
-   ivpm update -Dwacfg=export    # minimal build
+   ivpm update                    # track main
+   ivpm update -Dbranch=develop   # track develop
 
 Shared version across dependencies
 -----------------------------------
@@ -190,31 +187,27 @@ Shared version across dependencies
 .. code-block:: yaml
 
    package:
-     name: soc_workspace
+     name: my_workspace
      vars:
-       smn_cl:    7716052
-       iohub_cl:  8398261
+       lib_ver:   1.4.0
+       tool_ver:  2.1.0
        cache:     false
      dep-sets:
        - name: default
          deps:
-           - name: smn
-             src: p4_mkwa
-             codeline: smn15
-             branch: smn15_main
-             changelist: ${{smn_cl}}
+           - name: my_lib
+             url: https://github.com/acme/my_lib.git
+             tag: v${{lib_ver}}
              cache: ${{cache}}
-           - name: iohubutils
-             src: p4_mkwa
-             codeline: iohubutils
-             branch: iohubutils_main
-             changelist: ${{iohub_cl}}
+           - name: my_tool
+             url: https://github.com/acme/my_tool.git
+             tag: v${{tool_ver}}
              cache: ${{cache}}
 
 .. code-block:: bash
 
-   ivpm update -Dcache=true                    # CI: enable caching
-   ivpm update -Dsmn_cl=latest -Diohub_cl=latest  # latest sources
+   ivpm update -Dcache=true                         # CI: enable caching
+   ivpm update -Dlib_ver=latest -Dtool_ver=latest   # latest sources
 
 CI pipeline with environment variables
 --------------------------------------
@@ -222,6 +215,6 @@ CI pipeline with environment variables
 .. code-block:: bash
 
    # In CI config
-   export IVPM_VAR_WACFG=export
+   export IVPM_VAR_BRANCH=develop
    export IVPM_VAR_CACHE=true
    ivpm update

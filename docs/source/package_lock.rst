@@ -219,6 +219,35 @@ When a workspace is created by ``ivpm clone``, the lock file records which
 * ``src`` — the original locator passed to ``ivpm clone``.  Optional; for
   display and diagnostics.
 * ``resolved_revision`` — the concrete revision the provider reported.  Optional.
+* ``config`` — optional forwarded configuration that makes a **bare** workspace
+  (no root ``ivpm.yaml``) self-describing.  Present only when the provider
+  returned a ``root_config`` on its ``CloneResult``:
+
+  .. code-block:: json
+
+      "root": {
+        "provider": "myvcs",
+        "src": "myvcs://my_app",
+        "config": {
+          "default_package": {
+            "name": "my_app",
+            "deps-dir": "import",
+            "dep-sets": [ { "name": "default",
+                            "deps": [ { "name": "my_lib",
+                                        "url": "https://github.com/acme/my_lib.git",
+                                        "branch": "main" } ] } ]
+          },
+          "handler_overlay": { "example-handler": { "items": ["a"] } }
+        }
+      }
+
+  - ``default_package`` — a synthesized ``package:`` mapping used to drive
+    ``ivpm update`` when the tree has no ``ivpm.yaml``.
+  - ``handler_overlay`` — handler config merged underneath the workspace's own
+    ``ivpm.yaml`` (the local manifest wins on conflict).
+
+  On a later ``ivpm update`` with no ``ivpm.yaml``, IVPM reproduces the driving
+  configuration from this block (see :ref:`bare-workspaces`).
 
 The block is **additive** (no lock-version bump) and **absent** for workspaces
 not created by ``ivpm clone`` — those rely on ``ivpm status`` probing the root.
