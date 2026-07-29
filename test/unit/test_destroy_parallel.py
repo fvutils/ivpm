@@ -4,11 +4,13 @@ Parallelization + progress-listener tests for `ivpm destroy`.
 Verifies that the gate and teardown emit per-package progress events through a
 RemoveProgressListener, and that a recording listener sees every package.
 """
+import io
 import json
 import os
 import subprocess
 import sys
 import threading
+from unittest import mock
 
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(
@@ -21,6 +23,22 @@ from ivpm.pkg_remove import RemoveProgressListener, SafetyLevel, RemoveOutcome
 from ivpm.destroy_tui import (
     create_destroy_tui, TranscriptDestroyTUI, RichDestroyTUI,
 )
+
+
+class _StdoutTty(io.StringIO):
+    """A stdout stand-in with a fixed tty-ness, so TUI selection doesn't
+    depend on how the tests were launched."""
+
+    def __init__(self, tty):
+        super().__init__()
+        self._tty = tty
+
+    def isatty(self):
+        return self._tty
+
+
+def _stdout_tty(tty):
+    return mock.patch("sys.stdout", _StdoutTty(tty))
 
 
 def _git(repo, *args):
@@ -136,13 +154,21 @@ class TestCreateDestroyTui(TestBase):
             self.verbose = 0
 
     def test_non_tty_returns_transcript(self):
-        # stdout is not a tty under pytest -> transcript regardless of --no-rich.
-        tui = create_destroy_tui(self._A(no_rich=False))
+        # A non-tty stdout -> transcript regardless of --no-rich. Force the
+        # tty-ness rather than relying on how the tests were launched.
+        with _stdout_tty(False):
+            tui = create_destroy_tui(self._A(no_rich=False))
         self.assertIsInstance(tui, TranscriptDestroyTUI)
 
     def test_no_rich_returns_transcript(self):
-        tui = create_destroy_tui(self._A(no_rich=True))
+        with _stdout_tty(True):
+            tui = create_destroy_tui(self._A(no_rich=True))
         self.assertIsInstance(tui, TranscriptDestroyTUI)
+
+    def test_tty_returns_rich(self):
+        with _stdout_tty(True):
+            tui = create_destroy_tui(self._A(no_rich=False))
+        self.assertIsInstance(tui, RichDestroyTUI)
 
     def test_transcript_lifecycle_is_safe(self):
         # The lifecycle + listener methods must be callable without a live.

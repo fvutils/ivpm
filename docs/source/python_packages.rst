@@ -117,6 +117,12 @@ A project can permanently configure the Python handler by adding a ``with.python
 section inside ``package:`` in ``ivpm.yaml``.  Settings here are applied on every
 ``ivpm update`` run, saving you from repeating CLI flags.
 
+.. note::
+
+   ``with.python`` may also be declared on an individual **dep-set** to override
+   these settings when that dep-set is the selected install target -- see the
+   "Per-Dep-Set Handler Configuration" section of :doc:`dependency_sets`.
+
 .. code-block:: yaml
 
     package:
@@ -159,9 +165,10 @@ Controls **whether and how** the virtual environment is created.
 
 1. CLI ``--skip-py-install``
 2. CLI ``--skip-venv``
-3. ``venv: false`` in ``with.python``
+3. ``venv: false`` in ``with.python`` (dep-set-level, then package-level)
 4. CLI ``--py-uv`` / ``--py-pip``
-5. ``venv: uv`` / ``venv: pip`` in ``with.python``
+5. ``venv: uv`` / ``venv: pip`` in ``with.python`` (a selected dep-set's
+   ``with.python`` overrides the package-level one)
 6. Built-in default (auto-detect)
 
 .. note::

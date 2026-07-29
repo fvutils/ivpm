@@ -79,6 +79,12 @@ section inside ``package:`` in ``ivpm.yaml``.
             - name: lodash
               src: npm
 
+.. note::
+
+   ``with.node`` may also be declared on an individual **dep-set** to override
+   these settings when that dep-set is the selected install target -- see the
+   "Per-Dep-Set Handler Configuration" section of :doc:`dependency_sets`.
+
 ``manager`` key
 ---------------
 

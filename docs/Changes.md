@@ -1,11 +1,19 @@
 
-# 2.18.0
+# 2.19.0
+- Dep-sets may now declare their own `with:` block to override package-level
+  handler configuration (Python venv mode, Node manager, plugin-handler
+  settings) for that set. When a dep-set is the selected install target, its
+  `with:` refines the package-level one (dep-set wins per key; unset keys fall
+  back). It inherits through `uses:` and merges left-to-right across a
+  multi-dep-set selection. See the *Dependency Sets* docs.
 - Git URL remapping via the config files. A new `git-url-map` key (in the user
   and site `config.yaml`, or the `IVPM_GIT_URL_MAP` env var) rewrites git URLs
   on the fly before auth/ssh resolution — e.g. redirect `https://github.com/ORG`
   to a `file:///repos/ORG` mirror. Patterns match by path element, support `*`
   (within a segment) and `**` (across segments) wildcards with `\1..\n` captures,
   and resolve most-specific-wins (by path depth). See the *Git Integration* docs.
+
+# 2.18.0
 - `ivpm clone` now supports **pluggable clone providers**. The source of the
   root workspace is extensible: a provider claims a URL by dedicated scheme
   (`myvcs://…`) or by pattern (`https://myserver/…`), with a dedicated scheme

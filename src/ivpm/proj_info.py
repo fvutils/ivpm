@@ -94,6 +94,10 @@ class ProjInfo():
         self.env_settings : List[EnvSpec] = []
         # Raw (type_name, opts) pairs from 'package: { type: … }' in this project's ivpm.yaml.
         self.self_types : list = []
+        # Raw package-level 'with:' dict, retained so a selected dep-set's
+        # own 'with:' can be merged onto it at update time. None if the
+        # project declared no package-level ``with:``.
+        self.with_raw : Optional[dict] = None
         # Configuration for the python handler from 'package.with.python:'.
         # None means the project did not declare ``with.python`` at all.
         self.python_config : Optional[PythonConfig] = None

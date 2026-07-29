@@ -53,6 +53,27 @@ class TestBoundaryMatch(unittest.TestCase):
         self.assertEqual(_apply(self.RULE, "https://github.com/OTHER/x"),
                          "https://github.com/OTHER/x")
 
+    def test_dot_git_is_a_boundary(self):
+        # A repo-scoped rule must match the ".git" spelling manifests use.
+        # Regression: this silently fell through to upstream, because ".git"
+        # satisfied neither "/" nor end-of-string.
+        rule = [("https://github.com/owner/repo", "ssh://git@host:222/org/repo")]
+        self.assertEqual(_apply(rule, "https://github.com/owner/repo.git"),
+                         "ssh://git@host:222/org/repo.git")
+
+    def test_dot_git_boundary_with_trailing_path(self):
+        rule = [("https://github.com/owner/repo", "ssh://git@host:222/org/repo")]
+        self.assertEqual(_apply(rule, "https://github.com/owner/repo.git/info/refs"),
+                         "ssh://git@host:222/org/repo.git/info/refs")
+
+    def test_dot_git_does_not_weaken_segment_boundary(self):
+        # ".git" must not let a prefix match a longer segment.
+        rule = [("https://github.com/owner/repo", "file:///m/repo")]
+        for url in ("https://github.com/owner/repo-extras.git",
+                    "https://github.com/owner/repository.git",
+                    "https://github.com/owner/repogit"):
+            self.assertEqual(_apply(rule, url), url)
+
     def test_no_rules_passthrough(self):
         self.assertEqual(_apply([], "https://github.com/o/r"),
                          "https://github.com/o/r")
@@ -212,6 +233,21 @@ class TestResolveCloneUrlIntegration(unittest.TestCase):
         self.assertEqual(
             self._resolve(rules, "https://github.com/o/r", None, ["ssh"]),
             "git@mirror.internal:o/r")
+
+    def test_remap_to_ssh_url_preserved(self):
+        # https -> ssh://git@host:port/path : the ssh rewrite step must leave
+        # the (already-ssh, port-carrying) URL exactly as written
+        rules = [("https://github.com/o/", "ssh://git@mirror.internal:222/o/")]
+        target = "ssh://git@mirror.internal:222/o/r.git"
+        for order in (["gh", "ssh"], ["ssh"], ["https"], []):
+            self.assertEqual(
+                self._resolve(rules, "https://github.com/o/r.git", None, order),
+                target)
+        # ...and under explicit ssh/anonymous overrides too
+        self.assertEqual(
+            self._resolve(rules, "https://github.com/o/r.git", True, None), target)
+        self.assertEqual(
+            self._resolve(rules, "https://github.com/o/r.git", False, None), target)
 
     def test_explicit_ssh_pref_noop_on_file_target(self):
         # ssh_pref=True can't ssh-rewrite a file:// URL -> left as-is, no error

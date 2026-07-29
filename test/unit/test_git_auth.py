@@ -40,7 +40,9 @@ class TestUrlHelpers(unittest.TestCase):
 
     def test_https_to_ssh_leaves_others_unchanged(self):
         for url in ("git@github.com:o/r", "file:///tmp/x", "/local/path",
-                    "../sibling"):
+                    "../sibling", "ssh://git@host.example/o/r.git",
+                    "ssh://git@host.example:222/o/r.git",
+                    "git://host.example/o/r.git"):
             self.assertEqual(https_to_ssh_url(url), url)
 
     def test_url_host(self):

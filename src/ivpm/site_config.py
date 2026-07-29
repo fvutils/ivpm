@@ -405,7 +405,13 @@ def _compile_git_url_pattern(frm: str) -> Tuple["re.Pattern", int, int, int]:
         else:
             parts.append(re.escape(frm[i])); lit += 1; i += 1
     tail = frm[-1:]
-    boundary = "" if (tail == "/" or tail == "*") else r"(?=/|$)"
+    # A rule that does not end in "/" or "*" must align on a path boundary, so
+    # "…/ORG" does not match "…/ORGANIZATION".  ".git" counts as a boundary:
+    # a repo-scoped rule written as "…/owner/repo" is expected to match the
+    # "…/owner/repo.git" spelling that manifests actually use.  Without this,
+    # such a rule silently fails to match and the URL falls through to
+    # upstream -- no error, just an unexpected remote.
+    boundary = "" if (tail == "/" or tail == "*") else r"(?=/|\.git(?:/|$)|$)"
     return (re.compile("^" + "".join(parts) + boundary),
             _path_seg_count(frm), lit, wc)
 

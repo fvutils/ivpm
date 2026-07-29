@@ -174,6 +174,15 @@ class ProjectOps(object):
                 except Exception:
                     _logger.debug("Could not read lock file for change detection")
 
+            # Compute the effective handler config for this update: the
+            # package-level 'with:' overlaid by the selected dep-set's own
+            # 'with:' (dep-set wins). When the selected dep-set declares no
+            # 'with:', the package-level parsed configs are used verbatim.
+            from .ivpm_yaml_reader import resolve_effective_with
+            effective_py_config, effective_node_config, \
+                effective_handler_configs = resolve_effective_with(
+                    proj_info, ds)
+
             # Build the handler update_info (with dispatcher wired in)
             handler_update_info = ProjectUpdateInfo(
                 args, deps_dir,
@@ -183,11 +192,11 @@ class ProjectOps(object):
                 skip_venv=skip_venv,
                 suppress_output=suppress_output,
                 event_dispatcher=event_dispatcher,
-                python_config=proj_info.python_config,
-                node_config=proj_info.node_config,
+                python_config=effective_py_config,
+                node_config=effective_node_config,
                 env_settings=proj_info.env_settings,
             )
-            handler_update_info.handler_configs = proj_info.handler_configs
+            handler_update_info.handler_configs = effective_handler_configs
             handler_update_info._tui_ref = tui
             handler_update_info.perf = perf
 
@@ -1134,7 +1143,10 @@ class ProjectOps(object):
             name, ds = self._getDepSet(proj_info, dep_sets[0])
             return [name], ds
 
+        from .ivpm_yaml_reader import merge_with
+
         merged = PackagesInfo("+".join(dep_sets))
+        merged_with = {}
         for name in dep_sets:
             _, ds = self._getDepSet(proj_info, name)
             # Later dep-sets win on name collisions; a shared package pulled by
@@ -1142,5 +1154,9 @@ class ProjectOps(object):
             merged.packages.update(ds.packages)
             merged.setup_deps.update(ds.setup_deps)
             merged.options.update(ds.options)
+            # Per-dep-set 'with:' also merges left-to-right (later set wins).
+            if ds.with_raw:
+                merged_with = merge_with(merged_with, ds.with_raw)
+        merged.with_raw = merged_with or None
 
         return list(dep_sets), merged

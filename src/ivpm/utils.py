@@ -27,15 +27,17 @@ def is_filesystem_root(path):
 def https_to_ssh_url(url):
     """Convert an ``https://host/path`` URL to ``git@host:path`` (SSH) form.
 
-    Leaves ``file://`` URLs, already-SSH (``git@``/``ssh://``) URLs, and
-    non-URL local paths unchanged.
+    Leaves any non-http(s) URL (``file://``, ``ssh://``, ``git://``), already-SSH
+    ``git@host:path`` forms, and non-URL local paths unchanged.
     """
     delim = url.find("://")
     if delim < 0:
         # local path or already in git@host:path form
         return url
-    protocol = url[:delim]
-    if protocol == "file":
+    protocol = url[:delim].lower()
+    if protocol not in ("http", "https"):
+        # file://, ssh://, git://, ... are already in a form git understands
+        # (and an ssh:// URL may carry a port, which scp-form cannot express)
         return url
     rest = url[delim + 3:]
     first_sl = rest.find("/")

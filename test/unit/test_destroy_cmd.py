@@ -43,6 +43,25 @@ def _mk_git_dep(path):
     _git(path, "checkout", "-q", head)        # detached -> clean
 
 
+class _FakeStdin:
+    """Stand-in for sys.stdin so tty-ness is explicit and never depends on
+    how the tests were launched (pytest capture, `pytest -s`, or plain
+    unittest from a terminal)."""
+
+    def __init__(self, tty=False):
+        self._tty = tty
+
+    def isatty(self):
+        return self._tty
+
+    def readline(self, *args, **kw):
+        raise AssertionError("destroy read from stdin")
+
+
+def _no_input(prompt=""):
+    raise AssertionError("unexpected interactive prompt: %s" % prompt)
+
+
 class _Args:
     def __init__(self, wsdir=None, **kw):
         self.wsdir = wsdir
@@ -53,9 +72,30 @@ class _Args:
         self.yes = kw.get("yes", False)
         self.keep_venv = kw.get("keep_venv", False)
         self.verbose = kw.get("verbose", 0)
+        # Force the transcript TUI so the captured output these tests assert
+        # on doesn't depend on whether stdout happens to be a tty.
+        self.no_rich = kw.get("no_rich", True)
 
 
 class TestDestroyCmd(TestBase):
+
+    def setUp(self):
+        super().setUp()
+        # No destroy test may block on an interactive prompt. Default stdin
+        # to a non-tty and trap input(); the tests that exercise the confirm
+        # prompt opt in explicitly via _set_stdin()/mock.patch.
+        self._stdin_patcher = mock.patch("sys.stdin", _FakeStdin(tty=False))
+        self._stdin_patcher.start()
+        self.addCleanup(lambda: self._stdin_patcher.stop())
+        input_patcher = mock.patch("builtins.input", _no_input)
+        input_patcher.start()
+        self.addCleanup(input_patcher.stop)
+
+    def _set_stdin(self, tty):
+        """Replace the fake stdin installed by setUp()."""
+        self._stdin_patcher.stop()
+        self._stdin_patcher = mock.patch("sys.stdin", _FakeStdin(tty=tty))
+        self._stdin_patcher.start()
 
     def _mk_workspace(self, names=("liba", "libb")):
         ws = os.path.join(self.testdir, "ws")
@@ -117,7 +157,9 @@ class TestDestroyCmd(TestBase):
 
     def test_non_tty_without_yes_refuses(self):
         ws, deps = self._mk_workspace()
-        # stdin is not a tty under pytest; without --yes this must refuse.
+        # stdin is explicitly a non-tty (see setUp); without --yes this must
+        # refuse rather than prompt. input() is trapped, so a prompt fails.
+        self._set_stdin(tty=False)
         with self.assertRaises(Exception):
             CmdDestroy()(_Args(wsdir=ws))
         self.assertTrue(os.path.exists(ws))   # nothing removed
@@ -133,8 +175,8 @@ class TestDestroyCmd(TestBase):
     def test_confirm_prompt_accepts_yes(self):
         ws, deps = self._mk_workspace()
         out = io.StringIO()
-        with mock.patch("sys.stdin.isatty", return_value=True), \
-             mock.patch("builtins.input", return_value="y"):
+        self._set_stdin(tty=True)
+        with mock.patch("builtins.input", return_value="y"):
             with redirect_stdout(out):
                 CmdDestroy()(_Args(wsdir=ws))
         self.assertFalse(os.path.exists(ws))
@@ -142,8 +184,8 @@ class TestDestroyCmd(TestBase):
     def test_confirm_prompt_abort(self):
         ws, deps = self._mk_workspace()
         out = io.StringIO()
-        with mock.patch("sys.stdin.isatty", return_value=True), \
-             mock.patch("builtins.input", return_value="n"):
+        self._set_stdin(tty=True)
+        with mock.patch("builtins.input", return_value="n"):
             with redirect_stdout(out):
                 CmdDestroy()(_Args(wsdir=ws))
         self.assertIn("Aborted", out.getvalue())

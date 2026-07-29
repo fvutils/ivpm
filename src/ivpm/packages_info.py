@@ -40,7 +40,12 @@ class PackagesInfo():
         # resolved (merged) before use.
         self.uses : Optional[List[str]] = None
         self.packages : Dict[str,Package] = {}
-        
+        # Raw 'with:' dict declared on this dep-set (None if absent). Merged with
+        # the package-level 'with:' when this dep-set is the selected install
+        # target. Kept raw so the effective config is computed (merged + parsed)
+        # once the install target is known.
+        self.with_raw : Optional[dict] = None
+
         # Map of package name to set of packages
         # required for setup. This is Python-specific
         self.setup_deps : Dict[str, Set[str]] = {}
@@ -75,5 +80,6 @@ class PackagesInfo():
         ret.uses     = self.uses
         ret.packages = self.packages.copy()
         ret.options  = self.options.copy()
-        
+        ret.with_raw = self.with_raw
+
         return ret

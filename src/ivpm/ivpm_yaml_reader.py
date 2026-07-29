@@ -39,6 +39,162 @@ def _suggest(unknown: str, valid) -> str:
     return (" Did you mean '%s'?" % matches[0]) if matches else ""
 
 
+def parse_with_section(with_data: dict, name: str, scope: str = "package"):
+    """Parse a ``with:`` map into handler configurations.
+
+    Pure function: validates keys/values (raising located ``fatal()`` on error)
+    and returns a ``(python_config, node_config, handler_configs)`` bundle,
+    where *python_config*/*node_config* are ``None`` when the corresponding
+    ``python``/``node`` block is absent, and *handler_configs* is a dict of the
+    remaining (plugin) handler keys. *name* is the manifest filename and *scope*
+    is the dotted-prefix scope label (``package`` or ``dep-set '<name>'``) used
+    in error messages. Applicable to both the package-level and a dep-set-level
+    ``with:`` block.
+    """
+    from .proj_info import VenvMode, PythonConfig, NodeConfig
+    from .handlers.package_handler_rgy import PackageHandlerRgy
+
+    python_config = None
+    node_config = None
+    handler_configs = {}
+
+    if with_data is None:
+        return python_config, node_config, handler_configs
+
+    # Build the set of valid keys dynamically from the handler registry so
+    # that plugin handlers (e.g. direnv) are accepted without
+    # hardcoding their names here.
+    rgy = PackageHandlerRgy.inst()
+    known_with_keys = {h.name for h in rgy.handlers if h.name}
+
+    for key in with_data.keys():
+        if key not in known_with_keys:
+            hint = _suggest(key, known_with_keys)
+            fatal("Unknown key '%s' in %s.with in %s.%s Valid keys: %s" % (
+                key, scope, name, hint,
+                ", ".join(sorted(known_with_keys))), key)
+
+    if "python" in with_data.keys():
+        py_data = with_data["python"]
+        if py_data is None:
+            py_data = {}
+        cfg = PythonConfig()
+
+        for key in py_data.keys():
+            if key not in _KNOWN_PYTHON_WITH_KEYS:
+                hint = _suggest(key, _KNOWN_PYTHON_WITH_KEYS)
+                fatal(
+                    "Unknown key '%s' in %s.with.python in %s.%s"
+                    " Valid keys: %s" % (
+                        key, scope, name, hint,
+                        ", ".join(sorted(_KNOWN_PYTHON_WITH_KEYS))),
+                    key)
+
+        if "venv" in py_data:
+            try:
+                cfg.venv = VenvMode.parse(py_data["venv"])
+            except ValueError as e:
+                fatal(str(e) + " in %s.with.python in %s" % (scope, name),
+                      py_data.get("venv"))
+        if "system-site-packages" in py_data:
+            cfg.system_site_packages = bool(py_data["system-site-packages"])
+        if "pre-release" in py_data:
+            cfg.pre_release = bool(py_data["pre-release"])
+        python_config = cfg
+
+    if "node" in with_data.keys():
+        nd_data = with_data["node"]
+        if nd_data is None:
+            nd_data = {}
+        cfg = NodeConfig()
+
+        for key in nd_data.keys():
+            if key not in _KNOWN_NODE_WITH_KEYS:
+                hint = _suggest(key, _KNOWN_NODE_WITH_KEYS)
+                fatal(
+                    "Unknown key '%s' in %s.with.node in %s.%s"
+                    " Valid keys: %s" % (
+                        key, scope, name, hint,
+                        ", ".join(sorted(_KNOWN_NODE_WITH_KEYS))),
+                    key)
+
+        if "manager" in nd_data:
+            val = str(nd_data["manager"]).strip().lower()
+            if val not in {"npm", "pnpm", "yarn"}:
+                fatal("Invalid manager '%s' in %s.with.node in %s."
+                      " Valid values: npm, pnpm, yarn" % (val, scope, name),
+                      nd_data.get("manager"))
+            cfg.manager = val
+        if "version" in nd_data:
+            cfg.version = str(nd_data["version"])
+        if "env" in nd_data:
+            cfg.env = bool(nd_data["env"])
+        node_config = cfg
+
+    # Config for non-python/non-node registered handlers so they can
+    # retrieve their settings via ProjectUpdateInfo.handler_configs.
+    for key, value in with_data.items():
+        if key not in ("python", "node"):
+            handler_configs[key] = value
+
+    return python_config, node_config, handler_configs
+
+
+def resolve_effective_with(proj_info, ds):
+    """Compute the effective handler config for installing dep-set *ds*.
+
+    Returns a ``(python_config, node_config, handler_configs)`` triple where the
+    package-level ``with:`` (already parsed onto *proj_info*) is overlaid by the
+    selected dep-set's own ``with:`` (dep-set wins per key). When the dep-set
+    declares no ``with:``, the package-level parsed configs are returned
+    verbatim.
+
+    Any clone-provided handler overlay already merged into
+    ``proj_info.handler_configs`` is preserved: the dep-set's handler keys
+    override per handler, but handlers the dep-set does not mention keep their
+    (possibly overlay-augmented) package-level value.
+    """
+    py_config = proj_info.python_config
+    node_config = proj_info.node_config
+    handler_configs = proj_info.handler_configs
+
+    ds_with = getattr(ds, "with_raw", None)
+    if ds_with:
+        effective_raw = merge_with(getattr(proj_info, "with_raw", None) or {},
+                                   ds_with)
+        py_config, node_config, ds_handler_configs = parse_with_section(
+            effective_raw, proj_info.name, "dep-set '%s'" % ds.name)
+        handler_configs = dict(proj_info.handler_configs)
+        handler_configs.update(ds_handler_configs)
+
+    return py_config, node_config, handler_configs
+
+
+def merge_with(base: dict, over: dict) -> dict:
+    """Deep-merge two raw ``with:`` dicts, returning a NEW dict in which *over*
+    wins on conflict.
+
+    Nested maps are merged recursively; lists and scalars are replaced by
+    *over*. Neither input is mutated and no value node from either input is
+    shared into the result at the map level (leaf values are referenced as-is,
+    preserving their ``.srcinfo``), so a base ``with:`` reused by several
+    dep-sets is never modified in place.
+    """
+    if not base:
+        return dict(over) if over else {}
+    if not over:
+        return dict(base)
+
+    result = dict(base)
+    for key, oval in over.items():
+        bval = result.get(key)
+        if isinstance(bval, dict) and isinstance(oval, dict):
+            result[key] = merge_with(bval, oval)
+        else:
+            result[key] = oval
+    return result
+
+
 class IvpmYamlReader(object):
     
     def __init__(self):
@@ -93,6 +249,9 @@ class IvpmYamlReader(object):
             ret.self_types = parse_type_field(pkg["type"])
 
         if "with" in pkg.keys():
+            # Retain the raw block so a selected dep-set's own 'with:' can be
+            # merged onto it at update time.
+            ret.with_raw = pkg["with"]
             self._read_with_section(ret, pkg["with"], name)
 
         # Specify where sub-packages are stored. Defaults to 'packages'        
@@ -107,7 +266,7 @@ class IvpmYamlReader(object):
             fatal("Package %s uses old-style ivpm.yaml format" % ret.name)
         elif "dep-sets" in pkg.keys():
             # new-style format
-            self.read_dep_sets(ret, pkg["dep-sets"])
+            self.read_dep_sets(ret, pkg["dep-sets"], name)
         else:
             # no dependencies at all
             warning("no dependencies")
@@ -313,85 +472,21 @@ class IvpmYamlReader(object):
                 # else: scalar (or list when not appending) -> local wins
 
     def _read_with_section(self, info: 'ProjInfo', with_data: dict, name: str):
-        """Parse the package-level ``with:`` map into handler configurations."""
-        from .proj_info import VenvMode, PythonConfig, NodeConfig
-        from .handlers.package_handler_rgy import PackageHandlerRgy
+        """Parse the package-level ``with:`` map onto *info*.
 
-        # Build the set of valid keys dynamically from the handler registry so
-        # that plugin handlers (e.g. direnv) are accepted without
-        # hardcoding their names here.
-        rgy = PackageHandlerRgy.inst()
-        known_with_keys = {h.name for h in rgy.handlers if h.name}
+        Thin wrapper over :func:`parse_with_section`; retained so the
+        package-level call site is unchanged.
+        """
+        py_cfg, node_cfg, handler_cfgs = parse_with_section(
+            with_data, name, "package")
+        if py_cfg is not None:
+            info.python_config = py_cfg
+        if node_cfg is not None:
+            info.node_config = node_cfg
+        for key, value in handler_cfgs.items():
+            info.handler_configs[key] = value
 
-        for key in with_data.keys():
-            if key not in known_with_keys:
-                hint = _suggest(key, known_with_keys)
-                fatal("Unknown key '%s' in package.with in %s.%s Valid keys: %s" % (
-                    key, name, hint, ", ".join(sorted(known_with_keys))), key)
-
-        if "python" in with_data.keys():
-            py_data = with_data["python"]
-            if py_data is None:
-                py_data = {}
-            cfg = PythonConfig()
-
-            for key in py_data.keys():
-                if key not in _KNOWN_PYTHON_WITH_KEYS:
-                    hint = _suggest(key, _KNOWN_PYTHON_WITH_KEYS)
-                    fatal(
-                        "Unknown key '%s' in package.with.python in %s.%s"
-                        " Valid keys: %s" % (
-                            key, name, hint,
-                            ", ".join(sorted(_KNOWN_PYTHON_WITH_KEYS))),
-                        key)
-
-            if "venv" in py_data:
-                try:
-                    cfg.venv = VenvMode.parse(py_data["venv"])
-                except ValueError as e:
-                    fatal(str(e) + " in %s" % name, py_data.get("venv"))
-            if "system-site-packages" in py_data:
-                cfg.system_site_packages = bool(py_data["system-site-packages"])
-            if "pre-release" in py_data:
-                cfg.pre_release = bool(py_data["pre-release"])
-            info.python_config = cfg
-
-        if "node" in with_data.keys():
-            nd_data = with_data["node"]
-            if nd_data is None:
-                nd_data = {}
-            cfg = NodeConfig()
-
-            for key in nd_data.keys():
-                if key not in _KNOWN_NODE_WITH_KEYS:
-                    hint = _suggest(key, _KNOWN_NODE_WITH_KEYS)
-                    fatal(
-                        "Unknown key '%s' in package.with.node in %s.%s"
-                        " Valid keys: %s" % (
-                            key, name, hint,
-                            ", ".join(sorted(_KNOWN_NODE_WITH_KEYS))),
-                        key)
-
-            if "manager" in nd_data:
-                val = str(nd_data["manager"]).strip().lower()
-                if val not in {"npm", "pnpm", "yarn"}:
-                    fatal("Invalid manager '%s' in package.with.node in %s."
-                          " Valid values: npm, pnpm, yarn" % (val, name),
-                          nd_data.get("manager"))
-                cfg.manager = val
-            if "version" in nd_data:
-                cfg.version = str(nd_data["version"])
-            if "env" in nd_data:
-                cfg.env = bool(nd_data["env"])
-            info.node_config = cfg
-
-        # Store config for non-python/non-node registered handlers so they can
-        # retrieve their settings via ProjectUpdateInfo.handler_configs.
-        for key, value in with_data.items():
-            if key not in ("python", "node"):
-                info.handler_configs[key] = value
-
-    def read_dep_sets(self, info : 'ProjInfo', dep_sets):
+    def read_dep_sets(self, info : 'ProjInfo', dep_sets, name : str = "<unknown>"):
         if not isinstance(dep_sets, list):
             fatal("Expect body of dep-sets to be a list, not %s" % str(type(dep_sets)),
                   dep_sets)
@@ -428,6 +523,14 @@ class IvpmYamlReader(object):
                     ds.uses = [str(u) for u in uses]
                 else:
                     ds.uses = [str(uses)]
+
+            if "with" in ds_ent.keys():
+                # Per-dep-set handler configuration. Stored raw and merged with
+                # the package-level 'with:' when this dep-set is the selected
+                # install target. Validate now so key/value errors are located.
+                ds.with_raw = ds_ent["with"]
+                parse_with_section(
+                    ds_ent["with"], name, "dep-set '%s'" % ds_name)
 
             if "default-dep-set" in ds_ent.keys():
                 default_dep_set = ds_ent["default-dep-set"]
@@ -467,6 +570,7 @@ class IvpmYamlReader(object):
             visiting.add(name)
             merged_pkgs = {}
             merged_opts = {}
+            merged_with = {}
             for base_name in ds.uses:
                 if base_name not in dep_set_m:
                     fatal(
@@ -477,6 +581,8 @@ class IvpmYamlReader(object):
                 # Accumulate bases in declared order; later bases win.
                 merged_pkgs.update(base_ds.packages)
                 merged_opts.update(base_ds.options)
+                if base_ds.with_raw:
+                    merged_with = merge_with(merged_with, base_ds.with_raw)
             visiting.discard(name)
 
             # Finally, the current dep-set's own entries override the bases.
@@ -484,6 +590,10 @@ class IvpmYamlReader(object):
             ds.packages = merged_pkgs
             merged_opts.update(ds.options)
             ds.options = merged_opts
+            # The dep-set's own 'with:' overlays the merged bases (own wins).
+            if ds.with_raw:
+                merged_with = merge_with(merged_with, ds.with_raw)
+            ds.with_raw = merged_with or None
 
             resolved.add(name)
 

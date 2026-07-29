@@ -189,6 +189,63 @@ Running ``ivpm update -d everything`` installs ``simulator`` and
 ``waveform-viewer``.  A package shared by ``sim`` and ``gui`` is installed once;
 if their definitions differ, the later base in the list (``gui``) wins.
 
+Per-Dep-Set Handler Configuration with ``with``
+------------------------------------------------
+
+A ``with:`` block controls handler behavior -- the Python venv mode, the Node
+package manager, direnv/agents/fusesoc settings, and so on (see
+:doc:`python_packages` and :doc:`node_packages`).  It is normally declared once
+at the ``package:`` level and applies to every ``ivpm update``.
+
+An individual dep-set may also carry its own ``with:`` block.  When that dep-set
+is the **selected install target**, its ``with:`` *refines* the package-level
+one: the dep-set wins on any key it sets, and keys it leaves unset fall back to
+the package-level value.  This lets one manifest describe, say, a ``uv`` venv
+for day-to-day work and a system-Python install for CI:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+
+      with:
+        python:
+          venv: uv                # default for every dep-set
+
+      dep-sets:
+        - name: default
+          deps:
+            - name: numpy
+              src: pypi
+
+        - name: ci
+          uses: default
+          with:
+            python:
+              venv: false               # override: reuse system Python
+              system-site-packages: true
+          deps: []
+
+- ``ivpm update`` (or ``-d default``) builds a ``uv`` virtual environment.
+- ``ivpm update -d ci`` skips the venv and uses the system Python.
+
+The dep-set ``with:`` block accepts exactly the same keys as the package-level
+one, and unknown keys are reported with a located error at parse time.
+
+**Inheritance.** A dep-set's ``with:`` inherits through ``uses:`` just like its
+packages do: base dep-sets are merged left-to-right and the dep-set's own
+``with:`` overlays the result (own keys win).  Above, ``ci`` could omit
+``system-site-packages`` and inherit it from a base that set it.
+
+**Precedence** (highest wins): CLI flags (e.g. ``--py-uv``) → selected dep-set
+``with:`` → package-level ``with:`` → built-in defaults.  The ``venv: false``
+hard-skip rule still applies at whichever level sets it (see the priority table
+in :doc:`python_packages`).
+
+**Selecting several dep-sets.** When you install more than one dep-set at once
+(``ivpm update -d a,b``), their ``with:`` blocks merge left-to-right, so the
+later-named set wins on conflict -- matching how their packages merge.
+
 Including Dep-Sets From Other Files
 -----------------------------------
 
