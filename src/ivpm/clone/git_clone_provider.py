@@ -398,8 +398,69 @@ class GitCloneProvider(CloneProvider):
         if non_empty:
             return self._clone_in_place(url, target_dir, event_dispatcher, suppress_output)
 
-        return self._run_git(["git", "clone", url, target_dir],
-                             event_dispatcher, suppress_output, progress=True)
+        return self._run_clone(url, target_dir, event_dispatcher, suppress_output)
+
+    @staticmethod
+    def _git_reads_as_path(url):
+        """True when git would resolve ``url`` against the filesystem rather
+        than treating it as a remote locator.  Mirrors git's rule: a colon
+        before the first '/' means scp-style ssh, anything else with no scheme
+        is a path."""
+        if url.startswith("file://"):
+            return True
+        if "://" in url:
+            return False
+        return ":" not in url.split("/", 1)[0]
+
+    def _run_clone(self, url, target_dir, event_dispatcher, suppress_output):
+        """Run 'git clone <url> <target_dir>' for an empty/absent target.
+
+        git decides local-vs-remote by testing the source against the
+        filesystem, and it repeats that test *after* creating the destination
+        directory.  So `git clone abc:def <cwd>/abc:def` finds the destination
+        git itself just made, clones that empty repo into itself, and exits 0 --
+        leaving a bogus workspace instead of failing on the unresolvable host.
+        Running the clone from a scratch directory (after absolutizing a source
+        that really is a local path) removes the ambiguity: a relative source
+        that is not a real path can no longer resolve to the destination.
+        """
+        import shutil
+        import tempfile
+
+        src = url
+        if self._git_reads_as_path(url) and not os.path.isabs(url) \
+                and not url.startswith("file://") and os.path.exists(url):
+            src = os.path.abspath(url)
+
+        scratch = tempfile.mkdtemp(prefix="ivpm-clone-")
+        try:
+            rc = self._run_git(["git", "clone", src, target_dir],
+                               event_dispatcher, suppress_output,
+                               progress=True, cwd=scratch)
+            if rc == 0 and self._is_self_clone(scratch, target_dir):
+                # Backstop for the trap described above, should git ever find
+                # another way into it: the clone "succeeded" by copying the
+                # destination onto itself.
+                shutil.rmtree(target_dir, ignore_errors=True)
+                return 1
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
+        return rc
+
+    def _is_self_clone(self, base_dir, target_dir):
+        """True when the fresh clone's origin points back at the clone itself."""
+        try:
+            origin = subprocess.check_output(
+                ["git", "remote", "get-url", "origin"],
+                cwd=target_dir, text=True).strip()
+        except Exception:
+            return False
+        if not origin or not self._git_reads_as_path(origin):
+            return False
+        if origin.startswith("file://"):
+            origin = origin[len("file://"):]
+        resolved = os.path.realpath(os.path.join(base_dir, origin))
+        return resolved == os.path.realpath(target_dir)
 
     def _clone_in_place(self, url, target_dir, event_dispatcher, suppress_output):
         """Clone into an existing, non-empty directory that is not yet a repo.

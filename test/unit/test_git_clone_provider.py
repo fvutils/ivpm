@@ -134,6 +134,45 @@ class TestGitClone(TestBase):
         with self.assertRaises(SrcLoaderError):
             GitCloneProvider().clone(self._req(src_b, target))
 
+    def test_clone_relative_local_src(self):
+        # A relative local source is resolved against the caller's cwd, not the
+        # scratch cwd the clone runs from.
+        src = os.path.join(self.testdir, 'gcp_src_rel')
+        self._init_git_repo(src)
+        target = os.path.join(self.testdir, 'gcp_ws_rel')
+        cwd = os.getcwd()
+        os.chdir(self.testdir)
+        try:
+            res = GitCloneProvider().clone(self._req('gcp_src_rel', target))
+        finally:
+            os.chdir(cwd)
+        self.assertTrue(res.ok)
+        self.assertTrue(os.path.isfile(os.path.join(target, 'ivpm.yaml')))
+
+    def test_clone_scp_style_does_not_self_clone(self):
+        # 'git clone host:repo <cwd>/host:repo' used to make git resolve the
+        # source against the destination it had just created, cloning the empty
+        # repo into itself and reporting success.  It must fail instead.
+        target = os.path.join(self.testdir, 'nosuchhost:nosuchrepo')
+        cwd = os.getcwd()
+        # Keep the test off the network: ssh transport fails immediately.  A
+        # self-clone would take the *local* transport and still "succeed", so
+        # this doesn't mask the regression.
+        prev_ssh = os.environ.get("GIT_SSH_COMMAND")
+        os.environ["GIT_SSH_COMMAND"] = "false"
+        os.chdir(self.testdir)
+        try:
+            res = GitCloneProvider().clone(
+                self._req('nosuchhost:nosuchrepo', target))
+        finally:
+            os.chdir(cwd)
+            if prev_ssh is None:
+                del os.environ["GIT_SSH_COMMAND"]
+            else:
+                os.environ["GIT_SSH_COMMAND"] = prev_ssh
+        self.assertFalse(res.ok)
+        self.assertFalse(os.path.isdir(os.path.join(target, '.git')))
+
     def test_url_identity_ssh_https_equal(self):
         p = GitCloneProvider()
         self.assertEqual(
