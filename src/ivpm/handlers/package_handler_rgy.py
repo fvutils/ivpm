@@ -75,7 +75,39 @@ class PackageHandlerRgy(object):
         return [self.handler_info(h) for h in self.handlers]
 
     def _load(self):
-        # Discover handlers via entry points (built-ins registered via pyproject.toml)
+        # Built-in handlers are registered directly rather than relying on the
+        # entry points published in pyproject.toml. Running from a source tree
+        # (PYTHONPATH=src, no egg-info/dist-info) yields no discoverable
+        # metadata, and an empty handler set makes 'ivpm update' silently skip
+        # Python installation, envrc generation and every other root-phase
+        # step while still exiting 0. Entry points remain the plugin mechanism.
+        self._load_builtins()
+        self._load_plugins()
+
+    def _load_builtins(self):
+        # Keep in sync with [project.entry-points."ivpm.handlers"] in
+        # pyproject.toml. Registered in entry-point name order, so relative
+        # ordering is identical to what metadata discovery produced.
+        from .package_handler_agents import PackageHandlerAgents
+        from .package_handler_direnv import PackageHandlerDirenv
+        from .package_handler_dv_flow import PackageHandlerDvFlow
+        from .package_handler_fusesoc import PackageHandlerFuseSoC
+        from .package_handler_modules import PackageHandlerModules
+        from .package_handler_node import PackageHandlerNode
+        from .package_handler_python import PackageHandlerPython
+
+        for cls in (
+                PackageHandlerAgents,
+                PackageHandlerDirenv,
+                PackageHandlerDvFlow,
+                PackageHandlerFuseSoC,
+                PackageHandlerModules,
+                PackageHandlerNode,
+                PackageHandlerPython):
+            self.addHandler(cls)
+
+    def _load_plugins(self):
+        # Discover plugin-provided handlers via entry points.
         if sys.version_info < (3, 10):
             from importlib_metadata import entry_points
         else:
@@ -89,6 +121,13 @@ class PackageHandlerRgy(object):
             seen.add(ep.value)
             try:
                 cls = ep.load()
+                # A built-in registered under this name takes precedence: the
+                # built-ins are also published as entry points, so a matching
+                # class is a duplicate rather than an override.
+                if cls in self._meta:
+                    _logger.debug("handler '%s' already registered; "
+                                  "skipping entry point", ep.name)
+                    continue
                 _logger.debug("Loaded handler '%s' from entry point", ep.name)
                 self.addHandler(cls, **ep_registration_kwargs(ep))
             except Exception as e:
