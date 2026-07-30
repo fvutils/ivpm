@@ -77,8 +77,16 @@ class PackageFile(PackageURL):
                 first_slash = fi.name.find("/")
                 fi.name = fi.name[first_slash+1:]
 
-                # For symbolic links, also strip the first path component from linkname
-                if fi.issym() or fi.islnk():
+                # A hard link's linkname is relative to the archive root, so it
+                # needs the same leading component stripped as the member name.
+                # A *symbolic* link's target is relative to the link's own
+                # directory (or absolute) -- both endpoints move together when
+                # the root is stripped, so rewriting it corrupts the target. It
+                # used to be stripped too, which shifted every relative target
+                # up one level and made filter='data' reject real source
+                # archives (uv, OpenROAD-flow-scripts) as linking outside the
+                # destination.
+                if fi.islnk():
                     if fi.linkname.find("/") != -1:
                         first_slash_link = fi.linkname.find("/")
                         fi.linkname = fi.linkname[first_slash_link+1:]
@@ -98,7 +106,19 @@ class PackageFile(PackageURL):
             shutil.rmtree(pkg_path)
 
         with ZipFile(pkg_src, 'r') as zipObj:
-            zipObj.extractall(pkg_path)
+            for zi in zipObj.infolist():
+                dest = zipObj.extract(zi, pkg_path)
+
+                # zipfile discards the unix mode recorded in external_attr, so
+                # an extracted tool distribution (protoc, verilator, ...) comes
+                # out non-executable and unusable. Restore the permission bits
+                # for archives created on unix (create_system 3), masked to
+                # rwx-only: setuid/setgid/sticky from an archive are not
+                # something we want to honor.
+                if zi.create_system == 3 and not zi.is_dir():
+                    mode = (zi.external_attr >> 16) & 0o777
+                    if mode:
+                        os.chmod(dest, mode)
 
     @classmethod
     def dep_keys(cls):

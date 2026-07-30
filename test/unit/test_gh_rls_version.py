@@ -348,6 +348,54 @@ class TestGhRlsWebResolution(unittest.TestCase):
         self.assertEqual(rls["tag_name"], "v1.5.0")  # v2.0.0 is prerelease -> skipped
         self.assertTrue(file_url.endswith("/archive/refs/tags/v1.5.0.tar.gz"))
 
+    def test_non_release_tag_dropped_from_index(self):
+        """releases.atom carries tags; a tag with no release card is not a release.
+
+        protobuf's feed lists 'v36-dev' with no release behind it. Defaulting
+        such a tag to prerelease=False let it win 'latest', and because it has
+        no assets, selection silently degraded to the source archive.
+        """
+        atom = _ATOM.replace(
+            "<entry><id>tag:github.com,2008:Repository/1/v2.0.0</id>",
+            "<entry><id>tag:github.com,2008:Repository/1/v3-dev</id></entry>"
+            "<entry><id>tag:github.com,2008:Repository/1/v2.0.0</id>")
+        with mock.patch("ivpm.pkg_types.package_gh_rls.httpx.get",
+                        _router(**{"releases.atom": _Resp(200, atom),
+                                   "/releases": _Resp(200, _RELEASES_HTML)})):
+            index = self.mk()._fetch_release_index_web()
+        self.assertNotIn("v3-dev", [r["tag_name"] for r in index])
+        self.assertEqual(["v2.0.0", "v1.5.0", "v1.4.0"],
+                         [r["tag_name"] for r in index])
+
+    def test_latest_skips_non_release_tag(self):
+        """End to end: 'latest' must not resolve to a tag that has no release."""
+        atom = _ATOM.replace(
+            "<entry><id>tag:github.com,2008:Repository/1/v2.0.0</id>",
+            "<entry><id>tag:github.com,2008:Repository/1/v3-dev</id></entry>"
+            "<entry><id>tag:github.com,2008:Repository/1/v2.0.0</id>")
+        router = _router(**{
+            "releases.atom": _Resp(200, atom),
+            "expanded_assets/v1.5.0": _Resp(200, _EXPANDED_ASSETS_v150),
+            "/releases": _Resp(200, _RELEASES_HTML),
+        })
+        p = self.mk("latest", prerelease=False, source=True)
+        with mock.patch("ivpm.pkg_types.package_gh_rls.httpx.get", router):
+            _, rls, _, _ = p._resolve_release_web()
+        self.assertEqual("v1.5.0", rls["tag_name"])
+
+    def test_index_none_when_no_tag_is_a_release(self):
+        """All candidates dropped -> fall back to REST rather than guess."""
+        atom = """<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <entry><id>tag:github.com,2008:Repository/1/v9-dev</id></entry>
+</feed>"""
+        with mock.patch("ivpm.pkg_types.package_gh_rls.httpx.get",
+                        _router(**{"releases.atom": _Resp(200, atom),
+                                   "/releases": _Resp(200, _RELEASES_HTML)})):
+            p = self.mk("latest", prerelease=False, source=True)
+            self.assertEqual([], p._fetch_release_index_web())
+            self.assertIsNone(p._resolve_release_web())
+
     def test_resolve_latest_includes_prerelease(self):
         p = self.mk("latest", prerelease=True, source=True)
         with mock.patch("ivpm.pkg_types.package_gh_rls.httpx.get", self._full_router()):

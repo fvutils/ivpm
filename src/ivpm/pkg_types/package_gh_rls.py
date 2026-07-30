@@ -246,13 +246,22 @@ class PackageGhRls(PackageHttp):
         tags = self._fetch_tags_atom()
         if not tags:
             return None
-        flags = {}
-        if not self.prerelease:
-            flags = self._fetch_prerelease_flags_web()
-            if flags is None:
-                # Prerelease status undeterminable -> filtering would be unsafe.
-                return None
-        return [{"tag_name": t, "prerelease": flags.get(t, False)} for t in tags]
+        if self.prerelease:
+            return [{"tag_name": t, "prerelease": False} for t in tags]
+
+        flags = self._fetch_prerelease_flags_web()
+        if flags is None:
+            # Prerelease status undeterminable -> filtering would be unsafe.
+            return None
+
+        # releases.atom carries *tags*, not releases: protobuf's feed lists
+        # 'v36-dev' and '<ver>-objectivec' tags that have no release behind them.
+        # Defaulting an unknown tag to prerelease=False made the newest such tag
+        # win 'latest', which has no assets -- so asset selection silently
+        # degraded to the source archive. A tag the releases page does not know
+        # about is not a release; drop it. Dropping every candidate leaves the
+        # caller to fall back to REST, which is authoritative.
+        return [{"tag_name": t, "prerelease": flags[t]} for t in tags if t in flags]
 
     def _fetch_tags_atom(self):
         """Return release tags newest-first from releases.atom, or [] if empty.
