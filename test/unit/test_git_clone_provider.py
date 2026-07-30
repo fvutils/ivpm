@@ -173,6 +173,50 @@ class TestGitClone(TestBase):
         self.assertFalse(res.ok)
         self.assertFalse(os.path.isdir(os.path.join(target, '.git')))
 
+    def test_failed_clone_explains_itself(self):
+        # A failure must say what was run, how the locator was read, how the
+        # failure was detected, and what git actually reported.
+        target = os.path.join(self.testdir, 'gcp_missing_ws')
+        src = os.path.join(self.testdir, 'gcp_no_such_repo')
+        res = GitCloneProvider().clone(self._req(src, target))
+        self.assertFalse(res.ok)
+        msg = res.message
+        for expect in ("git exit", "source", "interpreted as", "command",
+                       "detected by", "git reported:", "does not exist"):
+            self.assertIn(expect, msg)
+
+    def test_scp_style_failure_explains_locator_reading(self):
+        # The confusing case: 'abc:def' is an SSH host:path to git, not a path.
+        # The message must say so, since git's own error never does.
+        target = os.path.join(self.testdir, 'abc:def')
+        prev_ssh = os.environ.get("GIT_SSH_COMMAND")
+        os.environ["GIT_SSH_COMMAND"] = (
+            "sh -c 'echo ssh: Could not resolve hostname abc >&2; exit 255'")
+        cwd = os.getcwd()
+        os.chdir(self.testdir)
+        try:
+            res = GitCloneProvider().clone(self._req('abc:def', target))
+        finally:
+            os.chdir(cwd)
+            if prev_ssh is None:
+                del os.environ["GIT_SSH_COMMAND"]
+            else:
+                os.environ["GIT_SSH_COMMAND"] = prev_ssh
+        self.assertFalse(res.ok)
+        self.assertIn("scp-style SSH locator -- host 'abc', path 'def'",
+                      res.message)
+        self.assertIn("hint: ", res.message)
+        self.assertIn("./abc:def", res.message)
+
+    def test_transport_and_locator_descriptions(self):
+        p = GitCloneProvider()
+        self.assertEqual(p._transport("abc:def"), "ssh")
+        self.assertEqual(p._transport("./abc:def"), "local")
+        self.assertEqual(p._transport("/a/b"), "local")
+        self.assertEqual(p._transport("https://h/a/b.git"), "https")
+        self.assertIn("host 'h'", p._describe_locator("https://h/a/b.git"))
+        self.assertIn("local path", p._describe_locator("/a/b"))
+
     def test_url_identity_ssh_https_equal(self):
         p = GitCloneProvider()
         self.assertEqual(

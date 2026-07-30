@@ -68,7 +68,8 @@ def diagnose_git_failure(url, stderr_text, ssh_pref=None):
 
     # --- repository does not exist / not found ---------------------------- #
     if _has("repository not found", "repository does not exist",
-            "not found", "does not exist", "not a git repository"):
+            "cannot find repository", "not found", "does not exist",
+            "not a git repository"):
         hints.append("the remote reports the repository does not exist -- "
                      "check the URL for typos in the host, owner, and repo name")
         hints.extend(_url_breakdown(url))
@@ -109,6 +110,8 @@ def _host_of(url):
         return None
     if "://" in url:
         return url.split("://", 1)[1].split("/", 1)[0]
-    if url.startswith("git@"):
-        return url[4:].split(":", 1)[0]
+    # scp-style '[user@]host:path' -- git's rule is a ':' before the first '/'.
+    head = url.split("/", 1)[0]
+    if ":" in head:
+        return head.split(":", 1)[0].split("@")[-1] or None
     return None

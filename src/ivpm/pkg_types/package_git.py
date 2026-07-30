@@ -47,6 +47,12 @@ class PackageGit(PackageURL):
     ssh : bool = None  # rewrite https URL to git@host:path form
     resolved_commit : str = None  # actual commit hash after fetch
 
+    # Set once PACKAGE_SRC_RESOLVED has been dispatched for this package, so the
+    # repeated _get_effective_url calls per fetch report the rewrite only once.
+    # Deliberately unannotated: an annotated attribute would become a dataclass
+    # field and show up in the package's serialized form.
+    _src_resolved_emitted = False
+
     def patch_capability(self):
         # Editable patchable: cache-mode plus in-place rollback via the git
         # history (retain_base / restore_pristine below). base_version is the
@@ -574,7 +580,31 @@ class PackageGit(PackageURL):
         auth_order = None
         if update_info is not None and update_info.args is not None:
             auth_order = getattr(update_info.args, "git_auth_order", None)
-        return resolve_clone_url(self.url, self._ssh_pref(update_info), auth_order)
+        url = resolve_clone_url(self.url, self._ssh_pref(update_info), auth_order)
+        if url != self.url:
+            self._emit_src_resolved(update_info, url)
+        return url
+
+    def _emit_src_resolved(self, update_info: ProjectUpdateInfo, url: str):
+        """Report a rewritten fetch URL to this package's TUI row.
+
+        Fires only when the effective URL differs from the declared one, so an
+        unremapped package's display is unchanged.  ``_get_effective_url`` is
+        called more than once per package (ls-remote, then clone); the emitted
+        flag keeps that from producing duplicate rows in transcript mode.
+        """
+        if update_info is None or self._src_resolved_emitted:
+            return
+        dispatcher = getattr(update_info, "event_dispatcher", None)
+        if dispatcher is None:
+            return
+        self._src_resolved_emitted = True
+        dispatcher.dispatch(UpdateEvent(
+            event_type=UpdateEventType.PACKAGE_SRC_RESOLVED,
+            package_name=self.name,
+            package_src=self.url,
+            package_src_effective=url,
+        ))
 
     def _emit_progress(self, update_info: ProjectUpdateInfo, message: str):
         """Forward a git progress message to this package's TUI row."""

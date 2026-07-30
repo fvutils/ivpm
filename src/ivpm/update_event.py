@@ -33,6 +33,7 @@ class UpdateEventType(Enum):
     HANDLER_TASK_ERROR = auto()     # A handler task failed
     # --- Package fetch events ---
     PACKAGE_START = auto()          # Package loading started
+    PACKAGE_SRC_RESOLVED = auto()   # Declared URL was rewritten (git-url-map / auth order)
     PACKAGE_COMPLETE = auto()       # Package loading completed successfully
     PACKAGE_ERROR = auto()          # Package loading failed
     UPDATE_COMPLETE = auto()        # All packages loaded
@@ -50,6 +51,10 @@ class UpdateEvent:
     package_name: Optional[str] = None
     package_type: Optional[str] = None
     package_src: Optional[str] = None
+    # The URL actually fetched, when it differs from the declared ``package_src``
+    # (a git-url-map rule fired, and/or auth-order rewrote https to ssh). Set on
+    # PACKAGE_SRC_RESOLVED so the TUI can show the redirect rather than hide it.
+    package_src_effective: Optional[str] = None
     duration: Optional[float] = None
     cache_hit: Optional[bool] = None
     error_message: Optional[str] = None

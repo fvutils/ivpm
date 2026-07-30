@@ -594,6 +594,21 @@ class PackageHandlerPython(PackageHandler):
                     fp.write("%s\n" % arg)
             python_requirements_paths.append(requirements_path)
 
+        # Build backends next, before anything that needs to be built. Because
+        # the install runs with --no-build-isolation, these are not provisioned
+        # for us; a source package whose backend is missing cannot build.
+        src_pkg_names = [name for grp in pysrc_pkg_order for name in grp]
+        build_requires = self._collect_build_requires(
+            update_info.deps_dir, src_pkg_names)
+        if len(build_requires) > 0:
+            requirements_path = os.path.join(
+                update_info.deps_dir, "python_pkgs_%d.txt" % (
+                len(python_requirements_paths)+1))
+            with open(requirements_path, "w") as fp:
+                for spec in build_requires:
+                    fp.write("%s\n" % spec)
+            python_requirements_paths.append(requirements_path)
+
         # Next, create a requirements file for all
         # non-setup-dep PyPi packages
         python_pkgs = []
@@ -982,7 +997,76 @@ class PackageHandlerPython(PackageHandler):
         return None
 
 
-    def _write_requirements_txt(self, 
+    def _collect_build_requires(self, deps_dir, pkg_names) -> List[str]:
+        """Return the PEP 517 build requirements declared by source packages.
+
+        Packages are installed with ``--no-build-isolation`` so that each one
+        builds against the workspace's editable packages rather than fresh
+        copies pulled from PyPI.  The trade-off is that the installer no longer
+        provisions ``[build-system] requires``, so a package whose build
+        backend is not already present in the venv fails to build at all
+        (``ModuleNotFoundError: No module named '<backend>'``).  Collecting the
+        declarations here restores the half of build isolation that was given
+        up, without giving back the isolation itself.
+
+        Requirements naming a workspace package are skipped: those are already
+        supplied by the editable install, and resolving them from PyPI would
+        shadow the local source with a released copy.
+
+        Specifiers are de-duplicated verbatim rather than by distribution name,
+        so two packages asking for different floors of the same backend both
+        constrain the resolve (and a genuine conflict surfaces as a resolution
+        error instead of being silently decided here).
+        """
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore[no-redef]
+
+        workspace = set()
+        for name in self.pkgs_info.keys():
+            workspace.add(_pep508_split(name)[0])
+
+        seen = set()
+        requires = []
+        for name in pkg_names:
+            path = os.path.join(deps_dir, name, "pyproject.toml")
+            if not os.path.isfile(path):
+                continue
+            try:
+                with open(path, "rb") as fp:
+                    data = tomllib.load(fp)
+            except Exception as e:
+                # A source package we cannot parse is not fatal here: it may
+                # not use a pyproject build at all, and the install itself
+                # will report a real problem far more precisely than we can.
+                _logger.warning(
+                    "package %s: could not parse pyproject.toml for build "
+                    "requirements (%s)", name, e)
+                continue
+
+            build_system = data.get("build-system")
+            if not isinstance(build_system, dict):
+                continue
+            for spec in (build_system.get("requires") or []):
+                if not isinstance(spec, str) or not spec.strip():
+                    continue
+                spec = spec.strip()
+                dist = _pep508_split(spec)[0]
+                if dist in workspace:
+                    _logger.debug(
+                        "build requirement %s of %s is a workspace package; "
+                        "leaving it to the editable install", dist, name)
+                    continue
+                if spec in seen:
+                    continue
+                seen.add(spec)
+                requires.append(spec)
+                _logger.debug("build requirement %s (from %s)", spec, name)
+
+        return requires
+
+    def _write_requirements_txt(self,
                                 packages_dir,
                                 python_pkgs : List[Package],
                                 file):

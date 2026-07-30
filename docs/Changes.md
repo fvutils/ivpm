@@ -1,4 +1,15 @@
 
+# 2.20.0
+- `ivpm clone` now explains a failed clone instead of just reporting a git
+  exit code: the source and effective clone URL (including any `git-url-map`
+  rewrite and where the rule came from), how the locator was interpreted
+  (e.g. `abc:def` is scp-style SSH, not a path), the transport and why it was
+  chosen, the exact git command, how the failure was detected, git's own
+  output, and targeted hints.
+- Updated how remapped URLs are displayed during update
+- Ensure build dependencies for Python projects are installed prior to 
+  package installation
+
 # 2.19.0
 - Dep-sets may now declare their own `with:` block to override package-level
   handler configuration (Python venv mode, Node manager, plugin-handler

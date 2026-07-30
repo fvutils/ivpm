@@ -55,6 +55,9 @@ class PackageStatus:
         self.name = name
         self.pkg_type = pkg_type or ""
         self.pkg_src = pkg_src or ""
+        # URL actually fetched, when a git-url-map rule or auth-order rewrite
+        # redirected it; None means the declared pkg_src was used as written.
+        self.pkg_src_effective: Optional[str] = None
         self.start_time = time.time()
         self.duration: Optional[float] = None
         self.cache_hit: Optional[bool] = None
@@ -136,6 +139,40 @@ class RichUpdateTUI(UpdateEventListener):
             use_sink(self._prev_sink)
             self._prev_sink = None
     
+    def _src_text(self, status, trailer: str = "", head: str = None, style: str = None):
+        """Build a package row's info cell, surfacing any URL rewrite.
+
+        When the package was fetched from a URL other than the one declared in
+        ivpm.yaml (a ``git-url-map`` rule fired, and/or the git auth order
+        rewrote https to ssh), the redirect gets its own continuation line:
+
+            git github.com/fvutils/svdep.git
+                → ssh://git@host:222/fvutils/svdep.git @main 0.2s
+
+        Redirecting a fetch to a different host is exactly the kind of thing
+        that must not happen silently, so the effective URL is shown rather
+        than replacing the declared one -- both the rule's input and its output
+        stay on screen.  Packages that were fetched as declared render on a
+        single line as before.
+        """
+        from rich.text import Text
+
+        body = head if head is not None else status.pkg_src
+        first = f"{status.pkg_type} {body}".strip()
+
+        if not status.pkg_src_effective:
+            text = Text(f"{first} {trailer}".strip(), style=style)
+            return text
+
+        text = Text(first, style=style)
+        text.append("\n")
+        # Indent the continuation under the source column, not the type column.
+        text.append(" " * (len(status.pkg_type) + 1))
+        text.append("→ ", style=style or "bold yellow")
+        text.append(f"{status.pkg_src_effective} {trailer}".rstrip(),
+                    style=style or "yellow")
+        return text
+
     def _render(self):
         """Render the current state."""
         from rich.spinner import Spinner
@@ -172,21 +209,22 @@ class RichUpdateTUI(UpdateEventListener):
             
             if status.error:
                 marker = Text("✗", style="bold red")
-                info = Text(f"{status.pkg_type} {status.pkg_src}", style="red")
+                info = self._src_text(status, style="red")
             elif status.completed:
                 marker = Text("✓", style="bold green")
                 cache_str = "C" if status.cache_hit else ""
                 version_str = f"@{status.version}" if status.version else ""
                 duration_str = f"{status.duration:.1f}s" if status.duration else ""
-                info = Text(f"{status.pkg_type} {status.pkg_src} {version_str} {cache_str} {duration_str}".strip())
+                info = self._src_text(
+                    status, trailer=f"{version_str} {cache_str} {duration_str}")
             else:
                 # Use Rich's Spinner for in-progress packages
                 marker = Spinner("dots", style="bold cyan")
                 if status.progress_message:
-                    info = Text(f"{status.pkg_type} · {status.progress_message}")
+                    info = self._src_text(status, head=f"· {status.progress_message}")
                 else:
-                    info = Text(f"{status.pkg_type} {status.pkg_src}")
-            
+                    info = self._src_text(status)
+
             table.add_row(marker, Text(name), info)
 
         # Render handler tasks (appended after packages).
@@ -254,7 +292,13 @@ class RichUpdateTUI(UpdateEventListener):
             self.packages[event.package_name] = status
             self.package_order.append(event.package_name)
             self._update_display()
-        
+
+        elif event.event_type == UpdateEventType.PACKAGE_SRC_RESOLVED:
+            if event.package_name in self.packages:
+                status = self.packages[event.package_name]
+                status.pkg_src_effective = event.package_src_effective
+                self._update_display()
+
         elif event.event_type == UpdateEventType.PACKAGE_COMPLETE:
             if event.package_name in self.packages:
                 status = self.packages[event.package_name]
@@ -431,7 +475,15 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 type_str = f" ({event.package_type})" if event.package_type else ""
                 print(f">> {event.package_name}{type_str}")
                 sys.stdout.flush()
-        
+
+        elif event.event_type == UpdateEventType.PACKAGE_SRC_RESOLVED:
+            # Transcript mode has no row to update in place, so the rewrite is
+            # reported as its own line under the package it belongs to.
+            with self._lock:
+                print(f"   {event.package_src}")
+                print(f"   → {event.package_src_effective}")
+                sys.stdout.flush()
+
         elif event.event_type == UpdateEventType.PACKAGE_COMPLETE:
             with self._lock:
                 duration_str = f" ({event.duration:.1f}s)" if event.duration else ""

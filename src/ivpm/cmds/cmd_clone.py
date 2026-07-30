@@ -100,8 +100,13 @@ class CmdClone(object):
         if result is None or not result.ok:
             msg = (result.message if result is not None and result.message
                    else "clone failed")
-            fatal("Clone via provider '%s' failed: %s" % (
-                provider.provider_info().name, msg))
+            # A provider that reports a detailed, multi-line explanation owns
+            # the message verbatim; a terse one gets the provider attributed.
+            if "\n" in msg:
+                fatal(msg)
+            else:
+                fatal("Clone via provider '%s' failed: %s" % (
+                    provider.provider_info().name, msg))
 
         # After cloning, run ivpm update in the new workspace so dependencies
         # are fetched according to options provided.  The provider's result may

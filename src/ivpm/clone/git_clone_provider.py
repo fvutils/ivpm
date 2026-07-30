@@ -38,6 +38,10 @@ from .clone_provider import (
 
 _logger = logging.getLogger("ivpm.clone.git_clone_provider")
 
+# Marker used in place of git's stderr when *we*, not git, rejected the clone:
+# git exited 0 after cloning the destination into itself (see _run_clone).
+_SELF_CLONE_ERR = "<ivpm: clone resolved to the destination directory itself>"
+
 
 class GitCloneProvider(CloneProvider):
     """Clone a git/GitHub repository.  Default provider; also the fallback for
@@ -165,21 +169,24 @@ class GitCloneProvider(CloneProvider):
             package_src=url))
 
         try:
-            rc = self._populate_repo(src, url, target_dir, event_dispatcher, suppress_output)
+            rc, err = self._populate_repo(src, url, target_dir,
+                                          event_dispatcher, suppress_output)
 
             if rc != 0:
                 event_dispatcher.dispatch(UpdateEvent(
                     event_type=UpdateEventType.PACKAGE_ERROR,
                     package_name="[clone]",
-                    error_message="Git clone failed"))
-                return CloneResult(ok=False, message="git clone failed (rc=%d)" % rc)
+                    error_message="Git clone failed (git exit %d)" % rc))
+                return CloneResult(ok=False, message=self._clone_error_message(
+                    src, url, target_dir, rc, err, ssh_pref, auth_order))
 
             branch = req.branch
             if branch is not None:
-                rc = self._select_branch(branch, target_dir, event_dispatcher, suppress_output)
+                rc, err = self._select_branch(branch, target_dir,
+                                              event_dispatcher, suppress_output)
                 if rc != 0:
-                    return CloneResult(ok=False,
-                                       message="failed to checkout branch %s" % branch)
+                    return CloneResult(ok=False, message=self._branch_error_message(
+                        branch, src, url, rc, err, ssh_pref))
 
             event_dispatcher.dispatch(UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_COMPLETE,
@@ -193,6 +200,139 @@ class GitCloneProvider(CloneProvider):
             raise
 
         return CloneResult(ok=True, resolved_revision=self._head(target_dir))
+
+    # ------------------------------------------------------------------ #
+    # Error reporting
+    # ------------------------------------------------------------------ #
+    def _clone_error_message(self, src, url, target_dir, rc, err,
+                             ssh_pref=None, auth_order=None):
+        """Explain a failed clone: what IVPM asked git to do, how the locator
+        was interpreted, how the failure was detected, git's own output, and
+        an offline diagnosis (see ivpm.git_diagnose)."""
+        head = "git could not clone '%s' (git exit %d)" % (src, rc)
+        lines = [head]
+
+        ctx = [("provider", "git"), ("source", src)]
+        if url != src:
+            ctx.append(("clone url", url))
+            ctx.extend(self._rewrite_lines(src))
+        ctx.append(("interpreted as", self._describe_locator(url)))
+        ctx.append(("transport", self._describe_transport(src, url, ssh_pref, auth_order)))
+        ctx.append(("command", "git clone %s %s" % (url, target_dir)))
+        ctx.append(("detected by", self._describe_detection(rc, err)))
+        lines.extend(self._context_lines(ctx))
+
+        lines.extend(self._git_output_lines(err))
+        lines.extend(self._hint_lines(src, url, err, ssh_pref))
+        return "\n".join(lines)
+
+    def _branch_error_message(self, branch, src, url, rc, err, ssh_pref=None):
+        lines = ["cloned '%s', but could not check out branch '%s' (git exit %d)"
+                 % (src, branch, rc)]
+        lines.extend(self._context_lines([
+            ("detected by", "'git checkout' exited non-zero (%d)" % rc)]))
+        lines.extend(self._git_output_lines(err))
+        lines.extend(self._hint_lines(src, url, err, ssh_pref))
+        return "\n".join(lines)
+
+    @staticmethod
+    def _context_lines(pairs):
+        width = max(len(k) for k, _ in pairs)
+        return ["  %-*s : %s" % (width, k, v) for k, v in pairs]
+
+    @staticmethod
+    def _git_output_lines(err):
+        if err == _SELF_CLONE_ERR:
+            # Not git's words: the "detected by" line already explains it.
+            return []
+        tail = [ln for ln in (err or "").splitlines() if ln.strip()]
+        if not tail:
+            return ["git produced no diagnostic output"]
+        return ["git reported:"] + ["  " + ln for ln in tail[-8:]]
+
+    def _hint_lines(self, src, url, err, ssh_pref):
+        from ..git_diagnose import diagnose_git_failure
+        hints = list(diagnose_git_failure(url, err, ssh_pref))
+        hints.extend(self._locator_hints(src, url, err))
+        return ["hint: " + h for h in hints]
+
+    def _locator_hints(self, src, url, err):
+        """Hints about how the *locator itself* was read -- the case git's own
+        message never explains (e.g. 'abc:def' is an SSH host, not a path)."""
+        hints = []
+        # Only meaningful when the *source as typed* is scp-style; an https
+        # source rewritten to git@host:path is a deliberate transport choice,
+        # not a misread locator.
+        if self._is_scp_style(src):
+            host = src.split("/", 1)[0].split("@", 1)[-1].split(":", 1)[0]
+            unresolved = "resolve" in (err or "").lower()
+            if unresolved or os.path.exists(src):
+                hints.append(
+                    "'%s' has no scheme and a ':' before the first '/', so git "
+                    "reads it as scp-style SSH (host '%s'), not a path -- to "
+                    "clone a local directory of that name use './%s' or an "
+                    "absolute path" % (src, host, src))
+            if unresolved and "." not in host:
+                hints.append(
+                    "host '%s' has no domain suffix -- if you meant a remote "
+                    "repository, use a full URL (https://host/owner/repo.git) "
+                    "or an ssh alias defined in ~/.ssh/config" % host)
+        return hints
+
+    @staticmethod
+    def _rewrite_lines(src):
+        """Attribute a source-vs-clone-url difference to a git-url-map rule when
+        one applies, naming where that rule came from."""
+        from ..site_config import apply_git_url_map
+        mapped = apply_git_url_map(src)
+        if mapped == src:
+            return []
+        where = ", ".join(loaded_config_paths()) or "IVPM_GIT_URL_MAP"
+        return [("url-map", "%s -> %s (rule from %s)" % (src, mapped, where))]
+
+    def _describe_locator(self, url):
+        """One line describing how git will read this locator."""
+        if url.startswith("ssh://") or url.startswith("git://") or url.startswith("https://") \
+                or url.startswith("http://") or url.startswith("file://"):
+            scheme = url.split("://", 1)[0]
+            host = url_host(url)
+            if scheme == "file":
+                return "file:// URL -- local path %s" % url[len("file://"):]
+            return "%s:// URL -- host '%s'" % (scheme, host or "?")
+        if self._is_scp_style(url):
+            userhost, path = url.split(":", 1)
+            host = userhost.split("@", 1)[-1]
+            return "scp-style SSH locator -- host '%s', path '%s'" % (host, path)
+        return "local path (no scheme, no host)"
+
+    @staticmethod
+    def _is_scp_style(url):
+        """True when git reads ``url`` as ``[user@]host:path`` -- no scheme and
+        a ':' before the first '/'."""
+        if "://" in url:
+            return False
+        return ":" in url.split("/", 1)[0]
+
+    def _describe_transport(self, src, url, ssh_pref, auth_order):
+        transport = self._transport(url)
+        if ssh_pref is True:
+            return "%s (forced by --ssh)" % transport
+        if ssh_pref is False:
+            return "%s (forced by --anonymous)" % transport
+        if url == src and transport in ("ssh", "local"):
+            # Nothing was rewritten: the source spelling picked the transport.
+            return "%s (as spelled in the source)" % transport
+        if transport in ("ssh", "https"):
+            order = auth_order or resolve_git_auth_order(url_host(url))
+            return "%s (from git auth order: %s)" % (transport, ", ".join(order))
+        return transport
+
+    @staticmethod
+    def _describe_detection(rc, err):
+        if err == _SELF_CLONE_ERR:
+            return ("git exited 0, but the new clone's origin points at the "
+                    "destination itself -- rejected as a bogus workspace")
+        return "'git clone' exited non-zero (%d); no workspace was created" % rc
 
     def _effective_flags(self, req: CloneRequest):
         """Resolve (ssh, anonymous, git_auth_order) from the provider-form args
@@ -208,13 +348,11 @@ class GitCloneProvider(CloneProvider):
         return ssh, anonymous, auth_order
 
     def _select_branch(self, branch, target_dir, event_dispatcher, suppress_output):
-        """Check out an existing origin/<branch> or create a new local branch."""
+        """Check out an existing origin/<branch> or create a new local branch.
+
+        Returns ``(exit_code, stderr_text)``."""
         # Fetch to ensure remotes are up to date.
-        if suppress_output:
-            subprocess.run(["git", "fetch", "--all"], cwd=target_dir,
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            subprocess.run(["git", "fetch", "--all"], cwd=target_dir)
+        self._run_capture(["git", "fetch", "--all"], cwd=target_dir)
 
         have_remote = False
         try:
@@ -229,18 +367,23 @@ class GitCloneProvider(CloneProvider):
         else:
             cmd = ["git", "checkout", "-b", branch]
 
-        if suppress_output:
-            status = subprocess.run(cmd, cwd=target_dir,
-                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        else:
-            status = subprocess.run(cmd, cwd=target_dir)
+        rc, err = self._run_capture(cmd, cwd=target_dir)
 
-        if status.returncode != 0:
+        if rc != 0:
             event_dispatcher.dispatch(UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_ERROR,
                 package_name="[clone]",
                 error_message="Failed to checkout branch %s" % branch))
-        return status.returncode
+        return rc, err
+
+    @staticmethod
+    def _run_capture(cmd, cwd=None):
+        """Run a git command capturing its output; returns ``(rc, stderr_text)``."""
+        try:
+            r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
+        except OSError as e:
+            return 1, "%s: %s" % (cmd[0], e)
+        return r.returncode, (r.stderr or "").strip()
 
     @staticmethod
     def _head(target_dir):
@@ -258,12 +401,16 @@ class GitCloneProvider(CloneProvider):
     # ------------------------------------------------------------------ #
     def _transport(self, url):
         """Classify a clone URL's transport: 'ssh', 'https', 'local', or 'other'."""
-        if url.startswith("git@") or url.startswith("ssh://"):
+        if url.startswith("ssh://"):
             return "ssh"
         if url.startswith("https://") or url.startswith("http://"):
             return "https"
-        if url.startswith("file://") or "://" not in url:
+        if url.startswith("file://"):
             return "local"
+        # No scheme: git reads '[user@]host:path' as ssh and anything else as a
+        # path -- the same rule _git_reads_as_path applies.
+        if "://" not in url:
+            return "local" if self._git_reads_as_path(url) else "ssh"
         return "other"
 
     def _run(self, cmd, timeout=15):
@@ -335,9 +482,15 @@ class GitCloneProvider(CloneProvider):
 
     def _run_git(self, cmd, event_dispatcher, suppress_output, progress=False, cwd=None):
         """Run a git command, routing progress to the Rich TUI when suppressing
-        raw output.  Returns the process exit code."""
+        raw output.  Returns ``(exit_code, stderr_text)``.
+
+        git's stderr is always captured (last lines kept) so a failure can be
+        explained; outside the Rich TUI it is also streamed to the terminal so
+        the user still sees git's native output as it happens."""
+        from ..git_progress import run_git_with_progress
+        captured = []
+        extra = ["--progress"] if progress else []
         if suppress_output:
-            from ..git_progress import run_git_with_progress
             def _on_progress(msg):
                 event_dispatcher.dispatch(UpdateEvent(
                     event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
@@ -345,10 +498,12 @@ class GitCloneProvider(CloneProvider):
                     task_id="git:[clone]",
                     task_name="git",
                     task_message=msg))
-            extra = ["--progress"] if progress else []
-            return run_git_with_progress(cmd + extra, cwd=cwd, on_progress=_on_progress)
+            rc = run_git_with_progress(cmd + extra, cwd=cwd, on_progress=_on_progress,
+                                       stderr_sink=captured)
         else:
-            return subprocess.run(cmd, cwd=cwd).returncode
+            rc = run_git_with_progress(cmd + extra, cwd=cwd,
+                                       stderr_sink=captured, echo=True)
+        return rc, "\n".join(captured)
 
     def _git_url_identity(self, url):
         """Normalize a git URL to a 'host/path' form for loose equality, so the
@@ -373,7 +528,8 @@ class GitCloneProvider(CloneProvider):
           * already a clone of src -> reuse in place (no clone)
           * non-empty, not a repo  -> clone in place via init/fetch/checkout
 
-        Returns the git exit code (0 on success, including the reuse case).
+        Returns ``(exit_code, stderr_text)``; the code is 0 on success,
+        including the reuse case.
         """
         from ..utils import fatal
         is_repo = os.path.isdir(os.path.join(target_dir, ".git"))
@@ -393,7 +549,7 @@ class GitCloneProvider(CloneProvider):
                       "source (origin=%s); refusing to reuse it" % (target_dir, existing))
             if not suppress_output:
                 note("Reusing existing clone in %s" % target_dir)
-            return 0
+            return 0, ""
 
         if non_empty:
             return self._clone_in_place(url, target_dir, event_dispatcher, suppress_output)
@@ -434,18 +590,18 @@ class GitCloneProvider(CloneProvider):
 
         scratch = tempfile.mkdtemp(prefix="ivpm-clone-")
         try:
-            rc = self._run_git(["git", "clone", src, target_dir],
-                               event_dispatcher, suppress_output,
-                               progress=True, cwd=scratch)
+            rc, err = self._run_git(["git", "clone", src, target_dir],
+                                    event_dispatcher, suppress_output,
+                                    progress=True, cwd=scratch)
             if rc == 0 and self._is_self_clone(scratch, target_dir):
                 # Backstop for the trap described above, should git ever find
                 # another way into it: the clone "succeeded" by copying the
                 # destination onto itself.
                 shutil.rmtree(target_dir, ignore_errors=True)
-                return 1
+                return 1, _SELF_CLONE_ERR
         finally:
             shutil.rmtree(scratch, ignore_errors=True)
-        return rc
+        return rc, err
 
     def _is_self_clone(self, base_dir, target_dir):
         """True when the fresh clone's origin points back at the clone itself."""
@@ -468,16 +624,16 @@ class GitCloneProvider(CloneProvider):
         'git clone' refuses a non-empty target, so initialise a repo, add the
         remote, fetch, and check out the remote's default branch.
         """
-        rc = subprocess.run(["git", "init", "-q", target_dir]).returncode
+        rc, err = self._run_capture(["git", "init", "-q", target_dir])
         if rc != 0:
-            return rc
-        rc = subprocess.run(["git", "remote", "add", "origin", url], cwd=target_dir).returncode
+            return rc, err
+        rc, err = self._run_capture(["git", "remote", "add", "origin", url], cwd=target_dir)
         if rc != 0:
-            return rc
-        rc = self._run_git(["git", "fetch", "origin"], event_dispatcher,
-                           suppress_output, progress=True, cwd=target_dir)
+            return rc, err
+        rc, err = self._run_git(["git", "fetch", "origin"], event_dispatcher,
+                                suppress_output, progress=True, cwd=target_dir)
         if rc != 0:
-            return rc
+            return rc, err
 
         # Determine the remote's default branch, falling back to main/master.
         default_ref = None
@@ -501,7 +657,9 @@ class GitCloneProvider(CloneProvider):
                     default_ref = cand
                     break
         if not default_ref:
-            return 1
-        return subprocess.run(
+            return 1, ("could not determine the remote's default branch "
+                       "(no HEAD branch reported, and neither origin/main nor "
+                       "origin/master exists)")
+        return self._run_capture(
             ["git", "checkout", "-B", default_ref, "origin/%s" % default_ref],
-            cwd=target_dir).returncode
+            cwd=target_dir)
