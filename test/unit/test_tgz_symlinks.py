@@ -4,15 +4,20 @@ Tests for symlink and hard-link handling in PackageFile._install_tgz.
 _install_tgz strips the archive's top-level wrapper directory from every
 member name. A hard link's linkname is archive-root-relative and needs the
 same strip; a symbolic link's target is relative to the link's own directory,
-so both endpoints move together and the target must be left alone. Stripping
-it shifted every relative target up one level, which made the filter='data'
-sanitizer reject real source archives -- OpenROAD-flow-scripts and uv both
-carry relative symlinks -- with LinkOutsideDestinationError, aborting the
-whole update.
+so both endpoints move together and the target must be left alone.
+
+Two separate defects broke real source archives (uv and OpenROAD-flow-scripts
+both carry relative symlinks): the symlink target was being stripped like a
+hard link's, and tarfile's 'data' filter before 3.12 -- which is what CI's
+3.10 runs -- resolves a symlink target against the extraction root rather than
+the link's own directory, rejecting any relative target starting with '..'.
+Symlinks are now created directly, with the 3.12+ containment rule applied by
+hand, so these cases behave the same on every supported interpreter.
 
 Coverage:
 - a relative symlink that stays inside the archive survives extraction
-- a symlink target pointing up out of the archive root is still rejected
+- a symlink target escaping the archive root is rejected
+- an absolute symlink target is rejected
 - a hard link's archive-root-relative linkname is still stripped
 """
 
@@ -76,8 +81,26 @@ class TestTgzSymlinks(unittest.TestCase):
         with open(link) as fp:
             self.assertEqual("LEF\n", fp.read())
 
-    def test_escaping_symlink_still_rejected(self):
-        """filter='data' must still refuse a target outside the destination."""
+    def test_relative_symlink_to_archive_root(self):
+        """The real uv archive's shape: link three levels down, target at root."""
+        def build(tree):
+            os.makedirs(os.path.join(tree, "python"))
+            with open(os.path.join(tree, "python", "marker.txt"), "w") as fp:
+                fp.write("marker\n")
+            link_dir = os.path.join(tree, "scripts", "packages", "fake-uv")
+            os.makedirs(link_dir)
+            os.symlink("../../../python/", os.path.join(link_dir, "src"))
+
+        tarball = self._mk_tarball(build)
+        self._pkg()._install(tarball, self.dest)
+
+        link = os.path.join(self.dest, "scripts", "packages", "fake-uv", "src")
+        self.assertTrue(os.path.islink(link))
+        self.assertTrue(os.path.isdir(link), "symlink does not resolve to the target dir")
+        self.assertTrue(os.path.isfile(os.path.join(link, "marker.txt")))
+
+    def test_escaping_symlink_rejected(self):
+        """A target that leaves the package must still be refused."""
         def build(tree):
             os.makedirs(os.path.join(tree, "sub"))
             os.symlink("../../../../../etc/passwd",
@@ -85,6 +108,18 @@ class TestTgzSymlinks(unittest.TestCase):
 
         tarball = self._mk_tarball(build)
         with self.assertRaises(tarfile.LinkOutsideDestinationError):
+            self._pkg()._install(tarball, self.dest)
+        self.assertFalse(
+            os.path.lexists(os.path.join(self.dest, "sub", "escape")),
+            "escaping symlink was created before the check")
+
+    def test_absolute_symlink_rejected(self):
+        def build(tree):
+            os.makedirs(os.path.join(tree, "sub"))
+            os.symlink("/etc/passwd", os.path.join(tree, "sub", "abs"))
+
+        tarball = self._mk_tarball(build)
+        with self.assertRaises(tarfile.AbsoluteLinkError):
             self._pkg()._install(tarball, self.dest)
 
     def test_hard_link_root_relative_target_stripped(self):

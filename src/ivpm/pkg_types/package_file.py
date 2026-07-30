@@ -19,7 +19,9 @@
 #*     Author: 
 #*
 #****************************************************************************
+import ntpath
 import os
+import posixpath
 import shutil
 import tarfile
 from zipfile import ZipFile
@@ -91,12 +93,49 @@ class PackageFile(PackageURL):
                         first_slash_link = fi.linkname.find("/")
                         fi.linkname = fi.linkname[first_slash_link+1:]
 
+                if fi.issym():
+                    # Symlinks are extracted by hand -- see _extract_symlink.
+                    self._extract_symlink(fi, pkg_path)
+                    continue
+
                 # filter='data' sanitizes each member (rejects absolute paths,
                 # '..' traversal, and links pointing outside pkg_path). This is
                 # the default in Python 3.14; setting it explicitly silences the
                 # 3.12+ DeprecationWarning and keeps behavior consistent.
                 tf.extract(fi, path=pkg_path, filter='data')
         tf.close()
+
+    def _extract_symlink(self, fi, pkg_path):
+        """Create one symlink member, checking containment ourselves.
+
+        Python's 'data' filter resolves a symlink target against the extraction
+        root rather than against the link's own directory before 3.12
+        (3.10.12/3.11.4 carry that backport, and CI runs 3.10). There, every
+        relative target beginning with '..' is rejected even when it stays well
+        inside the archive -- which is most of them in a real source tree. The
+        containment rule we want is the 3.12+ one, so apply it directly: resolve
+        the target against the link's directory and require the result to stay
+        within the package.
+        """
+        if posixpath.isabs(fi.linkname) or ntpath.isabs(fi.linkname):
+            raise tarfile.AbsoluteLinkError(fi)
+
+        # Containment of the link itself (filter='data' would have checked this).
+        name = posixpath.normpath(fi.name)
+        if name == ".." or name.startswith("../"):
+            raise tarfile.OutsideDestinationError(fi, name)
+
+        target = posixpath.normpath(posixpath.join(posixpath.dirname(name), fi.linkname))
+        if target == ".." or target.startswith("../"):
+            raise tarfile.LinkOutsideDestinationError(fi, target)
+
+        link_path = os.path.join(pkg_path, name.replace("/", os.sep))
+        link_dir = os.path.dirname(link_path)
+        if link_dir:
+            os.makedirs(link_dir, exist_ok=True)
+        if os.path.lexists(link_path):
+            os.unlink(link_path)
+        os.symlink(fi.linkname, link_path)
 
     def _install_zip(self, pkg_src, pkg_path):
         pkg_src = os.path.abspath(pkg_src)
