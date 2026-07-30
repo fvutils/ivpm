@@ -18,7 +18,7 @@ from ivpm.update_tui import RichUpdateTUI, TranscriptUpdateTUI
 
 
 DECLARED = "https://github.com/fvutils/svdep.git"
-EFFECTIVE = "ssh://git@a9550.example.net:222/fvutils/svdep.git"
+EFFECTIVE = "ssh://git@mirror.example.net:222/fvutils/svdep.git"
 
 
 def _render(tui, width=120):
@@ -147,7 +147,7 @@ class TestPackageGitEmitsResolvedEvent(unittest.TestCase):
         import os
         pkg, info, dispatched = self._pkg_and_dispatcher(DECLARED, None)
         os.environ["IVPM_GIT_URL_MAP"] = "%s=%s" % (
-            "https://github.com/fvutils/", "ssh://git@a9550.example.net:222/fvutils/")
+            "https://github.com/fvutils/", "ssh://git@mirror.example.net:222/fvutils/")
         try:
             from ivpm import site_config
             site_config.reset_site_config()
@@ -161,7 +161,7 @@ class TestPackageGitEmitsResolvedEvent(unittest.TestCase):
         self.assertEqual(first, second)
         # Assert the map rule specifically -- an ssh auth rewrite alone would
         # also change the URL, and would not prove the rule fired.
-        self.assertIn("a9550.example.net", first)
+        self.assertIn("mirror.example.net", first)
         events = [e for e in dispatched
                   if e.event_type == UpdateEventType.PACKAGE_SRC_RESOLVED]
         self.assertEqual(1, len(events))
