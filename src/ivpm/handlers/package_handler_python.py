@@ -486,7 +486,7 @@ class PackageHandlerPython(PackageHandler):
                 note("Forcing re-install of Python packages")
             else:
                 note("Python packages already installed. Use --force-py-install to force re-install")
-                self._push_entrypoint_skills(python_dir, update_info)
+                self._push_entrypoint_agent_dirs(python_dir, update_info)
                 return
         else:
             note("Installing Python packages")
@@ -684,12 +684,20 @@ class PackageHandlerPython(PackageHandler):
                         suppress_output=suppress_output,
                         task=task)
 
-        self._push_entrypoint_skills(python_dir, update_info)
+        self._push_entrypoint_agent_dirs(python_dir, update_info)
 
-    def _push_entrypoint_skills(self, python_dir: str, update_info) -> None:
-        """Query 'agent.skills' entry-points (with legacy 'ivpm.skill' fallback) from
-        the managed venv and push (name, skill_dir) pairs to update_info.pending_skill_dirs
-        for the agents handler to consume."""
+    def _push_entrypoint_agent_dirs(self, python_dir: str, update_info) -> None:
+        """Query the agent entry-point groups from the managed venv.
+
+        Two groups are queried in one subprocess: 'agent.skills' (with the
+        legacy 'ivpm.skill' alias), whose results are pushed to
+        ``pending_skill_dirs``, and 'agent.plugins', whose results are pushed to
+        ``pending_plugin_dirs``.  The agents handler consumes both.
+
+        An 'agent.plugins' entry-point may return either a plugin root or a path
+        to its ``plugin.json``; normalization happens on the IVPM side so the
+        in-venv script stays dependency-free.
+        """
         venv_python = get_venv_python(python_dir)
         if not os.path.isfile(venv_python):
             return
@@ -703,17 +711,18 @@ class PackageHandlerPython(PackageHandler):
             import importlib.metadata, json, sys
             result = []
             seen_names = set()
-            for group in ('agent.skills', 'ivpm.skill'):
+            for group, kind in (('agent.skills', 'skills'), ('ivpm.skill', 'skills'),
+                                ('agent.plugins', 'plugins')):
                 for ep in importlib.metadata.entry_points(group=group):
-                    if ep.name in seen_names:
+                    if (kind, ep.name) in seen_names:
                         continue
                     try:
                         fn = ep.load()
                         dirs = fn() if callable(fn) else str(fn)
                         if isinstance(dirs, (str, bytes)):
                             dirs = [str(dirs)]
-                        result.append({'name': ep.name, 'dirs': list(dirs)})
-                        seen_names.add(ep.name)
+                        result.append({'name': ep.name, 'kind': kind, 'dirs': list(dirs)})
+                        seen_names.add((kind, ep.name))
                     except Exception as exc:
                         sys.stderr.write('ivpm: entrypoint %s (%s) error: %s\\n' % (ep.name, group, exc))
             sys.stdout.write('<<IVPM_SKILLS_JSON>>' + json.dumps(result) + '<</IVPM_SKILLS_JSON>>\\n')
@@ -727,28 +736,33 @@ class PackageHandlerPython(PackageHandler):
                 timeout=30,
             )
             if r.returncode != 0:
-                print("ivpm: warning: agent.skills entrypoint query failed:\n%s"
+                print("ivpm: warning: agent entrypoint query failed:\n%s"
                       % r.stderr.strip(), file=sys.stderr)
                 return
             if r.stderr.strip():
-                print("ivpm: warning: agent.skills entrypoint errors "
-                      "(affected skills will not be linked):\n%s"
+                print("ivpm: warning: agent entrypoint errors "
+                      "(affected skills/plugins will not be linked):\n%s"
                       % r.stderr.strip(), file=sys.stderr)
             m = re.search(r'<<IVPM_SKILLS_JSON>>(.*?)<</IVPM_SKILLS_JSON>>', r.stdout, re.DOTALL)
             if not m:
-                print("ivpm: warning: agent.skills entrypoint query produced no parseable "
+                print("ivpm: warning: agent entrypoint query produced no parseable "
                       "output (stdout pollution?)", file=sys.stderr)
                 return
             data = json.loads(m.group(1))
         except Exception as exc:
-            print("ivpm: warning: failed to query agent.skills/ivpm.skill entrypoints: %s" % exc,
-                  file=sys.stderr)
+            print("ivpm: warning: failed to query agent.skills/agent.plugins entrypoints: %s"
+                  % exc, file=sys.stderr)
             return
 
         for item in data:
             ep_name = item["name"]
-            for skill_dir in item.get("dirs", []):
-                update_info.pending_skill_dirs.append((ep_name, os.path.normpath(skill_dir)))
+            # Older in-venv payloads carry no 'kind'; they were always skills.
+            kind = item.get("kind", "skills")
+            for path in item.get("dirs", []):
+                if kind == "plugins":
+                    update_info.pending_plugin_dirs.append((ep_name, os.path.normpath(path)))
+                else:
+                    update_info.pending_skill_dirs.append((ep_name, os.path.normpath(path)))
 
     def get_lock_entries(self, deps_dir: str) -> dict:
         """Return pip-resolved package versions from the managed venv.

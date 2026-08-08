@@ -22,9 +22,11 @@ TUI renderers for `ivpm status`.
 RichStatusTUI  — coloured table using the Rich library (when stdout is a TTY).
 TranscriptStatusTUI — plain-text output (no ANSI).
 """
+from .tui_theme import make_console
 import sys
 from typing import List
 from .pkg_status import PkgVcsStatus
+from .tui_theme import S_PLACEHOLDER, S_DETAIL, S_SECONDARY
 
 
 def _branch_label(s: PkgVcsStatus) -> str:
@@ -83,12 +85,11 @@ class RichStatusTUI:
 
     def render(self, results: List[PkgVcsStatus], verbose: int = 0,
                root_status: PkgVcsStatus = None):
-        from rich.console import Console
         from rich.table import Table
         from rich.text import Text
         from rich.panel import Panel
 
-        console = Console()
+        console = make_console()
 
         # Root-project header (omitted when the root type is unknown).
         if root_status is not None:
@@ -135,11 +136,11 @@ class RichStatusTUI:
 
                 upstream = _upstream_label(s)
                 if upstream == "?":
-                    up_text = Text("?", style="dim")
+                    up_text = Text("?", style=S_PLACEHOLDER)
                 elif "↑" in upstream or "↓" in upstream:
                     up_text = Text(upstream, style="yellow")
                 else:
-                    up_text = Text(upstream, style="dim")
+                    up_text = Text(upstream, style=S_PLACEHOLDER)
 
                 if s.error:
                     marker = Text("!", style="bold yellow")
@@ -147,11 +148,11 @@ class RichStatusTUI:
 
             else:
                 non_vcs_count += 1
-                marker = Text("~", style="dim")
-                branch_text = Text("—", style="dim")
-                commit_text = Text("—", style="dim")
-                state = Text(s.src_type, style="dim")
-                up_text = Text("—", style="dim")
+                marker = Text("~", style=S_PLACEHOLDER)
+                branch_text = Text("—", style=S_PLACEHOLDER)
+                commit_text = Text("—", style=S_PLACEHOLDER)
+                state = Text(s.src_type, style=S_SECONDARY)
+                up_text = Text("—", style=S_PLACEHOLDER)
 
             # Marker is merged into the Package cell (aligned under "P").
             name_text = Text()
@@ -160,7 +161,7 @@ class RichStatusTUI:
             name_text.append(s.name)
             prov = _provenance_label(s)
             if prov:
-                name_text.append(" " + prov, style="dim")
+                name_text.append(" " + prov, style=S_SECONDARY)
             table.add_row(Text(""), name_text, branch_text, commit_text, state, up_text)
 
             # Dirty file details — only with -v
@@ -168,12 +169,12 @@ class RichStatusTUI:
                 for line in s.modified:
                     table.add_row(
                         Text(""), Text(""),
-                        Text("  " + line, style="dim"), Text(""), Text(""), Text(""),
+                        Text("  " + line, style=S_DETAIL), Text(""), Text(""), Text(""),
                     )
                 for line in s.untracked:
                     table.add_row(
                         Text(""), Text(""),
-                        Text("  " + line, style="dim"), Text(""), Text(""), Text(""),
+                        Text("  " + line, style=S_DETAIL), Text(""), Text(""), Text(""),
                     )
 
         console.print(table)
@@ -201,27 +202,27 @@ class RichStatusTUI:
         line.append("Root", style="bold")
         prov = getattr(s, "provider", None)
         if prov:
-            line.append(" [%s]" % prov, style="dim")
+            line.append(" [%s]" % prov, style=S_SECONDARY)
         line.append("  ")
         if s.vcs == "git":
             line.append(_branch_label(s))
             if s.commit:
-                line.append("  " + s.commit, style="dim")
+                line.append("  " + s.commit, style=S_SECONDARY)
             style = "yellow" if s.error else ("cyan" if state != "clean" else "green")
             line.append("  %s %s" % (marker, state), style=style)
             upstream = _upstream_label(s)
             if upstream not in ("=", "?", "—"):
                 line.append("  " + upstream, style="yellow")
         else:
-            line.append(s.src_type or "unknown", style="dim")
+            line.append(s.src_type or "unknown", style=S_SECONDARY)
         console.print(line)
 
         # Modified/untracked file details — only with -v, mirroring packages.
         if verbose >= 1 and s.vcs == "git":
             for fline in s.modified:
-                console.print(Text("    " + fline, style="dim"))
+                console.print(Text("    " + fline, style=S_DETAIL))
             for fline in s.untracked:
-                console.print(Text("    " + fline, style="dim"))
+                console.print(Text("    " + fline, style=S_DETAIL))
 
 
 # ---------------------------------------------------------------------------

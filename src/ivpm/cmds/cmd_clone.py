@@ -32,6 +32,7 @@ from ..project_ops import ProjectOps
 from ..variables import parse_definitions
 from ..update_event import UpdateEventDispatcher
 from ..update_tui import create_update_tui, RichUpdateTUI
+from ..site_config import apply_git_url_map
 from ..clone.clone_provider_rgy import CloneProviderRgy
 from ..clone.clone_provider import CloneRequest
 
@@ -49,8 +50,16 @@ class CmdClone(object):
         extras = list(getattr(args, '_clone_extras', []) or [])
 
         # Resolve the provider from src (or an explicit --provider override).
+        # Provider selection sees the *remapped* locator: a git-url-map rule
+        # decides where the source really lives, and that is what determines
+        # which provider can fetch it (e.g. an https:// URL redirected to
+        # ssh://, or to a scheme owned by a dedicated provider).  The provider
+        # still receives the source as typed -- it re-applies the map itself,
+        # and the workspace name / root record stay tied to what the user
+        # asked for.
         forced = getattr(args, 'provider', None)
-        provider = CloneProviderRgy.inst().resolve(src, forced=forced)
+        provider = CloneProviderRgy.inst().resolve(
+            apply_git_url_map(src), forced=forced)
 
         # Parse provider-specific args from the leftover tokens.  These were
         # partitioned out of argv in __main__ so the common parser never saw

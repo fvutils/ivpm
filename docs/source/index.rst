@@ -23,6 +23,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    getting_started
    core_concepts
    handlers
+   agent_plugins
    dependency_sets
    remote_catalogs
    multi_file

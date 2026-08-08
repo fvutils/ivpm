@@ -102,6 +102,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
     lock_data: Optional[dict] = None  # Parsed package-lock.json for change detection
     pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
+    pending_plugin_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, plugin_root) pushed by handlers
     modules_interface: Optional['ModulesInterface'] = None  # lazily populated by PackageModule.update()
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)

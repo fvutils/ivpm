@@ -257,5 +257,88 @@ class TestResolveCloneUrlIntegration(unittest.TestCase):
             "file:///repos/o/r")
 
 
+# ---------------------------------------------------------------------------
+# Consumers that key off *where the repo lives*, not how it was spelled
+# ---------------------------------------------------------------------------
+
+class TestGithubDetectionUsesMappedUrl(unittest.TestCase):
+    """A github.com URL redirected to a mirror is no longer a GitHub repo:
+    resolving its commit through api.github.com would answer from an upstream
+    the rule deliberately steered away from."""
+
+    RULES = [("https://github.com/o/", "ssh://git@mirror.internal:222/o/")]
+
+    def _pkg(self, url):
+        from ivpm.pkg_types.package_git import PackageGit
+        return PackageGit(name="p", url=url)
+
+    def test_mapped_url_applied(self):
+        with patch.object(sc, "_file_git_url_map", lambda: list(self.RULES)):
+            with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": ""}):
+                pkg = self._pkg("https://github.com/o/r.git")
+                self.assertEqual(pkg._mapped_url(),
+                                 "ssh://git@mirror.internal:222/o/r.git")
+
+    def test_remapped_github_url_is_not_github(self):
+        from ivpm.cache import is_github_url
+        with patch.object(sc, "_file_git_url_map", lambda: list(self.RULES)):
+            with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": ""}):
+                pkg = self._pkg("https://github.com/o/r.git")
+                self.assertFalse(is_github_url(pkg._mapped_url()))
+
+    def test_unmapped_github_url_is_still_github(self):
+        from ivpm.cache import is_github_url
+        with patch.object(sc, "_file_git_url_map", lambda: list(self.RULES)):
+            with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": ""}):
+                pkg = self._pkg("https://github.com/other/r.git")
+                self.assertTrue(is_github_url(pkg._mapped_url()))
+
+    def test_ls_remote_fallback_stays_on_the_mirror(self):
+        # The https fallback (used when the ssh attempt fails) must be the
+        # remapped spelling, not the declared upstream URL.
+        tried = []
+
+        with patch.object(sc, "_file_git_url_map",
+                          lambda: [("https://github.com/o/", "https://mirror.internal/o/")]):
+            with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": "",
+                                         "IVPM_GIT_AUTH_ORDER": "ssh"}):
+                pkg = self._pkg("https://github.com/o/r.git")
+                with patch.object(type(pkg), "_ls_remote",
+                                  lambda self, url, ref: tried.append(url)):
+                    pkg._get_commit_hash_ls_remote("main")
+
+        self.assertEqual(tried, ["git@mirror.internal:o/r.git",
+                                 "https://mirror.internal/o/r.git"])
+
+
+class TestCloneProviderResolutionUsesMappedUrl(unittest.TestCase):
+    """`ivpm clone` selects its provider from the remapped locator, so a rule
+    that redirects to another transport/scheme picks the provider that can
+    actually fetch it."""
+
+    def test_provider_resolved_from_mapped_src(self):
+        from ivpm.cmds.cmd_clone import CmdClone   # noqa: F401 (import check)
+        import ivpm.cmds.cmd_clone as cc
+        from ivpm.clone.clone_provider_rgy import CloneProviderRgy
+
+        seen = []
+        rules = [("https://git.example.org/o/", "ssh://git@mirror.internal:222/o/")]
+
+        class _Rgy:
+            def resolve(self, src, forced=None):
+                seen.append(src)
+                raise SystemExit(0)   # stop before any cloning happens
+
+        with patch.object(sc, "_file_git_url_map", lambda: list(rules)):
+            with patch.dict(os.environ, {"IVPM_GIT_URL_MAP": ""}):
+                with patch.object(CloneProviderRgy, "inst", staticmethod(lambda: _Rgy())):
+                    args = type("A", (), {"src": "https://git.example.org/o/r.git",
+                                          "provider": None})()
+                    with self.assertRaises(SystemExit):
+                        cc.CmdClone()(args)
+
+        self.assertEqual(seen, ["ssh://git@mirror.internal:222/o/r.git"])
+
+
 if __name__ == "__main__":
     unittest.main()

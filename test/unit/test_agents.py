@@ -1,11 +1,39 @@
 import logging
 import os
 import unittest
+from contextlib import contextmanager
 from unittest.mock import patch
 from .test_base import TestBase
 
+from ivpm.handlers.package_handler_agents import PackageHandlerAgents, SkillEntry
+
 
 class TestAgents(TestBase):
+
+    @contextmanager
+    def entrypoint_skills(self, *pairs):
+        """Inject (ep_name, skill_dir) pairs as if the python handler had queried the venv.
+
+        The real producer runs pip/uv and interrogates the venv's entry-points
+        (PackageHandlerPython._push_entrypoint_skills); these tests use
+        skip_venv=True, so push the same (name, dir) pairs onto update_info just
+        before the agents handler consumes them. Each skill_dir may be a callable
+        so tests can name paths that only exist once the update has started.
+        """
+        orig = PackageHandlerAgents.on_root_post_load
+
+        def wrapper(handler, update_info):
+            update_info.pending_skill_dirs.extend(
+                (name, os.path.normpath(d() if callable(d) else d)) for name, d in pairs)
+            return orig(handler, update_info)
+
+        with patch.object(PackageHandlerAgents, "on_root_post_load", wrapper):
+            yield
+
+    def skill_links(self):
+        """Sorted names present in .agents/skills/ (empty when the dir is absent)."""
+        skills_dir = os.path.join(self.testdir, ".agents", "skills")
+        return sorted(os.listdir(skills_dir)) if os.path.isdir(skills_dir) else []
 
     # ------------------------------------------------------------------ #
     # Basic symlink creation                                               #
@@ -767,6 +795,172 @@ Body
         self.assertTrue(os.path.isfile(marker_file))
         with open(marker_file) as f:
             self.assertEqual(f.read(), "existing content")
+
+    # ------------------------------------------------------------------ #
+    # agent.skills entry-points, and dedup against path discovery         #
+    # ------------------------------------------------------------------ #
+
+    def test_entrypoint_skill_linked(self):
+        """A skill supplied only by an agent.skills entry-point is linked."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_ep_only
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        with self.entrypoint_skills(("epskill", os.path.join(self.data_dir, "agents_leaf1"))):
+            self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(["epskill"], self.skill_links())
+        skill_md = os.path.join(self.testdir, ".agents", "skills", "epskill", "SKILL.md")
+        self.assertTrue(os.path.isfile(skill_md), "SKILL.md should be reachable through the link")
+
+    def test_entrypoint_and_dep_root_deduped(self):
+        """Dep root SKILL.md + entry-point for the same dir → one link, not two."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_ep_dep_root
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        pkg_dir = os.path.join(self.testdir, "packages", "agents_leaf1")
+        # An editable install resolves the entry-point back through any symlink
+        with self.entrypoint_skills(("agents_leaf1", lambda: os.path.realpath(pkg_dir))):
+            self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(["agents_leaf1"], self.skill_links())
+        # The dependency entry wins, so the link stays relative to the project
+        link = os.path.join(self.testdir, ".agents", "skills", "agents_leaf1")
+        self.assertTrue(os.path.islink(link))
+        self.assertFalse(os.path.isabs(os.readlink(link)))
+
+    def test_entrypoint_and_dep_subdir_deduped(self):
+        """Entry-point pointing into a dep's skills/ dir does not duplicate the probe result."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_ep_dep_subdir
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_glob_tree
+                      url: file://${DATA_DIR}/agents_glob_tree
+                      src: dir
+        """)
+        alpha = os.path.join(self.testdir, "packages", "agents_glob_tree", "skills", "alpha")
+        with self.entrypoint_skills(("alpha", lambda: os.path.realpath(alpha))):
+            self.ivpm_update(skip_venv=True)
+
+        # Without dedup this also yields a second 'alpha' link to the same directory
+        self.assertEqual(["agents_glob_tree-alpha", "agents_glob_tree-beta"], self.skill_links())
+
+    def test_entrypoint_via_symlinked_dir_deduped(self):
+        """Same skill reached through a symlink and its real path → one link."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_ep_symlink
+            with:
+                agents:
+                    skills:
+                        - linked/x/SKILL.md
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("real/x/SKILL.md", """---
+name: symlinked-skill
+description: Reached by two different paths
+---
+Body
+""")
+        os.symlink("real", os.path.join(self.testdir, "linked"))
+
+        with self.entrypoint_skills(("x", os.path.join(self.testdir, "real", "x"))):
+            self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(["x"], self.skill_links())
+
+    def test_entrypoint_matching_root_project_skill_deduped(self):
+        """Root project SKILL.md + entry-point at the project dir → one link, project-named."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_ep_root_project
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("SKILL.md", """---
+name: root-skill
+description: Root project skill also published as an entry-point
+---
+Body
+""")
+        with self.entrypoint_skills(("test_agents_ep_root_project", self.testdir)):
+            self.ivpm_update(skip_venv=True)
+
+        self.assertEqual([os.path.basename(self.testdir)], self.skill_links())
+
+    def test_distinct_skills_still_both_linked(self):
+        """Dedup is keyed on the directory, not the owner → distinct dirs both survive."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_ep_distinct
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: agents_leaf1
+                      url: file://${DATA_DIR}/agents_leaf1
+                      src: dir
+        """)
+        with self.entrypoint_skills(("leaf2ep", os.path.join(self.data_dir, "agents_leaf2"))):
+            self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(["agents_leaf1", "leaf2ep"], self.skill_links())
+
+    def test_overlapping_glob_patterns_dedup(self):
+        """Two patterns matching the same SKILL.md produce a single link."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_agents_overlapping_globs
+            with:
+                agents:
+                    skills:
+                        - skills/*/SKILL.md
+                        - skills/**/SKILL.md
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("skills/alpha/SKILL.md", """---
+name: alpha
+description: Matched by both patterns
+---
+Body
+""")
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(["alpha"], self.skill_links())
+
+    def test_dedup_entries_precedence(self):
+        """_dedup_entries keeps project > path-discovered dependency > entry-point."""
+        handler = PackageHandlerAgents()
+        skill_dir = os.path.join(self.testdir, "pkg", "skills", "alpha")
+        os.makedirs(skill_dir)
+
+        ep_entry = SkillEntry("dependency", "alpha", skill_dir, skill_dir)
+        dep_entry = SkillEntry("dependency", "pkg", os.path.join(self.testdir, "pkg"), skill_dir)
+        proj_entry = SkillEntry("project", "proj", self.testdir, skill_dir)
+
+        self.assertEqual([dep_entry], handler._dedup_entries([ep_entry, dep_entry]))
+        self.assertEqual([dep_entry], handler._dedup_entries([dep_entry, ep_entry]))
+        self.assertEqual([proj_entry], handler._dedup_entries([ep_entry, proj_entry, dep_entry]))
+
+        other = SkillEntry("dependency", "beta", skill_dir, os.path.join(self.testdir, "pkg"))
+        self.assertEqual(2, len(handler._dedup_entries([dep_entry, other])))
 
 
 if __name__ == "__main__":

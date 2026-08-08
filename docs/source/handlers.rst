@@ -297,7 +297,14 @@ root project declares ``env:`` directives.  Steps:
 Agents Handler (``agents``)
 ----------------------------
 
-Creates symlinks (or copies) to per-package skill files for AI coding agents.
+Creates symlinks (or copies) to per-package skill files and Agent Plugins for
+AI coding agents.
+
+.. seealso::
+
+   :doc:`agent_plugins` covers Agent Plugins support in depth: discovery,
+   validation, the per-tool projection strategy, and MCP configuration.  This
+   section documents the handler itself and the loose-skills mechanism.
 
 **Purpose**
 
@@ -327,7 +334,16 @@ Packages with missing or malformed frontmatter are skipped with a warning.
 
 **Leaf phase**
 
-Runs for every non-PyPI package.  Discovers skill files using one of four methods
+Runs for every non-PyPI package.
+
+`Agent Plugins <https://agent-plugins.org/specification>`_ are looked for first:
+a ``plugin.json`` at the package root or under ``plugins/*/``, or the paths named
+by ``with.agents.plugins`` or an ``agents: {plugins: [...]}`` dep entry.  A
+plugin names its own skills, so those directories are not also discovered as
+loose skills.  Python packages may register plugins through the
+``agent.plugins`` entry-point group.  See :doc:`agent_plugins`.
+
+Remaining skill files are then discovered using one of four methods
 (in priority order):
 
 1. **Consumer-specified paths** (highest priority)
@@ -408,7 +424,8 @@ Skill paths (for mechanisms 1–3) support glob patterns (e.g.,
 
 Runs when at least one valid skill file was found.  Steps:
 
-1. Create ``.agents/skills/`` directory
+1. Create the ``.agents/skills/`` directory, and ``.agents/plugins/`` when any
+   Agent Plugin was found
 2. Create the ``.claude/skills/`` and ``.cursor/skills/`` directories by
    default; skip either one when ``claude: false`` / ``cursor: false`` is set.
    An explicit ``false`` always wins, even if the corresponding directory
@@ -422,7 +439,12 @@ Runs when at least one valid skill file was found.  Steps:
    directories, such as ``<package>-<parent>-<dir>``
 6. Root-project skills are named as ``<dir>``; conflicting names expand to include
    parent directories, such as ``<parent>-<dir>``
-7. Remove stale entries from previous runs
+7. Link each Agent Plugin whole into ``.agents/plugins/<name>``, named from its
+   manifest.  Tools with a plugin mechanism of their own receive the plugin
+   itself instead of its individual skills -- Claude Code gets
+   ``.claude/skills/<name>/`` with a generated ``.claude-plugin/plugin.json``.
+   Tools without one receive each skill as ``<plugin>-<skill>``
+8. Remove stale entries from previous runs
 
 **Configuration (``ivpm.yaml``)**
 
@@ -437,8 +459,13 @@ that tool:
       name: my-project
       with:
         agents:
-          claude: true          # default — set false to skip .claude/skills/
-          cursor: true          # default — set false to skip .cursor/skills/
+          claude: true          # default -- set false to skip .claude/skills/
+          cursor: true          # default -- set false to skip .cursor/skills/
+          plugins:              # Agent Plugin manifests (default: auto-probe)
+            - plugins/**/plugin.json
+          expand_skills: true   # default -- also link each plugin skill
+          plugin_install: true  # default -- install plugins natively where supported
+          mcp: false            # default -- do not wire up plugin MCP servers
 
 .. note::
 
@@ -490,8 +517,16 @@ Or via consumer dep-entry:
 **Output:**
 
 - ``.agents/skills/<package>`` — symlink(s) to skill directories
-- ``.claude/skills/<package>`` — same, unless ``claude: false``
-- ``.cursor/skills/<package>`` — same, unless ``cursor: false``
+- ``.agents/plugins/<name>`` — symlink(s) to Agent Plugin roots
+- ``.claude/skills/<package>`` — same as ``.agents/skills/``, unless ``claude: false``
+- ``.claude/skills/<plugin>/`` — an installed Agent Plugin, with a generated
+  ``.claude-plugin/plugin.json`` (and ``.mcp.json`` when ``mcp: true``)
+- ``.cursor/skills/<package>`` — same as ``.agents/skills/``, unless ``cursor: false``
+- ``.agents/data/<plugin>/`` — persistent plugin data; never removed by
+  stale-entry cleanup
+
+No per-tool *plugin* directories are created: no client reads a project-local
+plugin-root directory.
 
 
 .. _handler-modules:
@@ -617,10 +652,10 @@ Handler Summary
      - ``packages/python/``
    * - ``agents``
      - INTEGRATE
-     - Skill file discovery and symlinking
-     - ``SKILL.md`` at root, under ``skills/``, declared paths, or ``agent.skills`` entry-points
-     - Creates symlinks to skills
-     - ``.agents/skills/``, ``.claude/skills/``, ``.cursor/skills/``
+     - Skill and Agent Plugin discovery and linking
+     - ``plugin.json`` at root or under ``plugins/``; ``SKILL.md`` at root, under ``skills/``, declared paths, or ``agent.skills`` / ``agent.plugins`` entry-points
+     - Creates links to skills and plugins
+     - ``.agents/skills/``, ``.agents/plugins/``, ``.claude/skills/``, ``.cursor/skills/``
    * - ``dv-flow``
      - INTEGRATE
      - DV-Flow package-map generation

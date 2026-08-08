@@ -44,7 +44,7 @@ Key Capabilities
   of one facet of the project.  The Python handler builds a virtual
   environment view, the Node handler builds a Node.js environment view,
   the direnv handler builds an environment-variable view, and the agents
-  handler builds a skills-directory view.  Third-party handlers can add
+  handler builds a skills- and Agent Plugins-directory view.  Third-party handlers can add
   new views via Python entry points.
 
 Where IVPM Fits

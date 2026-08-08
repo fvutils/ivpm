@@ -17,6 +17,7 @@
 #*
 #****************************************************************************
 """Rendering for 'ivpm show handler [name]'."""
+from ..tui_theme import make_console
 import dataclasses
 import json
 import sys
@@ -44,18 +45,17 @@ def _any_plugins(infos) -> bool:
 # ---------------------------------------------------------------------------
 
 def _rich_list(infos):
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
-    console = Console()
+    console = make_console()
     show_origin = _any_plugins(infos)
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
     table.add_column("Handler", style="cyan bold")
-    table.add_column("Phase", style="dim", justify="center")
+    table.add_column("Phase", style="secondary", justify="center")
     table.add_column("Description")
     if show_origin:
-        table.add_column("Origin", style="dim")
+        table.add_column("Origin", style="secondary")
 
     for info in infos:
         row = [info.name, str(info.phase), info.description]
@@ -66,18 +66,17 @@ def _rich_list(infos):
 
 
 def _rich_detail(info):
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
-    console = Console()
-    console.print(f"\n[bold cyan]Handler:[/] [bold]{info.name}[/]  [dim](phase {info.phase})[/]")
+    console = make_console()
+    console.print(f"\n[bold cyan]Handler:[/] [bold]{info.name}[/]  [label](phase {info.phase})[/]")
     if info.origin != "built-in":
-        console.print(f"[dim]Origin:[/] {info.origin}")
+        console.print(f"[label]Origin:[/] {info.origin}")
     if info.provider and info.provider != info.origin:
-        console.print(f"[dim]Provider:[/] {info.provider}")
+        console.print(f"[label]Provider:[/] {info.provider}")
     if info.version:
-        console.print(f"[dim]Version:[/] {info.version}")
+        console.print(f"[label]Version:[/] {info.version}")
     console.print(f"[bold]Description:[/] {info.description}\n")
 
     if info.conditions:
@@ -101,7 +100,7 @@ def _rich_detail(info):
     if info.cli_options:
         console.print("[bold]CLI Options:[/]")
         for opt in info.cli_options:
-            console.print(f"  [dim]{opt}[/]")
+            console.print(f"  [secondary]{opt}[/]")
         console.print()
 
     if info.notes:
@@ -181,15 +180,14 @@ def _render_order(as_json, no_rich):
         for i, (n, p) in enumerate(order, 1):
             print(f"{i:>2}. {n:<14} ({p})")
         return
-    from rich.console import Console
     from rich.table import Table
     from rich import box
-    console = Console()
+    console = make_console()
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold",
                   title="Resolved handler order (root phase)")
-    table.add_column("#", style="dim", justify="right")
+    table.add_column("#", style="secondary", justify="right")
     table.add_column("Handler", style="cyan bold")
-    table.add_column("Phase", style="dim")
+    table.add_column("Phase", style="secondary")
     for i, (n, p) in enumerate(order, 1):
         table.add_row(str(i), n, p)
     console.print(table)

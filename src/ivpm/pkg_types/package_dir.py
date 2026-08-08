@@ -73,11 +73,8 @@ class PackageDir(PackageURL):
 
     @staticmethod
     def create(name, opts, si) -> 'PackageDir':
-        print("create: name=%s" % name)
         pkg = PackageDir(name)
-        print("pkg.name: %s" % pkg.name)
         pkg.process_options(opts, si)
-        print("pkg.name: %s" % pkg.name)
         return pkg
 
     @classmethod

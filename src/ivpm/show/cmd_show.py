@@ -17,6 +17,7 @@
 #*
 #****************************************************************************
 """CmdShow — dispatcher for 'ivpm show [source|type|handler]'."""
+from ..tui_theme import make_console
 import json
 import sys
 
@@ -42,6 +43,9 @@ class CmdShow:
         elif sub == "deps":
             from .show_deps import ShowDeps
             ShowDeps()(args)
+        elif sub in ("plugins", "plugin"):
+            from .show_plugins import ShowPlugins
+            ShowPlugins()(args)
         elif sub in ("site-config", "config"):
             from .show_config import ShowConfig
             ShowConfig()(args)
@@ -89,15 +93,14 @@ def _show_all(args):
         print("\n=== Clone Providers ===")
         clone_plain(clone_infos)
     else:
-        from rich.console import Console
-        console = Console()
-        console.print("\n[bold underline]Package Sources[/]  [dim](ivpm show source <name> for details)[/]")
+        console = make_console()
+        console.print("\n[bold underline]Package Sources[/]  [label](ivpm show source <name> for details)[/]")
         src_rich(src_infos)
-        console.print("[bold underline]Content Types[/]  [dim](ivpm show type <name> for details)[/]")
+        console.print("[bold underline]Content Types[/]  [label](ivpm show type <name> for details)[/]")
         type_rich(type_infos)
-        console.print("[bold underline]Handlers[/]  [dim](ivpm show handler <name> for details)[/]")
+        console.print("[bold underline]Handlers[/]  [label](ivpm show handler <name> for details)[/]")
         handler_rich(handler_infos)
-        console.print("[bold underline]Clone Providers[/]  [dim](ivpm show clone-providers <name> for details)[/]")
+        console.print("[bold underline]Clone Providers[/]  [label](ivpm show clone-providers <name> for details)[/]")
         clone_rich(clone_infos)
 
 

@@ -604,6 +604,27 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
              "without fetching dependencies. Accepts a manifest file, or a "
              "directory/URL containing ivpm.yaml (e.g. https://edapack.github.io)")
 
+    show_plugins_cmd = show_subparser.add_parser("plugins",
+        aliases=["plugin"],
+        help="Show Agent Plugins provided by this project and its dependencies")
+    show_plugins_cmd.add_argument("name", nargs="?",
+        help="Show full detail for this specific plugin (omit to list all)")
+    show_plugins_cmd.add_argument("--check", dest="check", default=None,
+        metavar="PATH",
+        help="Validate a plugin directory or plugin.json against the Agent "
+             "Plugins specification and report conformance problems")
+    show_plugins_cmd.add_argument("--mcp", action="store_true", default=False,
+        help="Show the MCP servers these plugins declare (env values are never "
+             "printed). Review this before enabling 'mcp: true'")
+    show_plugins_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_plugins_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+    show_plugins_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Project root directory (default: cwd)")
+    show_plugins_cmd.add_argument("-d", "--dep-set", dest="dep_set", default=None,
+        help="Dependency set to inspect (default: project default)")
+
     show_config_cmd = show_subparser.add_parser("site-config",
         aliases=["config"],
         help="Show registered site configurations and the active effective settings")

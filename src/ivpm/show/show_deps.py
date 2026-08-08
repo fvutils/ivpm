@@ -17,6 +17,7 @@
 #*
 #****************************************************************************
 """Rendering for 'ivpm show deps'."""
+from ..tui_theme import make_console, S_LABEL, S_SECONDARY
 import dataclasses
 import json
 import os
@@ -204,9 +205,8 @@ def _catalog_plain(cat: ManifestCatalog) -> None:
 
 
 def _catalog_rich(cat: ManifestCatalog) -> None:
-    from rich.console import Console
     from rich.text import Text
-    console = Console()
+    console = make_console()
 
     hdr = Text(cat.name, style="bold cyan")
     if cat.version:
@@ -221,7 +221,7 @@ def _catalog_rich(cat: ManifestCatalog) -> None:
     if packages:
         console.print(Text("Packages", style="bold underline"), end="")
         console.print(Text("  (install one: ivpm update --from <manifest> -d <name>)",
-                           style="dim"))
+                           style=S_LABEL))
         width = max(len(d.name) for d in packages)
         for d in packages:
             line = Text("  ")
@@ -229,13 +229,13 @@ def _catalog_rich(cat: ManifestCatalog) -> None:
             if d.description:
                 line.append(f"  {d.description}")
             if d.is_default:
-                line.append("  (default)", style="dim")
+                line.append("  (default)", style=S_SECONDARY)
             console.print(line)
         console.print()
 
     if collections:
         console.print(Text("Collections", style="bold underline"), end="")
-        console.print(Text("  (curated bundles)", style="dim"))
+        console.print(Text("  (curated bundles)", style=S_LABEL))
         grouped = _group_collections(collections)
         lwidth = max((len(_sub_label(d.name))
                       for _, members in grouped for d in members), default=0)
@@ -251,13 +251,13 @@ def _catalog_rich(cat: ManifestCatalog) -> None:
                 if d.contains:
                     line.append(f"  → {', '.join(d.contains)}", style="green")
                 if d.is_default:
-                    line.append("  (default)", style="dim")
+                    line.append("  (default)", style=S_SECONDARY)
                 console.print(line)
         console.print()
 
     console.print(Text(
         f"Install with:  ivpm update --from {cat.origin} -d <dep-set>",
-        style="dim"))
+        style=S_LABEL))
 
 
 # ---------------------------------------------------------------------------
@@ -433,7 +433,6 @@ def _plain_detail(node: DepNode) -> None:
 # ---------------------------------------------------------------------------
 
 def _rich_flat(graph: DepGraph) -> None:
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
@@ -450,12 +449,12 @@ def _rich_flat(graph: DepGraph) -> None:
     _collect(graph.nodes)
     rows.sort(key=lambda n: n.name)
 
-    console = Console()
+    console = make_console()
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
     table.add_column("Package", style="bold cyan")
-    table.add_column("Src", style="dim")
+    table.add_column("Src", style="secondary")
     table.add_column("Declared by")
-    table.add_column("Also requested by", style="dim")
+    table.add_column("Also requested by", style="secondary")
     table.add_column("Version", style="yellow")
     table.add_column("URL / Ref", style="green")
 
@@ -470,19 +469,18 @@ def _rich_flat(graph: DepGraph) -> None:
 
 
 def _rich_tree(graph: DepGraph) -> None:
-    from rich.console import Console
     from rich.tree import Tree
     from rich.text import Text
 
-    console = Console()
+    console = make_console()
     root_label = Text(graph.project, style="bold")
-    root_label.append(f"  ({graph.dep_set})", style="dim")
+    root_label.append(f"  ({graph.dep_set})", style=S_SECONDARY)
     if graph.description:
         root_label.append(f"\n{graph.description}", style="italic")
     tree = Tree(root_label)
 
     def _add_node(parent_tree, node: DepNode) -> None:
-        src_tag = Text(f"[{node.src}]", style="dim") if node.src else Text("")
+        src_tag = Text(f"[{node.src}]", style=S_SECONDARY) if node.src else Text("")
 
         label = Text()
         label.append(node.name, style="bold cyan")
@@ -503,7 +501,7 @@ def _rich_tree(graph: DepGraph) -> None:
             label.append(f"  ← provided by {node.specifier}", style="yellow italic")
         elif node.also_requested_by:
             also = ", ".join(node.also_requested_by)
-            label.append(f"  (also: {also})", style="dim")
+            label.append(f"  (also: {also})", style=S_SECONDARY)
 
         branch = parent_tree.add(label)
         if not node.shadowed:
@@ -517,19 +515,19 @@ def _rich_tree(graph: DepGraph) -> None:
 
 
 def _rich_detail(node: DepNode) -> None:
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
-    console = Console()
-    console.print(f"\n[bold cyan]{node.name}[/]  [dim][{node.src}][/]\n")
+    console = make_console()
+    # node.src is escaped: "[pypi]" would otherwise parse as a Rich markup tag.
+    console.print(f"\n[bold cyan]{node.name}[/]  [secondary]\\[{node.src}][/]\n")
 
     def _row(k, v):
         if v is not None and v != "" and v != []:
             table.add_row(k, str(v))
 
     table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
-    table.add_column("Key", style="dim", width=22)
+    table.add_column("Key", style="label", width=22)
     table.add_column("Value")
 
     _row("URL", node.url)
@@ -550,7 +548,7 @@ def _rich_detail(node: DepNode) -> None:
         console.print("[bold]Declared dependencies:[/]")
         dep_table = Table(box=box.SIMPLE, show_header=False, padding=(0, 1))
         dep_table.add_column("Name", style="cyan")
-        dep_table.add_column("Src", style="dim")
+        dep_table.add_column("Src", style="secondary")
         dep_table.add_column("Ref", style="green")
         dep_table.add_column("Note", style="yellow italic")
         for child in node.deps:
@@ -654,8 +652,7 @@ def _warn_no_lock(no_rich: bool) -> None:
         print(msg, file=sys.stderr)
     else:
         try:
-            from rich.console import Console
-            Console(stderr=True).print(f"[yellow]{msg}[/]")
+            make_console(stderr=True).print(f"[yellow]{msg}[/]")
         except ImportError:
             print(msg, file=sys.stderr)
 

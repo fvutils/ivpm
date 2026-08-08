@@ -1,0 +1,4 @@
+{
+  "$schema": "https://example.com/schemas/plugin.json",
+  "id": "acme"
+}

@@ -84,7 +84,7 @@ After all packages are fetched, handlers run their **root callbacks** on the
 main thread.  Each handler builds a *view* -- a coherent projection of the
 dependency graph into one domain.  The Python handler builds a virtual
 environment view; the direnv handler builds an environment-variable view;
-the agents handler builds a skills-directory view; the Node handler builds a
+the agents handler builds a skills- and plugins-directory view; the Node handler builds a
 Node.js environment view.  Finally, the lock file is written.
 
 For details on the handler mechanism, see :doc:`handlers`.

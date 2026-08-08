@@ -439,7 +439,12 @@ class GitCloneProvider(CloneProvider):
         elif ssh_pref is False:
             lines.append("  selection     : forced HTTPS (--anonymous)")
         else:
-            order = auth_order or resolve_git_auth_order(url_host(src))
+            # The auth order is resolved per-host against the *remapped* URL
+            # (that is the host git is actually asked to talk to), so report it
+            # for that host rather than the one the source was spelled with.
+            from ..site_config import apply_git_url_map
+            order = auth_order or resolve_git_auth_order(
+                url_host(apply_git_url_map(src)))
             lines.append("  auth order    : %s" % ", ".join(order))
             configs = loaded_config_paths()
             if configs:

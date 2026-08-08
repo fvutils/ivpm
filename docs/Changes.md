@@ -1,4 +1,30 @@
 
+# 2.21.0
+- IVPM now consumes [Agent Plugins 1.0](https://agent-plugins.org/specification),
+  the vendor-neutral standard for packaging Agent Skills and MCP server
+  configuration. Plugins shipped by a dependency are discovered (`plugin.json`
+  at a package root, under `plugins/*/`, via `with.agents.plugins`, a dep
+  entry, or the `agent.plugins` Python entry-point group), validated against
+  the specification, and projected into the workspace.
+  - A new `.agents/plugins/<name>` directory links each plugin whole.
+  - Each tool receives a plugin in the form it can consume. Claude Code has a
+    plugin mechanism, so it gets the plugin *installed* at
+    `.claude/skills/<name>/` with a generated `.claude-plugin/plugin.json`;
+    tools that understand only skills get each skill linked individually as
+    `<plugin>-<skill>`. Codex needs no mirror at all -- it already scans
+    `.agents/skills` up to the repository root.
+  - No per-tool *plugin* directories are created: no client reads a
+    project-local plugin-root directory.
+  - MCP servers declared by a plugin are **opt-in** (`mcp: true` under
+    `package.with.agents`, default false). Review what a dependency would wire
+    up first with `ivpm show plugins --mcp`, which prints environment-variable
+    names but never their values.
+  - New `ivpm show plugins` command: list, detail, `--check` (a conformance
+    gate that exits non-zero, usable in CI), and `--mcp`.
+  - The existing loose-`SKILL.md` mechanism and the `agent.skills` entry-point
+    group are unchanged and not deprecated.
+  - See the new *Agent Plugins* documentation page.
+
 # 2.20.0
 - `ivpm clone` now explains a failed clone instead of just reporting a git
   exit code: the source and effective clone URL (including any `git-url-map`

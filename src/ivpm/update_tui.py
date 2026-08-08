@@ -21,6 +21,7 @@ TUI (Text User Interface) for update operations.
 
 Provides both Rich-based interactive display and transcript-based plain text output.
 """
+from .tui_theme import make_console
 import logging
 import os
 import sys
@@ -76,9 +77,8 @@ class RichUpdateTUI(UpdateEventListener):
     """
     
     def __init__(self, max_visible: Optional[int] = None, verbose: int = 0):
-        from rich.console import Console
 
-        self.console = Console()
+        self.console = make_console()
         self.verbose = verbose
         self._prev_sink = None
         self.packages: Dict[str, PackageStatus] = {}

@@ -27,11 +27,16 @@ version = {attr = "ivpm.__version__._pkg_version"}
 ivpm = "ivpm.__main__:main"
 
 [tool.setuptools.package-data]
-ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*', 'share/skills/*/*']
+ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*', 'share/skills/*/*',
+        'agent_plugins/schemas/*/*.json']
 
 [dependency-groups]
 dev = [
     "pytest>=9.0.3",
+    # Test-only oracle: cross-checks ivpm.agent_plugins.validate against a real
+    # JSON Schema implementation. IVPM never uses it at runtime -- diagnostics
+    # must not vary with what happens to be installed.
+    "jsonschema>=4.0",
 ]
 
 [project.entry-points."agent.skills"]

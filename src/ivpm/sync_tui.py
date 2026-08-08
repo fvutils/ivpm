@@ -25,22 +25,24 @@ TranscriptSyncTUI — plain-text fallback (non-TTY / --no-rich).
 Both implement SyncProgressListener so they can receive per-package
 notifications during a parallel sync, then render the final results table.
 """
+from .tui_theme import make_console
 import threading
 import sys
 import time
 from typing import Dict, List, Optional
 
 from .pkg_sync import PkgSyncResult, SyncOutcome, SyncProgressListener
+from .tui_theme import S_PLACEHOLDER, S_SECONDARY
 
 # (icon, rich-style) per outcome
 _ICONS = {
     SyncOutcome.SYNCED:              ("↑",  "bold green"),
-    SyncOutcome.UP_TO_DATE:          ("=",  "dim"),
+    SyncOutcome.UP_TO_DATE:          ("=",  S_PLACEHOLDER),
     SyncOutcome.CONFLICT:            ("✗",  "bold red"),
     SyncOutcome.DIRTY:               ("✎",  "bold yellow"),
     SyncOutcome.AHEAD:               ("↑!", "bold yellow"),
     SyncOutcome.ERROR:               ("!",  "bold red"),
-    SyncOutcome.SKIPPED:             ("—",  "dim"),
+    SyncOutcome.SKIPPED:             ("—",  S_PLACEHOLDER),
     SyncOutcome.DRY_WOULD_SYNC:      ("→",  "cyan"),
     SyncOutcome.DRY_WOULD_CONFLICT:  ("?",  "yellow"),
     SyncOutcome.DRY_DIRTY:           ("?",  "yellow"),
@@ -76,8 +78,8 @@ def _row_status(r: PkgSyncResult):
         status = Text("%s→%s" % (r.old_commit or "?", r.new_commit or "?"), style="green")
         delta  = Text("↓%d" % r.commits_behind, style="green") if r.commits_behind else Text("")
     elif r.outcome == SyncOutcome.UP_TO_DATE:
-        status = Text("up-to-date  %s" % (r.old_commit or ""), style="dim")
-        delta  = Text("=", style="dim")
+        status = Text("up-to-date  %s" % (r.old_commit or ""), style=S_SECONDARY)
+        delta  = Text("=", style=S_PLACEHOLDER)
     elif r.outcome == SyncOutcome.CONFLICT:
         status = Text("conflict  %s" % (r.old_commit or ""), style="bold red")
         delta  = Text("↓%d" % r.commits_behind, style="red") if r.commits_behind else Text("")
@@ -95,7 +97,7 @@ def _row_status(r: PkgSyncResult):
         status = Text("%s  %s" % (r.outcome.value, r.old_commit or ""), style="cyan")
         delta  = Text("↓%d" % r.commits_behind, style="cyan") if r.commits_behind else Text("")
     else:  # SKIPPED
-        status = Text(r.skipped_reason or "skipped", style="dim")
+        status = Text(r.skipped_reason or "skipped", style=S_SECONDARY)
         delta  = Text("")
     return delta, status
 
@@ -108,8 +110,7 @@ class RichSyncTUI(SyncProgressListener):
     """Rich-based TUI: single live table that becomes the final output."""
 
     def __init__(self, verbose: int = 0):
-        from rich.console import Console
-        self.console = Console()
+        self.console = make_console()
         self.verbose = verbose
         self._live = None
         self._pkg_states: Dict[str, dict] = {}   # name → {start, done, result}
@@ -177,18 +178,18 @@ class RichSyncTUI(SyncProgressListener):
                 if spinner:
                     marker = Spinner("dots", style="bold cyan")
                 else:
-                    marker = Text("…", style="dim")
-                tbl.add_row(marker, Text(name), Text(""), Text("", style="dim"),
+                    marker = Text("…", style=S_PLACEHOLDER)
+                tbl.add_row(marker, Text(name), Text(""), Text("", style=S_PLACEHOLDER),
                             Text(""), Text(""))
             else:
                 r = state["result"]
                 # Skip pypi in the live/final table
                 if r.src_type == "pypi":
                     continue
-                icon, style = _ICONS.get(r.outcome, ("?", "dim"))
+                icon, style = _ICONS.get(r.outcome, ("?", S_PLACEHOLDER))
                 marker  = Text(icon, style=style)
-                branch  = Text(r.branch or "—", style="" if r.branch else "dim")
-                dur     = Text(_dur(state), style="dim")
+                branch  = Text(r.branch or "—", style="" if r.branch else S_PLACEHOLDER)
+                dur     = Text(_dur(state), style=S_SECONDARY)
                 delta, status = _row_status(r)
                 tbl.add_row(marker, Text(name), branch, status, delta, dur)
 

@@ -17,6 +17,7 @@
 #*
 #****************************************************************************
 """Rendering for 'ivpm show site-config [name]'."""
+from ..tui_theme import make_console
 import dataclasses
 import json
 import sys
@@ -75,18 +76,17 @@ def _any_plugins(infos) -> bool:
 # ---------------------------------------------------------------------------
 
 def _rich_list(infos):
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
-    console = Console()
+    console = make_console()
     show_origin = _any_plugins(infos)
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
     table.add_column("", justify="center")  # active marker
     table.add_column("Site Config", style="cyan bold")
     table.add_column("Description")
     if show_origin:
-        table.add_column("Origin", style="dim")
+        table.add_column("Origin", style="secondary")
 
     for info in infos:
         marker = "[green]●[/]" if info.active else ""
@@ -95,13 +95,12 @@ def _rich_list(infos):
             row.append(info.origin)
         table.add_row(*row)
     console.print(table)
-    console.print("[dim]● = active (last-registered wins; "
+    console.print("[label]● = active (last-registered wins; "
                   "override with IVPM_SITE_CONFIG_NAME or 'site-config:' in a config file)[/]")
 
 
 def _rich_settings(settings, diag=None):
-    from rich.console import Console
-    console = Console()
+    console = make_console()
     console.print("[bold]Effective settings:[/]")
     console.print(f"  [cyan]cache dir:[/]         {settings['cache_dir']}")
     console.print(f"  [cyan]ivpm install args:[/] {' '.join(settings['ivpm_install_args'])}")
@@ -111,25 +110,24 @@ def _rich_settings(settings, diag=None):
         for host, order in settings["git_auth_rules"]:
             console.print(f"    {host} -> {', '.join(order)}")
     if diag is not None:
-        console.print(f"\n  [dim]resolved git auth order (with config-file rules):[/] "
+        console.print(f"\n  [label]resolved git auth order (with config-file rules):[/] "
                       f"{', '.join(diag['resolved_git_auth_order'])}")
         files = diag["loaded_config_files"]
-        console.print(f"  [dim]loaded config files:[/] "
+        console.print(f"  [label]loaded config files:[/] "
                       f"{', '.join(files) if files else '(none)'}")
     console.print()
 
 
 def _rich_detail(info):
-    from rich.console import Console
-    console = Console()
+    console = make_console()
     active = " [green](active)[/]" if info.active else ""
     console.print(f"\n[bold cyan]Site Config:[/] [bold]{info.name}[/]{active}")
     if info.origin != "built-in":
-        console.print(f"[dim]Origin:[/] {info.origin}")
+        console.print(f"[label]Origin:[/] {info.origin}")
     if info.provider and info.provider != info.origin:
-        console.print(f"[dim]Provider:[/] {info.provider}")
+        console.print(f"[label]Provider:[/] {info.provider}")
     if info.version:
-        console.print(f"[dim]Version:[/] {info.version}")
+        console.print(f"[label]Version:[/] {info.version}")
     console.print(f"[bold]Description:[/] {info.description}\n")
     _rich_settings(info.settings, _diagnostics() if info.active else None)
     if info.notes:
@@ -220,8 +218,7 @@ class ShowConfig:
                     _plain_settings(active.settings, _diagnostics())
             else:
                 _rich_list(infos)
-                from rich.console import Console
-                Console().print()
+                make_console().print()
                 active = next((i for i in infos if i.active), None)
                 if active is not None:
                     _rich_settings(active.settings, _diagnostics())

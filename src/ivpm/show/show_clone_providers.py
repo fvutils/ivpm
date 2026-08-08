@@ -17,6 +17,7 @@
 #*
 #****************************************************************************
 """Rendering for 'ivpm show clone-providers [name]'."""
+from ..tui_theme import make_console
 import dataclasses
 import json
 import sys
@@ -45,19 +46,18 @@ def _any_plugins(infos) -> bool:
 # ---------------------------------------------------------------------------
 
 def _rich_list(infos):
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
-    console = Console()
+    console = make_console()
     show_origin = _any_plugins(infos)
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
     table.add_column("Provider", style="cyan bold")
-    table.add_column("Default", style="dim")
-    table.add_column("Schemes", style="dim")
+    table.add_column("Default", style="secondary")
+    table.add_column("Schemes", style="secondary")
     table.add_column("Description")
     if show_origin:
-        table.add_column("Origin", style="dim")
+        table.add_column("Origin", style="secondary")
 
     for info in infos:
         row = [info.name,
@@ -71,29 +71,28 @@ def _rich_list(infos):
 
 
 def _rich_detail(info):
-    from rich.console import Console
     from rich.table import Table
     from rich import box
 
-    console = Console()
+    console = make_console()
     console.print(f"\n[bold cyan]Clone provider:[/] [bold]{info.name}[/]")
-    console.print(f"[dim]Schemes:[/] {_schemes_str(info)}")
+    console.print(f"[label]Schemes:[/] {_schemes_str(info)}")
     if getattr(info, "is_default", False):
-        console.print("[dim]Default:[/] yes")
+        console.print("[label]Default:[/] yes")
     if info.origin != "built-in":
-        console.print(f"[dim]Origin:[/] {info.origin}")
+        console.print(f"[label]Origin:[/] {info.origin}")
     if info.provider and info.provider != info.origin:
-        console.print(f"[dim]Provider:[/] {info.provider}")
+        console.print(f"[label]Provider:[/] {info.provider}")
     if info.version:
-        console.print(f"[dim]Version:[/] {info.version}")
+        console.print(f"[label]Version:[/] {info.version}")
     console.print(f"[bold]Description:[/] {info.description}\n")
 
     if info.params:
         table = Table(box=box.SIMPLE, show_header=True, header_style="bold", padding=(0, 1))
         table.add_column("Option")
-        table.add_column("Type", style="dim")
-        table.add_column("Req", style="dim")
-        table.add_column("Default", style="dim")
+        table.add_column("Type", style="secondary")
+        table.add_column("Req", style="secondary")
+        table.add_column("Default", style="secondary")
         table.add_column("Description")
         for p in info.params:
             table.add_row(
@@ -105,7 +104,7 @@ def _rich_detail(info):
             )
         console.print(table)
     else:
-        console.print("[dim](no options; see 'ivpm clone %s --help')[/]\n" % (
+        console.print("[label](no options; see 'ivpm clone %s --help')[/]\n" % (
             (info.schemes[0] + "://") if info.schemes else info.name))
 
     if info.notes:

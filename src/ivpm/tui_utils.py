@@ -49,7 +49,9 @@ def handle_subprocess_prompt_rich(live, console, context: str, label: str, secre
     try:
         clean = _ANSI_RE.sub('', context).strip()
         if clean:
-            console.print(f"\n[dim]{clean}[/dim]")
+            # Subprocess context ahead of a credential prompt -- the user has
+            # to read this to answer, so never dim it.
+            console.print(f"\n{clean}")
         return Prompt.ask(
             f"[bold yellow]{label}[/bold yellow]",
             password=secret,

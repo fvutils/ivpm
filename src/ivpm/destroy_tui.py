@@ -25,12 +25,14 @@ renders it at the active verbosity. An unrecognized ``kind`` (from an extension
 source) falls back to its ``label`` or the raw ``kind``, so it still presents
 sensibly with no change here.
 """
+from .tui_theme import make_console
 import sys
 import threading
 import time
 from typing import Dict, List
 
 from .pkg_remove import SafetyLevel, RemoveOutcome, RemoveProgressListener
+from .tui_theme import S_PLACEHOLDER, S_SECONDARY
 
 
 # Stable kind -> human label. Extension kinds fall back to reason.label / kind.
@@ -180,7 +182,7 @@ _GATE_ICON = {
 
 _REMOVE_ICON = {
     RemoveOutcome.REMOVED: ("✓",  "green",    "removed"),
-    RemoveOutcome.SKIPPED: ("—",  "dim",      "skipped"),
+    RemoveOutcome.SKIPPED: ("—",  S_SECONDARY, "skipped"),
     RemoveOutcome.MANUAL:  ("!",  "bold red", "manual"),
     RemoveOutcome.BLOCKED: ("✗",  "bold red", "blocked"),
 }
@@ -253,8 +255,7 @@ class RichDestroyTUI(RemoveProgressListener):
     teardown phase, updating as parallel work completes."""
 
     def __init__(self, verbose: int = 0):
-        from rich.console import Console
-        self.console = Console()
+        self.console = make_console()
         self.verbose = verbose
         self._live = None
         self._lock = threading.Lock()
@@ -330,23 +331,23 @@ class RichDestroyTUI(RemoveProgressListener):
         tbl.add_column("", width=2, no_wrap=True)
         tbl.add_column(verb, style="bold", no_wrap=True)
         tbl.add_column("Status", no_wrap=True)
-        tbl.add_column("Time", no_wrap=True, style="dim")
+        tbl.add_column("Time", no_wrap=True, style=S_SECONDARY)
 
         for name in self._order:
             st = self._states[name]
             if not st["done"]:
                 marker = (Spinner("dots", style="cyan") if spinner
-                          else Text("…", style="dim"))
+                          else Text("…", style=S_PLACEHOLDER))
                 tbl.add_row(marker, Text(name), Text(""), Text(""))
                 continue
             dur = "%.1fs" % st["dur"] if "dur" in st else ""
             if self._phase == "gate":
                 icon, style, word = _GATE_ICON.get(
-                    st["info"].level, ("?", "dim", "?"))
+                    st["info"].level, ("?", S_SECONDARY, "?"))
                 status = word
             else:
                 icon, style, word = _REMOVE_ICON.get(
-                    st["info"].outcome, ("?", "dim", "?"))
+                    st["info"].outcome, ("?", S_SECONDARY, "?"))
                 status = "%s (%s)" % (word, st["info"].removal)
             tbl.add_row(Text(icon, style=style), Text(name),
                         Text(status, style=style), Text(dur))

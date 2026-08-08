@@ -318,7 +318,7 @@ class PackageGit(PackageURL):
 
         
         # Try GitHub API first if it's a GitHub URL
-        if is_github_url(self.url):
+        if is_github_url(self._mapped_url()):
             try:
                 # Use GitHub API to get the commit hash
                 api_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{ref}"
@@ -335,16 +335,21 @@ class PackageGit(PackageURL):
     def _get_commit_hash_ls_remote(self, ref: str = None, update_info: ProjectUpdateInfo = None) -> str:
         """Get commit hash using git ls-remote.
 
-        Tries the effective URL (SSH when not anonymous) first, then
-        falls back to the original HTTPS URL if that fails.
+        Tries the effective URL (SSH when not anonymous) first, then falls back
+        to the HTTPS spelling if that fails.  The fallback is the *remapped*
+        URL, not the declared one: a git-url-map rule redirects where the
+        repository is fetched from, so undoing it on the fallback path would
+        silently resolve the ref against the upstream the rule steered away
+        from.
         """
         if ref is None:
             ref = self.branch or self.tag or "HEAD"
 
         url = self._get_effective_url(update_info)
         urls_to_try = [url]
-        if url != self.url:
-            urls_to_try.append(self.url)
+        mapped = self._mapped_url()
+        if url != mapped:
+            urls_to_try.append(mapped)
 
         for try_url in urls_to_try:
             result = self._ls_remote(try_url, ref)
@@ -408,8 +413,8 @@ class PackageGit(PackageURL):
             self.resolved_commit = self.commit
             return
         ref = self.branch or self.tag or "HEAD"
-        if is_github_url(self.url):
-            owner, repo = parse_github_url(self.url)
+        if is_github_url(self._mapped_url()):
+            owner, repo = parse_github_url(self._mapped_url())
             h = self._get_github_commit_hash(owner, repo, ref, update_info)
         else:
             h = self._get_commit_hash_ls_remote(ref, update_info)
@@ -426,9 +431,9 @@ class PackageGit(PackageURL):
         # Get the commit hash - use GitHub API for GitHub URLs, git ls-remote otherwise
         commit_hash = None
         with span_or_null(getattr(update_info, "perf", None), "git.resolve_hash", package=self.name) as s:
-            if is_github_url(self.url):
+            if is_github_url(self._mapped_url()):
                 s.meta["path"] = "github_api"
-                owner, repo = parse_github_url(self.url)
+                owner, repo = parse_github_url(self._mapped_url())
                 commit_hash = self._get_github_commit_hash(owner, repo, ref, update_info)
             else:
                 # Use git ls-remote for general git URLs
@@ -485,8 +490,8 @@ class PackageGit(PackageURL):
     def _resolve_commit(self, update_info: ProjectUpdateInfo) -> str:
         """Resolve the ref (branch/tag/HEAD) to a concrete commit hash."""
         ref = self.branch or self.tag or "HEAD"
-        if is_github_url(self.url):
-            owner, repo = parse_github_url(self.url)
+        if is_github_url(self._mapped_url()):
+            owner, repo = parse_github_url(self._mapped_url())
             h = self._get_github_commit_hash(owner, repo, ref, update_info)
         else:
             h = self._get_commit_hash_ls_remote(ref, update_info)
@@ -568,6 +573,19 @@ class PackageGit(PackageURL):
             if getattr(args, "anonymous", False):
                 return False
         return None
+
+    def _mapped_url(self) -> str:
+        """The declared URL after any ``git-url-map`` rewrite, before auth/ssh
+        resolution.
+
+        This -- not ``self.url`` -- is the URL that says where the repository
+        actually lives, so it is what host-specific behavior (e.g. "is this
+        GitHub, so use the API?") must key off.  A github.com URL remapped to a
+        local mirror is no longer a GitHub repository, and asking api.github.com
+        for its commit hash would resolve a ref the mirror may not have.
+        """
+        from ..site_config import apply_git_url_map
+        return apply_git_url_map(self.url)
 
     def _get_effective_url(self, update_info: ProjectUpdateInfo = None) -> str:
         """Return the clone/ls-remote URL.
