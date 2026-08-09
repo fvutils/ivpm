@@ -6,6 +6,13 @@ on:
 
 jobs:
   ci-linux:
+    # GitHub-only. pypa/gh-action-pypi-publish and JamesIves/github-pages-deploy-action
+    # resolve against github.com, so this job cannot run anywhere else. Forgejo
+    # Actions falls back to .github/workflows for any ref without a
+    # .forgejo/workflows directory -- every branch predating the port -- and the
+    # job failed there while cloning those actions. Guarding on server_url makes
+    # it skip instead; see .forgejo/workflows/ci.yml for the Forgejo CI/CD path.
+    if: github.server_url == 'https://github.com'
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
