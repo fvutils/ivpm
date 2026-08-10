@@ -1,4 +1,23 @@
 
+# 2.22.0
+- Environment variables are now declared as a standard `with:` clause, available
+  at both the package and dep-set level:
+  `with: { env: [{name: FOO, value: bar}] }`. A dep-set's `env` directives are
+  appended to (never replace) the package-level ones and are emitted last into
+  `packages.envrc`, so they win for `value:`/`path:` while `path-prepend`/
+  `path-append` accumulate. To vary the environment across dep-sets, factor the
+  shared directives into a base dep-set and `uses:` it -- there is deliberately
+  no way for a dep-set to clear or replace what it inherits.
+  - `with.env` also list-appends across `include:`, matching the top-level
+    `env:` rule. Previously a `with:` block's lists were local-wins, which would
+    have silently discarded an include's environment directives.
+  - Not to be confused with `with.node.env`, a boolean controlling whether the
+    Node handler patches `packages.envrc`.
+- The top-level `package: env:` key is **deprecated**. It still works -- it is
+  folded into `with.env` -- but `ivpm update` now warns when the root manifest
+  uses it; it will be removed in a future release. Dependency manifests do not
+  warn, since their `env:` is not the user's to fix.
+
 # 2.21.0
 - IVPM now consumes [Agent Plugins 1.0](https://agent-plugins.org/specification),
   the vendor-neutral standard for packaging Agent Skills and MCP server

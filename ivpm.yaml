@@ -60,6 +60,7 @@ package:
     - name: pytest
       src: pypi
 
-  env:
-    - name: PYTHONPATH
-      value: ${IVPM_PROJECT}/src
+  with:
+    env:
+      - name: PYTHONPATH
+        value: ${IVPM_PROJECT}/src

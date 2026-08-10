@@ -20,7 +20,7 @@ Activating the environment (direnv)
 IVPM no longer provides an ``ivpm activate`` command.  Environment
 activation is delegated to `direnv <https://direnv.net>`_: ``ivpm update``
 generates ``packages/packages.envrc`` (Python venv ``PATH``, Node paths,
-FuseSoC config, per-package ``export.envrc`` fragments, and any ``env:``
+FuseSoC config, per-package ``export.envrc`` fragments, and any ``with.env:``
 directives), which ``direnv`` loads.
 
 **Examples:**
@@ -40,8 +40,8 @@ required even under PowerShell.  Use ``direnv`` + git-bash (Git-for-Windows);
 for native PowerShell add ``Invoke-Expression "$(direnv hook pwsh)"`` to your
 ``$PROFILE``.
 
-See :doc:`environment_paths` for the ``env:`` directive and generated
-``packages.envrc``.
+See :doc:`environment_paths` for the ``with.env:`` clause (declarable at the
+package and dep-set level) and the generated ``packages.envrc``.
 
 build
 -----
@@ -1046,10 +1046,20 @@ Package Dependency
 
 .. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/package-dep
 
+Handler Configuration (``with``)
+--------------------------------
+
+Valid at the package level and on an individual dep-set; the selected
+dep-set's block overlays the package-level one.  See
+:doc:`dependency_sets` for the override rules (and the ``env`` exception,
+which concatenates instead of replacing).
+
+.. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/with-block
+
 Environment Specification
 --------------------------
 
-A single ``env:`` directive (emitted into ``packages.envrc`` for direnv).
+A single ``with.env:`` directive (emitted into ``packages.envrc`` for direnv).
 
 .. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/env-spec
 

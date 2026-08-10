@@ -193,9 +193,10 @@ Per-Dep-Set Handler Configuration with ``with``
 ------------------------------------------------
 
 A ``with:`` block controls handler behavior -- the Python venv mode, the Node
-package manager, direnv/agents/fusesoc settings, and so on (see
-:doc:`python_packages` and :doc:`node_packages`).  It is normally declared once
-at the ``package:`` level and applies to every ``ivpm update``.
+package manager, environment variables, direnv/agents/fusesoc settings, and so
+on (see :doc:`python_packages`, :doc:`node_packages` and
+:doc:`environment_paths`).  It is normally declared once at the ``package:``
+level and applies to every ``ivpm update``.
 
 An individual dep-set may also carry its own ``with:`` block.  When that dep-set
 is the **selected install target**, its ``with:`` *refines* the package-level
@@ -245,6 +246,14 @@ in :doc:`python_packages`).
 **Selecting several dep-sets.** When you install more than one dep-set at once
 (``ivpm update -d a,b``), their ``with:`` blocks merge left-to-right, so the
 later-named set wins on conflict -- matching how their packages merge.
+
+**Exception: ``env`` is additive.** Every ``with:`` key above is *replaced* by
+the overriding level, but ``with.env`` -- the list of environment-variable
+directives -- is **concatenated** instead, package-level first.  A dep-set adds
+to the environment and can override an individual variable (its directive is
+emitted last, so it wins), but it can never clear or replace the inherited set.
+The same holds for ``uses:`` inheritance and multi-dep-set selection.  See
+:ref:`env-dep-set-scoped`.
 
 Including Dep-Sets From Other Files
 -----------------------------------

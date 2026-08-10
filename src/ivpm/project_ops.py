@@ -180,8 +180,8 @@ class ProjectOps(object):
             # 'with:', the package-level parsed configs are used verbatim.
             from .ivpm_yaml_reader import resolve_effective_with
             effective_py_config, effective_node_config, \
-                effective_handler_configs = resolve_effective_with(
-                    proj_info, ds)
+                effective_handler_configs, effective_env = \
+                    resolve_effective_with(proj_info, ds)
 
             # Build the handler update_info (with dispatcher wired in)
             handler_update_info = ProjectUpdateInfo(
@@ -194,7 +194,7 @@ class ProjectOps(object):
                 event_dispatcher=event_dispatcher,
                 python_config=effective_py_config,
                 node_config=effective_node_config,
-                env_settings=proj_info.env_settings,
+                env_settings=effective_env,
             )
             handler_update_info.handler_configs = effective_handler_configs
             handler_update_info._tui_ref = tui
@@ -1028,7 +1028,8 @@ class ProjectOps(object):
                         fp, fetched.local_path,
                         cli_overrides=cli_overrides,
                         persisted_vars={},      # external manifest: start clean
-                        allow_include=not fetched.is_remote)
+                        allow_include=not fetched.is_remote,
+                        is_root=True)           # drives this update
             finally:
                 fetched.cleanup()
             source_manifest = {"from": fetched.origin}
@@ -1048,7 +1049,8 @@ class ProjectOps(object):
             proj_info = ProjInfo.mkFromProj(
                 self.root_dir,
                 cli_overrides=cli_overrides,
-                persisted_vars=persisted_vars)
+                persisted_vars=persisted_vars,
+                is_root=True)   # the user's own manifest: deprecations apply
 
             # No local ivpm.yaml: drive the update from a clone-provided
             # synthesized ``package:`` mapping. Feeding it through the normal
@@ -1060,6 +1062,9 @@ class ProjectOps(object):
                 from .ivpm_yaml_reader import IvpmYamlReader
                 note("No ivpm.yaml found; using clone-provided configuration")
                 buf = io.StringIO(yaml.dump({"package": default_config}))
+                # is_root stays False: this config is synthesized by the clone
+                # provider, not a file the user can edit, so a deprecation
+                # warning pointing at "<clone-provided-config>" is unactionable.
                 proj_info = IvpmYamlReader().read(
                     buf, "<clone-provided-config>",
                     cli_overrides=cli_overrides,

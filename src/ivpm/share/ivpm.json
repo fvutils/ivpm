@@ -89,10 +89,14 @@
 						}
 					}
 				},
+				"with": {
+					"$ref": "#/defs/with-block"
+				},
 				"env": {
 					"type": "array",
-					"title": "Environment variable directives",
-					"description": "Environment variables emitted into packages/packages.envrc for direnv to apply",
+					"deprecated": true,
+					"title": "Environment variable directives (deprecated)",
+					"description": "Deprecated -- use 'with: { env: [...] }'. Still accepted (folded into with.env) but warns; will be removed in a future release.",
 					"items": {
 						"$ref": "#/defs/env-spec"
 					}
@@ -128,12 +132,70 @@
 					"type": "string",
 					"title": "Default dep-set name for sub-packages to inherit if not explicitly specified"
 				},
+				"with": {
+					"$ref": "#/defs/with-block"
+				},
 				"deps": {
 					"type": "array",
 					"title": "Package dependencies",
 					"items": {
 						"$ref": "#/defs/package-dep"
 					}
+				}
+			}
+		},
+		"with-block": {
+			"title": "Handler configuration",
+			"$$target": "#/defs/with-block",
+			"type": "object",
+			"description": "Configuration for the handlers that shape the workspace. Valid at the package level and on an individual dep-set; when a dep-set is the selected install target its block overlays the package-level one (dep-set wins per key). Handler keys are validated at runtime against the registered handlers ('ivpm show handler').",
+			"properties": {
+				"env": {
+					"type": "array",
+					"title": "Environment variable directives",
+					"description": "Environment variables emitted into packages/packages.envrc for direnv to apply. A dep-set's directives are appended to (never replace) the package-level ones and are emitted last, so they win for 'value'/'path' while 'path-prepend'/'path-append' accumulate.",
+					"items": {
+						"$ref": "#/defs/env-spec"
+					}
+				},
+				"python": {
+					"type": "object",
+					"title": "Python handler configuration",
+					"properties": {
+						"venv": {
+							"type": ["boolean", "string"],
+							"title": "Virtual-environment mode: false (skip), true (auto-detect), 'uv', or 'pip'"
+						},
+						"system-site-packages": {
+							"type": "boolean",
+							"title": "Create the venv with access to the system site-packages"
+						},
+						"pre-release": {
+							"type": "boolean",
+							"title": "Allow pre-release versions when resolving Python packages"
+						}
+					},
+					"additionalProperties": false
+				},
+				"node": {
+					"type": "object",
+					"title": "Node handler configuration",
+					"properties": {
+						"manager": {
+							"type": "string",
+							"enum": ["npm", "pnpm", "yarn"],
+							"title": "Package manager used to install Node dependencies"
+						},
+						"version": {
+							"type": "string",
+							"title": "Node version written to packages/node/.nvmrc"
+						},
+						"env": {
+							"type": "boolean",
+							"title": "Patch packages.envrc with PATH/NODE_PATH. Note: this is NOT the 'env' variable-directive list -- see 'with.env'"
+						}
+					},
+					"additionalProperties": false
 				}
 			}
 		},

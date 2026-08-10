@@ -33,23 +33,64 @@ _KNOWN_PYTHON_WITH_KEYS = {"venv", "system-site-packages", "pre-release"}
 # Valid keys inside ``package.with.node:``.
 _KNOWN_NODE_WITH_KEYS = {"manager", "version", "env"}
 
+# Keys valid inside ``with:`` that are parsed by the core reader rather than
+# dispatched to a handler. ``env`` is *reserved*, not handler-backed: there is
+# no PackageHandlerEnv, since a no-op handler registered purely to satisfy key
+# validation would show up in 'ivpm show handler' as something configurable.
+_RESERVED_WITH_KEYS = {"env"}
+
 def _suggest(unknown: str, valid) -> str:
     """Return a hint string when *unknown* is close to a known key, or ''."""
     matches = difflib.get_close_matches(unknown, valid, n=1, cutoff=0.6)
     return (" Did you mean '%s'?" % matches[0]) if matches else ""
 
 
+def parse_env_directive(evar, out: List['EnvSpec']):
+    """Parse a single ``env:`` directive mapping and append its EnvSpec to *out*.
+
+    Shared by the ``with.env`` clause and the deprecated top-level ``env:``
+    spelling, so both produce identical EnvSpec lists.
+    """
+    if not isinstance(evar, dict):
+        fatal("Environment directive must be a mapping with a 'name' key: %s"
+              % str(evar), evar)
+    if "name" not in evar.keys():
+        fatal("No variable-name specified: %s" % str(evar), evar)
+    act = None
+    act_s = None
+    val = None
+    for an,av in [
+        ("value", EnvSpec.Act.Set),
+        ("path", EnvSpec.Act.Path),
+        ("path-append", EnvSpec.Act.PathAppend),
+        ("path-prepend", EnvSpec.Act.PathPrepend)]:
+        if an in evar.keys():
+            if act is not None:
+                fatal("Multiple variable-setting directives specified: %s and %s" % (
+                    act_s, an), evar)
+            act_s = an
+            act = av
+            val = evar[an]
+
+    if act is None:
+        fatal(
+            "No variable-directive setting (value, path, path-append, path-prepend) specified",
+            evar)
+    out.append(EnvSpec(evar["name"], val, act))
+
+
 def parse_with_section(with_data: dict, name: str, scope: str = "package"):
     """Parse a ``with:`` map into handler configurations.
 
     Pure function: validates keys/values (raising located ``fatal()`` on error)
-    and returns a ``(python_config, node_config, handler_configs)`` bundle,
-    where *python_config*/*node_config* are ``None`` when the corresponding
-    ``python``/``node`` block is absent, and *handler_configs* is a dict of the
-    remaining (plugin) handler keys. *name* is the manifest filename and *scope*
-    is the dotted-prefix scope label (``package`` or ``dep-set '<name>'``) used
-    in error messages. Applicable to both the package-level and a dep-set-level
-    ``with:`` block.
+    and returns a ``(python_config, node_config, handler_configs, env_settings)``
+    bundle, where *python_config*/*node_config* are ``None`` when the
+    corresponding ``python``/``node`` block is absent, *handler_configs* is a
+    dict of the remaining (plugin) handler keys, and *env_settings* is the list
+    of :class:`EnvSpec` parsed from ``with.env`` (empty when absent). *name* is
+    the manifest filename and *scope* is the dotted-prefix scope label
+    (``package`` or ``dep-set '<name>'``) used in error messages. Applicable to
+    both the package-level and a dep-set-level ``with:`` block.
     """
     from .proj_info import VenvMode, PythonConfig, NodeConfig
     from .handlers.package_handler_rgy import PackageHandlerRgy
@@ -57,15 +98,16 @@ def parse_with_section(with_data: dict, name: str, scope: str = "package"):
     python_config = None
     node_config = None
     handler_configs = {}
+    env_settings = []
 
     if with_data is None:
-        return python_config, node_config, handler_configs
+        return python_config, node_config, handler_configs, env_settings
 
     # Build the set of valid keys dynamically from the handler registry so
     # that plugin handlers (e.g. direnv) are accepted without
     # hardcoding their names here.
     rgy = PackageHandlerRgy.inst()
-    known_with_keys = {h.name for h in rgy.handlers if h.name}
+    known_with_keys = {h.name for h in rgy.handlers if h.name} | _RESERVED_WITH_KEYS
 
     for key in with_data.keys():
         if key not in known_with_keys:
@@ -131,46 +173,66 @@ def parse_with_section(with_data: dict, name: str, scope: str = "package"):
             cfg.env = bool(nd_data["env"])
         node_config = cfg
 
+    if "env" in with_data.keys():
+        ev_data = with_data["env"]
+        if ev_data is None:
+            ev_data = []
+        if not isinstance(ev_data, list):
+            fatal("'%s.with.env' must be a list of environment directives in %s"
+                  % (scope, name), ev_data)
+        for evar in ev_data:
+            parse_env_directive(evar, env_settings)
+
     # Config for non-python/non-node registered handlers so they can
     # retrieve their settings via ProjectUpdateInfo.handler_configs.
+    # Reserved (core-parsed) keys are excluded: they are returned as typed
+    # values, not passed through to a handler.
     for key, value in with_data.items():
-        if key not in ("python", "node"):
+        if key not in ("python", "node") and key not in _RESERVED_WITH_KEYS:
             handler_configs[key] = value
 
-    return python_config, node_config, handler_configs
+    return python_config, node_config, handler_configs, env_settings
 
 
 def resolve_effective_with(proj_info, ds):
     """Compute the effective handler config for installing dep-set *ds*.
 
-    Returns a ``(python_config, node_config, handler_configs)`` triple where the
-    package-level ``with:`` (already parsed onto *proj_info*) is overlaid by the
-    selected dep-set's own ``with:`` (dep-set wins per key). When the dep-set
-    declares no ``with:``, the package-level parsed configs are returned
-    verbatim.
+    Returns a ``(python_config, node_config, handler_configs, env_settings)``
+    tuple where the package-level ``with:`` (already parsed onto *proj_info*) is
+    overlaid by the selected dep-set's own ``with:`` (dep-set wins per key).
+    When the dep-set declares no ``with:``, the package-level parsed configs are
+    returned verbatim.
 
     Any clone-provided handler overlay already merged into
     ``proj_info.handler_configs`` is preserved: the dep-set's handler keys
     override per handler, but handlers the dep-set does not mention keep their
     (possibly overlay-augmented) package-level value.
+
+    ``env_settings`` is the *concatenation* of the package-level and dep-set
+    directives (package first) -- :func:`merge_with` performs the concatenation
+    on the raw block, so re-parsing the merged block yields the full ordered
+    list. A dep-set can add to or override individual variables, never clear
+    the inherited set.
     """
     py_config = proj_info.python_config
     node_config = proj_info.node_config
     handler_configs = proj_info.handler_configs
+    env_settings = proj_info.env_settings
 
     ds_with = getattr(ds, "with_raw", None)
     if ds_with:
         effective_raw = merge_with(getattr(proj_info, "with_raw", None) or {},
                                    ds_with)
-        py_config, node_config, ds_handler_configs = parse_with_section(
-            effective_raw, proj_info.name, "dep-set '%s'" % ds.name)
+        py_config, node_config, ds_handler_configs, env_settings = \
+            parse_with_section(
+                effective_raw, proj_info.name, "dep-set '%s'" % ds.name)
         handler_configs = dict(proj_info.handler_configs)
         handler_configs.update(ds_handler_configs)
 
-    return py_config, node_config, handler_configs
+    return py_config, node_config, handler_configs, env_settings
 
 
-def merge_with(base: dict, over: dict) -> dict:
+def merge_with(base: dict, over: dict, _top: bool = True) -> dict:
     """Deep-merge two raw ``with:`` dicts, returning a NEW dict in which *over*
     wins on conflict.
 
@@ -179,6 +241,14 @@ def merge_with(base: dict, over: dict) -> dict:
     shared into the result at the map level (leaf values are referenced as-is,
     preserving their ``.srcinfo``), so a base ``with:`` reused by several
     dep-sets is never modified in place.
+
+    The top-level ``env`` key is the one exception: it **concatenates**
+    (*base* first, *over* last) rather than replacing. Environment directives
+    are additive by design -- emission order is precedence for ``value:``/
+    ``path:`` (bash's last export wins), and ``path-prepend``/``path-append``
+    must accumulate rather than be discarded. ``_top`` guards this to the
+    outermost level so a nested handler key named ``env`` -- notably
+    ``with.node.env``, a boolean -- keeps plain replace semantics.
     """
     if not base:
         return dict(over) if over else {}
@@ -188,8 +258,11 @@ def merge_with(base: dict, over: dict) -> dict:
     result = dict(base)
     for key, oval in over.items():
         bval = result.get(key)
-        if isinstance(bval, dict) and isinstance(oval, dict):
-            result[key] = merge_with(bval, oval)
+        if _top and key == "env" and isinstance(bval, list) and isinstance(oval, list):
+            # New list: never extend a caller's list in place.
+            result[key] = list(bval) + list(oval)
+        elif isinstance(bval, dict) and isinstance(oval, dict):
+            result[key] = merge_with(bval, oval, _top=False)
         else:
             result[key] = oval
     return result
@@ -202,7 +275,14 @@ class IvpmYamlReader(object):
         pass
     
     def read(self, fp, name, cli_overrides=None, persisted_vars=None,
-             allow_include=True) -> 'ProjInfo':
+             allow_include=True, is_root=False) -> 'ProjInfo':
+        """Read a manifest into a ProjInfo.
+
+        *is_root* is True only when *name* is the manifest of the project the
+        user is operating on. Deprecation diagnostics are emitted only for the
+        root manifest: a dependency's ivpm.yaml is not the user's to edit, so
+        warning about it would be unactionable noise.
+        """
         from ivpm.proj_info import ProjInfo
 
         ret = ProjInfo(is_src=True)
@@ -252,7 +332,16 @@ class IvpmYamlReader(object):
             # Retain the raw block so a selected dep-set's own 'with:' can be
             # merged onto it at update time.
             ret.with_raw = pkg["with"]
-            self._read_with_section(ret, pkg["with"], name)
+
+        # Top-level 'env:' is a deprecated spelling of 'with: { env: [...] }'.
+        # Fold it into the raw with-block so there is exactly one downstream
+        # path. This MUST run before _read_with_section() below, which is what
+        # populates ret.env_settings.
+        if "env" in pkg.keys():
+            self._fold_toplevel_env(ret, pkg["env"], name, is_root)
+
+        if ret.with_raw is not None:
+            self._read_with_section(ret, ret.with_raw, name)
 
         # Specify where sub-packages are stored. Defaults to 'packages'        
         if "deps-dir" in pkg.keys():
@@ -284,14 +373,37 @@ class IvpmYamlReader(object):
                     ps_kind,
                     ps[ps_kind])
         
-        if "env" in pkg.keys():
-            es = pkg["env"]
-            for evar in es:
-                self.process_env_directive(
-                    ret,
-                    evar)
-            
         return ret
+
+    def _fold_toplevel_env(self, info: 'ProjInfo', env_data, name: str,
+                           is_root: bool):
+        """Fold the deprecated top-level ``env:`` list into ``info.with_raw``.
+
+        Emits a single deprecation warning per manifest (root only, located at
+        the offending block) and prepends the top-level directives to any
+        ``with.env`` declared in the same file, so the more specific spelling
+        wins a same-variable conflict within one file.
+        """
+        if is_root:
+            warning(
+                "top-level 'env:' is deprecated; move these directives under "
+                "'with: { env: [...] }'. Top-level 'env:' will be removed in "
+                "a future release.",
+                env_data)
+
+        if env_data is None:
+            env_data = []
+        if not isinstance(env_data, list):
+            fatal("'env' must be a list of environment directives in %s" % name,
+                  env_data)
+
+        with_raw = dict(info.with_raw) if info.with_raw else {}
+        with_env = with_raw.get("env") or []
+        if not isinstance(with_env, list):
+            fatal("'package.with.env' must be a list of environment directives"
+                  " in %s" % name, with_env)
+        with_raw["env"] = list(env_data) + list(with_env)
+        info.with_raw = with_raw
 
     def _load_merged_pkg(self, fp, name, _visited=None, allow_include=True):
         """Load ``package:`` from *name*, recursively merging any ``include:``
@@ -420,12 +532,22 @@ class IvpmYamlReader(object):
                     local_ds.append(ds)
 
         # with/vars: deep-merge maps, local wins (lists also local-wins).
+        # Exception: 'with.env' list-appends (include after local), matching
+        # the top-level 'env:' rule below. Environment directives are additive
+        # in both spellings, so an include's env: is never discarded.
         for k in ("with", "vars"):
             if k in incl.keys():
                 if k not in local.keys():
                     local[k] = incl[k]
                 elif isinstance(local[k], dict) and isinstance(incl[k], dict):
+                    incl_env = incl[k].get("env") if k == "with" else None
                     self._deep_merge_map(local[k], incl[k], append_lists=False)
+                    if k == "with" and isinstance(incl_env, list):
+                        local_env = local[k].get("env")
+                        # Identity check: when local had no 'env', the merge
+                        # adopted the include's list outright -- nothing to do.
+                        if isinstance(local_env, list) and local_env is not incl_env:
+                            local[k]["env"] = list(local_env) + list(incl_env)
                 # else: local wins, keep as-is
 
         # paths: deep-merge map, leaf lists append.
@@ -477,7 +599,7 @@ class IvpmYamlReader(object):
         Thin wrapper over :func:`parse_with_section`; retained so the
         package-level call site is unchanged.
         """
-        py_cfg, node_cfg, handler_cfgs = parse_with_section(
+        py_cfg, node_cfg, handler_cfgs, env_settings = parse_with_section(
             with_data, name, "package")
         if py_cfg is not None:
             info.python_config = py_cfg
@@ -485,6 +607,9 @@ class IvpmYamlReader(object):
             info.node_config = node_cfg
         for key, value in handler_cfgs.items():
             info.handler_configs[key] = value
+        # Sole writer of env_settings: both the 'with.env' clause and the
+        # deprecated top-level 'env:' (folded into with_raw) arrive here.
+        info.env_settings = env_settings
 
     def read_dep_sets(self, info : 'ProjInfo', dep_sets, name : str = "<unknown>"):
         if not isinstance(dep_sets, list):
@@ -529,6 +654,9 @@ class IvpmYamlReader(object):
                 # the package-level 'with:' when this dep-set is the selected
                 # install target. Validate now so key/value errors are located.
                 ds.with_raw = ds_ent["with"]
+                # Result discarded: the effective config (including 'env') is
+                # recomputed from the merged raw block at install time by
+                # resolve_effective_with(). This call is for validation only.
                 parse_with_section(
                     ds_ent["with"], name, "dep-set '%s'" % ds_name)
 
@@ -790,28 +918,11 @@ class IvpmYamlReader(object):
     def process_env_directive(self,
                               info : 'ProjInfo',
                               evar : Dict):
-        if "name" not in evar.keys():
-            fatal("No variable-name specified: %s" % str(evar), evar)
-        act = None
-        act_s = None
-        val = None
-        for an,av in [
-            ("value", EnvSpec.Act.Set),
-            ("path", EnvSpec.Act.Path),
-            ("path-append", EnvSpec.Act.PathAppend),
-            ("path-prepend", EnvSpec.Act.PathPrepend)]:
-            if an in evar.keys():
-                if act is not None:
-                    fatal("Multiple variable-setting directives specified: %s and %s" % (
-                        act_s, an), evar)
-                act_s = an
-                act = av
-                val = evar[an]
-            
-        if act is None:
-            fatal(
-                "No variable-directive setting (value, path, path-append, path-prepend) specified",
-                evar)
-        info.env_settings.append(EnvSpec(evar["name"], val, act))
+        """Parse *evar* and append the resulting EnvSpec to *info*.
+
+        Thin wrapper over :func:`parse_env_directive`, retained for callers
+        that hold a ``ProjInfo``.
+        """
+        parse_env_directive(evar, info.env_settings)
 
 

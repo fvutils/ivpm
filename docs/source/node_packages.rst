@@ -130,6 +130,11 @@ own PATH).
       node:
         env: false    # Don't patch packages.envrc
 
+.. caution::
+
+   This boolean is ``with.node.env``.  It is unrelated to ``with.env``, the
+   list of environment-variable directives -- see :doc:`environment_paths`.
+
 
 npm Registry Packages (``src: npm``)
 ======================================

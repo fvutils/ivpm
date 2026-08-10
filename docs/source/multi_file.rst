@@ -60,11 +60,11 @@ merged into the includer:
       with:
         python:
           venv: project
+        env:
+          - name: PROJECT_ROOT
+            path: .
       vars:
         tool_ver: "1.2.3"
-      env:
-        - name: PROJECT_ROOT
-          path: .
 
 Includes may themselves include other files; nesting is flattened before any
 merge happens.  Variable (``${{var}}``) resolution runs **after** the full
@@ -86,6 +86,8 @@ pulls in.
   an **error** (reporting both locations).  ``deps`` are never concatenated
   across files -- each dep-set has exactly one owning file.
 - ``with``, ``vars`` -- Deep-merged.  On scalar conflict, the includer wins.
+  The one exception is ``with.env``, which list-appends like ``env`` below, so
+  an include's environment directives are never discarded.
 - ``paths`` -- Deep-merged as a map; leaf lists append.
 - ``env``, ``setup-deps`` -- List-append (the include's items
   follow the local items).

@@ -131,9 +131,17 @@ class ProjInfo():
         self.dependencies.append(dep)
 
     @staticmethod
-    def mkFromProj(proj_dir : str, cli_overrides=None, persisted_vars=None) -> 'ProjInfo':
+    def mkFromProj(proj_dir : str, cli_overrides=None, persisted_vars=None,
+                   is_root : bool = False) -> 'ProjInfo':
+        """Read *proj_dir*'s ivpm.yaml, if present.
+
+        *is_root* is True only when *proj_dir* is the project the user is
+        operating on; it gates deprecation diagnostics (see
+        ``IvpmYamlReader.read``). It defaults to False so the many
+        dependency-reading call sites stay quiet without change.
+        """
         ret : ProjInfo = None
-        
+
         # First, see if this is a new-style project
         if os.path.isfile(os.path.join(proj_dir, "ivpm.yaml")):
             note("Reading ivpm.yaml from project %s" % proj_dir)
@@ -142,7 +150,8 @@ class ProjInfo():
                 ret = IvpmYamlReader().read(
                     fp, path,
                     cli_overrides=cli_overrides,
-                    persisted_vars=persisted_vars)
+                    persisted_vars=persisted_vars,
+                    is_root=is_root)
         else:
             # This doesn't appear to be an IVPM project
             # No IVPM-specific data to rely on here

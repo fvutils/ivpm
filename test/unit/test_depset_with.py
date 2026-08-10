@@ -130,7 +130,7 @@ class TestEffectiveWith(unittest.TestCase):
 
     def test_no_depset_with_uses_package(self):
         """A dep-set with no ``with:`` gets the package-level config verbatim."""
-        py, node, handlers = self._effective("""
+        py, node, handlers, _env = self._effective("""
 package:
   name: mypkg
   with:
@@ -143,7 +143,7 @@ package:
         self.assertTrue(py.system_site_packages)
 
     def test_depset_venv_overrides_package_uv_to_skip(self):
-        py, _, _ = self._effective("""
+        py, _, _, _ = self._effective("""
 package:
   name: mypkg
   with:
@@ -159,7 +159,7 @@ package:
         self.assertEqual(py.venv, VenvMode.SKIP)
 
     def test_depset_venv_overrides_package_skip_to_uv(self):
-        py, _, _ = self._effective("""
+        py, _, _, _ = self._effective("""
 package:
   name: mypkg
   with:
@@ -174,7 +174,7 @@ package:
 
     def test_partial_override_merges_with_package(self):
         """Dep-set sets only venv; system-site-packages falls back to package."""
-        py, _, _ = self._effective("""
+        py, _, _, _ = self._effective("""
 package:
   name: mypkg
   with:
@@ -189,7 +189,7 @@ package:
         self.assertTrue(py.system_site_packages)  # inherited from package level
 
     def test_node_manager_override(self):
-        _, node, _ = self._effective("""
+        _, node, _, _ = self._effective("""
 package:
   name: mypkg
   with:
@@ -204,7 +204,7 @@ package:
 
     def test_plugin_handler_config_override(self):
         """A dep-set can override a plugin handler's config block."""
-        py, node, handlers = self._effective("""
+        py, node, handlers, _env = self._effective("""
 package:
   name: mypkg
   with:
@@ -235,7 +235,8 @@ package:
         # Simulate a clone-provided handler overlay merged onto the parsed
         # package-level handler_configs (project_ops does this before resolve).
         info.handler_configs["agents"] = {"skill-path": "x"}
-        py, node, handlers = resolve_effective_with(info, info.get_dep_set("ci"))
+        py, node, handlers, _env = resolve_effective_with(
+            info, info.get_dep_set("ci"))
         self.assertEqual(py.venv, VenvMode.SKIP)
         self.assertEqual(handlers.get("agents"), {"skill-path": "x"})
 
@@ -264,7 +265,7 @@ package:
             merged.with_raw,
             {"python": {"venv": False, "system-site-packages": True}})
         # And the resolved effective config reflects the merge.
-        py, _, _ = resolve_effective_with(info, merged)
+        py, _, _, _ = resolve_effective_with(info, merged)
         self.assertEqual(py.venv, VenvMode.SKIP)
         self.assertTrue(py.system_site_packages)
 
