@@ -25,7 +25,7 @@ from typing import ClassVar, Dict, List, Optional
 
 from ..package import Package, get_type_data
 from ..project_ops_info import ProjectUpdateInfo
-from ..utils import note, fatal
+from ..utils import note, fatal, getpkgdir, resolve_pkg_path
 from ..pkg_content_type import NodeTypeData
 from .package_handler import PackageHandler, HandlerFatalError
 from .handler_phases import HandlerPhase
@@ -191,16 +191,14 @@ class PackageHandlerNode(PackageHandler):
 
         json_path = getattr(pkg, "json_path", None)
         if json_path:
-            # Expand env vars and resolve relative paths against the project dir
-            json_path = os.path.expandvars(json_path)
-            if not os.path.isabs(json_path):
-                json_path = os.path.join(proj_dir, json_path)
-            path = json_path
+            # Expand env vars and resolve relative paths against the ivpm.yaml
+            # that declared the entry -- not against the root project.
+            path = resolve_pkg_path(pkg, json_path, proj_dir)
         else:
             url = getattr(pkg, "url", None)
             if not url:
-                # Default to the project root's package.json when no url is given
-                url = os.path.join(proj_dir, "package.json")
+                # Default to the declaring package's package.json when no url is given
+                url = os.path.join(getpkgdir(pkg, proj_dir), "package.json")
                 _logger.debug(
                     "src: package.json entry '%s' has no url — defaulting to '%s'",
                     pkg.name, url)
@@ -209,7 +207,7 @@ class PackageHandlerNode(PackageHandler):
             path = url
             if path.startswith("file://"):
                 path = path[len("file://"):]
-            path = os.path.expandvars(path)
+            path = resolve_pkg_path(pkg, path, proj_dir)
 
         if not os.path.isfile(path):
             raise HandlerFatalError(

@@ -411,3 +411,45 @@ class TestPT13Registered(unittest.TestCase):
         self.assertTrue(rgy.hasPkgType("pyproject.toml"))
         # Clean up so other tests aren't affected
         PkgTypeRgy._inst = None
+
+
+# ---------------------------------------------------------------------------
+# PT14 — Relative path resolves against the declaring ivpm.yaml
+# ---------------------------------------------------------------------------
+
+class TestPT14RelativePathBase(TestBase):
+    """A relative 'path:'/'url:' is authored relative to the ivpm.yaml that
+    declares it, not relative to the root project."""
+
+    def _pkg_with_srcinfo(self, opts, yaml_dir):
+        pkg = PackagePyprojectToml.create("proj_deps", opts, None)
+        pkg.srcinfo = MagicMock()
+        pkg.srcinfo.filename = os.path.join(yaml_dir, "ivpm.yaml")
+        return pkg
+
+    def test_PT14a_relative_path_uses_declaring_yaml_dir(self):
+        leaf_dir = os.path.join(self.data_dir, "pyproject_leaf1")
+        pkg = self._pkg_with_srcinfo(
+            {"path": "pyproject.toml", "include": ["dependencies"]}, leaf_dir)
+        handler = _make_handler()
+        # project_dir is a *different* directory that has no pyproject.toml
+        result = handler._harvest_pyproject_toml(pkg, _make_update_info(self.testdir))
+        self.assertIn("requests", {p.name for p in result})
+
+    def test_PT14b_relative_url_uses_declaring_yaml_dir(self):
+        leaf_dir = os.path.join(self.data_dir, "pyproject_leaf1")
+        pkg = self._pkg_with_srcinfo(
+            {"url": "pyproject.toml", "include": ["dependencies"]}, leaf_dir)
+        handler = _make_handler()
+        result = handler._harvest_pyproject_toml(pkg, _make_update_info(self.testdir))
+        self.assertIn("requests", {p.name for p in result})
+
+    def test_PT14c_no_srcinfo_falls_back_to_project_dir(self):
+        leaf_dir = os.path.join(self.data_dir, "pyproject_leaf1")
+        pkg = PackagePyprojectToml.create(
+            "proj_deps", {"path": "pyproject.toml", "include": ["dependencies"]}, None)
+        handler = _make_handler()
+        ui = _make_update_info(self.testdir)
+        ui.project_dir = leaf_dir
+        result = handler._harvest_pyproject_toml(pkg, ui)
+        self.assertIn("requests", {p.name for p in result})

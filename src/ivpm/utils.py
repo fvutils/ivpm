@@ -323,4 +323,24 @@ def getlocstr(e):
     else:
         return "<no-srcinfo>"
     pass
-    
+
+def getpkgdir(pkg, fallback : str = None):
+    """Return the directory of the ivpm.yaml that declared *pkg*.
+
+    Relative paths in a dep entry are authored relative to the file they
+    appear in, not to the root project. Falls back to *fallback* (typically
+    the root project dir) when the package carries no source info."""
+    si = getattr(pkg, "srcinfo", None)
+    filename = getattr(si, "filename", None) if si is not None else None
+    if filename:
+        return os.path.dirname(os.path.abspath(filename))
+    return fallback if fallback is not None else os.getcwd()
+
+def resolve_pkg_path(pkg, path : str, fallback : str = None):
+    """Expand env vars in *path* and resolve it relative to the ivpm.yaml
+    that declared *pkg*."""
+    path = os.path.expandvars(path)
+    if os.path.isabs(path):
+        return path
+    return os.path.join(getpkgdir(pkg, fallback), path)
+

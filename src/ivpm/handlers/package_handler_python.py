@@ -32,7 +32,7 @@ import shutil
 import sys
 from typing import ClassVar, Dict, List, Optional, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
-from ..utils import note, fatal, get_venv_python, setup_venv
+from ..utils import note, fatal, get_venv_python, setup_venv, resolve_pkg_path
 from ..pkg_content_type import PythonTypeData
 from ..package import get_type_data
 
@@ -120,11 +120,16 @@ import re as _re
 _PEP508_NAME_RE = _re.compile(r'^([A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?)')
 
 
-def _resolve_pyproject_url(url: str, proj_dir: str = None) -> str:
-    """Strip ``file://`` prefix and expand environment variables."""
+def _resolve_pyproject_url(url: str, pkg=None, proj_dir: str = None) -> str:
+    """Strip ``file://`` prefix, expand environment variables, and resolve a
+    relative path against the ivpm.yaml that declared *pkg*."""
+    from ..utils import resolve_pkg_path
+
     path = url
     if path.startswith("file://"):
         path = path[len("file://"):]
+    if pkg is not None:
+        return resolve_pkg_path(pkg, path, proj_dir)
     return os.path.expandvars(path)
 
 
@@ -280,16 +285,15 @@ class PackageHandlerPython(PackageHandler):
 
         from ..pkg_types.package_pypi import PackagePyPi
 
+        proj_dir = (getattr(update_info, "project_dir", None) or os.getcwd())
+
         toml_path = getattr(pkg, "toml_path", None)
         if toml_path:
-            proj_dir = (getattr(update_info, "project_dir", None) or os.getcwd())
-            toml_path = os.path.expandvars(toml_path)
-            if not os.path.isabs(toml_path):
-                toml_path = os.path.join(proj_dir, toml_path)
-            path = toml_path
+            # Relative paths are relative to the ivpm.yaml that declared the
+            # entry -- not to the root project.
+            path = resolve_pkg_path(pkg, toml_path, proj_dir)
         else:
-            url = pkg.url
-            path = _resolve_pyproject_url(url)
+            path = _resolve_pyproject_url(pkg.url, pkg, proj_dir)
         if not os.path.isfile(path):
             source_ref = getattr(pkg, "toml_path", None) or getattr(pkg, "url", None) or "<unknown>"
             fatal(
