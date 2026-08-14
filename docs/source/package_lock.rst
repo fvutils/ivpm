@@ -397,13 +397,32 @@ in ``python_packages``.
 Format Versioning
 =================
 
-The ``ivpm_lock_version`` field guards against schema changes.  IVPM will
-reject lock files with an unrecognised version number and emit a clear error:
+The ``ivpm_lock_version`` field guards against schema changes.  IVPM writes
+version **2** and reads versions 1 and 2; anything else is rejected with a
+clear error:
 
 .. code-block:: text
 
-    ValueError: package-lock.json version 2 is not supported (expected 1).
-    Please regenerate the lock file with this version of ivpm.
+    ValueError: package-lock.json version 99 is not supported (expected one
+    of: 1, 2). Please regenerate the lock file with this version of ivpm.
+
+Version 2 keys the ``packages`` map by **scope path** rather than by bare
+package name, and records the package name in an explicit ``name`` field.  In
+a flat workspace a scope path *is* the bare name, so a v2 lock for a flat
+project is shape-identical to a v1 one:
+
+.. code-block:: text
+
+    "packages": {
+      "libA":                { "name": "libA", ... },
+      "toolB":               { "name": "toolB", "deps_mode": "nested",
+                               "deps_dir": "packages", ... },
+      "toolB/packages/libA": { "name": "libA", "scope": "toolB/packages", ... }
+    }
+
+The scope-path key is what lets one lock record two versions of one package.
+Entries may also carry ``cycle_elided``, naming the enclosing scope that
+already provides the package.  See :doc:`nested_deps`.
 
 See Also
 ========

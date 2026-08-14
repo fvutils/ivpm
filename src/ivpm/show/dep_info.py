@@ -44,6 +44,13 @@ class DepNode:
     cache: Optional[bool] = None
     dep_set: Optional[str] = None              # dep-set used for this pkg's sub-deps
 
+    # Nested-dependency fields (nested-deps-design.md §7.5)
+    scope: str = ""                            # scope path prefix; "" at the root
+    nested: bool = False                       # opened a nested scope of its own
+    # Set when the resolver stopped descending because an enclosing scope
+    # already provides this package: the scope path it is provided at.
+    cycle_elided: Optional[str] = None
+
     # Sub-dependencies (populated in tree mode; empty for flat/detail)
     deps: List['DepNode'] = dc.field(default_factory=list)
 

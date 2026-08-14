@@ -189,6 +189,33 @@ When ``true``, the created venv can see packages installed in the base Python
 When ``true``, the pip/uv install passes ``--pre`` to allow pre-release package
 versions.  Equivalent to the CLI flag ``--py-prerls-packages``.
 
+Nesting Does Not Isolate Python
+================================
+
+.. warning::
+
+   :doc:`Nested dependency scopes <nested_deps>` isolate the *dependency
+   tree*, not the Python environment.
+
+A workspace has exactly one virtual environment, and one venv cannot hold two
+versions of the same distribution -- ``import foo`` resolves to whichever one
+was installed.  So if two dependency scopes contribute the same Python
+distribution, IVPM warns, names both scopes, and installs the one nearest the
+root:
+
+.. code-block:: text
+
+    warning: Python distribution 'libA' is contributed by two dependency
+    scopes: 'libA' and 'toolB/packages/libA'. Nesting isolates the dependency
+    tree, but not the Python environment -- one venv cannot hold two versions
+    of a distribution. Installing 'libA'; the other will not be importable.
+
+If both really need their own version, they need separate workspaces (or
+separate virtual environments) -- ``deps-mode: nested`` cannot deliver that.
+Nesting is most useful for non-Python content: source libraries, HDL,
+toolchains, data.
+
+
 Editable vs Binary Packages
 ============================
 
@@ -844,4 +871,5 @@ See Also
 - :doc:`getting_started` - Basic Python package setup
 - :doc:`dependency_sets` - Organizing Python and non-Python deps
 - :doc:`package_types` - PyPI package configuration
+- :doc:`nested_deps` - Why nesting does not give per-scope Python isolation
 - :doc:`troubleshooting` - Solutions to Python package problems

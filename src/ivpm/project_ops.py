@@ -31,7 +31,7 @@ from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from .update_event import UpdateEventDispatcher
 from .update_tui import create_update_tui, RichUpdateTUI
 from .utils import fatal, info, note, warning
-from .package_lock import write_lock, check_lock_changes
+from .package_lock import write_lock, check_lock_changes, _entry_name
 
 _logger = logging.getLogger("ivpm.project_ops")
 
@@ -119,12 +119,17 @@ class ProjectOps(object):
                     for d in proj_info.dep_set_m[self.dep_set].packages.keys():
                         _logger.debug("  Package: %s", d)
 
+            scope_pins = {}
             if lock_file:
                 # Reproduction mode: use lock file as the sole package source
                 from .package_lock import IvpmLockReader
                 note("Reproducing workspace from lock file: %s" % lock_file)
                 lock_reader = IvpmLockReader(lock_file)
                 ds = lock_reader.build_packages_info()
+                # Nested entries describe a sub-tree the boundary's own
+                # manifest rebuilds; carry them as version pins so the rebuilt
+                # tree lands on the locked identities.
+                scope_pins = lock_reader.scope_pins()
             else:
                 with perf.span("depset.resolve"):
                     dep_sets, ds = self._getDepSets(proj_info, dep_sets)
@@ -140,7 +145,9 @@ class ProjectOps(object):
                         note("No packages re-fetched. Use --refresh-all to update.")
 
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
-            updater = PackageUpdater(deps_dir, pkg_handler, args=args)
+            updater = PackageUpdater(deps_dir, pkg_handler, args=args,
+                                     deps_mode=proj_info.deps_mode)
+            updater.scope_pins = scope_pins
 
             # Plumb root-project info onto the updater's update_info (the
             # instance packages receive) so the session cache provider knows
@@ -216,7 +223,7 @@ class ProjectOps(object):
                 pkg_handler.on_root_pre_load(handler_update_info)
 
             # Prevent an attempt to load the top-level project as a depedency
-            updater.all_pkgs[proj_info.name] = None
+            updater.exclude_root_project(proj_info.name)
             # The fetch phase runs packages on worker threads; hand its span_id
             # to update_info so per-package spans parent onto it across the
             # executor boundary.
@@ -306,10 +313,11 @@ class ProjectOps(object):
         dep_set, ds = self._getDepSet(proj_info, dep_set)
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
-        updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False)
+        updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False,
+                                 deps_mode=proj_info.deps_mode)
 
         # Prevent an attempt to load the top-level project as a depedency
-        updater.all_pkgs[proj_info.name] = None
+        updater.exclude_root_project(proj_info.name)
         pkgs_info = updater.update(ds)
 
         # Now, run the actual build operation
@@ -408,28 +416,36 @@ class ProjectOps(object):
         rgy = PkgTypeRgy.inst()
 
         results = []
-        for name, entry in packages.items():
+        # Lock keys are scope paths -- a bare name in a flat workspace, else
+        # the package's path relative to the deps-dir. So the key doubles as
+        # the location AND as the label that keeps two same-named packages in
+        # different scopes distinguishable.
+        for key, entry in packages.items():
             src = entry.get("src", "")
+            pkg_name = _entry_name(key, entry)
             if not rgy.hasPkgType(src):
                 results.append(PkgVcsStatus(
-                    name=name,
+                    name=key,
                     src_type=src,
-                    path=os.path.join(deps_dir, name),
+                    path=os.path.join(deps_dir, key),
                     vcs="none",
                     from_deps_source=entry.get("from_deps_source"),
                 ))
                 continue
 
-            pkg = rgy.mkPackage(src, name, entry, None)
-            pkg.path = os.path.join(deps_dir, name)
+            pkg = rgy.mkPackage(src, pkg_name, entry, None)
+            pkg.path = os.path.join(deps_dir, key)
+            pkg.scope_key = key
             result = pkg.status(status_info)
             if result is None:
                 result = PkgVcsStatus(
-                    name=name,
+                    name=key,
                     src_type=src,
                     path=pkg.path,
                     vcs="none",
                 )
+            else:
+                result.name = key
             if entry.get("from_deps_source"):
                 result.from_deps_source = entry["from_deps_source"]
             results.append(result)
@@ -549,8 +565,12 @@ class ProjectOps(object):
         if has_lock:
             lock = read_lock(lock_path)
             rgy = PkgTypeRgy.inst()
-            for name, entry in lock.get("packages", {}).items():
+            # Keyed by scope path, so the safety gate runs over every package
+            # in the tree -- nested ones included -- and each pkg.path is the
+            # location the key names.
+            for key, entry in lock.get("packages", {}).items():
                 src = entry.get("src", "")
+                name = _entry_name(key, entry)
                 # Normalize http-archive aliases the same way sync() does.
                 if src in ("tgz", "txz", "zip", "jar", "http"):
                     src = "url"
@@ -559,7 +579,8 @@ class ProjectOps(object):
                 else:
                     pkg = Package(name)
                     pkg.src_type = src or "non-vcs"
-                pkg.path = os.path.join(deps_dir, name)
+                pkg.path = os.path.join(deps_dir, key)
+                pkg.scope_key = key
                 if entry.get("from_deps_source"):
                     pkg.from_deps_source = entry["from_deps_source"]
                 packages.append(pkg)
@@ -647,13 +668,18 @@ class ProjectOps(object):
                 return RemovalSafety(SafetyLevel.BLOCKED,
                     [SafetyReason("gate-error", label=str(e))])
 
-        on_start = (lambda p: progress.on_gate_start(p.name)) if progress else None
-        on_done = ((lambda p, r: progress.on_gate_result(p.name, r))
+        from .handlers.scope_keys import pkg_key
+
+        on_start = (lambda p: progress.on_gate_start(pkg_key(p))) if progress else None
+        on_done = ((lambda p, r: progress.on_gate_result(pkg_key(p), r))
                    if progress else None)
 
         verdicts = self._parallel_map(pkgs, _fn, ctx["jobs"], on_start, on_done)
 
-        gate = {pkg.name: v for pkg, v in zip(pkgs, verdicts)}
+        # Keyed by scope path, not bare name: two same-named packages in
+        # different scopes must both appear, or a BLOCKED verdict on one of
+        # them could be silently overwritten by a SAFE verdict on the other.
+        gate = {pkg_key(pkg): v for pkg, v in zip(pkgs, verdicts)}
         blocked = (not ctx["force"]) and any(
             v.level == SafetyLevel.BLOCKED for v in gate.values())
         return gate, blocked
@@ -700,11 +726,15 @@ class ProjectOps(object):
         progress = getattr(remove_info, "progress", None)
 
         # Teardown each package IN PARALLEL — one provider error does not abort
-        # the others. Per-package remove() is independent today; the deps_dir /
-        # root rmtree below is the barrier that runs after all packages.
-        # NOTE: when worktree/submodule teardown overrides land (post-MVP), a
-        # child must be removed before its parent — at that point this map needs
-        # leaf-first ordering, not a flat parallel sweep.
+        # the others. The deps_dir / root rmtree below is the barrier that runs
+        # after all packages.
+        #
+        # Ordering is LEAF-FIRST by scope depth: a nested package physically
+        # lives inside its boundary's directory, so removing the two
+        # concurrently races (the parent's rmtree walks a tree another thread
+        # is deleting). Packages at the same depth are independent and still
+        # run in parallel. A flat workspace is all one depth, so this is
+        # exactly the previous single parallel sweep.
         def _fn(pkg):
             try:
                 return pkg.remove(remove_info)
@@ -718,8 +748,15 @@ class ProjectOps(object):
         on_start = (lambda p: progress.on_remove_start(p.name)) if progress else None
         on_done = ((lambda p, r: progress.on_remove_result(r))
                    if progress else None)
-        report.results = self._parallel_map(
-            ctx["packages"], _fn, ctx["jobs"], on_start, on_done)
+
+        from .handlers.scope_keys import pkg_key
+        by_depth = {}
+        for pkg in ctx["packages"]:
+            by_depth.setdefault(pkg_key(pkg).count("/"), []).append(pkg)
+        report.results = []
+        for depth in sorted(by_depth.keys(), reverse=True):
+            report.results.extend(self._parallel_map(
+                by_depth[depth], _fn, ctx["jobs"], on_start, on_done))
 
         # Handler teardown (venv, node_modules, ...).
         try:
@@ -792,9 +829,13 @@ class ProjectOps(object):
         rgy = PkgTypeRgy.inst()
 
         # Filter the package list once.
+        # A filter may name either the bare package name or its full scope
+        # path, so `--packages libA` still reaches a nested libA.
         pkg_items = [
-            (name, entry) for name, entry in packages.items()
-            if not packages_filter or name in packages_filter
+            (key, entry) for key, entry in packages.items()
+            if not packages_filter
+            or key in packages_filter
+            or _entry_name(key, entry) in packages_filter
         ]
 
         if not pkg_items:
@@ -807,10 +848,15 @@ class ProjectOps(object):
             semaphore = asyncio.Semaphore(n_workers)
             loop = asyncio.get_event_loop()
 
-            async def _run_one(name, entry):
+            async def _run_one(key, entry):
                 async with semaphore:
+                    # The key is the scope path: the package's location under
+                    # deps_dir, and the label that keeps two same-named
+                    # packages distinguishable. In a flat workspace it is just
+                    # the package name.
+                    name = _entry_name(key, entry)
                     if progress:
-                        progress.on_pkg_start(name)
+                        progress.on_pkg_start(key)
                     src = entry.get("src", "")
                     # Normalize src aliases that appear in lock files but aren't
                     # registered directly (http archive types → "url").
@@ -820,8 +866,8 @@ class ProjectOps(object):
                     # of someone else's tree — there is nothing to sync.
                     if entry.get("from_deps_source"):
                         result = PkgSyncResult(
-                            name=name, src_type=src,
-                            path=os.path.join(deps_dir, name),
+                            name=key, src_type=src,
+                            path=os.path.join(deps_dir, key),
                             outcome=SyncOutcome.SKIPPED,
                             skipped_reason="materialized from deps-source %s" %
                                 entry["from_deps_source"],
@@ -832,17 +878,20 @@ class ProjectOps(object):
                         )
                     elif not rgy.hasPkgType(src):
                         result = PkgSyncResult(
-                            name=name, src_type=src,
-                            path=os.path.join(deps_dir, name),
+                            name=key, src_type=src,
+                            path=os.path.join(deps_dir, key),
                             outcome=SyncOutcome.SKIPPED,
                             skipped_reason=src or "non-git",
                         )
                     else:
                         pkg = rgy.mkPackage(src, name, entry, None)
-                        pkg.path = os.path.join(deps_dir, name)
+                        pkg.path = os.path.join(deps_dir, key)
+                        pkg.scope_key = key
                         result = await loop.run_in_executor(
                             None, pkg.sync, sync_info
                         )
+                        if result is not None:
+                            result.name = key
                     if progress:
                         progress.on_pkg_result(result)
                     return result

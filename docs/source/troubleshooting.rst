@@ -264,6 +264,78 @@ record existed.  ``ivpm update`` needs a manifest (or a reproducible
 
 See :ref:`bare-workspaces` for details.
 
+"Dependency cycle elided"
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:**
+
+.. code-block:: text
+
+    note: Dependency cycle elided at 'toolB/packages/libA': it is already
+    provided by the enclosing scope '<root>'. Its dependencies were not
+    resolved again.
+
+**Cause:** With :doc:`nested dependency scopes <nested_deps>`, a package was
+about to be resolved into a scope whose ancestors already provide the *same
+package at the same resolved version*.  Descending would just repeat a
+sub-tree that already exists further up.
+
+**This is a note, not an error.**  The package is still materialized; only its
+sub-dependencies are skipped, because they are already present above it.
+Flattening hides these cycles entirely (name deduplication absorbs them), so
+seeing this only means nesting made an existing cycle visible.
+
+**Action:** none required.  If the repetition is unintended, break the cycle in
+the manifests, or resolve that sub-tree with ``deps-mode: flatten``.
+
+Nested dependency depth limit exceeded
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:**
+
+.. code-block:: text
+
+    fatal: Nested dependency depth limit (32) exceeded while resolving 'libA'.
+      Chain: root -> toolB -> libA -> toolC -> libA ...
+
+**Cause:** Every level of the chain resolved a *different* version, so the
+cycle guard (which stops on a repeated identity) never terminated the descent.
+This almost always means a floating spec -- a branch or ``latest`` -- is
+resolving to something new at each level.
+
+**Solutions:**
+
+1. **Pin the version** of the package named in the chain (a tag or commit
+   rather than a branch), so the repeat is recognisable.
+2. **Flatten that sub-tree** with ``deps-mode: flatten``.
+3. **Raise the limit**, if the depth is genuinely legitimate:
+
+   .. code-block:: bash
+
+       $ IVPM_MAX_DEP_DEPTH=64 ivpm update
+
+"is a live link" when nesting a directory package
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:**
+
+.. code-block:: text
+
+    fatal: Package 'libC' is resolved with 'deps-mode: nested', but it is a
+    live link to /home/me/work/libC.
+
+**Cause:** A ``src: dir`` dependency uses ``link: true`` by default, so the
+package in ``packages/`` is a symlink to your own working copy.  A nested
+package must own its directory in order to hold a deps-dir.  IVPM refuses
+rather than copying (which would silently detach your edits from the
+workspace) or nesting into the target (which would write a deps-dir into your
+source tree).
+
+**Solutions:**
+
+1. Set ``link: false`` on the dependency, so IVPM copies it; or
+2. Resolve it with ``deps-mode: flatten``.
+
 Python Package Issues
 ---------------------
 

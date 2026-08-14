@@ -29,6 +29,7 @@ from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
+from .scope_keys import pkg_key
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_modules")
 
@@ -85,7 +86,7 @@ class PackageHandlerModules(PackageHandler):
         if module_spec is None:
             return
         with self._lock:
-            self.module_pkgs[pkg.name] = module_spec
+            self.module_pkgs[pkg_key(pkg)] = module_spec
 
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         deps_dir = update_info.deps_dir

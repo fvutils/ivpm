@@ -15,11 +15,12 @@ from .variables import resolve_variables
 from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
 from ivpm.pkg_content_type import parse_type_field
+from ivpm.dep_mode import parse_deps_mode
 
 # Valid keys at the ``package:`` level in ivpm.yaml.
 _KNOWN_PACKAGE_KEYS = {
     "name", "description", "version", "type", "with",
-    "deps-dir", "default-dep-set",
+    "deps-dir", "deps-mode", "default-dep-set",
     "dep-sets", "setup-deps",
     "paths", "env",
     "vars", "include",
@@ -347,6 +348,13 @@ class IvpmYamlReader(object):
         if "deps-dir" in pkg.keys():
             ret.deps_dir = pkg["deps-dir"]
 
+        # How dependencies resolved beneath this package are placed. None means
+        # "not declared" -- the enclosing scope's mode is inherited.
+        # Located against the enclosing node: variable substitution rebuilds
+        # scalar strings, so the value itself no longer carries srcinfo.
+        if "deps-mode" in pkg.keys():
+            ret.deps_mode = parse_deps_mode(pkg["deps-mode"], pkg)
+
         if "default-dep-set" in pkg.keys():
             ret.default_dep_set = pkg["default-dep-set"]
         
@@ -660,6 +668,10 @@ class IvpmYamlReader(object):
                 parse_with_section(
                     ds_ent["with"], name, "dep-set '%s'" % ds_name)
 
+            if "deps-mode" in ds_ent.keys():
+                # Applies to the dependencies of this dep-set's packages.
+                ds.deps_mode = parse_deps_mode(ds_ent["deps-mode"], ds_ent)
+
             if "default-dep-set" in ds_ent.keys():
                 default_dep_set = ds_ent["default-dep-set"]
 
@@ -816,6 +828,17 @@ class IvpmYamlReader(object):
                             pkg.name, type_name, getlocstr(d["type"]),
                             ", ".join(ct_rgy.names())))
                     pkg.type_data.append(ct_rgy.get(type_name).create_data(opts, si))
+
+            # A 'src: ivpm.yaml' factory contributes deps without occupying a
+            # directory, so it has nowhere to host a nested deps-dir.
+            if getattr(pkg, "virtual", False) and pkg.deps_mode is not None:
+                fatal(
+                    "Package '%s': 'deps-mode' is not valid on a '%s' dependency @ %s\n"
+                    "  A dep-set factory occupies no directory and so cannot open "
+                    "a nested scope. Declare 'deps-mode' on the packages it "
+                    "contributes, or in their manifests." % (
+                        pkg.name, src, getlocstr(d)),
+                    d)
 
             # Capture per-dep agents config (skill-path override / non-IVPM dep declaration)
             if "agents" in d.keys():

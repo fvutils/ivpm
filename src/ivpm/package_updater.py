@@ -36,6 +36,10 @@ from ivpm.proj_info import ProjInfo
 from typing import Dict, List, Tuple
 from ivpm.utils import get_venv_python
 from .project_ops_info import ProjectUpdateInfo
+from .dep_mode import FLATTEN
+from .dep_materialize import promote_to_writable
+from .dep_scope import (
+    DepScope, check_recursion, effective_mode, is_nested, scope_path)
 
 _logger = logging.getLogger("ivpm.package_updater")
 
@@ -64,15 +68,25 @@ def _origin_suffix(pkg) -> str:
 
 class PackageUpdater(object):
     
-    def __init__(self, 
-                 deps_dir, 
+    def __init__(self,
+                 deps_dir,
                  pkg_handler,
                  load=True,
-                 args=None):
+                 args=None,
+                 deps_mode=None):
         self.debug = False
         self.deps_dir = deps_dir
         self.pkg_handler = pkg_handler
         self.all_pkgs = PackagesInfo("root")
+        # scope path -> locked entry, for reproducing a nested workspace.
+        # Empty for a normal update and for every flat workspace.
+        self.scope_pins = {}
+        # The root dependency scope. A flat workspace has only this one, and
+        # scope_path() over it yields bare package names -- so all_pkgs keys,
+        # lock keys and on-disk layout are unchanged from before nesting.
+        self.root_scope = DepScope(
+            name="", deps_dir=deps_dir, parent=None,
+            mode=deps_mode if deps_mode is not None else FLATTEN)
         self.new_deps = []
         self.args = object() if args is None else args
         self.load = load
@@ -102,14 +116,21 @@ class PackageUpdater(object):
         """
         count = 1
 
-        pkg_q = []
-        
+        # The queue carries (package, scope): which deps-dir the package
+        # resolves into and which namespace it belongs to.
+        pkg_q : List[Tuple[Package, DepScope]] = []
+
         if len(pkgs.keys()) == 0:
             _logger.info("No packages")
 
+        # A dep-set-level 'deps-mode' on the root project's selected dep-set
+        # sets the root scope's mode, so it propagates to everything below.
+        if getattr(pkgs, "deps_mode", None) is not None:
+            self.root_scope.mode = pkgs.deps_mode
+
         for key in pkgs.keys():
             _logger.debug("Package: %s", key)
-            pkg_q.append(pkgs[key])
+            pkg_q.append((pkgs[key], self.root_scope))
 
         if not os.path.isdir(self.deps_dir):
             os.makedirs(self.deps_dir)
@@ -124,10 +145,15 @@ class PackageUpdater(object):
             if len(pkg_q) > 0:
                 results = await self._process_batch_parallel(pkg_q, semaphore)
                 
-                # Collect dependencies from results
-                for pkg, proj_info in results:
-                    self.all_pkgs[pkg.name] = pkg
-                    
+                # Collect dependencies from results.
+                #
+                # This step runs on the MAIN loop, never in a worker thread --
+                # which is what lets the scope tree be mutated here without any
+                # locking (nested-deps-impl-plan.md P2).
+                for pkg, scope, proj_info in results:
+                    self.all_pkgs[scope_path(scope, pkg.name)] = pkg
+                    scope.packages[pkg.name] = pkg
+
                     # proj_info contains info on any setup-deps that
                     # might be required
                     if proj_info is not None:
@@ -140,7 +166,7 @@ class PackageUpdater(object):
                         if proj_info.process_deps:
                             if not proj_info.has_dep_set(pkg.dep_set):
                                 fatal("package %s in %s does not contain specified dep-set %s" % (
-                                    proj_info.name, 
+                                    proj_info.name,
                                     pkg.name,
                                     pkg.dep_set))
                                 continue
@@ -149,29 +175,42 @@ class PackageUpdater(object):
 
                             note("Processing dep-set %s of project %s" % (
                                 pkg.dep_set,
-                                pkg.name))                        
+                                pkg.name))
 
                             ds : PackagesInfo = proj_info.get_dep_set(pkg.dep_set)
+
+                            dep_scope = self._scope_for_deps(pkg, scope, proj_info, ds)
+                            if dep_scope is None:
+                                # Cycle elided: the package is materialized, but
+                                # its sub-tree is already present further up.
+                                continue
+
                             for d in ds.packages.keys():
                                 dep = ds.packages[d]
-                        
-                                if dep.name not in pkg_deps.keys():
+                                dep_key = scope_path(dep_scope, dep.name)
+
+                                if dep_key not in pkg_deps.keys():
                                     # Track which package caused this dependency to be resolved
                                     dep.resolved_by = pkg.name
-                                    pkg_deps[dep.name] = dep
+                                    dep.resolved_by_key = scope_path(scope, pkg.name)
+                                    self._apply_scope_pin(dep, dep_key)
+                                    pkg_deps[dep_key] = (dep, dep_scope)
                                 else:
                                     # Already resolved by a higher-level package - don't override
                                     pass
-            
+
             # Collect new dependencies and add to queue
             pkg_q = []
             for key in pkg_deps.keys():
-                dep = pkg_deps[key]
-                existing = self.all_pkgs.packages.get(key)
+                dep, dep_scope = pkg_deps[key]
+                # Dedup is per-scope: the same name in two scopes is two
+                # different packages, which is the point of nesting.
+                existing = dep_scope.packages.get(dep.name)
                 if existing is None:
                     # New package
-                    pkg_q.append(dep)
-                elif getattr(existing, "virtual", False) and not getattr(dep, "virtual", False):
+                    pkg_q.append((dep, dep_scope))
+                elif getattr(existing, "virtual", False) \
+                        and not getattr(dep, "virtual", False):
                     # A real package whose name collides with a virtual redirect
                     # (`src: ivpm.yaml` factory) of the same name. The redirect
                     # installs nothing itself, so it must not shadow the real
@@ -179,7 +218,7 @@ class PackageUpdater(object):
                     # (e.g. a `gcc-riscv` alias pointing at a dep-set that also
                     # contains a `gcc-riscv` package). Queue the real package so
                     # it is fetched; it will overwrite the virtual node below.
-                    pkg_q.append(dep)
+                    pkg_q.append((dep, dep_scope))
             note("%d new dependencies from iteration %d" % (len(pkg_q), count))
                     
             if len(pkg_q) == 0:
@@ -190,18 +229,125 @@ class PackageUpdater(object):
             
         return self.all_pkgs
     
-    async def _process_batch_parallel(self, pkg_q: List[Package], semaphore: asyncio.Semaphore) -> List[Tuple[Package, ProjInfo]]:
+    def exclude_root_project(self, name: str) -> None:
+        """Prevent the top-level project from being loaded as a dependency of
+        itself.
+
+        Root-scope-keyed on purpose: a package *nested* under some other
+        boundary that happens to share the root project's name is a different
+        package, and must not be caught by this marker.
+        """
+        self.root_scope.packages[name] = None
+        self.all_pkgs[scope_path(self.root_scope, name)] = None
+
+    def _apply_scope_pin(self, dep, dep_key: str) -> None:
+        """Pin *dep* to the identity a lock file recorded for its scope path.
+
+        Reproduction mode seeds the root scope from the lock and lets the
+        manifests rebuild the nested tree; this is what makes the *versions* in
+        that rebuilt tree match the lock. Only resolved identity is pinned --
+        never the url or spec -- and only when the source type still agrees, so
+        a genuine manifest change is not silently overridden.
+        """
+        entry = self.scope_pins.get(dep_key)
+        if entry is None:
+            return
+
+        src = getattr(dep, "src_type", None) or ""
+        if hasattr(src, "name"):
+            from .package import SourceType2Spec
+            src = SourceType2Spec.get(src, src.name.lower())
+        if str(src) != entry.get("src", ""):
+            return
+
+        if src == "git":
+            commit = entry.get("commit_resolved")
+            if commit:
+                dep.commit = commit
+                dep.resolved_commit = commit
+        elif src in ("gh-rls", "pypi"):
+            version = entry.get("version_resolved")
+            if version:
+                dep.version = version
+                dep.resolved_version = version
+
+    def _scope_for_deps(self, pkg, scope: DepScope, proj_info,
+                        ds: PackagesInfo) -> 'Optional[DepScope]':
+        """Which scope *pkg*'s own dependencies resolve into.
+
+        Returns *scope* itself under ``flatten`` (today's behavior), a freshly
+        opened child scope under ``nested``, or None when descending would
+        repeat a sub-tree already resolved further up.
+
+        Runs on the main loop only -- see P2.
+        """
+        if not ds.packages:
+            # Nothing to place. Opening a scope here would leave an empty
+            # deps-dir inside a leaf package -- and, worse, would promote a
+            # cached leaf out of the cache for no reason.
+            return scope
+
+        mode = effective_mode(pkg, scope)
+        if not is_nested(mode):
+            return scope
+
+        if getattr(pkg, "virtual", False):
+            # A factory occupies no directory, so it has nowhere to nest into.
+            # Declaring deps-mode on one is rejected at parse time; inheriting
+            # it here is legitimate and simply does not apply.
+            return scope
+
+        elided_at = check_recursion(pkg, scope)
+        if elided_at is not None:
+            pkg.cycle_elided = elided_at
+            note(
+                "Dependency cycle elided at '%s': it is already provided by "
+                "the enclosing scope '%s'. Its dependencies were not resolved "
+                "again." % (
+                    scope_path(scope, pkg.name),
+                    elided_at if elided_at else "<root>"))
+            return None
+
+        # A boundary must be a real, writable directory to host a deps-dir.
+        # It may currently be a symlink into the cache or a deps-source (P1).
+        #
+        # A live-link package (`src: dir` with the default `link: true`) is the
+        # user's own working copy. Copying it would silently detach their edits
+        # from the workspace, and nesting into it would write a deps-dir inside
+        # their source tree. Neither is ours to choose, so say so instead.
+        if os.path.islink(pkg.path) and getattr(pkg, "link", False):
+            fatal(
+                "Package '%s' is resolved with 'deps-mode: nested', but it is a "
+                "live link to %s.\n"
+                "  A nested package must own its directory so it can hold its "
+                "own deps-dir. Either set 'link: false' on the dependency (ivpm "
+                "then copies it), or resolve it with 'deps-mode: flatten'." % (
+                    scope_path(scope, pkg.name), os.path.realpath(pkg.path)),
+                pkg)
+
+        promote_to_writable(pkg)
+
+        deps_dir_name = getattr(proj_info, "deps_dir", None) or "packages"
+        # Mark the package as a boundary, so the lock records the *effective*
+        # mode rather than merely what some dep entry declared.
+        pkg.boundary_deps_dir = deps_dir_name
+        child = scope.open_child(pkg, deps_dir_name, mode)
+        if not os.path.isdir(child.deps_dir):
+            os.makedirs(child.deps_dir, exist_ok=True)
+        return child
+
+    async def _process_batch_parallel(self, pkg_q: List[Tuple[Package, DepScope]], semaphore: asyncio.Semaphore) -> List[Tuple[Package, DepScope, ProjInfo]]:
         """Process a batch of packages in parallel."""
         tasks = []
-        for pkg in pkg_q:
-            tasks.append(self._update_pkg_async(pkg, semaphore))
-        
+        for pkg, scope in pkg_q:
+            tasks.append(self._update_pkg_async(pkg, scope, semaphore))
+
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Process results, handling any exceptions
         processed = []
         for i, result in enumerate(results):
-            pkg = pkg_q[i]
+            pkg = pkg_q[i][0]
             if isinstance(result, Exception):
                 # The per-package PACKAGE_ERROR event was already dispatched by
                 # _update_pkg (closest to the failure, with source location), so
@@ -218,7 +364,7 @@ class PackageUpdater(object):
 
         return processed
     
-    async def _update_pkg_async(self, pkg: Package, semaphore: asyncio.Semaphore) -> Tuple[Package, ProjInfo]:
+    async def _update_pkg_async(self, pkg: Package, scope: DepScope, semaphore: asyncio.Semaphore) -> Tuple[Package, DepScope, ProjInfo]:
         """Async wrapper for updating a single package with semaphore limiting."""
         # Measure the real "wait" — time queued for a worker slot (there is no
         # cache lock to wait on). This span opens/closes on the event-loop
@@ -234,10 +380,10 @@ class PackageUpdater(object):
             if qspan is not None:
                 perf.close_span(qspan)
             return await asyncio.get_event_loop().run_in_executor(
-                None, self._update_pkg, pkg
+                None, self._update_pkg, pkg, scope
             )
-    
-    def _update_pkg(self, pkg : Package) -> Tuple[Package, ProjInfo]:
+
+    def _update_pkg(self, pkg : Package, scope : DepScope) -> Tuple[Package, DepScope, ProjInfo]:
         """Loads a single package. Returns the package and any dependencies."""
         must_update=False
 
@@ -258,14 +404,25 @@ class PackageUpdater(object):
         # Signal package start
         self.update_info.package_start(pkg.name, pkg_type, pkg_src)
 
-        pkg_dir = os.path.join(self.deps_dir, pkg.name)
+        # Every source provider builds its own paths from update_info.deps_dir,
+        # so handing it a scope view is what makes all ~77 of those call sites
+        # scope-correct without touching any of them. Returns self (the very
+        # same object) for the root scope, so flat updates are unchanged.
+        update_info = self.update_info.scope_view(scope.deps_dir, scope.path)
+
+        pkg_dir = os.path.join(scope.deps_dir, pkg.name)
         pkg.path = pkg_dir.replace("\\", "/")
+        # Handlers key on this rather than on the bare name, which stops two
+        # same-named packages in different scopes from silently overwriting
+        # each other in the venv / envrc / flow-map accumulations. In a flat
+        # workspace it IS the bare name.
+        pkg.scope_key = scope_path(scope, pkg.name)
 
         try:
             # Notify handler before the package is fetched
-            self.pkg_handler.on_leaf_pre_load(pkg, self.update_info)
+            self.pkg_handler.on_leaf_pre_load(pkg, update_info)
 
-            pkg.proj_info = pkg.update(self.update_info)
+            pkg.proj_info = pkg.update(update_info)
 
             # Merge self-declared types from the dep's own ivpm.yaml into pkg.type_data.
             # Caller-specified types take priority; self-declared ones are appended only
@@ -281,7 +438,7 @@ class PackageUpdater(object):
             # Notify the package handlers after the source is loaded
             from .handlers.package_handler import HandlerFatalError
             try:
-                self.pkg_handler.on_leaf_post_load(pkg, self.update_info)
+                self.pkg_handler.on_leaf_post_load(pkg, update_info)
             except HandlerFatalError:
                 raise
             except Exception as leaf_exc:
@@ -295,8 +452,8 @@ class PackageUpdater(object):
             # Signal package complete, passing resolved version if available (e.g., gh-rls)
             resolved_version = getattr(pkg, 'resolved_version', None)
             self.update_info.package_complete(pkg.name, version=resolved_version)
-            
-            return (pkg, pkg.proj_info)
+
+            return (pkg, scope, pkg.proj_info)
         except Exception as e:
             # Signal package error, carrying the dependency's source location so
             # the TUI can show file:line:col alongside the message.

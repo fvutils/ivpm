@@ -1,0 +1,11 @@
+package:
+  name: nested_cyc_b
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: nested_cyc_a
+          url: file://${DATA_DIR}/nested_cyc_a
+          src: dir
+          link: false
+    - name: default
+      deps: []

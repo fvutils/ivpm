@@ -1,0 +1,11 @@
+package:
+  name: nested_libC
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: nested_libD
+          url: file://${DATA_DIR}/nested_libD
+          src: dir
+          link: false
+    - name: default
+      deps: []

@@ -25,6 +25,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    handlers
    agent_plugins
    dependency_sets
+   nested_deps
    remote_catalogs
    multi_file
    variables

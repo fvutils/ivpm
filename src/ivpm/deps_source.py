@@ -94,11 +94,16 @@ class DepsSource:
             return None
         return cls([DepsSourceEntry.load(p, trust=trust) for p in paths])
 
-    def lookup(self, pkg) -> Optional[str]:
+    def lookup(self, pkg, scope_path: Optional[str] = None) -> Optional[str]:
         """Return realpath of ``<parent>/<pkg.name>`` from the first source
         whose lock entry's resolved identity matches ``pkg`` (or, in trust
         mode, the first source that has a same-named entry).  Returns
         ``None`` if no source satisfies the request.
+
+        *scope_path* is the requesting package's key in a nested workspace
+        (e.g. ``toolB/packages/libA``). It is tried first, so a parent that
+        also nested the package is matched at the same position; a parent that
+        flattened it still matches by bare name.
         """
         name = getattr(pkg, "name", None)
         if not name:
@@ -109,23 +114,28 @@ class DepsSource:
         if src in ("dir", "file"):
             return None
 
+        keys = [name]
+        if scope_path and scope_path != name:
+            keys.insert(0, scope_path)
+
         for entry in self.entries:
-            candidate = os.path.join(entry.parent_dir, name)
-            if not os.path.lexists(candidate):
-                continue
+            for key in keys:
+                candidate = os.path.join(entry.parent_dir, key)
+                if not os.path.lexists(candidate):
+                    continue
 
-            if entry.trust:
-                return os.path.realpath(candidate)
+                if entry.trust:
+                    return os.path.realpath(candidate)
 
-            if entry.lock is None:
-                continue
+                if entry.lock is None:
+                    continue
 
-            parent_entry = _find_lock_entry(entry.lock, name)
-            if parent_entry is None:
-                continue
+                parent_entry = _find_lock_entry(entry.lock, key)
+                if parent_entry is None:
+                    continue
 
-            if _identity_matches(pkg, src, parent_entry):
-                return os.path.realpath(candidate)
+                if _identity_matches(pkg, src, parent_entry):
+                    return os.path.realpath(candidate)
 
         return None
 

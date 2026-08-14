@@ -134,6 +134,25 @@ class Package(object):
     patches : List['PatchSpec'] = dc.field(default_factory=list)
 
     process_deps : bool = True
+    # Consumer-declared 'deps-mode' from this dependency entry. None means the
+    # consumer said nothing, so the producer's manifest (or the enclosing
+    # scope's mode) decides. See dep_scope.effective_mode.
+    deps_mode : Optional[str] = None
+    # Set by the resolver when a dependency cycle was elided at this package:
+    # the scope path of the ancestor that already provides the same identity.
+    cycle_elided : Optional[str] = None
+    # Set by the resolver when this package opened a nested scope: the name of
+    # the deps-dir it hosts. None means it is not a boundary.
+    boundary_deps_dir : Optional[str] = None
+    # This package's unique key: its path relative to the root deps-dir. Equal
+    # to ``name`` in a flat workspace, so handlers that key on it behave
+    # identically there. Set by the resolver before any handler sees the
+    # package.
+    scope_key : str = None
+    # scope_key of the package that resolved this one (None at the root). The
+    # scope-aware counterpart of ``resolved_by``, which is a bare name and so
+    # is ambiguous once two scopes can hold the same name.
+    resolved_by_key : str = None
     setup_deps : Set[str] = dc.field(default_factory=set)
     dep_set : str = None
     proj_info : 'ProjInfo'= None
@@ -163,6 +182,7 @@ class Package(object):
         "agents",   # per-dep agents configuration
         "dep-set",  # which dep-set to pull from the sub-package
         "deps",     # 'skip' to suppress dependency processing
+        "deps-mode", # consumer override of how this dep's own deps are placed
         "patches",  # cache-aware dependency patching (patch-capable sources only)
     })
 
@@ -360,6 +380,12 @@ class Package(object):
             _logger.debug("Using dep-set %s for package %s",
                 ds, self.name)
             self.dep_set = ds
+
+        if "deps-mode" in opts.keys():
+            from .dep_mode import parse_deps_mode
+            # Located against the entry's srcinfo: variable substitution
+            # rebuilds scalar strings, dropping their own srcinfo.
+            self.deps_mode = parse_deps_mode(opts["deps-mode"], si)
 
         if "deps" in opts.keys():
             if opts["deps"] == "skip":

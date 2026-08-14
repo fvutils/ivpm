@@ -86,9 +86,16 @@ def _build_node(name: str,
                 specifier: str,
                 lock: Optional[dict],
                 shadowed: bool,
-                also_requested_by: List[str]) -> DepNode:
-    """Construct a DepNode from lock-file data (or minimal data if lock absent)."""
-    entry = (lock or {}).get(name) or {}
+                also_requested_by: List[str],
+                scope: str = "") -> DepNode:
+    """Construct a DepNode from lock-file data (or minimal data if lock absent).
+
+    *scope* is the key prefix for the dependency scope this package was
+    resolved into ("" at the root, else e.g. "toolB/packages/"). Lock keys are
+    scope paths, so it is what makes the lookup find the right one of two
+    same-named packages.
+    """
+    entry = (lock or {}).get(scope + name) or {}
     src = entry.get("src", "")
     dep_set = entry.get("dep_set") or "default"
 
@@ -99,6 +106,9 @@ def _build_node(name: str,
         shadowed=shadowed,
         also_requested_by=list(also_requested_by),
         dep_set=dep_set,
+        scope=scope,
+        nested=entry.get("deps_mode") == "nested",
+        cycle_elided=entry.get("cycle_elided"),
     )
 
     # Populate resolved identity fields from the lock entry
@@ -247,23 +257,28 @@ class DepLoader:
         for name in root_declared:
             requesters.setdefault(name, set()).add("root")
 
-        # Seed from lock's resolved_by field
-        for name, entry in lock.items():
+        # Seed from lock's resolved_by field. Keys are scope paths, so the
+        # index is keyed by scope path too.
+        for key, entry in lock.items():
             rb = entry.get("resolved_by") or "root"
-            requesters.setdefault(name, set()).add(rb)
+            requesters.setdefault(key, set()).add(rb)
 
-        # Scan sub-package ivpm.yaml files for additional requesters
-        if os.path.isdir(deps_dir):
-            for pkg_name in os.listdir(deps_dir):
-                pkg_dir = os.path.join(deps_dir, pkg_name)
-                if not os.path.isdir(pkg_dir):
-                    continue
-                # Determine which dep-set this sub-package used
-                entry = lock.get(pkg_name, {})
-                ds = entry.get("dep_set") or "default"
-                declared = _declared_deps(pkg_dir, ds)
-                for dep_name in declared:
-                    requesters.setdefault(dep_name, set()).add(pkg_name)
+        # Scan each package's ivpm.yaml for additional requesters. Driven off
+        # the lock rather than a directory listing, so nested packages are
+        # covered and non-package entries (.ivpm, ivpm.json) are not.
+        for key, entry in lock.items():
+            pkg_dir = os.path.join(deps_dir, key)
+            if not os.path.isdir(pkg_dir):
+                continue
+            ds = entry.get("dep_set") or "default"
+            # A boundary's declared deps live in its own scope; everyone
+            # else's live in the scope the package itself belongs to.
+            if entry.get("deps_mode") == "nested":
+                child_scope = "%s/%s/" % (key, entry.get("deps_dir") or "packages")
+            else:
+                child_scope = key[:key.rindex("/") + 1] if "/" in key else ""
+            for dep_name in _declared_deps(pkg_dir, ds):
+                requesters.setdefault(child_scope + dep_name, set()).add(key)
 
         return requesters
 
@@ -277,33 +292,50 @@ class DepLoader:
         in_scope: Set[str],
         ancestors: Set[str],
         build_tree: bool,
+        scope: str = "",
     ) -> List[DepNode]:
-        """Recursively build DepNode objects for the given list of package names."""
+        """Recursively build DepNode objects for the given list of package names.
+
+        *scope* is the lock-key prefix for the dependency scope these names were
+        resolved into -- "" at the root, else e.g. "toolB/packages/".
+        """
         nodes = []
         for name in names:
-            owner = self._owner(name, lock)
+            owner = self._owner(name, lock, scope)
             shadowed = name in in_scope
 
-            also = sorted(requesters.get(name, set()) - {owner})
+            also = sorted(requesters.get(scope + name, set()) - {owner})
 
-            node = _build_node(name, owner, lock, shadowed, also)
+            node = _build_node(name, owner, lock, shadowed, also, scope)
 
             # Enrich node with live environment data when lock-file fields are absent
             if not shadowed:
-                live = _live_info(node.src, name, deps_dir)
+                live = _live_info(node.src, scope + name, deps_dir)
                 if live.get("version_resolved") and node.version_resolved is None:
                     node.version_resolved = live["version_resolved"]
                 if live.get("commit_resolved") and node.commit is None:
                     node.commit = live["commit_resolved"]
 
-            if build_tree and not shadowed and name not in ancestors:
+            if build_tree and not shadowed and (scope + name) not in ancestors \
+                    and node.cycle_elided is None:
                 # Recurse into this package's own deps
-                pkg_dir = os.path.join(deps_dir, name)
+                pkg_dir = os.path.join(deps_dir, scope + name)
                 child_dep_set = node.dep_set or "default"
                 child_names = _declared_deps(pkg_dir, child_dep_set)
                 if child_names:
-                    child_in_scope = in_scope | set(names) - {name}
-                    child_ancestors = ancestors | {name}
+                    # A boundary's dependencies live in ITS scope; a flat
+                    # package's live in the same scope it does.
+                    entry = (lock or {}).get(scope + name) or {}
+                    if node.nested:
+                        child_scope = "%s%s/%s/" % (
+                            scope, name, entry.get("deps_dir") or "packages")
+                        # A nested scope resolves independently, so nothing
+                        # from an enclosing scope shadows it.
+                        child_in_scope = set()
+                    else:
+                        child_scope = scope
+                        child_in_scope = in_scope | set(names) - {name}
+                    child_ancestors = ancestors | {scope + name}
                     node.deps = self._build_nodes(
                         names=child_names,
                         specifier=name,
@@ -313,15 +345,16 @@ class DepLoader:
                         in_scope=child_in_scope,
                         ancestors=child_ancestors,
                         build_tree=True,
+                        scope=child_scope,
                     )
 
             nodes.append(node)
         return nodes
 
     @staticmethod
-    def _owner(name: str, lock: dict) -> str:
-        """Return the first-specifier (owner) for a package."""
-        entry = lock.get(name)
+    def _owner(name: str, lock: dict, scope: str = "") -> str:
+        """Return the first-specifier (owner) for a package in *scope*."""
+        entry = lock.get(scope + name)
         if entry:
             return entry.get("resolved_by") or "root"
         return "root"

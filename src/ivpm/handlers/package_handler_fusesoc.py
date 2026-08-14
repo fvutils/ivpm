@@ -27,6 +27,7 @@ from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
+from .scope_keys import pkg_key
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_fusesoc")
 
@@ -242,7 +243,7 @@ class PackageHandlerFuseSoC(PackageHandler):
 
         if dirs:
             with self._lock:
-                self._core_dirs[pkg.name] = dirs
+                self._core_dirs[pkg_key(pkg)] = dirs
 
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         cfg = update_info.handler_configs.get("fusesoc", {}) or {}

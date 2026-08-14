@@ -589,10 +589,39 @@ Best Practices
 5. **Control sub-dependencies** - use ``dep-set`` override to avoid pulling excess deps
 6. **Test both profiles** - ensure ``default`` works without dev tools
 
+Controlling Sub-Dependency Placement
+====================================
+
+By default every transitive dependency is flattened into the one ``packages/``
+directory.  A dep-set (or a package, or a single dependency entry) may instead
+declare ``deps-mode: nested``, so its dependencies resolve into their own
+deps-dir:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      dep-sets:
+        - name: default-dev
+          deps-mode: nested        # applies to this set's sub-dependencies
+          deps:
+            - name: toolB
+              url: https://github.com/org/toolB.git
+
+            - name: legacy-lib
+              url: https://github.com/org/legacy-lib.git
+              deps-mode: flatten   # ... except this one
+
+Use it only when two dependencies need genuinely different versions of the
+same package -- flattening remains the right default.  For precedence rules,
+propagation, and the caveats, see :doc:`nested_deps`.
+
+
 See Also
 ========
 
 - :doc:`core_concepts` - Understanding the update pipeline
+- :doc:`nested_deps` - Resolving a sub-tree independently with ``deps-mode``
 - :doc:`package_types` - Complete dependency attribute reference
 - :doc:`handlers` - How handlers process packages
 - :doc:`troubleshooting` - Solutions to dependency set problems

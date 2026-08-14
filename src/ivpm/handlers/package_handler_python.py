@@ -39,6 +39,8 @@ from ..package import get_type_data
 from ..package import Package, SourceType
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
+from .scope_keys import pkg_key
+from ..msg import warning
 from ..perf import span_or_null
 # HasType no longer used in root_when (handler self-gates via on_root_post_load)
 
@@ -270,7 +272,39 @@ class PackageHandlerPython(PackageHandler):
         if add:
             pkg.pkg_type = PackageHandlerPython.name
             with self._lock:
-                self.pkgs_info[pkg.name] = pkg
+                self._record_python_pkg(pkg)
+
+    def _record_python_pkg(self, pkg) -> None:
+        """Record a Python package for installation, keyed by distribution name.
+
+        Deliberately keyed by *name*, not by scope: there is one venv per
+        workspace, and one venv cannot hold two versions of a distribution.
+        Nesting isolates the dependency *tree*, not the Python environment.
+
+        So when two scopes contribute the same distribution, one of them will
+        not be importable -- say so, and resolve it deterministically in favour
+        of the one nearest the root (matching the dv-flow convention). Caller
+        holds the lock.
+        """
+        prior = self.pkgs_info.get(pkg.name)
+        if prior is not None and prior is not pkg:
+            prior_key = pkg_key(prior)
+            new_key = pkg_key(pkg)
+            if prior_key != new_key:
+                keep, drop = ((prior, pkg)
+                              if prior_key.count("/") <= new_key.count("/")
+                              else (pkg, prior))
+                warning(
+                    "Python distribution '%s' is contributed by two dependency "
+                    "scopes: '%s' and '%s'. Nesting isolates the dependency "
+                    "tree, but not the Python environment -- one venv cannot "
+                    "hold two versions of a distribution. Installing '%s'; the "
+                    "other will not be importable. To resolve, make the two "
+                    "agree on a version, or exclude one with 'deps: skip'." % (
+                        pkg.name, prior_key, new_key, pkg_key(keep)))
+                self.pkgs_info[pkg.name] = keep
+                return
+        self.pkgs_info[pkg.name] = pkg
 
     def _harvest_pyproject_toml(self, pkg, update_info=None) -> list:
         """Read a ``pyproject.toml`` and return a list of ``PackagePyPi`` entries.

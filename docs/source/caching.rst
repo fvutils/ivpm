@@ -15,6 +15,15 @@ Cached packages are always **read-only** and **symlinked** into the
 ``packages/`` directory, allowing multiple projects to share the same cached 
 package data.
 
+.. note::
+
+   One exception: a package that acts as a :doc:`nested scope boundary
+   <nested_deps>` must own its directory so it can hold a deps-dir, so it is
+   materialized as a *writable copy* of the cache entry rather than a symlink.
+   The cache entry itself is unaffected and still shared.  Cache identity is a
+   function of source and version only -- never of where a package is placed --
+   so nesting never creates a second entry for the same package version.
+
 Cache Modes
 ===========
 

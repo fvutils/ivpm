@@ -25,6 +25,7 @@ from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
+from .scope_keys import pkg_key, pkg_rel_dir
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_dv_flow")
 
@@ -89,9 +90,12 @@ class PackageHandlerDvFlow(PackageHandler):
                 pkg.name, FLOW_FILENAME)
             return
 
-        rel = "%s/%s" % (pkg.name, FLOW_FILENAME)
+        # Path relative to the ROOT deps-dir: a nested package is not at
+        # ./<name>/, and the map file lives at the root.
+        rel = "%s/%s" % (pkg_rel_dir(pkg, update_info.root_deps_dir),
+                         FLOW_FILENAME)
         with self._lock:
-            self.flow_pkgs[pkg.name] = (flow_name, rel)
+            self.flow_pkgs[pkg_key(pkg)] = (flow_name, rel)
         _logger.debug("dv-flow: %s provides package '%s'", pkg.name, flow_name)
 
     # ------------------------------------------------------------------ #

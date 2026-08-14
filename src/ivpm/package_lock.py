@@ -36,7 +36,18 @@ from typing import Dict, Optional
 
 _logger = logging.getLogger("ivpm.package_lock")
 
-LOCK_VERSION = 1
+# Version 2 keys the ``packages`` map by *scope path* rather than bare package
+# name, so a nested workspace can record two versions of one package. In a flat
+# workspace a scope path IS the bare name, so a v2 lock for a flat workspace is
+# shape-identical to v1 apart from this number and the added "name" field.
+# Version 1 locks are still read: the key doubles as the name (see
+# _entry_name).
+LOCK_VERSION = 2
+
+#: Lock versions this build can read. v1 differs only in that the ``packages``
+#: key is the bare package name and there is no ``name`` field, so reading it
+#: costs exactly one fallback (see _entry_name).
+SUPPORTED_LOCK_VERSIONS = frozenset({1, 2})
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +124,25 @@ def _patch_spec_matches(pkg, lock_entry: dict) -> bool:
     ps = getattr(pkg, "patchset", None)
     live_id = None if (ps is None or ps.is_empty) else ps.patchset_id
     return live_id == lock_entry.get("patchset_id")
+
+
+def _entry_name(key: str, entry: dict) -> str:
+    """The package name for a lock entry.
+
+    v2 records ``name`` explicitly, because the key is a scope path. v1 has no
+    ``name`` field and the key *is* the name -- so this one line is the whole
+    backward-compatibility rule.
+    """
+    return entry.get("name", key)
+
+
+def _entry_scope(key: str, entry: dict) -> str:
+    """The scope path an entry belongs to ("" for the root scope)."""
+    scope = entry.get("scope")
+    if scope is not None:
+        return scope
+    # v1, or a v2 root entry: the key is a bare name.
+    return key.rsplit("/", 1)[0] if "/" in key else ""
 
 
 def _entry_from_pkg(pkg) -> dict:
@@ -265,8 +295,10 @@ def write_lock(
     packages = {}
     ivpm_sources = {}
     # PackagesInfo exposes .packages dict; plain dicts are also accepted.
+    # Keys are scope paths: a bare name in the root scope (so a flat workspace
+    # is unchanged), else "<owner>/<deps-dir>/.../<name>".
     pkg_dict = getattr(all_pkgs, "packages", all_pkgs)
-    for name, pkg in pkg_dict.items():
+    for key, pkg in pkg_dict.items():
         if pkg is None:
             continue
         # Virtual nodes (e.g. `src: ivpm.yaml` factories) have no packages-dir
@@ -274,10 +306,25 @@ def write_lock(
         # url, not in the normal ``packages`` map.
         if getattr(pkg, "virtual", False):
             ent = pkg.get_lock_entry() or {}
-            key = ent.get("url") or name
-            ivpm_sources[key] = {k: v for k, v in ent.items() if k != "url"}
+            vkey = ent.get("url") or key
+            ivpm_sources[vkey] = {k: v for k, v in ent.items() if k != "url"}
             continue
-        packages[name] = _entry_from_pkg(pkg)
+        entry = _entry_from_pkg(pkg)
+        # The key is a scope path, so the name must be recorded separately.
+        entry["name"] = pkg.name
+        scope = key[:-(len(pkg.name) + 1)] if key != pkg.name else ""
+        if scope:
+            entry["scope"] = scope
+        # Record the *effective* mode on a boundary -- a package that actually
+        # opened a nested scope -- not merely what its dep entry declared.
+        if getattr(pkg, "boundary_deps_dir", None):
+            entry["deps_mode"] = "nested"
+            # The deps-dir it hosts, so readers can walk into its scope without
+            # re-reading its manifest.
+            entry["deps_dir"] = pkg.boundary_deps_dir
+        if getattr(pkg, "cycle_elided", None) is not None:
+            entry["cycle_elided"] = pkg.cycle_elided
+        packages[key] = entry
 
     lock = {
         "ivpm_lock_version": LOCK_VERSION,
@@ -443,11 +490,11 @@ def read_lock(lock_path: str) -> dict:
         data = json.load(f)
 
     version = data.get("ivpm_lock_version", 0)
-    if version != LOCK_VERSION:
+    if version not in SUPPORTED_LOCK_VERSIONS:
         raise ValueError(
-            "package-lock.json version %d is not supported (expected %d). "
-            "Please regenerate the lock file with this version of ivpm."
-            % (version, LOCK_VERSION)
+            "package-lock.json version %d is not supported (expected one of: "
+            "%s). Please regenerate the lock file with this version of ivpm."
+            % (version, ", ".join(str(v) for v in sorted(SUPPORTED_LOCK_VERSIONS)))
         )
 
     # Verify integrity checksum
@@ -567,8 +614,15 @@ class IvpmLockReader:
         self.lock_path = lock_path
         self._data = read_lock(lock_path)
 
-    def build_packages_info(self):
-        """Return a PackagesInfo built from the lock file's complete closure."""
+    def build_packages_info(self, include_nested: bool = False):
+        """Return a PackagesInfo built from the lock file's complete closure.
+
+        Only *root-scope* entries are returned by default. For a flat lock
+        (v1, or v2 over a flat workspace) that is every entry, so reproduction
+        is unchanged. Entries belonging to a nested scope describe a sub-tree
+        that the boundary package's own manifest reconstructs; they are applied
+        as version pins instead -- see :meth:`scope_pins`.
+        """
         from .packages_info import PackagesInfo
         from .pkg_types.package_git import PackageGit
         from .pkg_types.package_gh_rls import PackageGhRls
@@ -587,7 +641,10 @@ class IvpmLockReader:
         _lock_dir = os.path.dirname(os.path.abspath(self.lock_path))
         base_dirs = [os.path.dirname(_lock_dir), _lock_dir, os.getcwd()]
 
-        for name, entry in packages.items():
+        for key, entry in packages.items():
+            name = _entry_name(key, entry)
+            if not include_nested and _entry_scope(key, entry):
+                continue
             src = entry.get("src", "")
             pkg = None
 
@@ -655,9 +712,25 @@ class IvpmLockReader:
             # patched variant (not a silent pristine tree). Generic across all
             # source types, mirroring _add_patch_fields on the write side.
             pkg.patches = _patches_from_entry(entry, base_dirs)
-            pkgs_info[name] = pkg
+            pkgs_info[key if include_nested else name] = pkg
 
         return pkgs_info
+
+    def scope_pins(self) -> dict:
+        """Resolved-identity pins for packages that live in a nested scope.
+
+        Maps scope path -> the recorded entry. The resolver applies these as it
+        queues each dependency, so a reproduced nested workspace lands on the
+        same commits/versions as the locked one while the tree *shape* comes
+        from the manifests (which the lock also records, so the two agree).
+
+        Empty for any flat workspace, including every v1 lock.
+        """
+        pins = {}
+        for key, entry in (self._data.get("packages") or {}).items():
+            if _entry_scope(key, entry):
+                pins[key] = entry
+        return pins
 
     @property
     def python_packages(self) -> dict:

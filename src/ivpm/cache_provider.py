@@ -92,6 +92,25 @@ class CacheProvider:
     def __init__(self, context: CacheContext):
         self.context = context
 
+    def with_deps_dir(self, deps_dir: str) -> 'CacheProvider':
+        """This provider, materializing into *deps_dir* instead.
+
+        A nested dependency scope shares the session's cache (identity is a
+        function of source and version, never of where a package is placed) but
+        materializes into its own deps-dir. Rather than thread a deps-dir
+        argument through every provider call site, the resolver's scope view
+        hands out a re-based provider.
+
+        The returned object shares the underlying store, so cache state stays
+        single-instance. Returns ``self`` when nothing would change.
+        """
+        if deps_dir == self.context.deps_dir:
+            return self
+        import copy
+        rebased = copy.copy(self)
+        rebased.context = dc.replace(self.context, deps_dir=deps_dir)
+        return rebased
+
     def is_cacheable(self, pkg) -> bool:
         """Is caching enabled AND available for THIS dependency?
 

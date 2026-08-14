@@ -167,6 +167,15 @@ dependency set name.  You can override this per-package:
 This prevents a third-party library's development tools from being pulled
 into your project.
 
+Sub-dependencies are **flattened** by default: the entire transitive closure
+lands in the one ``packages/`` directory, deduplicated by name, with the first
+resolver of a name winning.  One copy of each library, one place to look.
+
+The flat model has one hard limit: it cannot represent two dependencies that
+require genuinely different, irreconcilable versions of the same package.  For
+that case -- and only that case -- ``deps-mode: nested`` lets a sub-tree
+resolve its dependencies into its own deps-dir.  See :doc:`nested_deps`.
+
 
 Lock File and Reproducibility
 ==============================

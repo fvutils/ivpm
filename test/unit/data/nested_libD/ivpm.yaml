@@ -1,0 +1,8 @@
+# Fixture for nested-dependency tests (see test_nested_deps_resolve.py)
+package:
+  name: nested_libD
+  dep-sets:
+    - name: default-dev
+      deps: []
+    - name: default
+      deps: []

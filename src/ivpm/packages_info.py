@@ -39,6 +39,10 @@ class PackagesInfo():
         # Populated during parsing (always a list, even for a single base);
         # resolved (merged) before use.
         self.uses : Optional[List[str]] = None
+        # How dependencies resolved beneath this dep-set's packages are placed
+        # ("flatten" | "nested"). None means not declared -- the package-level
+        # deps-mode, then the enclosing scope's mode, decide.
+        self.deps_mode : Optional[str] = None
         self.packages : Dict[str,Package] = {}
         # Raw 'with:' dict declared on this dep-set (None if absent). Merged with
         # the package-level 'with:' when this dep-set is the selected install
@@ -78,6 +82,7 @@ class PackagesInfo():
     def copy(self) -> 'PackagesInfo':
         ret = PackagesInfo(self.name)
         ret.uses     = self.uses
+        ret.deps_mode = self.deps_mode
         ret.packages = self.packages.copy()
         ret.options  = self.options.copy()
         ret.with_raw = self.with_raw

@@ -23,6 +23,7 @@ import dataclasses as dc
 import enum
 import logging
 import threading
+import types
 from typing import List, Optional, Tuple
 
 from .update_event import UpdateEvent, UpdateEventType, UpdateEventDispatcher
@@ -99,6 +100,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     handler_configs: dict = dc.field(default_factory=dict)  # Extra with: keys for plugin handlers
     env_settings: list = dc.field(default_factory=list)  # Root project env: directives (EnvSpec); emitted to packages.envrc by the direnv handler
     project_dir: Optional[str] = None   # Project root (one level above deps_dir)
+    # Path of the dependency scope this view resolves into, relative to the
+    # root deps-dir ("" for the root scope). Set on scope views only.
+    scope_prefix: str = ""
     handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
     lock_data: Optional[dict] = None  # Parsed package-lock.json for change detection
     pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
@@ -120,6 +124,33 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     # interleaved under parallelism.
     _pkg_local: object = dc.field(
         default_factory=threading.local, repr=False, compare=False)
+
+    @property
+    def root_deps_dir(self) -> str:
+        """The workspace's top-level deps-dir.
+
+        Equal to ``deps_dir`` here; a scope view overrides it. Handlers that
+        emit paths into a root-level artifact (packages.envrc, the dv-flow
+        package map) must resolve against this, not against the scope they
+        happen to be called in.
+        """
+        return self.deps_dir
+
+    def scope_view(self, deps_dir: str, scope_prefix: str = "") -> 'ProjectUpdateInfo':
+        """A view of this session with a different deps-dir.
+
+        Used to resolve a nested dependency scope: everything mutable --
+        counters, the memoized cache provider, the event dispatcher, perf, the
+        thread-local package span -- is *shared* with this instance; only
+        ``deps_dir`` differs. Returns ``self`` for the root scope so the flat
+        path is byte-for-byte unchanged.
+
+        This is deliberately not ``dc.replace``, which would clone the counters
+        and the memoized cache provider into a second, diverging session.
+        """
+        if deps_dir == self.deps_dir:
+            return self
+        return _ScopedUpdateInfo(self, deps_dir, scope_prefix)
 
     def get_prompt_callback(self):
         """Return a prompt callback appropriate for the current TUI.
@@ -171,7 +202,11 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         """
         if self.deps_source is None:
             return False
-        hit = self.deps_source.lookup(pkg)
+        # In a nested scope, prefer a parent that nested the package at the
+        # same position; a parent that flattened it still matches by name.
+        key = ("%s/%s" % (self.scope_prefix, pkg.name)) \
+            if self.scope_prefix else None
+        hit = self.deps_source.lookup(pkg, key)
         if hit is None:
             self.report_deps_source_miss()
             return False
@@ -338,4 +373,64 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 _logger.info("  Cache misses: %d", self.cache_misses)
                 hit_rate = (self.cache_hits / self.cacheable_packages * 100) if self.cacheable_packages > 0 else 0
                 _logger.info("  Hit rate: %.1f%%", hit_rate)
+
+
+class _ScopedUpdateInfo(object):
+    """A ProjectUpdateInfo view with an overridden ``deps_dir``.
+
+    Attribute reads and writes delegate to the wrapped instance, so all session
+    state stays shared and single-instance. Methods are re-bound to the *view*
+    rather than the base, which is what makes ``try_deps_source`` and
+    ``_materialize_from_deps_source`` (both of which read ``self.deps_dir``)
+    scope-correct without any change of their own.
+
+    Constructed only by ``ProjectUpdateInfo.scope_view``.
+    """
+
+    __slots__ = ("_base", "deps_dir", "scope_prefix", "_scoped_provider")
+
+    def __init__(self, base: 'ProjectUpdateInfo', deps_dir: str,
+                 scope_prefix: str = ""):
+        object.__setattr__(self, "_base", base)
+        object.__setattr__(self, "deps_dir", deps_dir)
+        object.__setattr__(self, "scope_prefix", scope_prefix)
+        object.__setattr__(self, "_scoped_provider", None)
+
+    @property
+    def root_deps_dir(self) -> str:
+        """The workspace's top-level deps-dir -- the base's, not this scope's."""
+        return object.__getattribute__(self, "_base").deps_dir
+
+    def get_cache_provider(self):
+        """The session cache provider, re-based onto this scope's deps-dir.
+
+        The cache itself is shared -- a cache entry's identity is a function of
+        source and version, never of where the package is placed -- so this
+        wraps the one session provider rather than creating a second.
+        """
+        provider = object.__getattribute__(self, "_scoped_provider")
+        if provider is None:
+            base = object.__getattribute__(self, "_base")
+            provider = base.get_cache_provider().with_deps_dir(self.deps_dir)
+            object.__setattr__(self, "_scoped_provider", provider)
+        return provider
+
+    def __getattr__(self, name):
+        # Reached only for names not in __slots__.
+        base = object.__getattribute__(self, "_base")
+        attr = getattr(type(base), name, None)
+        if isinstance(attr, types.FunctionType):
+            # Bind to the view so 'self.deps_dir' inside resolves to the scope's.
+            return attr.__get__(self, type(base))
+        return getattr(base, name)
+
+    def __setattr__(self, name, value):
+        if name in ("deps_dir", "scope_prefix"):
+            object.__setattr__(self, name, value)
+        else:
+            # Counters and other session state live on (and stay on) the base.
+            setattr(object.__getattribute__(self, "_base"), name, value)
+
+    def __repr__(self):
+        return "<ProjectUpdateInfo scope_view deps_dir=%s>" % self.deps_dir
 

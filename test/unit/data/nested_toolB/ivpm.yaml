@@ -1,0 +1,16 @@
+package:
+  name: nested_toolB
+  deps-mode: nested
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: nested_libA
+          url: file://${DATA_DIR}/nested_libA_v1
+          src: dir
+          link: false
+        - name: nested_libC
+          url: file://${DATA_DIR}/nested_libC
+          src: dir
+          link: false
+    - name: default
+      deps: []

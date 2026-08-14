@@ -88,6 +88,10 @@ class ProjInfo():
         # statement or on the command-line
         self.default_dep_set = None
         self.deps_dir = "packages"
+        # How dependencies resolved beneath this package are placed
+        # ("flatten" | "nested"). None means the manifest declared nothing, so
+        # the enclosing scope's mode is inherited. See dep_scope.effective_mode.
+        self.deps_mode : Optional[str] = None
 
         self.process_deps = True
         self.paths : Dict[str, Dict[str, List[str]]] = {}
