@@ -1,4 +1,7 @@
 
+# 2.23.0
+- Add support for keeping sub-dependencies nested
+
 # 2.22.0
 - Environment variables are now declared as a standard `with:` clause, available
   at both the package and dep-set level:
