@@ -53,3 +53,13 @@ dv-flow = "ivpm.handlers.package_handler_dv_flow:PackageHandlerDvFlow"
 
 [project.entry-points."ivpm.clone_providers"]
 git = "ivpm.clone.git_clone_provider:GitCloneProvider"
+
+[tool.pytest.ini_options]
+# Bare `pytest` from the repo root collects only our unit tests. Without this,
+# collection walks scratch/clone trees (tmp/, packages/, test/rundir/, ...) that
+# contain third-party test files, which abort the run with INTERNALERROR.
+testpaths = ["test/unit"]
+norecursedirs = [
+    "build", "dist", "out", "ou", "tmp", "v", "packages", "examples",
+    "test/rundir", "test/log", "*.egg", ".*", "node_modules", "*_ws",
+]

@@ -1125,9 +1125,12 @@ class PackageHandlerPython(PackageHandler):
         """Writes a requirements file for pip to use in installing packages"""
         with open(file, "w") as fp:
             for pkg in python_pkgs:
-                
-                if hasattr(pkg, "url"):
-                    # Source package (git, dir, http, etc.)
+
+                if getattr(pkg, "src_type", None) != "pypi":
+                    # Local source package installed from the packages dir. Keyed
+                    # on src_type, not on a 'url' attribute: some source types
+                    # have no 'url' but are still local editable trees (and lack
+                    # the 'version'/'extras' fields the PyPI branch below needs).
                     # Determine editability: type_data takes priority, then default True
                     editable = True
                     td = get_type_data(pkg, PythonTypeData)

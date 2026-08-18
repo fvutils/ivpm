@@ -1,4 +1,7 @@
 
+# 2.24.0
+- Bug fixes in Python venv setup
+
 # 2.23.0
 - Add support for keeping sub-dependencies nested
 

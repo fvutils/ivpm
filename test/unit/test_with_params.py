@@ -14,6 +14,7 @@ import dataclasses as dc
 from .test_base import TestBase
 from ivpm.pkg_content_type import PythonTypeData, RawTypeData
 from ivpm.handlers.package_handler_python import PackageHandlerPython
+from ivpm.package import Package
 from ivpm.pkg_types.package_git import PackageGit
 from ivpm.pkg_types.package_pypi import PackagePyPi
 
@@ -23,6 +24,7 @@ def _make_src_pkg(name, type_data=None):
     pkg = PackageGit.__new__(PackageGit)
     pkg.name = name
     pkg.url = "https://example.com/%s.git" % name
+    pkg.src_type = "git"
     pkg.type_data = [type_data] if type_data is not None else []
     pkg.version = None
     pkg.extras = None
@@ -36,10 +38,26 @@ def _make_src_pkg(name, type_data=None):
     return pkg
 
 
+def _make_nonurl_src_pkg(name, type_data=None):
+    """Create a local source package that has NO 'url' and NO 'version' attr.
+
+    Some source types extend Package directly (not PackageURL) and get
+    auto-detected as Python source packages. They expose neither 'url' nor the
+    PyPI-only 'version'/'extras' fields, so routing must key on src_type.
+    """
+    pkg = Package.__new__(Package)
+    pkg.name = name
+    pkg.src_type = "other"
+    pkg.type_data = [type_data] if type_data is not None else []
+    pkg.pkg_type = "python"
+    return pkg
+
+
 def _make_pypi_pkg(name, version=None, extras=None, type_data=None):
     """Create a PackagePyPi with optional version, extras, and type_data."""
     pkg = PackagePyPi.__new__(PackagePyPi)
     pkg.name = name
+    pkg.src_type = "pypi"
     pkg.version = version
     pkg.extras = extras
     pkg.type_data = [type_data] if type_data is not None else []
@@ -118,6 +136,21 @@ class TestWriteRequirementsTxt(unittest.TestCase):
         pkg = _make_src_pkg("mypkg", type_data=PythonTypeData())
         lines = _write([pkg])
         self.assertNotIn("[", lines[0])
+
+    # --- Non-URL local source package ---
+
+    def test_nonurl_src_is_editable(self):
+        """A local source package with no 'url' → editable (-e) path, not PyPI.
+
+        Regression: routing keyed on hasattr(pkg, 'url'), so a non-URL source
+        package (no 'url', no 'version') fell into the PyPI branch and raised
+        AttributeError on pkg.version.
+        """
+        pkg = _make_nonurl_src_pkg("mypkg")
+        lines = _write([pkg], packages_dir="/fake/packages")
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].startswith("-e "), lines)
+        self.assertIn("/fake/packages/mypkg", lines[0])
 
     # --- PyPI package (no url) ---
 
