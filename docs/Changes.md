@@ -1,5 +1,6 @@
 
-# 2.24.0
+# 2.25.0
+- Add support for 'install' command that creates a standalone deps-dir
 - `ivpm install --root-var NAME` names the variable `packages.envrc` exports for
   the tool directory (e.g. `TOOLS_ROOT`). `IVPM_PACKAGES` is still exported, as
   an alias of that name, so manifests referencing it keep resolving. The name is
