@@ -277,6 +277,7 @@ def write_lock(
     all_pkgs,
     handler_contributions: Optional[dict] = None,
     source_manifest: Optional[dict] = None,
+    install_record: Optional[dict] = None,
 ) -> None:
     """Write ``<deps_dir>/package-lock.json`` atomically.
 
@@ -291,6 +292,14 @@ def write_lock(
     re-resolved without a local ivpm.yaml. It carries ``from`` plus the
     installed dep-set(s): ``dep_set`` for a single set, or ``dep_sets`` (a list)
     when several were installed at once.
+
+    *install_record* is the multi-source counterpart, written by ``ivpm
+    install``.  It carries ``install_mode``, an ordered ``sources`` list (each
+    with ``from``/``as``/``dep_sets``/``definitions``), and any
+    ``collision_resolutions``, so a bare re-run replays the same tool
+    directory.  Order is significant: it determines PATH precedence.  These are
+    additive top-level keys; a reader that does not know them is unaffected, so
+    ``ivpm_lock_version`` is not bumped.
     """
     packages = {}
     ivpm_sources = {}
@@ -345,6 +354,9 @@ def write_lock(
 
     if source_manifest:
         lock["source_manifest"] = source_manifest
+
+    if install_record:
+        lock.update(install_record)
 
     if ivpm_sources:
         lock["ivpm_sources"] = ivpm_sources
@@ -517,15 +529,38 @@ def read_lock(lock_path: str) -> dict:
 _CONVENTIONAL_DEPS_DIRS = ("import", "packages", "deps")
 
 
+def is_ivpm_deps_dir(path: str) -> bool:
+    """True when *path* itself is a deps-dir.
+
+    That is: it directly contains a ``package-lock.json`` that parses and
+    carries a compatible ``ivpm_lock_version``.  This is what lets ``status``
+    and ``sync`` work when the user is standing *inside* a deps-dir -- the
+    normal case for a shared tool directory, where the deps-dir is the root.
+    """
+    if not os.path.isdir(path):
+        return False
+    lock_path = os.path.join(path, "package-lock.json")
+    if not os.path.isfile(lock_path):
+        return False
+    try:
+        read_lock(lock_path)
+    except Exception:
+        return False
+    return True
+
+
 def find_ivpm_deps_dir(root_dir: str) -> Optional[str]:
-    """Discover the deps-dir under *root_dir* that holds our package-lock.json.
+    """Discover the deps-dir at or under *root_dir* that holds our
+    package-lock.json.
 
     Used for "bare" workspaces (no root ``ivpm.yaml`` -- those created by an
     ``ivpm clone`` provider from a source without one) so ``status``/``sync``
-    can still operate off the lock.  Scans immediate children only (design §6.1
-    / decision §5): a child is
-    a candidate when it contains a ``package-lock.json`` that parses and carries
-    our ``ivpm_lock_version``.
+    can still operate off the lock.  *root_dir* is tested first: when it is
+    itself a deps-dir that wins outright, which is both the tool-directory case
+    and the disambiguation for a deps-dir whose nested scopes carry their own
+    locks.  Otherwise immediate children are scanned (design §6.1 / decision
+    §5): a child is a candidate when it contains a ``package-lock.json`` that
+    parses and carries our ``ivpm_lock_version``.
 
     Returns the absolute path to the single valid deps-dir, or ``None`` when
     there is none.  When several children qualify, a conventional name
@@ -534,6 +569,12 @@ def find_ivpm_deps_dir(root_dir: str) -> Optional[str]:
     """
     if not os.path.isdir(root_dir):
         return None
+
+    # Self-match precedes the child scan: with nested deps, a deps-dir whose
+    # nested scopes carry their own locks would otherwise resolve to a nested
+    # scope (or trip the ambiguity fatal below).
+    if is_ivpm_deps_dir(root_dir):
+        return os.path.abspath(root_dir)
 
     candidates = []
     for name in sorted(os.listdir(root_dir)):

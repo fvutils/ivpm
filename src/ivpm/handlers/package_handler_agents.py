@@ -27,7 +27,7 @@ from typing import Dict, List, Optional, Tuple
 
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
-from .package_handler import PackageHandler
+from .package_handler import PackageHandler, ToolchainSupport
 from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_agents")
@@ -145,6 +145,11 @@ class PackageHandlerAgents(PackageHandler):
         "leaf: all non-PyPI packages; "
         "root: always (cleans stale entries even when no skills are present)"
     )
+    # Every root-phase artifact this handler produces (.agents/, .claude/,
+    # .cursor/) is project-scoped. In a shared tool directory there is no
+    # project to attach them to, so the handler is skipped outright rather
+    # than scattering agent config through the tool tree.
+    toolchain_support  = ToolchainSupport.UNSUPPORTED
 
     @classmethod
     def handler_info(cls):
@@ -154,6 +159,7 @@ class PackageHandlerAgents(PackageHandler):
             description=cls.description,
             phase=cls.phase,
             conditions=cls.conditions_summary,
+            toolchain_support=cls.toolchain_support.value,
             notes="\n".join([
                 "Skills:",
                 "  Creates symlinks from .agents/skills/<pkg> to the directory containing",
@@ -240,7 +246,11 @@ class PackageHandlerAgents(PackageHandler):
                 self.skill_entries.extend(entries)
 
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
-        project_dir = update_info.project_dir or os.path.dirname(update_info.deps_dir)
+        # This handler is declared UNSUPPORTED for toolchain mode, so the
+        # dispatcher never gets here without a project. project_root() (rather
+        # than the _or_none form) makes any future path that does reach here
+        # fail loudly instead of writing .agents/ into a shared tool tree.
+        project_dir = update_info.project_root()
         agents_cfg = update_info.handler_configs.get("agents", {}) or {}
 
         expand_skills = bool(agents_cfg.get("expand_skills", True))

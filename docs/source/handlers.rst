@@ -163,8 +163,8 @@ Per-package options via the ``type:`` field:
 
 - ``--py-uv`` -- use uv instead of pip
 - ``--py-pip`` -- force pip (overrides uv auto-detection)
-- ``--skip-py-install`` -- skip Python package installation entirely
-- ``--force-py-install`` -- force re-installation of all Python packages
+- ``--py-skip-install`` -- skip Python package installation entirely
+- ``--py-force-install`` -- force re-installation of all Python packages
 - ``--py-prerls-packages`` -- allow pre-release packages
 - ``--py-system-site-packages`` -- create the venv with system site-packages visible
 
@@ -669,6 +669,66 @@ Handler Summary
      - Writes ``fusesoc-cores.envrc``, ``fusesoc-cores.txt``; optionally updates ``fusesoc.conf``
      - ``packages/fusesoc-cores.*``
 
+
+Toolchain Mode
+==============
+
+When a :doc:`shared tool directory <tool_directories>` is built with ``ivpm
+install``, the deps-dir **is** the root: there is no project directory above
+it. A handler that would normally write a project-scoped artifact has nowhere
+correct to put it, so each handler declares whether it can run in this mode:
+
+.. code-block:: python
+
+    from ivpm.handlers.package_handler import PackageHandler, ToolchainSupport
+
+    class MyHandler(PackageHandler):
+        toolchain_support = ToolchainSupport.UNSUPPORTED
+
+``SUPPORTED`` (the default)
+  The handler either writes nothing outside the deps-dir, or branches
+  internally on ``update_info.project_root_or_none()``.
+
+``UNSUPPORTED``
+  The handler's root phase is skipped in toolchain mode. The skip is always
+  announced -- a tool tree missing a handler's output with no explanation is a
+  support ticket waiting to happen:
+
+  .. code-block:: text
+
+      note: Skipping the 'agents' handler: its output is project-scoped and
+      this is a tool directory (no project root)
+
+``ivpm show handler <name>`` reports the declaration.
+
+Behavior of the built-in handlers:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 20 65
+
+   * - Handler
+     - Toolchain mode
+     - Behavior
+   * - ``direnv``
+     - supported
+     - Writes ``packages.envrc`` as usual, but omits the ``IVPM_PROJECT``
+       export -- there is no project root to point it at. ``IVPM_PACKAGES``
+       is unaffected: it is the outdir.
+   * - ``fusesoc``
+     - supported
+     - Still writes ``fusesoc-cores.envrc`` and ``fusesoc-cores.txt`` into the
+       deps-dir. Skips the project's own ``.core`` contribution and the
+       ``update-conf`` write of ``fusesoc.conf``, both of which need a project.
+   * - ``agents``
+     - **unsupported**
+     - Every artifact it produces (``.agents/``, ``.claude/``, ``.cursor/``) is
+       project-scoped, so the whole root phase is skipped.
+   * - others
+     - supported
+     - Output lands in the deps-dir, which is the outdir.
+
+See :doc:`extending_ivpm` for writing a handler that works in both modes.
 
 Handler Ordering
 ================

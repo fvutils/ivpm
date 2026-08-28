@@ -53,10 +53,33 @@ class PackageHandlerList(PackageHandler):
             h.on_root_pre_load(update_info)
 
     def on_root_post_load(self, update_info):
-        """Evaluate root_when, resolve handler order, then call each in order."""
+        """Evaluate root_when, resolve handler order, then call each in order.
+
+        In toolchain mode (the deps-dir is the root), handlers declaring
+        ``toolchain_support = UNSUPPORTED`` are skipped -- their root-phase
+        output is project-scoped and there is no project. Each skip is
+        announced: a tool tree silently missing a handler's output is a support
+        ticket waiting to happen.
+        """
         passing = [h for h in self.handlers if self._root_conditions_pass(h)]
+        passing = [h for h in passing if not self._skip_for_toolchain(h, update_info)]
         for h in resolve_order(passing):
             h.on_root_post_load(update_info)
+
+    @staticmethod
+    def _skip_for_toolchain(h, update_info) -> bool:
+        from ..project_ops_info import InstallMode
+        from .package_handler import ToolchainSupport
+        from ..utils import note
+
+        if getattr(update_info, "install_mode", None) is not InstallMode.TOOLCHAIN:
+            return False
+        if getattr(h, "toolchain_support",
+                   ToolchainSupport.SUPPORTED) is ToolchainSupport.SUPPORTED:
+            return False
+        note("Skipping the '%s' handler: its output is project-scoped and this "
+             "is a tool directory (no project root)" % (h.name or type(h).__name__))
+        return True
 
     # ------------------------------------------------------------------ #
     # Leaf callbacks                                                       #

@@ -17,6 +17,7 @@ from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
 from .cmds.cmd_perf import CmdPerf
 from .cmds.cmd_init import CmdInit
+from .cmds.cmd_install import CmdInstall
 from .cmds.cmd_update import CmdUpdate
 from .cmds.cmd_clone import CmdClone
 from .cmds.cmd_git_status import CmdGitStatus
@@ -395,10 +396,17 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--git-auth-order", dest="git_auth_order",
         type=parse_git_auth_order, default=None,
         help="Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
-    update_cmd.add_argument("--skip-py-install", "--py-skip-install",
+    # '--py-' is the canonical prefix for Python-specific options. The
+    # '--<verb>-py-install' spellings are retained as back-compat aliases.
+    # dest is explicit because the old spelling came first historically, so
+    # argparse derived 'skip_py_install' while the python handler reads
+    # 'py_skip_install' -- leaving the flag a silent no-op.
+    update_cmd.add_argument("--py-skip-install", "--skip-py-install",
+        dest="py_skip_install",
         help="Skip installation of Python packages",
         action="store_true")
-    update_cmd.add_argument("--force-py-install", "--py-force-install",
+    update_cmd.add_argument("--py-force-install", "--force-py-install",
+        dest="force_py_install",
         help="Forces a re-install of Python packages",
         action="store_true")
     update_cmd.add_argument("--py-prerls-packages",
@@ -452,6 +460,85 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="After the update, print a breakdown of where time was spent "
              "(also persisted to deps/.ivpm/perf-<runid>.json)")
     subcommands["update"] = update_cmd
+
+    install_cmd = subparser.add_parser("install",
+        help="Assemble a shared tool directory from one or more published "
+             "manifests (the outdir IS the deps-dir)")
+    install_cmd.set_defaults(func=CmdInstall())
+    # Deliberately NOT named --deps-dir: on 'update' that flag names a
+    # subdirectory relative to the project root, whereas here the value is a
+    # path that *becomes* the deps-dir.
+    install_cmd.add_argument("-o", "--outdir", dest="outdir", required=True,
+        metavar="DIR",
+        help="Directory to populate. This directory IS the deps-dir: it "
+             "receives packages.envrc and the tools themselves directly, with "
+             "no 'packages' level in between.")
+    # Per-source options (--from, -d/--dep-set, -D/--define, --as) are split out
+    # of argv before argparse sees it; see ivpm.install_spec. They are declared
+    # here only so --help documents them.
+    install_cmd.add_argument("--from", dest="_from_doc", default=None,
+        metavar="PATH-OR-URL",
+        help="A manifest to install from. Repeatable. Options following a "
+             "--from apply to that source only: -d/--dep-set, -D VAR=VALUE, "
+             "--as NAME. With no --from, the install recorded in the outdir's "
+             "package-lock.json is replayed.")
+    install_cmd.add_argument("--resolve", dest="resolve", action="append",
+        default=[], metavar="PKG=SOURCE",
+        help="Resolve a package collision by naming the source that wins, "
+             "e.g. --resolve verilator=edapack. Repeatable. The winner's "
+             "definition is taken whole.")
+    install_cmd.add_argument("--on-collision", dest="on_collision",
+        choices=("error", "first-wins", "last-wins"), default="error",
+        help="What to do when sources disagree about a package (default: "
+             "error). Non-default policies still warn per collision.")
+    install_cmd.add_argument("--on-project-ref", dest="on_project_ref",
+        choices=("error", "expand", "drop"), default="error",
+        help="What to do with ${IVPM_PROJECT} references in a merged env:, "
+             "which have no value in a tool directory (default: error). "
+             "${IVPM_PACKAGES} is unaffected -- it is the outdir.")
+    install_cmd.add_argument("--root-var", dest="root_var", default=None,
+        metavar="NAME",
+        help="Name of the variable packages.envrc exports for the tool "
+             "directory, e.g. --root-var TOOLS_ROOT. IVPM_PACKAGES is still "
+             "exported (as ${NAME}) so manifests that reference it keep "
+             "working. Recorded in the lock and reused on a bare replay.")
+    install_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=None,
+        help="Maximum number of parallel package fetches (default: number of CPU cores)")
+    install_cmd.add_argument("--ssh", dest="ssh", action="store_true",
+        help="Force SSH: rewrite https:// git URLs to git@host:path form before cloning")
+    install_cmd.add_argument("-a", "--anonymous-git", dest="anonymous",
+        action="store_true",
+        help="Force HTTPS: clone git URLs as written (do not rewrite to SSH)")
+    install_cmd.add_argument("--git-auth-order", dest="git_auth_order",
+        type=parse_git_auth_order, default=None,
+        help="Comma-separated git auth order to try (gh,ssh,https)")
+    install_cmd.add_argument("--py-skip-install", "--skip-py-install",
+        dest="py_skip_install", action="store_true",
+        help="Skip installation of Python packages")
+    install_cmd.add_argument("--py-force-install", "--force-py-install",
+        dest="force_py_install", action="store_true",
+        help="Forces a re-install of Python packages")
+    install_cmd.add_argument("--py-prerls-packages", action="store_true",
+        help="Enable installation of pre-release packages")
+    install_cmd.add_argument("--py-uv", action="store_true",
+        help="Use 'uv' to manage virtual environment")
+    install_cmd.add_argument("--py-pip", action="store_true",
+        help="Use 'pip' to manage virtual environment")
+    install_cmd.add_argument("--py-system-site-packages",
+        dest="py_system_site_packages", action="store_true", default=False,
+        help="Inherit system site-packages in the virtual environment")
+    install_cmd.add_argument("--refresh-all", dest="refresh_all",
+        action="store_true", default=False,
+        help="Re-fetch all packages regardless of existing package-lock.json state")
+    install_cmd.add_argument("--no-cache", dest="no_cache",
+        action="store_true", default=False,
+        help="Disable the cache for this install")
+    install_cmd.add_argument("-v", "--verbose", action="count", default=0,
+        help="Increase transcript output detail")
+    install_cmd.add_argument("--timing", "--profile", dest="timing",
+        action="store_true", default=False,
+        help="After the install, print a breakdown of where time was spent")
+    subcommands["install"] = install_cmd
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
     init_cmd = subparser.add_parser("init",
@@ -485,7 +572,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     sync_cmd = subparser.add_parser("sync",
         help="Synchronizes dependent packages with an upstream source (if available)")
     sync_cmd.set_defaults(func=CmdSync())
-    sync_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None)
+    sync_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Directory to start from: a project directory or a deps-dir "
+             "(default: discover from cwd)")
     sync_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
         default=False, help="Fetch and report sync-ability without merging")
     sync_cmd.add_argument("-j", "--jobs", dest="jobs", type=int, default=0,
@@ -523,7 +612,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     status_cmd = subparser.add_parser("status",
         help="Checks the status of sub-dependencies such as git repositories")
     status_cmd.set_defaults(func=CmdStatus())
-    status_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None)
+    status_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Directory to start from: a project directory or a deps-dir "
+             "(default: discover from cwd)")
     status_cmd.add_argument("-v", "--verbose", action="count", default=0,
         help="Show modified/untracked files (-v); also show pypi packages (-v -v)")
     status_cmd.add_argument("--no-rich", action="store_true", default=False,
@@ -652,6 +743,47 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
     return parser
 
+#: Top-level options that consume a following value, so the subcommand scan
+#: does not mistake that value for the subcommand name.
+_GLOBAL_VALUE_OPTS = ("--log-level",)
+
+
+def _find_subcommand_index(argv):
+    """Index of the subcommand token in *argv*, or None.
+
+    Returns the position of the first bare (non-option) token, skipping the
+    values of global options that take one. Locating it by position -- rather
+    than searching for the literal name -- keeps a *later* argument that
+    happens to equal a subcommand name from being mistaken for it.
+    """
+    i = 0
+    while i < len(argv):
+        tok = argv[i]
+        if tok in _GLOBAL_VALUE_OPTS:
+            i += 2
+            continue
+        if tok.startswith("-"):
+            i += 1
+            continue
+        return i
+    return None
+
+
+def find_subparser(parser, name):
+    """The subparser registered under *name*, or None.
+
+    Extensions can add options to a subcommand after the fact, so the split
+    grammar has to read the option set off the live parser rather than a
+    hard-coded list.
+    """
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            sub = action.choices.get(name)
+            if sub is not None:
+                return sub
+    return None
+
+
 def main(project_dir=None):
     from .pkg_types.pkg_type_rgy import PkgTypeRgy
     import logging
@@ -710,8 +842,30 @@ def main(project_dir=None):
 
     raw_argv = sys.argv[1:]
 
+    # 'install' uses an interleaved grammar (--from X -d a --from Y -d b) that
+    # argparse cannot express, so argv is split into per-source groups before
+    # argparse sees it. Only the global options reach the parser; the parsed
+    # SourceSpecs are attached to args below.
+    install_specs = None
+    _cmd_idx = _find_subcommand_index(raw_argv)
+    if _cmd_idx is not None and raw_argv[_cmd_idx] == "install":
+        from .install_spec import (build_global_option_table,
+                                   parse_source_groups, split_source_groups)
+        head = raw_argv[:_cmd_idx + 1]
+        tail = raw_argv[_cmd_idx + 1:]
+        # Global options are hoisted out of the group they were typed in, so
+        # 'install --from X -d sim -o tools' works like the canonical order.
+        global_options = build_global_option_table(
+            find_subparser(parser, "install"))
+        global_argv, groups = split_source_groups(tail, global_options)
+        install_specs = parse_source_groups(groups, global_options)
+        raw_argv = head + global_argv
+
     # Custom parsing to allow trailing workspace dir after options for 'clone'
     args, extras = parser.parse_known_args(raw_argv)
+
+    if install_specs is not None:
+        args._source_specs = install_specs
 
     # For `clone`, pull provider-only options out of argv and reparse the rest
     # cleanly, so a provider's single-dash long option (e.g. '-branch') never

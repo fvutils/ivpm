@@ -2,7 +2,7 @@
 #* test_update_from.py
 #*
 #* Tests for 'ivpm update --from <manifest>' (install from an external manifest)
-#* and the --deps-dir override. Uses a pypi dep with --skip-py-install so no
+#* and the --deps-dir override. Uses a pypi dep with --py-skip-install so no
 #* network access is required.
 #****************************************************************************
 import json
@@ -67,13 +67,13 @@ class TestUpdateFrom(unittest.TestCase):
             return json.load(f)
 
     def test_install_default_into_cwd(self):
-        _run("update", "--from", self.catalog, "--skip-py-install", cwd=self.work)
+        _run("update", "--from", self.catalog, "--py-skip-install", cwd=self.work)
         # deps land in ./packages; no ivpm.yaml is copied into the workspace
         self.assertTrue(os.path.isdir(os.path.join(self.work, "packages")))
         self.assertFalse(os.path.isfile(os.path.join(self.work, "ivpm.yaml")))
 
     def test_lock_records_source_manifest(self):
-        _run("update", "--from", self.catalog, "--skip-py-install", cwd=self.work)
+        _run("update", "--from", self.catalog, "--py-skip-install", cwd=self.work)
         sm = self._lock().get("source_manifest")
         self.assertIsNotNone(sm)
         self.assertEqual(sm["from"], self.catalog)
@@ -81,12 +81,12 @@ class TestUpdateFrom(unittest.TestCase):
 
     def test_dep_set_selection(self):
         _run("update", "--from", self.catalog, "-d", "gui-tools",
-             "--skip-py-install", cwd=self.work)
+             "--py-skip-install", cwd=self.work)
         self.assertEqual(self._lock()["source_manifest"]["dep_set"], "gui-tools")
 
     def test_multiple_dep_sets_repeated(self):
         _run("update", "--from", self.catalog, "-d", "default", "-d", "gui-tools",
-             "--skip-py-install", cwd=self.work)
+             "--py-skip-install", cwd=self.work)
         sm = self._lock()["source_manifest"]
         # Multiple sets are recorded as a list; the singular key is omitted.
         self.assertEqual(sm["dep_sets"], ["default", "gui-tools"])
@@ -94,18 +94,18 @@ class TestUpdateFrom(unittest.TestCase):
 
     def test_multiple_dep_sets_comma_separated(self):
         _run("update", "--from", self.catalog, "-d", "default,gui-tools",
-             "--skip-py-install", cwd=self.work)
+             "--py-skip-install", cwd=self.work)
         self.assertEqual(
             self._lock()["source_manifest"]["dep_sets"], ["default", "gui-tools"])
 
     def test_unknown_dep_set_errors(self):
         _, rc, err = _run("update", "--from", self.catalog, "-d", "nope",
-                          "--skip-py-install", cwd=self.work, check=False)
+                          "--py-skip-install", cwd=self.work, check=False)
         self.assertNotEqual(rc, 0)
 
     def test_deps_dir_override(self):
         _run("update", "--from", self.catalog, "--deps-dir", "vendor",
-             "--skip-py-install", cwd=self.work)
+             "--py-skip-install", cwd=self.work)
         self.assertTrue(os.path.isfile(
             os.path.join(self.work, "vendor", "package-lock.json")))
         self.assertFalse(os.path.isdir(os.path.join(self.work, "packages")))
@@ -113,14 +113,54 @@ class TestUpdateFrom(unittest.TestCase):
     def test_local_ivpm_yaml_blocks_from(self):
         with open(os.path.join(self.work, "ivpm.yaml"), "w") as f:
             f.write("package:\n  name: local\n  dep-sets:\n  - name: default\n    deps: []\n")
-        _, rc, err = _run("update", "--from", self.catalog, "--skip-py-install",
+        _, rc, err = _run("update", "--from", self.catalog, "--py-skip-install",
                           cwd=self.work, check=False)
         self.assertNotEqual(rc, 0)
         self.assertIn("already has an ivpm.yaml", err)
 
+    #-----------------------------------------------------------------------
+    # Replay: a --from workspace has no ivpm.yaml, so a bare re-run must
+    # recover the driving manifest from the lock.
+    #-----------------------------------------------------------------------
+
+    def test_bare_rerun_replays_source(self):
+        _run("update", "--from", self.catalog, "--py-skip-install", cwd=self.work)
+        _run("update", "--py-skip-install", cwd=self.work)
+        self.assertEqual(self._lock()["source_manifest"]["from"], self.catalog)
+
+    def test_bare_rerun_preserves_dep_sets(self):
+        _run("update", "--from", self.catalog, "-d", "default", "-d", "gui-tools",
+             "--py-skip-install", cwd=self.work)
+        _run("update", "--py-skip-install", cwd=self.work)
+        self.assertEqual(
+            self._lock()["source_manifest"]["dep_sets"], ["default", "gui-tools"])
+
+    def test_explicit_from_overrides_recorded(self):
+        other = os.path.join(self._cat.name, "other.yaml")
+        with open(other, "w") as f:
+            f.write(_CATALOG.replace("acme-tools", "other-tools"))
+        _run("update", "--from", self.catalog, "--py-skip-install", cwd=self.work)
+        _run("update", "--from", other, "--py-skip-install", cwd=self.work)
+        self.assertEqual(self._lock()["source_manifest"]["from"], other)
+
+    def test_rerun_with_deps_dir_override(self):
+        """A tool-directory install (deps-dir IS the root) replays in place."""
+        tools = os.path.join(self.work, "tools")
+        os.makedirs(tools)
+        _run("update", "--from", self.catalog, "--deps-dir", ".",
+             "--py-skip-install", cwd=tools)
+        # Bare re-run: the recorded deps-dir is recovered, so the layout is
+        # reproduced without the user repeating --deps-dir.
+        _run("update", "--py-skip-install", cwd=tools)
+        with open(os.path.join(tools, "package-lock.json")) as f:
+            self.assertEqual(json.load(f)["source_manifest"]["from"], self.catalog)
+        self.assertFalse(os.path.isdir(os.path.join(tools, "packages")))
+        self.assertFalse(os.path.isfile(
+            os.path.join(self.work, "package-lock.json")))
+
     def test_from_and_lock_file_mutually_exclusive(self):
         _, rc, err = _run("update", "--from", self.catalog, "--lock-file",
-                          "foo.json", "--skip-py-install", cwd=self.work, check=False)
+                          "foo.json", "--py-skip-install", cwd=self.work, check=False)
         self.assertNotEqual(rc, 0)
         self.assertIn("mutually exclusive", err)
 

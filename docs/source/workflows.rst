@@ -166,7 +166,7 @@ Delete the dependency entry.
 .. code-block:: bash
 
     $ rm -rf packages/dependency-name
-    $ ivpm update --force-py-install  # If it was a Python package
+    $ ivpm update --py-force-install  # If it was a Python package
 
 Updating Dependency Versions
 -----------------------------
@@ -187,7 +187,7 @@ Updating Dependency Versions
 
 .. code-block:: bash
 
-    $ ivpm update --force-py-install
+    $ ivpm update --py-force-install
 
 **For Git packages:**
 
@@ -227,6 +227,42 @@ To remove an entire workspace, root and all (the inverse of ``clone``):
 Unlike ``rm -rf``, ``destroy`` refuses to delete imports holding local
 modifications, untracked files, or unpushed commits, and unlinks cache-backed
 dependencies instead of recursing into the shared cache. See :doc:`destroy`.
+
+Sharing a Tool Directory Across Projects
+========================================
+
+When several projects need the same simulator and synthesis tools, install them
+once into a shared tree rather than into each project's ``packages/``. See
+:doc:`tool_directories`.
+
+**One person (or a CI job) publishes the tree:**
+
+.. code-block:: bash
+
+    $ ivpm install -o /opt/eda \
+        --from https://edapack.github.io -d digital-sim -d digital-formal \
+        --from https://mycorp.internal/tools -d common
+
+**Everyone else sources it** from their project's ``.envrc``:
+
+.. code-block:: bash
+
+    # .envrc
+    source_env /opt/eda/packages.envrc     # shared tools
+    source_env packages/packages.envrc     # this project's own deps
+
+The project's own ``packages.envrc`` comes second so project-local
+dependencies take precedence over the shared tools.
+
+**Refreshing** replays the recorded spec -- no need to retype the sources:
+
+.. code-block:: bash
+
+    $ ivpm install -o /opt/eda
+    $ ivpm status -p /opt/eda       # what is actually installed there
+
+Adding or removing a source means supplying ``--from`` again, which *replaces*
+the recorded spec and prints what changed.
 
 Daily Development
 =================

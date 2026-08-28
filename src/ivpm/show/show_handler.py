@@ -82,6 +82,8 @@ def _rich_detail(info):
     if info.conditions:
         console.print(f"[bold]Activation:[/] {info.conditions}\n")
 
+    console.print(f"[label]Toolchain mode:[/] {info.toolchain_support}")
+
     if info.run_after:
         console.print(f"[bold]Run after:[/] {', '.join(info.run_after)}")
     if info.run_before:
@@ -133,6 +135,7 @@ def _plain_detail(info):
     print(f"Description: {info.description}")
     if info.conditions:
         print(f"Activation:  {info.conditions}")
+    print(f"Toolchain mode: {info.toolchain_support}")
     if info.run_after:
         print(f"Run after:   {', '.join(info.run_after)}")
     if info.run_before:

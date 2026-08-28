@@ -120,6 +120,12 @@ Class-level Metadata
     A list of **root conditions** (see below), or ``None`` to always run as a
     root handler. Use ``[]`` to opt out of root dispatch entirely.
 
+``toolchain_support``
+    Whether this handler's root phase may run when the deps-dir is the root --
+    a :doc:`shared tool directory <tool_directories>` built by ``ivpm
+    install``. ``ToolchainSupport.SUPPORTED`` (the default) or
+    ``ToolchainSupport.UNSUPPORTED``. See `Working Without a Project Root`_.
+
 
 Callbacks
 ----------
@@ -353,7 +359,12 @@ FuseSoC ``.core`` files and writes a consolidated library list:
                     self._lib_paths.append(str(pkg.path))
 
         def on_root_post_load(self, update_info):
-            out = pathlib.Path(update_info.deps_dir) / ".." / "fusesoc.conf"
+            # Never derive the project root from the deps-dir by hand: in a
+            # tool directory the deps-dir IS the root, and '..' would escape it.
+            project_root = update_info.project_root_or_none()
+            if project_root is None:
+                return          # no project: nothing to write a fusesoc.conf into
+            out = pathlib.Path(project_root) / "fusesoc.conf"
             with self.task_context(update_info, "fusesoc-write", "Writing FuseSoC config") as task:
                 task.progress(f"Writing {len(self._lib_paths)} library paths")
                 with open(out, "w") as f:
@@ -366,6 +377,46 @@ Register it:
 
     [project.entry-points."ivpm.handlers"]
     fusesoc = "myext.fusesoc_handler:FuseSocHandler"
+
+
+Working Without a Project Root
+==============================
+
+Most workspaces have a project directory with the deps-dir beneath it. A
+:doc:`shared tool directory <tool_directories>` does not: there, the deps-dir
+**is** the root. A handler that needs the project root must ask for it rather
+than compute it, and there are two accessors on ``update_info`` because there
+are two honest answers to "what do I do without one".
+
+``update_info.project_root_or_none()``
+    Returns the project root, or ``None`` in toolchain mode. Use this when the
+    handler has something sensible to do either way -- typically writing its
+    deps-dir output unconditionally and skipping only the project-scoped part.
+
+``update_info.project_root()``
+    Returns the project root, or **raises** ``ToolchainModeError`` in toolchain
+    mode. Use this when the handler genuinely cannot function without a
+    project. Raising is the point: the alternative is silently writing a
+    project-scoped artifact into a shared tool tree, where it is both wrong and
+    invisible.
+
+Do **not** reach for ``update_info.project_dir`` directly, and never derive the
+root as ``os.path.dirname(deps_dir)`` -- that is the expression these accessors
+exist to replace, and it escapes the tool directory.
+
+If every artifact your root phase produces is project-scoped, declare that
+instead of branching, and the dispatcher will skip you with a note:
+
+.. code-block:: python
+
+    from ivpm.handlers.package_handler import PackageHandler, ToolchainSupport
+
+    class MyProjectScopedHandler(PackageHandler):
+        name = "myhandler"
+        toolchain_support = ToolchainSupport.UNSUPPORTED
+
+Leaf callbacks are unaffected: they operate on a package inside the deps-dir,
+which exists in both modes.
 
 
 Handler Ordering

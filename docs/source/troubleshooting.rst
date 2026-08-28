@@ -358,7 +358,7 @@ Module Not Found
 
    .. code-block:: bash
 
-       $ ivpm update --force-py-install
+       $ ivpm update --py-force-install
 
 3. **Check dependency set:**
 
@@ -401,7 +401,7 @@ Editable Install Not Working
 
    .. code-block:: bash
 
-       $ ivpm update --force-py-install
+       $ ivpm update --py-force-install
 
 4. **Check package has setup.py:**
 
@@ -872,6 +872,74 @@ Wrong Dependencies Loaded
 1. Check ``default-dep-set`` in root ``ivpm.yaml``
 2. Explicitly specify: ``ivpm update -d default``
 3. Check ``default-dep-set`` in each dependency set
+
+Tool Directory Issues
+---------------------
+
+See :doc:`tool_directories` for the feature itself.
+
+"Failed to locate IVPM meta-data (eg ivpm.yaml) or a package-lock.json"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue:** ``ivpm status`` or ``ivpm sync`` cannot find a workspace.
+
+IVPM looks for, in order: a root ``ivpm.yaml``; a ``package-lock.json`` in the
+directory *itself* (a tool directory, where the deps-dir is the root); a
+``package-lock.json`` in an immediate child (``packages/``, ``import/``,
+``deps/``). With no ``-p``, that search then repeats up the ancestor chain, so
+running from inside a package subdirectory works.
+
+**Solutions:**
+
+1. Run ``ivpm update`` (or ``ivpm install``) first -- there may genuinely be no
+   lock file yet.
+2. If you passed ``-p <dir>``, check the path. **An explicit ``-p`` never walks
+   up**: a named directory is an assertion, and silently resolving to an
+   ancestor would be worse than failing.
+
+"package 'X' is provided by two sources with different definitions"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue:** Two ``--from`` catalogs disagree about a package.
+
+**Solutions:** the message prints both escapes. Prefer ``--resolve
+<package>=<source>``: it is specific, it is recorded in the lock, and it
+survives replay. Reach for ``--on-collision=first-wins`` / ``last-wins`` only
+when you want one rule for every collision at once; it still warns for each.
+
+If the disagreement is about a *configuration* key rather than a package, only
+``--on-collision`` applies -- ``--resolve`` is keyed by package name.
+
+A replay fails with a collision that was not there before
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue:** ``ivpm install -o <dir>`` used to work and now errors. An upstream
+catalog changed, and two sources now disagree where they previously did not.
+
+This is deliberate -- silently changing which source provides a tool is worse
+than a failed refresh -- but it does mean an unattended refresh can break.
+Resolve it once with ``--resolve``; it is recorded and replayed thereafter.
+
+"env setting 'X' references ${IVPM_PROJECT}"
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue:** A catalog's ``env:`` refers to the project root, which a tool
+directory does not have.
+
+**Solutions:** ``--on-project-ref=expand`` (substitute the tool directory) or
+``--on-project-ref=drop`` (omit the setting); both warn. The durable fix is for
+the catalog to use ``${IVPM_PACKAGES}``, which is valid in both layouts.
+
+Python resolver errors after adding a second source
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Issue:** ``pip``/``uv`` reports conflicting requirements during an install
+that worked with one source.
+
+All sources share a single venv in ``<outdir>/python``, and IVPM does not
+reconcile Python version constraints between them -- that is the resolver's
+job. Either relax the constraint upstream, or give the conflicting catalogs
+separate tool directories.
 
 Common Error Messages
 =====================

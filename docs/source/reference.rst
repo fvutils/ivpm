@@ -808,10 +808,10 @@ Fetch dependencies and initialize environment.
     Comma-separated git auth order to try (``gh,ssh,https``); overrides
     ``IVPM_GIT_AUTH_ORDER`` and the config files for this invocation.
 
-``--skip-py-install``
+``--py-skip-install``
     Skip Python package installation
 
-``--force-py-install``
+``--py-force-install``
     Force Python package reinstallation
 
 ``--py-prerls-packages``
@@ -881,10 +881,10 @@ Fetch dependencies and initialize environment.
     $ ivpm update -j 8
     
     # Skip Python install
-    $ ivpm update --skip-py-install
+    $ ivpm update --py-skip-install
     
     # Force Python reinstall
-    $ ivpm update --force-py-install
+    $ ivpm update --py-force-install
     
     # Reproduce exact workspace from a committed lock file
     $ ivpm update --lock-file ./ivpm.lock
@@ -969,6 +969,10 @@ Exported into ``packages/packages.envrc`` (loaded by direnv) as the packages
 directory.
 
 Available to ``env:`` directives as ``${IVPM_PACKAGES}``.
+
+In a tool directory, ``ivpm install --root-var NAME`` exports the directory as
+``NAME`` and ``IVPM_PACKAGES`` as an alias of it, so both names resolve to the
+same path. See :doc:`tool_directories`.
 
 GITHUB_TOKEN
 ------------

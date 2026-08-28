@@ -192,8 +192,53 @@ where the workspace came from in a top-level ``source_manifest`` block:
 ``from`` is the original ``--from`` argument (path or URL) and ``dep_set`` is the
 resolved dependency set that was installed.  This makes the workspace
 self-describing without a local manifest: tooling can locate the lock file by
-knowing the deps directory and re-resolve against the recorded source.  The
-field is absent for ordinary (local ``ivpm.yaml``) workspaces.
+knowing the deps directory and re-resolve against the recorded source.  It is
+also what makes a bare ``ivpm update`` in such a workspace work -- the recorded
+source (and the deps-dir it was installed into) is replayed, so ``--from`` need
+not be repeated.  The field is absent for ordinary (local ``ivpm.yaml``)
+workspaces.
+
+Tool-Directory Install (``install_mode``, ``sources``)
+=======================================================
+
+``ivpm install`` builds a :doc:`shared tool directory <tool_directories>` from
+**several** manifests, which ``source_manifest`` (a single source) cannot
+express.  Those workspaces record a richer, ordered spec instead:
+
+.. code-block:: json
+
+    {
+      "ivpm_lock_version": 1,
+      "install_mode": "toolchain",
+      "sources": [
+        {"from": "https://edapack.github.io", "as": "edapack",
+         "dep_sets": ["digital-sim", "digital-formal"], "definitions": {}},
+        {"from": "https://mycorp.internal/tools", "as": "corp",
+         "dep_sets": ["common"], "definitions": {}}
+      ],
+      "collision_resolutions": {"verilator": "corp"},
+      "packages": { }
+    }
+
+``install_mode``
+    ``"toolchain"`` -- the deps-dir is the root, with no project above it.
+
+``sources``
+    The ordered source list.  Order is significant: it determines ``PATH``
+    precedence in the generated ``packages.envrc``, so a replay must preserve
+    it.  Each entry carries the ``--from`` value, the resolved alias (``as``),
+    the selected ``dep_sets``, and any per-source ``-D`` ``definitions``.
+
+``collision_resolutions``
+    Every ``--resolve <package>=<source>`` the user supplied, including any
+    that did not fire on this run -- a resolution that is stale today may be
+    needed again after an upstream bump, and dropping it would silently
+    re-break the replay.
+
+These are **additive** top-level keys, so ``ivpm_lock_version`` is unchanged; a
+reader that does not know them is unaffected.  ``sources`` takes precedence
+over ``source_manifest``, which remains the single-source form written by
+``ivpm update --from``.
 
 Root Project (``root``)
 =======================

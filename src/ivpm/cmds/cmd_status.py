@@ -9,10 +9,14 @@ class CmdStatus(object):
         pass
 
     def __call__(self, args):
-        if args.project_dir is None:
+        # An explicit -p is an assertion: never resolve it to an ancestor.
+        # Only a cwd-defaulted start walks up looking for an enclosing scope.
+        explicit = args.project_dir is not None
+        if not explicit:
             args.project_dir = os.getcwd()
 
-        root_status, results = ProjectOps(args.project_dir).status(args=args)
+        root_status, results = ProjectOps(args.project_dir).status(
+            args=args, walk=not explicit)
         verbose = getattr(args, "verbose", 0)
         tui = create_status_tui(args)
         tui.render(results, verbose=verbose, root_status=root_status)

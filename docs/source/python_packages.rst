@@ -93,7 +93,7 @@ Managing Installation
 
 .. code-block:: bash
 
-    $ ivpm update --skip-py-install
+    $ ivpm update --py-skip-install
 
 Use this when packages are already installed and you only want to fetch 
 non-Python dependencies.
@@ -102,7 +102,7 @@ non-Python dependencies.
 
 .. code-block:: bash
 
-    $ ivpm update --force-py-install
+    $ ivpm update --py-force-install
 
 Use this to re-install all Python packages, useful after:
 
@@ -163,7 +163,7 @@ Controls **whether and how** the virtual environment is created.
 
 **Priority** (highest wins):
 
-1. CLI ``--skip-py-install``
+1. CLI ``--py-skip-install``
 2. CLI ``--skip-venv``
 3. ``venv: false`` in ``with.python`` (dep-set-level, then package-level)
 4. CLI ``--py-uv`` / ``--py-pip``
@@ -174,7 +174,7 @@ Controls **whether and how** the virtual environment is created.
 .. note::
 
    ``venv: false`` in yaml cannot be overridden by ``--py-uv`` or ``--py-pip``.
-   Use ``--skip-py-install`` (CLI only) for a one-shot override.
+   Use ``--py-skip-install`` (CLI only) for a one-shot override.
 
 ``system-site-packages`` key
 ------------------------------
@@ -860,7 +860,7 @@ Best Practices
 3. **Use editable installs** for packages under active development
 4. **Keep dev tools separate** in ``default-dev`` dependency set
 5. **Pin versions** for reproducible builds (release deps)
-6. **Use --force-py-install** after changing dependency sets
+6. **Use --py-force-install** after changing dependency sets
 7. **Leverage uv** for faster package installation
 8. **Test with both pip and uv** if distributing to diverse users
 

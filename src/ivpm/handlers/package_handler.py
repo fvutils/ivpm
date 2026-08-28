@@ -20,6 +20,7 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+import enum
 import threading
 import time
 from contextlib import contextmanager
@@ -33,6 +34,20 @@ from .handler_phases import HandlerPhase
 class HandlerFatalError(Exception):
     """Raised by a leaf handler to signal a fatal error that should abort the update."""
     pass
+
+
+class ToolchainSupport(enum.Enum):
+    """Whether a handler can run when the deps-dir is the root.
+
+    ``SUPPORTED`` means the handler either writes nothing outside the deps-dir,
+    or branches internally on ``update_info.project_root_or_none()``.
+
+    ``UNSUPPORTED`` means its root-phase output is inherently project-scoped, so
+    the dispatcher skips it in ``TOOLCHAIN`` mode -- with a note, never
+    silently.
+    """
+    SUPPORTED = "supported"
+    UNSUPPORTED = "unsupported"
 
 
 class TaskHandle:
@@ -118,6 +133,11 @@ class PackageHandler(object):
     # root_when: list of callable(packages: list[Package]) -> bool, or None (always active as root)
     root_when:   ClassVar[Optional[List]] = None
 
+    # Whether this handler's root phase may run when the deps-dir is the root
+    # (a shared tool directory). Handlers default to SUPPORTED; declare
+    # UNSUPPORTED when the root-phase output is inherently project-scoped.
+    toolchain_support: ClassVar[ToolchainSupport] = ToolchainSupport.SUPPORTED
+
     # Per-instance thread lock — acquired during writes to accumulated state
     _lock: threading.Lock = dc.field(default_factory=threading.Lock, init=False, repr=False)
 
@@ -130,6 +150,7 @@ class PackageHandler(object):
             description=cls.description or "",
             phase=cls.phase,
             conditions=cls.conditions_summary or "",
+            toolchain_support=cls.toolchain_support.value,
         )
 
     # ------------------------------------------------------------------ #

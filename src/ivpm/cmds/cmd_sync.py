@@ -17,7 +17,10 @@ class CmdSync(object):
         pass
 
     def __call__(self, args):
-        if args.project_dir is None:
+        # An explicit -p is an assertion: never resolve it to an ancestor.
+        # Only a cwd-defaulted start walks up looking for an enclosing scope.
+        explicit = args.project_dir is not None
+        if not explicit:
             args.project_dir = os.getcwd()
 
         dry_run = getattr(args, "dry_run", False)
@@ -29,7 +32,7 @@ class CmdSync(object):
 
         tui.start()
         try:
-            results = ProjectOps(args.project_dir).sync(args=args)
+            results = ProjectOps(args.project_dir).sync(args=args, walk=not explicit)
         finally:
             tui.stop()
 

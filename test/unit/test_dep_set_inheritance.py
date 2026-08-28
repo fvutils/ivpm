@@ -294,6 +294,90 @@ package:
         self.assertIn("lib_b",  standalone.packages)
         self.assertNotIn("lib_a", standalone.packages)
 
+    def test_inherited_dep_keeps_declaring_dep_set(self):
+        """
+        An inherited dependency keeps the dep-set of the dep-set that *declared*
+        it, not the name of the dep-set that inherited it.
+
+        'dev' uses 'use', and 'use' declares 'a'. Since 'dev' says nothing about
+        'a', pulling 'dev' must load a's 'use' dep-set -- the declaring context
+        travels with the dependency.
+        """
+        proj = _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: use
+      deps:
+        - name: a
+          src: git
+          url: https://example.com/a.git
+    - name: dev
+      uses: use
+      deps:
+        - name: pytest
+          src: pypi
+""")
+        # In its declaring dep-set, 'a' resolves against a's 'use' dep-set
+        self.assertEqual("use", proj.get_dep_set("use").packages["a"].dep_set)
+
+        dev = proj.get_dep_set("dev")
+        # The inherited dep still points at 'use', *not* 'dev'
+        self.assertEqual("use", dev.packages["a"].dep_set)
+        # ...while 'dev's own dep defaults to 'dev'
+        self.assertEqual("dev", dev.packages["pytest"].dep_set)
+
+    def test_inheritor_default_dep_set_does_not_rewrite_inherited(self):
+        """
+        'default-dep-set' on the inheriting dep-set applies only to the deps that
+        dep-set declares itself; inherited deps keep their base's dep-set.
+        """
+        proj = _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: use
+      deps:
+        - name: a
+          src: git
+          url: https://example.com/a.git
+    - name: dev
+      uses: use
+      default-dep-set: dev-tools
+      deps:
+        - name: b
+          src: git
+          url: https://example.com/b.git
+""")
+        dev = proj.get_dep_set("dev")
+        self.assertEqual("use", dev.packages["a"].dep_set)
+        self.assertEqual("dev-tools", dev.packages["b"].dep_set)
+
+    def test_explicit_dep_set_overrides_inherited(self):
+        """
+        Re-declaring the dep in the inheriting dep-set with an explicit
+        'dep-set' overrides the inherited entry.
+        """
+        proj = _parse("""
+package:
+  name: test_project
+  dep-sets:
+    - name: use
+      deps:
+        - name: a
+          src: git
+          url: https://example.com/a.git
+    - name: dev
+      uses: use
+      deps:
+        - name: a
+          src: git
+          url: https://example.com/a.git
+          dep-set: dev
+""")
+        self.assertEqual("use", proj.get_dep_set("use").packages["a"].dep_set)
+        self.assertEqual("dev", proj.get_dep_set("dev").packages["a"].dep_set)
+
 
 class TestDepSetInheritanceIntegration(TestBase):
     """Integration tests: full ivpm_update() / ivpm_sync() with inheritance."""
@@ -379,6 +463,52 @@ package:
         pkgs = os.path.join(self.testdir, "packages")
         self.assertTrue(os.path.isdir(os.path.join(pkgs, "leaf_proj1")))
         self.assertTrue(os.path.isdir(os.path.join(pkgs, "leaf_proj2")))
+
+    def test_inherited_dep_pulls_declaring_dep_set(self):
+        """
+        End-to-end: root 'dev' uses 'use'; 'use' declares dependency 'pkg_a'.
+        'dev' says nothing about pkg_a, so pkg_a must be expanded using *its*
+        'use' dep-set -- not 'dev' -- pulling leaf_proj1 and not leaf_proj2.
+        """
+        self.mkFile("src/pkg_a/ivpm.yaml", """
+package:
+    name: pkg_a
+    dep-sets:
+        - name: use
+          default-dep-set: default
+          deps:
+            - name: leaf_proj1
+              url: file://${DATA_DIR}/leaf_proj1
+              src: dir
+        - name: dev
+          uses: use
+          default-dep-set: default
+          deps:
+            - name: leaf_proj2
+              url: file://${DATA_DIR}/leaf_proj2
+              src: dir
+""")
+        self.mkFile("ivpm.yaml", """
+package:
+    name: test_inherit_ctx
+    dep-sets:
+        - name: use
+          deps:
+            - name: pkg_a
+              url: file://${TEST_DIR}/src/pkg_a
+              src: dir
+        - name: dev
+          uses: use
+""")
+        self.ivpm_update(dep_set="dev", skip_venv=True)
+
+        pkgs = os.path.join(self.testdir, "packages")
+        self.assertTrue(os.path.isdir(os.path.join(pkgs, "pkg_a")),
+                        "pkg_a should be inherited from the 'use' dep-set")
+        self.assertTrue(os.path.isdir(os.path.join(pkgs, "leaf_proj1")),
+                        "pkg_a must be expanded with its 'use' dep-set")
+        self.assertFalse(os.path.isdir(os.path.join(pkgs, "leaf_proj2")),
+                         "pkg_a must NOT be expanded with its 'dev' dep-set")
 
 
 if __name__ == "__main__":

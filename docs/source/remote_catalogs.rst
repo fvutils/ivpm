@@ -119,7 +119,25 @@ This works as long as ``<location>/ivpm.yaml`` exists.
 The external manifest is **not** copied into your workspace. Instead, the
 resolved ``package-lock.json`` records a ``source_manifest`` block naming the
 ``--from`` source and the installed dep-set, so the workspace is self-describing
-(see :doc:`package_lock`).
+(see :doc:`package_lock`). Because the source is recorded, a bare ``ivpm
+update`` in that directory later replays it -- you do not have to repeat
+``--from``.
+
+Installing into a shared tool directory
+---------------------------------------
+
+A published catalog can be consumed two ways. ``ivpm update --from`` pulls a
+dependency set into a *project*, under that project's deps-dir. ``ivpm
+install`` assembles a *shared tool directory* instead, where the destination
+directory itself is the deps-dir and several catalogs can be combined:
+
+.. code-block:: bash
+
+    $ ivpm install -o /opt/eda \
+        --from https://edapack.github.io -d digital-sim \
+        --from https://mycorp.internal/tools -d common
+
+See :doc:`tool_directories`.
 
 One driving manifest per workspace
 ----------------------------------

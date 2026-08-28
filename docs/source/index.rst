@@ -27,6 +27,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    dependency_sets
    nested_deps
    remote_catalogs
+   tool_directories
    multi_file
    variables
    package_types

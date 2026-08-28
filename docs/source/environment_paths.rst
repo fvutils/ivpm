@@ -149,13 +149,27 @@ win -- it is emitted later (see :ref:`env-emission-order`).
 
 **Built-in Variables:**
 
-The ``direnv`` handler always writes these into ``packages.envrc``:
+The ``direnv`` handler writes these into ``packages.envrc``:
 
 - ``IVPM_PROJECT`` - Path to project root directory
 - ``IVPM_PACKAGES`` - Path to packages directory
 
 They are available to your own ``env:`` directives via ``${IVPM_PROJECT}``
 / ``${IVPM_PACKAGES}`` (expanded by ``direnv`` at load time).
+
+.. note::
+
+   In a :doc:`shared tool directory <tool_directories>` (``ivpm install``)
+   there is no project root, so **``IVPM_PROJECT`` is not exported**.
+   ``IVPM_PACKAGES`` is always defined -- there, it is the tool directory
+   itself.
+
+   A manifest whose ``env:`` references ``${IVPM_PROJECT}`` is therefore
+   referring to something that does not exist, and ``ivpm install`` reports it
+   as an error by default. ``--on-project-ref=expand`` substitutes the tool
+   directory (close, but not what the manifest meant);
+   ``--on-project-ref=drop`` removes the setting. Both warn. If your catalog is
+   meant to be installable as a tool directory, prefer ``${IVPM_PACKAGES}``.
 
 Variable Actions
 ----------------

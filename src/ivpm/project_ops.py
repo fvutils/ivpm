@@ -54,9 +54,26 @@ class ProjectOps(object):
                deps_dir_override : str = None,
                default_config : dict = None,
                handler_overlay : dict = None,
-               timing : bool = False):
+               timing : bool = False,
+               # -- 'ivpm install' (tool-directory) inputs --------------------
+               # A pre-merged root synthesized from several --from sources.
+               # When given, no manifest is read: it *is* the manifest.
+               merged_proj_info = None,
+               # TOOLCHAIN when the deps-dir is the root. Threaded to handlers
+               # so project-scoped output is suppressed.
+               install_mode = None,
+               # The 'install' block recorded in the lock (sources, mode,
+               # collision resolutions) so a bare re-run can replay it.
+               install_record : dict = None,
+               # Name of the variable packages.envrc exports for the deps-dir
+               # (None -> just IVPM_PACKAGES).
+               root_var : str = None):
         from .update_event import UpdateEvent, UpdateEventType
         from .perf import PerfCollector
+        from .project_ops_info import InstallMode
+
+        if install_mode is None:
+            install_mode = InstallMode.WORKSPACE
 
         if from_manifest is not None and lock_file is not None:
             fatal("--from and --lock-file are mutually exclusive "
@@ -103,7 +120,8 @@ class ProjectOps(object):
                     dep_set, cli_overrides=cli_overrides,
                     from_manifest=from_manifest,
                     deps_dir_override=deps_dir_override,
-                    default_config=default_config)
+                    default_config=default_config,
+                    merged_proj_info=merged_proj_info)
 
             # Merge any clone-provided handler overlay into the effective
             # handler_configs before the handler update-info is built from them
@@ -155,6 +173,7 @@ class ProjectOps(object):
             updater.update_info.project_name    = proj_info.name
             updater.update_info.project_version = proj_info.version
             updater.update_info.project_dir     = self.root_dir
+            updater.update_info.install_mode    = install_mode
             updater.update_info.disable_cache   = getattr(args, "no_cache", False)
             updater.update_info.perf            = perf
             # Construct the session cache provider eagerly, before parallel
@@ -193,6 +212,7 @@ class ProjectOps(object):
             # Build the handler update_info (with dispatcher wired in)
             handler_update_info = ProjectUpdateInfo(
                 args, deps_dir,
+                install_mode=install_mode,
                 project_dir=self.root_dir,
                 project_name=proj_info.name,
                 force_py_install=force_py_install,
@@ -202,6 +222,7 @@ class ProjectOps(object):
                 python_config=effective_py_config,
                 node_config=effective_node_config,
                 env_settings=effective_env,
+                root_var=root_var,
             )
             handler_update_info.handler_configs = effective_handler_configs
             handler_update_info._tui_ref = tui
@@ -252,7 +273,8 @@ class ProjectOps(object):
             with perf.span("lock.write"):
                 handler_contributions = pkg_handler.get_lock_entries(deps_dir)
                 write_lock(deps_dir, updater.all_pkgs, handler_contributions,
-                           source_manifest=source_manifest)
+                           source_manifest=source_manifest,
+                           install_record=install_record)
 
                 # Write ivpm.json with dep-set(s) and handler state. "dep-set"
                 # always names the primary set (back-compat); "dep-sets" records
@@ -327,24 +349,42 @@ class ProjectOps(object):
 
         pass
 
-    def _resolve_deps_dir(self, root_dir: str = None):
+    def _resolve_deps_dir(self, root_dir: str = None, walk: bool = False):
         """Resolve ``(proj_info, deps_dir)`` for read-only operations.
 
         With a root ``ivpm.yaml`` the deps-dir comes from the manifest (as
-        before).  For a "bare" workspace (a workspace created by an ``ivpm
+        before).  Otherwise, when the directory is *itself* a deps-dir (a shared
+        tool directory, where the deps-dir is the root) it is used directly.
+        Failing that, for a "bare" workspace (a workspace created by an ``ivpm
         clone`` provider from a source with no ``ivpm.yaml``) the deps-dir is
-        discovered from the lock via :func:`find_ivpm_deps_dir`.  Returns
-        ``proj_info=None`` in the bare case, and ``deps_dir=None`` when neither a
-        manifest nor a lock is found.
+        discovered among the children via :func:`find_ivpm_deps_dir`.  Returns
+        ``proj_info=None`` in the bare and tool-directory cases, and
+        ``deps_dir=None`` when nothing is found.
+
+        When *walk* is set and none of the above match at *root_dir*, the search
+        repeats up the ancestor chain, nearest match winning.  Callers pass
+        ``walk=True`` only when the starting directory was defaulted from the
+        cwd -- an explicitly named directory is never resolved to an ancestor.
         """
         from .proj_info import ProjInfo
         from .package_lock import find_ivpm_deps_dir
+        from .utils import is_filesystem_root
 
-        root = root_dir if root_dir is not None else self.root_dir
-        proj_info = ProjInfo.mkFromProj(root)
-        if proj_info is not None:
-            return proj_info, os.path.join(root, proj_info.deps_dir)
-        return None, find_ivpm_deps_dir(root)
+        root = os.path.abspath(root_dir if root_dir is not None else self.root_dir)
+
+        while True:
+            proj_info = ProjInfo.mkFromProj(root)
+            if proj_info is not None:
+                return proj_info, os.path.join(root, proj_info.deps_dir)
+            deps_dir = find_ivpm_deps_dir(root)
+            if deps_dir is not None:
+                return None, deps_dir
+            if not walk or is_filesystem_root(root):
+                return None, None
+            parent = os.path.dirname(root)
+            if parent == "" or parent == root:
+                return None, None
+            root = parent
 
     def _load_root_config_from_lock(self):
         """Return ``(default_package, handler_overlay)`` persisted in the lock's
@@ -393,13 +433,13 @@ class ProjectOps(object):
                  "root record")
         return dc, ho
 
-    def status(self, dep_set: str = None, args=None):
+    def status(self, dep_set: str = None, args=None, walk: bool = False):
         from .pkg_status import PkgVcsStatus
         from .project_ops_info import ProjectStatusInfo
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         from .package_lock import read_lock
 
-        proj_info, deps_dir = self._resolve_deps_dir()
+        proj_info, deps_dir = self._resolve_deps_dir(walk=walk)
         if deps_dir is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml) or a "
                   "package-lock.json under %s" % self.root_dir)
@@ -792,7 +832,7 @@ class ProjectOps(object):
 
         return report
 
-    def sync(self, dep_set: str = None, args=None):
+    def sync(self, dep_set: str = None, args=None, walk: bool = False):
         import asyncio
         import multiprocessing
         from .pkg_sync import PkgSyncResult, SyncOutcome
@@ -800,7 +840,7 @@ class ProjectOps(object):
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         from .package_lock import read_lock, patch_lock_after_sync
 
-        _, deps_dir = self._resolve_deps_dir()
+        _, deps_dir = self._resolve_deps_dir(walk=walk)
         if deps_dir is None:
             fatal("Failed to locate IVPM meta-data (eg ivpm.yaml) or a "
                   "package-lock.json under %s" % self.root_dir)
@@ -1037,10 +1077,48 @@ class ProjectOps(object):
             return out
         return existing
 
+    def _load_source_manifest_from_lock(self, deps_dir_override: str = None):
+        """Return ``(source_manifest, deps_dir_name)`` recorded by a previous
+        ``update --from``, or ``None``.
+
+        This is what makes a ``--from``-driven workspace re-runnable: it has no
+        local ``ivpm.yaml``, so without replaying the recorded origin a bare
+        ``ivpm update`` has nothing to drive it.  *deps_dir_name* is the
+        directory the lock was found in, relative to ``root_dir`` (``"."`` when
+        the root *is* the deps-dir), so a re-run reproduces the original layout
+        even when the user omits ``--deps-dir``.
+
+        Never walks: replay applies to the workspace the user named, not an
+        ancestor of it.
+        """
+        from .package_lock import read_lock, find_ivpm_deps_dir
+
+        if deps_dir_override is not None:
+            deps_dir = os.path.join(self.root_dir, deps_dir_override)
+        else:
+            _, deps_dir = self._resolve_deps_dir()
+        if deps_dir is None:
+            return None
+
+        try:
+            lock = read_lock(os.path.join(deps_dir, "package-lock.json"))
+        except Exception as e:
+            _logger.debug("could not read lock for --from replay: %s", e)
+            return None
+
+        sm = lock.get("source_manifest")
+        if not sm or not sm.get("from"):
+            return None
+
+        rel = os.path.relpath(os.path.abspath(deps_dir),
+                              os.path.abspath(self.root_dir))
+        return sm, rel
+
     def _init(self, dep_set=None, cli_overrides=None,
               from_manifest : str = None,
               deps_dir_override : str = None,
-              default_config : dict = None) -> Tuple['ProjInfo', str, List[str], 'dict']:
+              default_config : dict = None,
+              merged_proj_info = None) -> Tuple['ProjInfo', str, List[str], 'dict']:
         from .proj_info import ProjInfo
 
         # Normalize the requested dep-set(s) to a list (or None for "default").
@@ -1057,6 +1135,32 @@ class ProjectOps(object):
         _pre_deps_dir_name = deps_dir_override or "packages"
 
         source_manifest = None
+
+        # 'ivpm install' supplies an already-merged root synthesized from
+        # several sources. There is no manifest to read and no source_manifest
+        # to record here -- the multi-source spec goes to the lock as the
+        # richer 'install' record instead.
+        if merged_proj_info is not None:
+            proj_info = merged_proj_info
+            deps_dir = os.path.join(
+                self.root_dir, deps_dir_override or proj_info.deps_dir)
+            return (proj_info, deps_dir,
+                    req_dep_sets or [proj_info.default_dep_set], None)
+
+        # Replay: a --from-driven workspace has no local ivpm.yaml, so a bare
+        # re-run has nothing to drive it. Recover the recorded origin from the
+        # lock. An explicit --from on the command line always takes precedence.
+        if (from_manifest is None and default_config is None
+                and not os.path.isfile(os.path.join(self.root_dir, "ivpm.yaml"))):
+            replay = self._load_source_manifest_from_lock(deps_dir_override)
+            if replay is not None:
+                recorded, recorded_deps_dir = replay
+                from_manifest = recorded["from"]
+                if deps_dir_override is None:
+                    deps_dir_override = recorded_deps_dir
+                    _pre_deps_dir_name = recorded_deps_dir
+                note("Reproducing workspace from the source manifest recorded "
+                     "in package-lock.json (%s)" % from_manifest)
 
         if from_manifest is not None:
             # A workspace has exactly one driving manifest — refuse to shadow a
@@ -1162,7 +1266,11 @@ class ProjectOps(object):
 
         return (proj_info, deps_dir, req_dep_sets, source_manifest)
     
-    def _getDepSet(self, proj_info, dep_set):
+    # Static: these depend only on their arguments. 'ivpm install' calls them
+    # directly (ProjectOps._getDepSets) to select dep-sets out of each fetched
+    # source manifest without constructing a ProjectOps.
+    @staticmethod
+    def _getDepSet(proj_info, dep_set):
         if dep_set is None:
             # Priority: 1) default-dep-set setting, 2) first dep-set in file
             if proj_info.default_dep_set is not None:
@@ -1179,7 +1287,8 @@ class ProjectOps(object):
 
         return dep_set, ds
 
-    def _getDepSets(self, proj_info, dep_sets):
+    @staticmethod
+    def _getDepSets(proj_info, dep_sets):
         """Resolve one or more requested dep-sets into a single PackagesInfo.
 
         Returns ``(names, ds)`` where *names* is the ordered list of resolved
@@ -1190,11 +1299,11 @@ class ProjectOps(object):
         from .packages_info import PackagesInfo
 
         if not dep_sets:
-            name, ds = self._getDepSet(proj_info, None)
+            name, ds = ProjectOps._getDepSet(proj_info, None)
             return [name], ds
 
         if len(dep_sets) == 1:
-            name, ds = self._getDepSet(proj_info, dep_sets[0])
+            name, ds = ProjectOps._getDepSet(proj_info, dep_sets[0])
             return [name], ds
 
         from .ivpm_yaml_reader import merge_with
@@ -1202,7 +1311,7 @@ class ProjectOps(object):
         merged = PackagesInfo("+".join(dep_sets))
         merged_with = {}
         for name in dep_sets:
-            _, ds = self._getDepSet(proj_info, name)
+            _, ds = ProjectOps._getDepSet(proj_info, name)
             # Later dep-sets win on name collisions; a shared package pulled by
             # more than one set is installed once.
             merged.packages.update(ds.packages)

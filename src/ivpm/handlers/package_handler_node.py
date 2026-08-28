@@ -187,7 +187,10 @@ class PackageHandlerNode(PackageHandler):
         """Read a package.json URL and synthesize PackageNpm entries."""
         from ..pkg_types.package_npm import PackageNpm
 
-        proj_dir = getattr(update_info, "project_dir", None) or os.getcwd()
+        # Base for resolving a relative json_path. The old os.getcwd() fallback
+        # was wrong in any mode -- the cwd need not be the project. In toolchain
+        # mode the deps-dir is the root, so it is the correct base.
+        proj_dir = update_info.project_root_or_none() or update_info.deps_dir
 
         json_path = getattr(pkg, "json_path", None)
         if json_path:

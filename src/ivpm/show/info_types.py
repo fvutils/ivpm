@@ -115,6 +115,9 @@ class HandlerInfo(RegistryEntryInfo):
     # Human-readable list of CLI options this handler adds, e.g.:
     # ["update: --py-uv", "update: --py-pip"]
     cli_options: List[str] = dc.field(default_factory=list)
+    # "supported" / "unsupported": whether the root phase runs when the
+    # deps-dir is the root (a shared tool directory).
+    toolchain_support: str = "supported"
 
 
 @dc.dataclass

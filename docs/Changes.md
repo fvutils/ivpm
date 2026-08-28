@@ -1,5 +1,10 @@
 
 # 2.24.0
+- `ivpm install --root-var NAME` names the variable `packages.envrc` exports for
+  the tool directory (e.g. `TOOLS_ROOT`). `IVPM_PACKAGES` is still exported, as
+  an alias of that name, so manifests referencing it keep resolving. The name is
+  recorded in the lock and survives replay; `--root-var IVPM_PACKAGES` restores
+  the bare default.
 - Bug fixes in Python venv setup
 
 # 2.23.0

@@ -557,7 +557,7 @@ When ``type: python`` is specified you can pass additional parameters under a
    When a package has ``type: python`` (explicitly or via auto-detection), the
    **Python handler** installs it into ``packages/python/`` during the root
    phase of every ``update`` / ``clone`` run.  See :ref:`handler-python` in :doc:`handlers` for the full list of installation options and CLI
-   flags such as ``--py-uv`` and ``--force-py-install``.
+   flags such as ``--py-uv`` and ``--py-force-install``.
 
 Node (``node``)
 ----------------

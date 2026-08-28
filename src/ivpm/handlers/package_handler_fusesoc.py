@@ -247,7 +247,11 @@ class PackageHandlerFuseSoC(PackageHandler):
 
     def on_root_post_load(self, update_info: ProjectUpdateInfo):
         cfg = update_info.handler_configs.get("fusesoc", {}) or {}
-        project_dir = update_info.project_dir or os.path.dirname(update_info.deps_dir)
+        # None in toolchain mode: there is no project, so neither the project's
+        # own .core files nor a project-level fusesoc.conf exist to contribute.
+        # fusesoc-cores.envrc still lands in the deps-dir, which is the useful
+        # part of this handler for a shared tool tree.
+        project_dir = update_info.project_root_or_none()
         deps_dir = update_info.deps_dir
 
         # Filter by import list
@@ -265,7 +269,7 @@ class PackageHandlerFuseSoC(PackageHandler):
                     active_pkg_map[name] = pkg_dirs
 
         # Include project's own .core files
-        if _has_cores_nonrecursive(project_dir):
+        if project_dir is not None and _has_cores_nonrecursive(project_dir):
             dirs = [project_dir] + dirs
             active_pkg_map["__project__"] = [project_dir]
 
@@ -290,9 +294,14 @@ class PackageHandlerFuseSoC(PackageHandler):
         _patch_packages_envrc(deps_dir)
 
         if cfg.get("update-conf", False):
-            _patch_fusesoc_conf(
-                os.path.join(project_dir, "fusesoc.conf"),
-                active_pkg_map)
+            if project_dir is None:
+                from ..utils import note
+                note("fusesoc: skipping fusesoc.conf (update-conf) -- this is a "
+                     "tool directory with no project root")
+            else:
+                _patch_fusesoc_conf(
+                    os.path.join(project_dir, "fusesoc.conf"),
+                    active_pkg_map)
 
         self._output_written = True
 

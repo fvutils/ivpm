@@ -229,8 +229,8 @@ class PackageHandlerPython(PackageHandler):
             cli_options=[
                 "update: --py-uv         Use 'uv' instead of pip to manage the virtual environment",
                 "update: --py-pip         Force use of pip (overrides uv detection)",
-                "update: --skip-py-install  Skip Python package installation",
-                "update: --force-py-install  Force re-install of all Python packages",
+                "update: --py-skip-install  Skip Python package installation",
+                "update: --py-force-install  Force re-install of all Python packages",
                 "update: --py-prerls-packages  Allow pre-release packages",
                 "update: --py-system-site-packages  Inherit system site-packages in the venv",
                 "clone:  --py-uv / --py-pip / --py-system-site-packages  (same as update)",
@@ -394,7 +394,7 @@ class PackageHandlerPython(PackageHandler):
         """Determine effective VenvMode from CLI flags, skip_venv, and yaml config.
 
         Priority (highest first):
-          1. CLI --skip-py-install (py_skip_install)     → SKIP
+          1. CLI --py-skip-install (py_skip_install)     → SKIP
           2. update_info.skip_venv                       → SKIP
           3. yaml with.python.venv == false              → SKIP (cannot be overridden by tool flags)
           4. CLI --py-uv                                 → UV
@@ -523,7 +523,7 @@ class PackageHandlerPython(PackageHandler):
             if update_info.force_py_install:
                 note("Forcing re-install of Python packages")
             else:
-                note("Python packages already installed. Use --force-py-install to force re-install")
+                note("Python packages already installed. Use --py-force-install to force re-install")
                 self._push_entrypoint_agent_dirs(python_dir, update_info)
                 return
         else:

@@ -22,6 +22,7 @@
 import dataclasses as dc
 import enum
 import logging
+import os
 import threading
 import types
 from typing import List, Optional, Tuple
@@ -37,10 +38,51 @@ class FileStatus(enum.Enum):
     Added = "A"
     Deleted = "D"
 
+class InstallMode(enum.Enum):
+    """How the deps-dir relates to a project.
+
+    ``WORKSPACE`` is the conventional layout: a project root containing an
+    ``ivpm.yaml``, with dependencies in a subdirectory beneath it.
+
+    ``TOOLCHAIN`` is a shared tool directory: the deps-dir *is* the root and
+    there is no project above it.  Handlers must not write project-scoped
+    artifacts in this mode -- there is nowhere correct to put them.
+    """
+    WORKSPACE = enum.auto()
+    TOOLCHAIN = enum.auto()
+
+
+class ToolchainModeError(Exception):
+    """Raised when a project root is demanded in ``TOOLCHAIN`` mode."""
+
+
 @dc.dataclass
 class ProjectOpsInfo(object):
     args : object
     deps_dir : str
+    install_mode : InstallMode = InstallMode.WORKSPACE
+
+    def project_root(self) -> str:
+        """The project root directory.
+
+        Raises in ``TOOLCHAIN`` mode -- there is no project.  This is the
+        accessor for a handler that genuinely requires a project; failing
+        loudly is the point, because the alternative is silently writing a
+        project-scoped artifact into a shared tool tree.
+        """
+        root = self.project_root_or_none()
+        if root is None:
+            raise ToolchainModeError(
+                "no project root in toolchain mode (deps-dir %s is the root); "
+                "use project_root_or_none() to branch, or declare "
+                "toolchain_support = UNSUPPORTED" % self.deps_dir)
+        return root
+
+    def project_root_or_none(self) -> Optional[str]:
+        """The project root directory, or ``None`` in ``TOOLCHAIN`` mode."""
+        if self.install_mode is InstallMode.TOOLCHAIN:
+            return None
+        return getattr(self, "project_dir", None) or os.path.dirname(self.deps_dir)
 
 @dc.dataclass
 class ProjectBuildInfo(ProjectOpsInfo):
@@ -100,6 +142,11 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     handler_configs: dict = dc.field(default_factory=dict)  # Extra with: keys for plugin handlers
     env_settings: list = dc.field(default_factory=list)  # Root project env: directives (EnvSpec); emitted to packages.envrc by the direnv handler
     project_dir: Optional[str] = None   # Project root (one level above deps_dir)
+    # Name of the variable packages.envrc exports for the deps-dir, set by
+    # 'ivpm install --root-var'. None means the bare default: IVPM_PACKAGES is
+    # exported directly. When set, that name holds the path and IVPM_PACKAGES
+    # is exported as an alias of it, so existing manifests keep resolving.
+    root_var: Optional[str] = None
     # Path of the dependency scope this view resolves into, relative to the
     # root deps-dir ("" for the root scope). Set on scope views only.
     scope_prefix: str = ""

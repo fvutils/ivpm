@@ -25,16 +25,11 @@ class CmdUpdate(object):
             args.project_dir = os.getcwd()
 
         # --dep-set is repeatable (action="append") and each value may itself
-        # be a comma-separated list, so flatten into an ordered, de-duplicated
-        # list of dep-set names. None means "use the catalog/manifest default".
-        ds_name = None
-        if getattr(args, "dep_set", None):
-            ds_name = []
-            for val in args.dep_set:
-                for name in val.split(","):
-                    name = name.strip()
-                    if name and name not in ds_name:
-                        ds_name.append(name)
+        # be a comma-separated list. None means "use the catalog/manifest
+        # default". Shared with 'ivpm install', which applies the same rule
+        # per source.
+        from ivpm.install_spec import flatten_dep_sets
+        ds_name = flatten_dep_sets(getattr(args, "dep_set", None))
 
         cli_overrides = parse_definitions(getattr(args, 'definitions', []))
 
