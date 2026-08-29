@@ -660,6 +660,17 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_clone_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
         help="Plain-text output")
 
+    show_preparers_cmd = show_subparser.add_parser("preparers",
+        aliases=["preparer"],
+        help="List package preparers (pre-populate hooks that configure or "
+             "refuse a package's target location)")
+    show_preparers_cmd.add_argument("name", nargs="?",
+        help="Show detailed info for this preparer (omit to list all)")
+    show_preparers_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_preparers_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output")
+
     show_handler_cmd = show_subparser.add_parser("handler",
         help="List registered package handlers (post-fetch processing hooks)")
     show_handler_cmd.add_argument("name", nargs="?",

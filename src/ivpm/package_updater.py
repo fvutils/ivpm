@@ -38,6 +38,8 @@ from ivpm.utils import get_venv_python
 from .project_ops_info import ProjectUpdateInfo
 from .dep_mode import FLATTEN
 from .dep_materialize import promote_to_writable
+from .perf import span_or_null
+from .prepare import PrepareDenied
 from .dep_scope import (
     DepScope, check_recursion, effective_mode, is_nested, scope_path)
 
@@ -73,10 +75,17 @@ class PackageUpdater(object):
                  pkg_handler,
                  load=True,
                  args=None,
-                 deps_mode=None):
+                 deps_mode=None,
+                 preparers=None):
         self.debug = False
         self.deps_dir = deps_dir
         self.pkg_handler = pkg_handler
+        # Pre-populate extensions. Empty unless a site has installed one, in
+        # which case dispatch below is a no-op. Injectable for tests.
+        if preparers is None:
+            from .prepare import PackagePreparerRgy
+            preparers = PackagePreparerRgy.inst().mkPreparerList()
+        self.preparers = preparers
         self.all_pkgs = PackagesInfo("root")
         # scope path -> locked entry, for reproducing a nested workspace.
         # Empty for a normal update and for every flat workspace.
@@ -348,7 +357,13 @@ class PackageUpdater(object):
         processed = []
         for i, result in enumerate(results):
             pkg = pkg_q[i][0]
-            if isinstance(result, Exception):
+            if isinstance(result, PrepareDenied):
+                # A refusal is a policy outcome, not a fetch failure: report it
+                # as one, without the "Failed to update" / source-spec framing
+                # that would send the user looking at the wrong thing. The
+                # dependency's file:line:col still comes from pkg.srcinfo.
+                fatal(str(result), pkg)
+            elif isinstance(result, Exception):
                 # The per-package PACKAGE_ERROR event was already dispatched by
                 # _update_pkg (closest to the failure, with source location), so
                 # we don't re-report it here -- that would duplicate the
@@ -382,6 +397,41 @@ class PackageUpdater(object):
             return await asyncio.get_event_loop().run_in_executor(
                 None, self._update_pkg, pkg, scope
             )
+
+    def _prepare_pkg(self, pkg, decision, scope, update_info) -> None:
+        """Run the registered preparers for *pkg* before it is populated.
+
+        A no-op when no preparer is installed, which is the default.
+        """
+        if not self.preparers:
+            return
+
+        from .prepare import PrepareRequest
+
+        cache_dir = None
+        try:
+            provider = update_info.get_cache_provider()
+            cache_dir = getattr(provider, "cache_dir", None)
+        except Exception:
+            # The cache is informational here; never let it block preparation.
+            _logger.debug("Could not resolve cache dir for %s", pkg.name)
+
+        req = PrepareRequest(
+            pkg=pkg,
+            decision=decision,
+            target_dir=pkg.path,
+            deps_dir=scope.deps_dir,
+            scope_key=pkg.scope_key,
+            update_info=update_info,
+            # Filled in per preparer by the dispatcher, which knows each
+            # preparer's name and so which 'with:' block belongs to it.
+            config={},
+            cache_dir=cache_dir,
+            is_virtual=getattr(pkg, "virtual", False))
+
+        perf = getattr(update_info, "perf", None)
+        with span_or_null(perf, "prepare.pkg", package=pkg.name):
+            self.preparers.prepare(req)
 
     def _update_pkg(self, pkg : Package, scope : DepScope) -> Tuple[Package, DepScope, ProjInfo]:
         """Loads a single package. Returns the package and any dependencies."""
@@ -419,6 +469,17 @@ class PackageUpdater(object):
         pkg.scope_key = scope_path(scope, pkg.name)
 
         try:
+            # What is about to happen to this package, and why. Memoized, so
+            # the source provider below observes the same decision -- in
+            # particular, a preparer creating the target directory cannot flip
+            # ABSENT to PREPARED_EMPTY and change the answer under it.
+            decision = update_info.get_load_planner().decide(pkg)
+
+            # Prepare the location before anything is written into it. This is
+            # where a site configures the target (group, mode, ACL) so that
+            # content inherits it as it is created, and where it can refuse.
+            self._prepare_pkg(pkg, decision, scope, update_info)
+
             # Notify handler before the package is fetched
             self.pkg_handler.on_leaf_pre_load(pkg, update_info)
 

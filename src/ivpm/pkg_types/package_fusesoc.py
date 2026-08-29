@@ -99,7 +99,9 @@ class PackageFuseSoC(Package):
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
         self.path = pkg_dir.replace("\\", "/")
 
-        if os.path.isdir(pkg_dir):
+        # The planner owns the "does this need loading?" decision -- an empty
+        # directory is not a loaded package (see load_plan.py).
+        if update_info.get_load_planner().decide(self).is_resident:
             note("package %s is already loaded" % self.name)
             return ProjInfo.mkFromProj(pkg_dir)
 

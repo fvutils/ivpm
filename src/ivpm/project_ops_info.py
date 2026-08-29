@@ -157,6 +157,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     modules_interface: Optional['ModulesInterface'] = None  # lazily populated by PackageModule.update()
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks
     _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)
+    _load_planner: Optional['LoadPlanner'] = None  # session load planner (memoized)
     disable_cache: bool = False  # When True, force a null cache provider (--no-cache)
     # Performance-span collector (perf.py). Always constructed by update();
     # --timing only gates the after-run display, not collection.
@@ -232,6 +233,24 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 self._cache_provider = get_site_config().get_cache_provider(ctx)
         return self._cache_provider
 
+    def get_load_planner(self):
+        """The session load planner, created on first use.
+
+        Rooted at ``root_deps_dir``, never at the current scope's deps-dir: lock
+        keys are scope *paths* relative to the workspace root, and a nested
+        scope's packages are recorded in that same root lock. Called through a
+        scope view, this resolves to the one shared planner -- ``root_deps_dir``
+        and ``lock_data`` both read through to the base, and the memo is written
+        back to it.
+
+        Constructed eagerly by ``ProjectOps.update`` before any parallel package
+        load, so the memo never races.
+        """
+        if self._load_planner is None:
+            from .load_plan import LoadPlanner
+            self._load_planner = LoadPlanner(self.root_deps_dir, self.lock_data)
+        return self._load_planner
+
     def report_cache_unconfigured(self):
         """Record that a package had cache=True but IVPM_CACHE was not set."""
         self.cache_unconfigured_packages += 1
@@ -264,14 +283,31 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     def _materialize_from_deps_source(self, pkg, source_path: str):
         import os
         import shutil
+        from .load_plan import clear_prepared_dir, preserve_dir_mode
         target = os.path.join(self.deps_dir, pkg.name)
-        if os.path.lexists(target):
+        copy_mode = self.deps_source_mode == "copy"
+
+        # An empty directory left by a pre-populate step is not content, so it
+        # is not a collision. In copy mode it is kept and copied *into* (so the
+        # group/mode that step configured survives, and the copied files
+        # inherit it); in link mode it is removed, since a symlink cannot be
+        # created over it and the target carries its own ownership anyway.
+        prepared = (os.path.isdir(target) and not os.path.islink(target)
+                    and not os.listdir(target))
+        if prepared and not copy_mode:
+            clear_prepared_dir(target)
+
+        if os.path.lexists(target) and not prepared:
             raise RuntimeError(
                 "Cannot materialize %s from deps-source %s: %s already exists"
                 % (pkg.name, source_path, target))
         os.makedirs(self.deps_dir, exist_ok=True)
-        if self.deps_source_mode == "copy":
-            shutil.copytree(source_path, target, symlinks=True)
+        if copy_mode:
+            # See package_dir: copy *into* a prepared directory, and restore its
+            # mode afterwards (copytree's copystat would overwrite it).
+            with preserve_dir_mode(target):
+                shutil.copytree(source_path, target, symlinks=True,
+                                dirs_exist_ok=True)
         else:
             os.symlink(source_path, target)
         pkg.from_deps_source = source_path

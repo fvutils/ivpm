@@ -134,14 +134,35 @@ class TestE2EDepsSource(unittest.TestCase):
         self.assertTrue(info.try_deps_source(pkg))
 
     def test_collision_with_existing_deps_raises(self):
+        """A pre-existing package with *content* is never written over."""
         parent = os.path.join(self.tmp, "parent")
         _golden(parent, {"foo": {"src": "git", "commit_resolved": "abc"}})
-        # pre-existing deps/foo
-        os.makedirs(os.path.join(self.deps_dir, "foo"))
+        # pre-existing deps/foo, with content in it
+        existing = os.path.join(self.deps_dir, "foo")
+        os.makedirs(existing)
+        with open(os.path.join(existing, "mine.txt"), "w") as fp:
+            fp.write("do not clobber me")
         info = self._info([parent])
         pkg = _FakePkg("foo", "git", resolved_commit="abc")
         with self.assertRaises(RuntimeError):
             info.try_deps_source(pkg)
+
+    def test_empty_existing_dir_is_adopted_not_a_collision(self):
+        """An *empty* deps/foo is not content, so it is not a collision.
+
+        This is what a pre-populate step leaves behind (it creates the
+        directory to set its group/mode before anything is written). Refusing
+        here would make deps-source and pre-populate mutually exclusive; the
+        guard exists to protect content, and an empty directory has none.
+        """
+        parent = os.path.join(self.tmp, "parent")
+        _golden(parent, {"foo": {"src": "git", "commit_resolved": "abc"}})
+        os.makedirs(os.path.join(self.deps_dir, "foo"))
+        info = self._info([parent])
+        pkg = _FakePkg("foo", "git", resolved_commit="abc")
+
+        self.assertTrue(info.try_deps_source(pkg))
+        self.assertEqual(info.deps_source_hits, 1)
 
     def test_first_match_wins_across_sources(self):
         p1 = os.path.join(self.tmp, "p1")

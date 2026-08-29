@@ -92,6 +92,17 @@ class CacheProvider:
     def __init__(self, context: CacheContext):
         self.context = context
 
+    @property
+    def cache_dir(self) -> Optional[str]:
+        """Where cached content lands, or None when this provider stores none.
+
+        Informational, for callers that need to reason about the *filesystem*
+        rather than about cache identity -- a pre-populate step checking
+        permissions or free space, say, since with caching on the bytes land
+        here first and are linked into the deps-dir.
+        """
+        return None
+
     def with_deps_dir(self, deps_dir: str) -> 'CacheProvider':
         """This provider, materializing into *deps_dir* instead.
 
@@ -190,6 +201,10 @@ class DirectoryCacheProvider(CacheProvider):
     def __init__(self, context: CacheContext, store: "DirectoryCacheStore"):
         super().__init__(context)
         self._store = store
+
+    @property
+    def cache_dir(self) -> Optional[str]:
+        return getattr(self._store, "cache_dir", None)
 
     def is_cacheable(self, pkg) -> bool:
         # The cache dir resolved (we wouldn't exist otherwise) AND this dep

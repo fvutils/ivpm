@@ -504,6 +504,130 @@ by IVPM's own test suite:
             self.assertEqual(pkg.pkg_type, "my-type")
 
 
+Contributing a Package Preparer
+===============================
+
+A **package preparer** runs immediately before a package is populated, with the
+package's resolved settings and its concrete target directory in hand. It can
+configure that location and it can refuse it. Handlers run *after* a package is
+on disk; a preparer runs *before* anything is written for it.
+
+The motivating case is permissions. If the target directory already exists with
+the right group and the setgid bit, everything the fetch creates inside it
+inherits that group as it is written -- replacing an O(files) ``chgrp -R``
+post-pass with one ``chmod`` per package.
+
+Preparers are registered through the ``ivpm.pkg_preparers`` entry-point group.
+IVPM ships none, so nothing changes until you install one. Use
+``ivpm show preparers`` to see what is registered and in what order it runs.
+
+.. code-block:: python
+
+    # acme_ivpm/disk_policy.py
+    import grp, os, stat
+    from ivpm.prepare import PackagePreparer, PrepareResult
+
+    class DiskPolicyPreparer(PackagePreparer):
+        name = "disk-policy"
+        description = "Create each package directory with its site group"
+
+        def on_session_start(self, update_info):
+            # Once per run, on the main thread -- not once per package.
+            self._member_of = {g.gr_name for g in grp.getgrall()
+                               if os.getlogin() in g.gr_mem}
+
+        def prepare(self, req):
+            if req.is_virtual:            # a factory occupies no directory
+                return PrepareResult.ok()
+
+            cfg = req.config              # this preparer's own 'with:' block
+            group = cfg.get("groups", {}).get(req.pkg.name,
+                                              cfg.get("default-group"))
+            if group is None:
+                return PrepareResult.ok()
+            if group not in self._member_of:
+                return PrepareResult.deny(
+                    "cannot set group '%s' on %s: not a member"
+                    % (group, req.target_dir),
+                    hint="request membership of '%s'" % group)
+
+            os.makedirs(req.target_dir, exist_ok=True)
+            os.chown(req.target_dir, -1, grp.getgrnam(group).gr_gid)
+            mode = os.stat(req.target_dir).st_mode
+            os.chmod(req.target_dir, mode | stat.S_ISGID)
+            return PrepareResult.ok()
+
+.. code-block:: toml
+
+    # pyproject.toml of the extension
+    [project.entry-points."ivpm.pkg_preparers"]
+    disk-policy = "acme_ivpm.disk_policy:DiskPolicyPreparer"
+
+Configuration comes from the project's ``with:`` block, keyed by the preparer's
+``name`` -- the same mechanism plugin handlers use. Each preparer sees only its
+own block:
+
+.. code-block:: yaml
+
+    package:
+      name: my-proj
+      with:
+        disk-policy:
+          default-group: eng
+          groups:
+            fast-dsp: dsp-restricted
+
+Where policy must hold regardless of what a project manifest says, read it from
+a site configuration (below) instead of, or in addition to, ``with:``.
+
+Rules a preparer must follow
+----------------------------
+
+**Be idempotent.** ``prepare()`` runs again on every update for any package that
+is re-fetched or reconciled. ``makedirs(exist_ok=True)`` plus an unconditional
+``chown``/``chmod`` is the shape to aim for.
+
+**Be thread-safe.** ``prepare()`` runs on the fetch worker threads, up to
+``--jobs`` at a time. Put expensive or stateful work in ``on_session_start()``,
+which runs once on the main thread, and cache the result on ``self``.
+
+**Never call** ``os.umask()``. It is process-global, so setting it from a worker
+thread affects every other package being fetched concurrently. setgid propagates
+group ownership but *not* permission bits; if you need group-write inheritance,
+set a POSIX default ACL on the directory (``setfacl -d -m g:eng:rwX``), which
+inherits permission bits as well, or have the site set umask once at process
+start.
+
+**Prepare a location, do not choose content.** Rewriting ``req.pkg.url`` or
+otherwise redirecting the package is out of contract; that belongs in a source
+provider.
+
+What a preparer sees, and when
+------------------------------
+
+``req.decision`` carries the load decision -- whether the package is about to be
+fetched (``FETCH``), re-examined because it is patched (``RECONCILE``), or left
+alone (``REUSE``). By default ``prepare()`` is called only for the first two,
+since nothing is being written for a reused package. Set ``always = True`` on
+the class to be consulted for every package regardless, and branch on
+``req.decision``.
+
+``req.target_dir`` is the exact directory that will be written, and it is
+scope-correct: a dependency resolved under ``deps-mode: nested`` reports its
+nested location. ``req.cache_dir`` is separate, because with caching enabled the
+bytes land there first and are linked into the deps-dir.
+
+Returning ``PrepareResult.deny(...)`` aborts the update and reports the refusal
+against the dependency's location in ``ivpm.yaml``. Every registered preparer is
+consulted before the run fails, so a package with several problems reports them
+together. A preparer that raises an unexpected exception is treated as a
+refusal -- a preparer that crashed did not prepare anything.
+
+Raising ``PrepareDenied`` from ``on_session_start()`` aborts the whole run
+before the root deps-dir is created, which is the right place to reject a
+read-only filesystem or an exhausted quota once rather than per package.
+
+
 Contributing a Site Configuration
 =================================
 
@@ -592,5 +716,6 @@ See Also
 - :doc:`clone_providers` -- Pluggable ``ivpm clone`` source providers (which
   also describe the root project for ``ivpm status`` via ``probe()`` /
   ``root_status()``)
+- :doc:`package_lock` -- The lock file, and the load decision that reads it
 - :doc:`caching` -- Customizing the cache through a site configuration
 - :doc:`git_integration` -- Site-managed git authentication defaults

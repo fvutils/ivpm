@@ -39,9 +39,18 @@ class FakeUpdateInfo:
         self.deps_source = None
         self.hits = self.misses = self.unconfigured = 0
         self.cacheable = self.editable = 0
+        self._load_planner = None
 
     def get_cache_provider(self):
         return self._provider
+
+    def get_load_planner(self):
+        # Providers ask the planner whether a package needs loading. No lock
+        # data here: these fixtures decide purely on what is on disk.
+        if self._load_planner is None:
+            from ivpm.load_plan import LoadPlanner
+            self._load_planner = LoadPlanner(self.deps_dir, None)
+        return self._load_planner
 
     def report_package(self, cacheable=False, editable=False):
         self.cacheable += int(cacheable)

@@ -52,6 +52,9 @@ class CmdShow:
         elif sub in ("clone-providers", "clone-provider"):
             from .show_clone_providers import ShowCloneProviders
             ShowCloneProviders()(args)
+        elif sub in ("preparers", "preparer"):
+            from .show_preparers import ShowPreparers
+            ShowPreparers()(args)
         else:
             # No sub-command: show all categories
             _show_all(args)

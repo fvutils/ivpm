@@ -402,6 +402,77 @@ The recommended workflow for CI reproducibility:
     - name: Run tests
       run: direnv exec . pytest
 
+Deciding Whether a Package Needs Loading
+========================================
+
+On every ``update``, IVPM decides *per package* whether to fetch it, reuse what
+is already there, or re-examine it.  Two sources feed that decision, and the
+order matters:
+
+**Residency comes from the filesystem.**
+    It is the only authority on whether content is present.  A package
+    directory you deleted by hand is re-fetched no matter what the lock says.
+
+**Identity comes from the lock file.**
+    It records what IVPM believes is there.  It can only ever *add* information
+    to a disk observation — it can never assert that something is present.
+
+The resulting states:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 14 64
+
+   * - State
+     - Action
+     - Meaning
+   * - ``ABSENT``
+     - fetch
+     - Nothing at the path.
+   * - ``PREPARED_EMPTY``
+     - fetch
+     - The directory exists but is empty — not a loaded package.  This is what
+       a :ref:`package preparer <extending_ivpm:Contributing a Package Preparer>`
+       leaves behind.
+   * - ``PATCHED``
+     - reconcile
+     - A patch set is declared, or a patch manifest is on disk.  Evaluated
+       before every residency test, so a changed patch set is always picked up.
+   * - ``RESIDENT_LINK``
+     - reuse
+     - A symlink from the cache or a deps-source.
+   * - ``RESIDENT_MATCHING``
+     - reuse
+     - Populated, and its spec matches the lock.
+   * - ``RESIDENT_UNTRACKED``
+     - reuse
+     - Populated, with no lock entry — a manual checkout, or a workspace whose
+       lock was deleted.  Never treated as licence to overwrite.
+   * - ``RESIDENT_DRIFTED``
+     - reuse
+     - Populated, but its spec has changed since it was locked.  Reported, not
+       re-fetched: re-fetching would discard whatever is in the tree.
+
+Spec drift
+----------
+
+When a dependency's ``url``, ``branch``, ``commit``, ``version`` or patch set
+changes in ``ivpm.yaml`` after it has been fetched, IVPM reports it after the
+fetch phase and keeps the existing content:
+
+.. code-block:: text
+
+    note: The following packages have changed specs vs package-lock.json:
+    note:   fast-dsp
+    note: No packages re-fetched; their existing content was kept.
+
+Because the check now happens as each package is decided rather than up front,
+it covers **transitive dependencies and every nested scope** — not just the
+dependencies listed in the root project's dep-set.
+
+To pick up the new spec, remove the package directory and re-run ``ivpm
+update``.  Inspect the tree first if you have local work in it.
+
 Syncing and the Lock File
 =========================
 

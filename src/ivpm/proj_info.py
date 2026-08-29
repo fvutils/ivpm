@@ -63,6 +63,12 @@ class NodeConfig:
     manager: str = "npm"   # "npm" | "pnpm" | "yarn"
     version: str = None    # written to packages/node/.nvmrc; None means no .nvmrc
     env: bool = True       # patch packages.envrc with PATH/NODE_PATH
+    # Symlink <project_root>/node_modules -> packages/node/node_modules so that
+    # project sources can import the managed packages. NODE_PATH cannot do this:
+    # the ESM resolver ignores it, so bare `import` from project code only
+    # resolves when a node_modules is reachable by walking up from the source
+    # file. Ignored in TOOLCHAIN mode, where there is no project to link into.
+    link_root: bool = True
 
 
 class ProjInfo():

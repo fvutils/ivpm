@@ -190,9 +190,10 @@ Manages the project-local Node.js environment at ``packages/node/``.
 
 Detects Node.js packages across the dependency tree, synthesises a
 ``packages/node/package.json``, and runs the configured package manager
-(npm / pnpm / yarn) to install all detected packages.  Source packages with
-a ``package.json`` are linked via ``npm link`` so they can be
-``require()``-d directly.
+(npm / pnpm / yarn) to install all detected packages.  Source packages with a
+``package.json`` are emitted as relative ``file:`` dependencies, which npm
+installs as symlinks -- an editable install whose executables land in
+``node_modules/.bin`` with everything else.
 
 **Leaf phase**
 
@@ -208,14 +209,22 @@ Runs for every package.  Detection rules:
 Runs when at least one Node.js package was detected *or* when the project has
 ``with.node`` configuration.  Steps:
 
-1. Synthesise ``packages/node/package.json`` from all collected npm packages
+1. Synthesise ``packages/node/package.json`` from all collected npm packages,
+   plus a relative ``file:`` entry for each source package with ``link: true``
 2. Compare SHA-256 hash with stored value -- skip install if unchanged and
    ``node_modules/`` exists
 3. Run ``npm install --prefix packages/node`` (or pnpm/yarn equivalent)
-4. Run ``npm link <path>`` for each source package with ``link: true``
+4. Symlink ``<project_root>/node_modules`` at the managed ``node_modules``,
+   unless ``link-root: false`` or the mode is ``TOOLCHAIN``
 5. Write ``packages/node/export.envrc`` (a direnv snippet, all platforms)
 6. Patch sentinel section in ``packages/packages.envrc``
 7. Write ``packages/node/.nvmrc`` if ``version:`` is set
+
+**Destroy phase**
+
+Removes ``packages/node`` and the root ``node_modules`` symlink -- the latter
+only when it is a symlink resolving into the managed tree, never a real
+directory.
 
 **Configuration (``ivpm.yaml``)**
 
@@ -230,6 +239,7 @@ Project-level settings under ``package.with.node``:
           manager: npm      # npm (default) | pnpm | yarn
           version: "20"     # Node version → writes .nvmrc
           env: true         # Patch packages.envrc (default: true)
+          link-root: true   # Symlink <project>/node_modules (default: true)
 
 Per-package options via the ``type:`` field:
 
@@ -241,7 +251,8 @@ Per-package options via the ``type:`` field:
         url: https://github.com/org/my-ts-lib.git
         type: { node: { dev: false, link: true } }
 
-**Output:** ``packages/node/`` -- the project-local Node.js environment.
+**Output:** ``packages/node/`` -- the project-local Node.js environment -- plus
+a ``node_modules`` symlink at the project root.
 
 See :doc:`node_packages` for full Node.js workflow details.
 

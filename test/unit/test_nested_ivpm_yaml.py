@@ -21,9 +21,18 @@ class _UpdateInfo:
     def __init__(self, deps_dir):
         self.deps_dir = deps_dir
         self.deps_source = None
+        self._load_planner = None
 
     def report_package(self, cacheable=False, editable=False):
         pass
+
+    def get_load_planner(self):
+        # Providers ask the planner whether a package needs loading. No lock
+        # data here: these fixtures decide purely on what is on disk.
+        if self._load_planner is None:
+            from ivpm.load_plan import LoadPlanner
+            self._load_planner = LoadPlanner(self.deps_dir, None)
+        return self._load_planner
 
     def get_cache_provider(self):
         # The already-loaded path refreshes the cache entry's last-linked time;
@@ -55,6 +64,13 @@ class TestNestedIvpmYaml(unittest.TestCase):
         if with_yaml:
             with open(os.path.join(pkg_dir, "ivpm.yaml"), "w") as fp:
                 fp.write(_NESTED_YAML)
+        else:
+            # Populated, but with no manifest -- which is what these cases are
+            # about. It must not be *empty*: an empty directory is no longer
+            # "already loaded" (see load_plan.py), so the provider would try to
+            # fetch it and the test would be exercising the wrong path.
+            with open(os.path.join(pkg_dir, "README"), "w") as fp:
+                fp.write("no manifest here")
         return tmp
 
     def _assert_nested_dep_found(self, proj_info):

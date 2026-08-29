@@ -85,6 +85,15 @@ def promote_to_writable(pkg) -> bool:
 
     # Copy beside the link, then swap, so an interrupted copy never leaves the
     # package half-materialized under its real name.
+    #
+    # Staging is a sibling *in the deps-dir*, so the copied tree inherits the
+    # deps-dir's group rather than any per-package group a pre-populate step
+    # configured -- the link being replaced carries none of its own, since its
+    # content lives elsewhere. Nothing better is available here: the package
+    # directory does not exist to copy into (it *is* the link), so there is no
+    # prepared directory to inherit from. A site whose preparer assigns
+    # per-package groups must re-apply after promotion; see pkg-prepare-design
+    # §5.3. Recorded rather than silently wrong.
     staging = path + ".ivpm-promote"
     if os.path.lexists(staging):
         shutil.rmtree(staging, ignore_errors=True)

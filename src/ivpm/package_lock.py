@@ -614,6 +614,14 @@ def check_lock_changes(deps_dir: str, all_pkgs) -> Dict[str, dict]:
     Returns a dict mapping package name → {"current": entry, "locked": entry}
     for packages whose user-specified fields differ from the lock.  An empty
     dict means everything is up to date.
+
+    .. deprecated::
+        No longer used by ``ivpm update``.  It ran *before* dependency
+        resolution and against the root dep-set only, so drift in a transitive
+        dependency was invisible to it.  ``LoadPlanner`` (``load_plan.py``) now
+        classifies every package in every scope as it is decided, and
+        ``LoadPlanner.drifted()`` is what the update reports.  Retained for
+        callers outside the update path; new code should use the planner.
     """
     lock_path = os.path.join(deps_dir, "package-lock.json")
     if not os.path.isfile(lock_path):

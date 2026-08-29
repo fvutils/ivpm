@@ -25,6 +25,7 @@ import shutil
 import dataclasses as dc
 from .package_url import PackageURL
 from ..project_ops_info import ProjectUpdateInfo
+from ..load_plan import clear_prepared_dir, preserve_dir_mode
 from ..utils import note, fatal
 
 @dc.dataclass
@@ -49,13 +50,26 @@ class PackageDir(PackageURL):
             ))
         dst_path = os.path.join(update_info.deps_dir, self.name)
 
-        if os.path.isdir(dst_path) or os.path.islink(dst_path):
+        # The planner owns the "does this need loading?" decision -- an empty
+        # directory is not a loaded package (see load_plan.py).
+        if update_info.get_load_planner().decide(self).is_resident:
             note("Destination directory for %s exists ... skipping copy" % self.name)
         else:
             note("Populating package %s from %s" % (self.name, src_path))
             if platform.system() == "Windows" or not self.link:
-                shutil.copytree(src_path, dst_path)
+                # dirs_exist_ok so the copy lands *inside* a directory left by a
+                # pre-populate step rather than replacing it -- replacing it
+                # would discard the group/mode that step configured, and with it
+                # the inheritance the copied files are supposed to pick up.
+                # copytree still copies the source's mode onto the destination
+                # root, so the prepared bits are restored around it.
+                with preserve_dir_mode(dst_path):
+                    shutil.copytree(src_path, dst_path, dirs_exist_ok=True)
             else:
+                # A symlink cannot be created over an existing entry, and the
+                # content lives at the target anyway (which carries its own
+                # ownership), so an empty prepared directory is simply removed.
+                clear_prepared_dir(dst_path)
                 os.symlink(src_path, dst_path, target_is_directory=True)
 
         return super().update(update_info)

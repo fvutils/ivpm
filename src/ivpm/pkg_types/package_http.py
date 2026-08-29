@@ -28,6 +28,7 @@ from .package_file import PackageFile
 from ..project_ops_info import ProjectUpdateInfo
 from ..proj_info import ProjInfo
 from ..utils import note
+from ..load_plan import LoadAction
 from ..package import SourceType2Ext
 
 class PackageHttp(PackageFile):
@@ -156,25 +157,23 @@ class PackageHttp(PackageFile):
         is_editable = self.cache is not True  # Could be cached but isn't
         update_info.report_package(cacheable=is_cacheable, editable=is_editable)
 
-        patched = not self.patchset.is_empty
-        manifest = os.path.exists(os.path.join(pkg_dir, ".ivpm", "patch-manifest.json"))
+        # The planner owns the "does this need loading?" decision -- an empty
+        # directory is not a loaded package (see load_plan.py).
+        decision = update_info.get_load_planner().decide(self)
 
-        if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
+        if decision.action is LoadAction.RECONCILE:
             # A patched (or previously-patched) tree is reconciled, not skipped,
-            # so a changed patch set is picked up (mirrors package_git.py).
-            if patched or manifest:
-                return self._update_with_patches(update_info, pkg_dir)
+            # so a changed patch set is picked up (mirrors package_git.py). The
+            # patch-aware resolver owns the cache interaction and deliberately
+            # bypasses the not-yet-patch-aware deps-source probe below.
+            return self._update_with_patches(update_info, pkg_dir)
+
+        if decision.is_resident:
             note("Skipping %s, since it is already loaded" % self.name)
             # Refresh the cache entry's last-referenced timestamp when this dep
             # is a cache symlink (no-op otherwise), so stale-GC sees it as used.
             update_info.get_cache_provider().note_reference(self)
         else:
-            # Patched deps go through the patch-aware resolver (which owns the
-            # cache interaction) and deliberately bypass the not-yet-patch-aware
-            # deps-source probe below.
-            if patched:
-                return self._update_with_patches(update_info, pkg_dir)
-
             # Try deps-source: probe URL to populate resolved_etag/last_modified
             # so the matcher has identity to compare against.
             if update_info.deps_source is not None:

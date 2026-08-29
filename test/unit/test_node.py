@@ -11,10 +11,12 @@ Covers:
   N14-N15  packages.envrc patching (idempotency)
   N16-N17  .nvmrc file creation
   N18      Handler skips when no node packages
-  N19-N20  npm install / npm link subprocess calls (mocked)
+  N19      npm install subprocess call (mocked)
+  N20      Source packages emitted as file: deps in the generated package.json
   N21      get_state_entries() structure
   N22      Auto-detection of source packages with package.json
   N23-N24  Hash-based install skip (sync-like idempotency)
+  N25-N32  Root node_modules symlink: creation, config, guards, destroy
 """
 
 import dataclasses as dc
@@ -62,6 +64,35 @@ def _make_update_info(testdir, node_config=None, handler_state=None):
     ui.node_config = node_config
     ui.handler_state = handler_state or {}
     return ui
+
+
+def _make_node_src_pkg(testdir, name, pkg_json_name=None, dev=False, link=True):
+    """Build a source Package carrying NodeTypeData, backed by a real dir.
+
+    A package.json is written when *pkg_json_name* is given so the handler can
+    read the package's true name -- which is what the generated dep must be
+    keyed by.
+    """
+    from ivpm.package import Package
+    pkg = Package(name)
+    pkg.src_type = "git"
+    pkg.pkg_type = None
+    pkg.path = os.path.join(testdir, "packages", name)
+    os.makedirs(pkg.path, exist_ok=True)
+    if pkg_json_name is not None:
+        with open(os.path.join(pkg.path, "package.json"), "w") as fp:
+            json.dump({"name": pkg_json_name, "version": "1.0.0"}, fp)
+
+    nd = NodeTypeData(dev=dev, link=link)
+    nd.type_name = "node"
+    pkg.type_data.append(nd)
+    return pkg
+
+
+def _read_generated_pkg_json(ui):
+    """Load the packages/node/package.json the handler synthesised."""
+    with open(os.path.join(ui.deps_dir, "node", "package.json")) as fp:
+        return json.load(fp)
 
 
 def _make_npm_pkg(name, version="*", dev=False, optional=False):
@@ -459,22 +490,19 @@ class TestSubprocessCalls(TestBase):
                             for c in install_calls),
                         "Expected npm install --prefix %s in calls: %s" % (node_dir, called_cmds))
 
-    def test_N20_npm_link_called_for_source_pkg(self):
-        """N20: Verify npm link is invoked for type: node source package."""
-        # Create a fake source package with a path
-        from ivpm.package import Package
-        src_pkg = Package("my_ts_lib")
-        src_pkg.src_type = "git"
-        src_pkg.pkg_type = None
-        src_pkg.path = os.path.join(self.testdir, "packages", "my_ts_lib")
-        os.makedirs(src_pkg.path, exist_ok=True)
+    def test_N20_source_pkg_emitted_as_file_dep(self):
+        """N20: type: node source packages become file: deps, not a link call.
 
-        from ivpm.pkg_content_type import NodeTypeData
-        from ivpm.package import get_type_data
-        # Attach NodeTypeData directly via the proper type_data list
-        nd = NodeTypeData(dev=False, link=True)
-        nd.type_name = "node"
-        src_pkg.type_data.append(nd)
+        Asserts on the generated package.json rather than on argv: the previous
+        spelling of this test mocked subprocess.run and only checked that an
+        `npm link ... --prefix` command was *constructed*. That command could
+        never succeed -- --prefix is the global prefix in link mode, so npm
+        looked for <node_dir>/lib and exited ENOENT -- and the failure was
+        swallowed as a warning, so source packages were silently never
+        installed. A mock-shaped assertion cannot catch that; this one can.
+        """
+        src_pkg = _make_node_src_pkg(self.testdir, "my_ts_lib",
+                                     pkg_json_name="@org/my-ts-lib")
 
         handler = PackageHandlerNode()
         ui = _make_update_info(self.testdir)
@@ -485,11 +513,162 @@ class TestSubprocessCalls(TestBase):
             mock_run.return_value = MagicMock(returncode=0)
             handler.on_root_post_load(ui)
 
+        data = _read_generated_pkg_json(ui)
+        # Keyed by the name from the package's own package.json: npm will
+        # install a file: dep under any key, but only the real name is
+        # importable by the package's dependants.
+        self.assertEqual(data["dependencies"].get("@org/my-ts-lib"),
+                         "file:../my_ts_lib")
+        self.assertNotIn("my_ts_lib", data["dependencies"])
+
         called_cmds = [c.args[0] for c in mock_run.call_args_list if c.args]
-        link_calls = [c for c in called_cmds if "link" in c]
-        self.assertTrue(any("npm" in c and src_pkg.path in c
-                            for c in link_calls),
-                        "Expected npm link %s in calls: %s" % (src_pkg.path, called_cmds))
+        self.assertEqual([c for c in called_cmds if "link" in c], [],
+                         "no separate link command should be issued")
+
+    def test_N20b_source_pkg_dev_and_link_false(self):
+        """N20b: dev: true routes to devDependencies; link: false is excluded."""
+        dev_pkg = _make_node_src_pkg(self.testdir, "dev_lib",
+                                     pkg_json_name="dev-lib", dev=True)
+        skip_pkg = _make_node_src_pkg(self.testdir, "tracked_only",
+                                      pkg_json_name="tracked-only", link=False)
+
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(dev_pkg, ui)
+        handler.on_leaf_post_load(skip_pkg, ui)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            handler.on_root_post_load(ui)
+
+        data = _read_generated_pkg_json(ui)
+        self.assertEqual(data["devDependencies"].get("dev-lib"),
+                         "file:../dev_lib")
+        # link: false means "track the source, keep it out of the node
+        # environment" -- it must not appear in either dependency map.
+        self.assertNotIn("tracked-only", data.get("dependencies", {}))
+        self.assertNotIn("tracked-only", data.get("devDependencies", {}))
+
+    def test_N20c_source_pkg_file_spec_is_relative(self):
+        """N20c: file: specs are relative, so the tree stays relocatable."""
+        src_pkg = _make_node_src_pkg(self.testdir, "rel_lib",
+                                     pkg_json_name="rel-lib")
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(src_pkg, ui)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            handler.on_root_post_load(ui)
+
+        spec = _read_generated_pkg_json(ui)["dependencies"]["rel-lib"]
+        self.assertTrue(spec.startswith("file:.."),
+                        "expected a relative file: spec, got %r" % spec)
+        self.assertNotIn(self.testdir, spec)
+
+
+# ---------------------------------------------------------------------------
+# N25-N29 — root node_modules symlink (code-development support)
+# ---------------------------------------------------------------------------
+
+class TestRootNodeModulesLink(TestBase):
+    """The root symlink is what makes the managed packages importable from
+    project sources. NODE_PATH cannot substitute: the ESM resolver ignores it,
+    so `import` from project code fails while `require()` works."""
+
+    def _run(self, node_config=None, install_mode=None):
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir, node_config=node_config)
+        if install_mode is not None:
+            ui.install_mode = install_mode
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
+        with patch("subprocess.run") as mock_run:
+            mock_run.return_value = MagicMock(returncode=0)
+            # subprocess.run is mocked, so npm never creates node_modules;
+            # create it so the handler sees a real install to link at.
+            os.makedirs(os.path.join(ui.deps_dir, "node", "node_modules"),
+                        exist_ok=True)
+            handler.on_root_post_load(ui)
+        return handler, ui
+
+    def test_N25_root_symlink_created(self):
+        """N25: <project>/node_modules links to packages/node/node_modules."""
+        _, ui = self._run()
+        link = os.path.join(self.testdir, "node_modules")
+        self.assertTrue(os.path.islink(link))
+        self.assertEqual(
+            os.path.realpath(link),
+            os.path.realpath(os.path.join(ui.deps_dir, "node", "node_modules")))
+
+    def test_N26_root_symlink_is_relative(self):
+        """N26: the link target is relative, so the tree can be moved."""
+        self._run()
+        target = os.readlink(os.path.join(self.testdir, "node_modules"))
+        self.assertFalse(os.path.isabs(target),
+                         "expected a relative target, got %r" % target)
+
+    def test_N27_root_symlink_disabled_by_config(self):
+        """N27: with.node.link-root: false suppresses the symlink."""
+        self._run(node_config=NodeConfig(link_root=False))
+        self.assertFalse(os.path.exists(os.path.join(self.testdir, "node_modules")))
+
+    def test_N28_existing_real_dir_not_clobbered(self):
+        """N28: a real node_modules is left alone -- it may hold packages IVPM
+        knows nothing about, and replacing it would silently delete them."""
+        real = os.path.join(self.testdir, "node_modules")
+        os.makedirs(real)
+        canary = os.path.join(real, "PRECIOUS")
+        open(canary, "w").close()
+
+        self._run()
+
+        self.assertFalse(os.path.islink(real))
+        self.assertTrue(os.path.isfile(canary))
+
+    def test_N29_no_root_symlink_in_toolchain_mode(self):
+        """N29: a toolchain deps-dir is the root; there is no project to link."""
+        from ivpm.project_ops_info import InstallMode
+        _, ui = self._run(install_mode=InstallMode.TOOLCHAIN)
+        self.assertFalse(
+            os.path.exists(os.path.join(self.testdir, "node_modules")))
+
+    def test_N30_rerun_is_idempotent(self):
+        """N30: a second update leaves the existing correct link in place."""
+        self._run()
+        first = os.readlink(os.path.join(self.testdir, "node_modules"))
+        self._run()
+        self.assertEqual(os.readlink(os.path.join(self.testdir, "node_modules")),
+                         first)
+
+    def test_N31_destroy_removes_root_symlink(self):
+        """N31: destroy removes the link it created along with packages/node."""
+        from ivpm.project_ops_info import ProjectRemoveInfo
+        handler, ui = self._run()
+        link = os.path.join(self.testdir, "node_modules")
+        self.assertTrue(os.path.islink(link))
+
+        ri = ProjectRemoveInfo(args=MagicMock(), deps_dir=ui.deps_dir)
+        removed = handler.on_destroy(ri)
+
+        self.assertIn(link, removed)
+        self.assertFalse(os.path.lexists(link))
+        self.assertFalse(os.path.isdir(os.path.join(ui.deps_dir, "node")))
+
+    def test_N32_destroy_leaves_foreign_node_modules(self):
+        """N32: destroy must not remove a node_modules it did not create."""
+        from ivpm.project_ops_info import ProjectRemoveInfo
+        handler, ui = self._run(node_config=NodeConfig(link_root=False))
+        real = os.path.join(self.testdir, "node_modules")
+        os.makedirs(real)
+
+        ri = ProjectRemoveInfo(args=MagicMock(), deps_dir=ui.deps_dir)
+        removed = handler.on_destroy(ri)
+
+        self.assertNotIn(real, removed)
+        self.assertTrue(os.path.isdir(real))
 
 
 # ---------------------------------------------------------------------------

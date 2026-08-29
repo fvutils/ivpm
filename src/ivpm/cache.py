@@ -197,6 +197,19 @@ class DirectoryCacheStore:
         #    threads (which share a PID), separate processes, and reused PIDs
         #    from a prior crashed run can never collide — ``shutil.move`` can
         #    never nest ``source_path`` inside a stale staging dir.
+        # NOTE (group ownership): on the same filesystem ``shutil.move`` is a
+        # rename, which *preserves* group ownership -- so a tree prepared with a
+        # per-package group (see pkg-prepare-design.md) keeps that group when it
+        # is published into the cache, and the symlink back into the deps-dir is
+        # therefore correct by construction. Across filesystems ``move`` falls
+        # back to a copy, and the copied files are *created* under
+        # ``<cache>/<pkg>/`` -- which is setgid to the cache's own group -- so the
+        # group silently changes. The assertion below constrains staging relative
+        # to version_dir only; it says nothing about where source_path lives.
+        # Not corrected here: doing so means an O(files) chgrp walk on the cache
+        # path, and the group a shared entry should carry is a deployment
+        # question (see design §5.4). Recorded so it is not mistaken for
+        # working.
         staging_dir = version_dir + ".staging." + uuid.uuid4().hex
         assert os.path.dirname(staging_dir) == os.path.dirname(version_dir)
         try:

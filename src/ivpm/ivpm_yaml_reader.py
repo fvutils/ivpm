@@ -32,7 +32,7 @@ _KNOWN_PACKAGE_KEYS = {
 _KNOWN_PYTHON_WITH_KEYS = {"venv", "system-site-packages", "pre-release"}
 
 # Valid keys inside ``package.with.node:``.
-_KNOWN_NODE_WITH_KEYS = {"manager", "version", "env"}
+_KNOWN_NODE_WITH_KEYS = {"manager", "version", "env", "link-root"}
 
 # Keys valid inside ``with:`` that are parsed by the core reader rather than
 # dispatched to a handler. ``env`` is *reserved*, not handler-backed: there is
@@ -104,11 +104,15 @@ def parse_with_section(with_data: dict, name: str, scope: str = "package"):
     if with_data is None:
         return python_config, node_config, handler_configs, env_settings
 
-    # Build the set of valid keys dynamically from the handler registry so
+    # Build the set of valid keys dynamically from the extension registries so
     # that plugin handlers (e.g. direnv) are accepted without
-    # hardcoding their names here.
+    # hardcoding their names here. Package preparers read their settings from
+    # the same 'with:' block, so their names are valid keys too.
+    from .prepare import PackagePreparerRgy
+
     rgy = PackageHandlerRgy.inst()
     known_with_keys = {h.name for h in rgy.handlers if h.name} | _RESERVED_WITH_KEYS
+    known_with_keys |= {n for n in PackagePreparerRgy.inst().names() if n}
 
     for key in with_data.keys():
         if key not in known_with_keys:
@@ -172,6 +176,8 @@ def parse_with_section(with_data: dict, name: str, scope: str = "package"):
             cfg.version = str(nd_data["version"])
         if "env" in nd_data:
             cfg.env = bool(nd_data["env"])
+        if "link-root" in nd_data:
+            cfg.link_root = bool(nd_data["link-root"])
         node_config = cfg
 
     if "env" in with_data.keys():

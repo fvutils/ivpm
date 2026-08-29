@@ -96,8 +96,15 @@ class PackageGhRls(PackageHttp):
         update_info.report_package(cacheable=is_cacheable, editable=is_editable)
 
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
+        # Set here rather than relying on the caller: the resolver assigns the
+        # same value before calling update(), but the planner below reads
+        # pkg.path, and a provider should not depend on its caller for a path it
+        # computes itself (mirrors package_git / package_http).
+        self.path = pkg_dir.replace("\\", "/")
 
-        if os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
+        # The planner owns the "does this need loading?" decision -- an empty
+        # directory is not a loaded package (see load_plan.py).
+        if update_info.get_load_planner().decide(self).is_resident:
             note("Skipping %s, since it is already loaded" % self.name)
             # Refresh the cache entry's last-referenced timestamp when this dep
             # is a cache symlink (no-op otherwise), so stale-GC sees it as used.

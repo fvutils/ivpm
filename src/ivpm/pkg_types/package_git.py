@@ -32,6 +32,7 @@ from ..utils import note, fatal, resolve_clone_url
 from ..cache import is_github_url, parse_github_url
 from ..git_progress import run_git_with_progress
 from ..update_event import UpdateEvent, UpdateEventType
+from ..load_plan import LoadAction
 from ..perf import span_or_null
 
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
@@ -261,14 +262,20 @@ class PackageGit(PackageURL):
         is_editable = self.cache is not True  # Could be cached but isn't
         update_info.report_package(cacheable=is_cacheable, editable=is_editable)
 
-        patched = not self.patchset.is_empty
-        manifest = os.path.exists(os.path.join(pkg_dir, ".ivpm", "patch-manifest.json"))
+        # Does this package need loading? The planner owns that decision (see
+        # load_plan.py); an empty directory is NOT a loaded package, which is
+        # what the old `os.path.exists(pkg_dir)` test got wrong.
+        decision = update_info.get_load_planner().decide(self)
 
-        if os.path.exists(pkg_dir) or os.path.islink(pkg_dir):
-            # A patched (or previously-patched) tree is reconciled, not skipped,
-            # so a changed patch set is picked up.
-            if patched or manifest:
-                return self._update_with_patches(update_info, pkg_dir)
+        if decision.action is LoadAction.RECONCILE:
+            # A patched (or previously-patched) tree is reconciled, never
+            # skipped, so a changed patch set is picked up. This holds whether
+            # or not the tree is already on disk: the patch-aware resolver owns
+            # the cache interaction and deliberately bypasses the
+            # not-yet-patch-aware deps-source probe below.
+            return self._update_with_patches(update_info, pkg_dir)
+
+        if decision.is_resident:
             with span_or_null(getattr(update_info, "perf", None), "pkg.fast_path", package=self.name):
                 note("package %s is already loaded" % self.name)
                 self._capture_resolved_commit(pkg_dir)
@@ -277,12 +284,6 @@ class PackageGit(PackageURL):
                 # as used.
                 update_info.get_cache_provider().note_reference(self)
         else:
-            # Patched deps go through the patch-aware resolver (which owns the
-            # cache interaction). It deliberately bypasses the not-yet-patch-aware
-            # deps-source probe below.
-            if patched:
-                return self._update_with_patches(update_info, pkg_dir)
-
             # Try deps-source first — resolve commit, then check parent deps-dir(s)
             if update_info.deps_source is not None:
                 with span_or_null(getattr(update_info, "perf", None), "git.deps_source", package=self.name) as s:

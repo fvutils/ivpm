@@ -31,9 +31,23 @@ from .project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from .update_event import UpdateEventDispatcher
 from .update_tui import create_update_tui, RichUpdateTUI
 from .utils import fatal, info, note, warning
-from .package_lock import write_lock, check_lock_changes, _entry_name
+from .package_lock import write_lock, _entry_name
 
 _logger = logging.getLogger("ivpm.project_ops")
+
+
+def _apply_effective_settings(infos, **settings) -> None:
+    """Apply the resolved project settings to every update-info in *infos*.
+
+    An update runs with two ProjectUpdateInfo instances -- the updater's (seen
+    by leaf callbacks and source providers, via a scope view) and the handler's
+    (seen by the root-phase callbacks). The settings resolved from the project's
+    'with:' block belong on both; routing them through one call is what keeps
+    the two from drifting apart.
+    """
+    for info in infos:
+        for key, value in settings.items():
+            setattr(info, key, value)
 
 
 @dc.dataclass
@@ -152,15 +166,11 @@ class ProjectOps(object):
                 with perf.span("depset.resolve"):
                     dep_sets, ds = self._getDepSets(proj_info, dep_sets)
 
-                # Change detection: compare current specs against existing lock
-                if not refresh_all and not force:
-                    with perf.span("lock.detect_changes"):
-                        diffs = check_lock_changes(deps_dir, ds.packages)
-                    if diffs:
-                        note("The following packages have changed specs vs package-lock.json:")
-                        for name, diff in diffs.items():
-                            note("  %s: run with --refresh-all to re-fetch" % name)
-                        note("No packages re-fetched. Use --refresh-all to update.")
+                # Spec-vs-lock drift used to be detected here, before resolution,
+                # against the root dep-set only -- so drift in a transitive
+                # dependency was never reported at all. The load planner now
+                # classifies every package in every scope as it is decided; the
+                # report is emitted after the fetch phase (see below).
 
             pkg_handler = PackageHandlerRgy.inst().mkHandler()
             updater = PackageUpdater(deps_dir, pkg_handler, args=args,
@@ -200,6 +210,12 @@ class ProjectOps(object):
                 except Exception:
                     _logger.debug("Could not read lock file for change detection")
 
+            # Build the load planner now that lock_data is populated and before
+            # any parallel package load, so its memo never races. It decides,
+            # per package, whether the package needs loading -- replacing the
+            # per-provider "does the directory exist" checks.
+            updater.update_info.get_load_planner()
+
             # Compute the effective handler config for this update: the
             # package-level 'with:' overlaid by the selected dep-set's own
             # 'with:' (dep-set wins). When the selected dep-set declares no
@@ -219,12 +235,7 @@ class ProjectOps(object):
                 skip_venv=skip_venv,
                 suppress_output=suppress_output,
                 event_dispatcher=event_dispatcher,
-                python_config=effective_py_config,
-                node_config=effective_node_config,
-                env_settings=effective_env,
-                root_var=root_var,
             )
-            handler_update_info.handler_configs = effective_handler_configs
             handler_update_info._tui_ref = tui
             handler_update_info.perf = perf
 
@@ -237,7 +248,31 @@ class ProjectOps(object):
                         _prev_ivpm = json.load(_fp)
                 except Exception:
                     pass
-            handler_update_info.handler_state = _prev_ivpm.get("handlers", {})
+
+            # The effective project settings go on BOTH update-info objects.
+            #
+            # updater.update_info is what every leaf callback and source
+            # provider receives (package_updater._update_pkg passes a scope view
+            # of it); handler_update_info is what the root-phase handler
+            # callbacks receive. Applying the settings through one helper is
+            # what stops the two from drifting: they previously landed only on
+            # handler_update_info, so anything reading handler_configs at leaf
+            # time silently saw {}.
+            _apply_effective_settings(
+                (updater.update_info, handler_update_info),
+                python_config=effective_py_config,
+                node_config=effective_node_config,
+                handler_configs=effective_handler_configs,
+                env_settings=effective_env,
+                root_var=root_var,
+                handler_state=_prev_ivpm.get("handlers", {}))
+
+            # Session start for pre-populate preparers. Deliberately ahead of
+            # the fetch AND of the root deps-dir being created, so a preparer
+            # that rejects the whole workspace (read-only filesystem, exhausted
+            # quota) does so once, before anything is written.
+            with perf.span("prepare.session_start"):
+                updater.preparers.on_session_start(handler_update_info)
 
             # Root pre-load: let handlers initialise before any packages are fetched
             with perf.span("handler.pre_load"):
@@ -251,6 +286,20 @@ class ProjectOps(object):
             with perf.span("fetch") as fetch_span:
                 updater.update_info._fetch_parent_id = fetch_span.span_id
                 pkgs_info = updater.update(ds)
+
+            with perf.span("prepare.session_end"):
+                updater.preparers.on_session_end(handler_update_info)
+
+            # Drift report. Emitted after the fetch because that is when every
+            # package -- including transitive ones and every nested scope -- has
+            # been decided. Reporting is all it does: re-fetching a drifted tree
+            # would discard whatever the user has in it.
+            _drifted = updater.update_info.get_load_planner().drifted()
+            if _drifted:
+                note("The following packages have changed specs vs package-lock.json:")
+                for _key in sorted(_drifted.keys()):
+                    note("  %s" % _key)
+                note("No packages re-fetched; their existing content was kept.")
 
             _logger.debug("Setup-deps: %s", str(pkgs_info.setup_deps))
 

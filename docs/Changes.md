@@ -7,6 +7,7 @@
   recorded in the lock and survives replay; `--root-var IVPM_PACKAGES` restores
   the bare default.
 - Bug fixes in Python venv setup
+- Update support for Node environments to support both build and tool installs
 
 # 2.23.0
 - Add support for keeping sub-dependencies nested

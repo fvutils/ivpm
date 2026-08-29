@@ -121,6 +121,16 @@ class HandlerInfo(RegistryEntryInfo):
 
 
 @dc.dataclass
+class PreparerInfo(RegistryEntryInfo):
+    """Self-description for a package preparer (registered in
+    PackagePreparerRgy).  ``order`` is the dispatch position (lower runs first,
+    ties broken by name); ``always`` flags a preparer that is consulted for
+    every package rather than only those about to be populated."""
+    order: int = 100
+    always: bool = False
+
+
+@dc.dataclass
 class CloneProviderInfo(RegistryEntryInfo):
     """Self-description for a clone-source provider (registered in
     CloneProviderRgy).  ``schemes`` are the dedicated URL schemes the provider
