@@ -40,6 +40,24 @@ _KNOWN_NODE_WITH_KEYS = {"manager", "version", "env", "link-root"}
 # validation would show up in 'ivpm show handler' as something configurable.
 _RESERVED_WITH_KEYS = {"env"}
 
+def _keyloc(m, key, fallback=None):
+    """Return a location anchor for *key* within mapping *m*.
+
+    A ``None`` or scalar YAML value may carry no ``.srcinfo`` of its own (the
+    loader only annotates maps, seqs, and non-null scalars), so a diagnostic
+    about such a value has to be anchored elsewhere. Mapping keys *are*
+    annotated, so the key itself is the most precise anchor available.
+    Falls back to *fallback*, then to the enclosing mapping.
+    """
+    if isinstance(m, dict):
+        for k in m.keys():
+            if k == key and hasattr(k, "srcinfo"):
+                return k
+    if fallback is not None and hasattr(fallback, "srcinfo"):
+        return fallback
+    return m
+
+
 def _suggest(unknown: str, valid) -> str:
     """Return a hint string when *unknown* is close to a known key, or ''."""
     matches = difflib.get_close_matches(unknown, valid, n=1, cutoff=0.6)
@@ -686,7 +704,10 @@ class IvpmYamlReader(object):
             deps = ds_ent.get("deps", [])
 
             if not isinstance(deps, list):
-                fatal("deps is not a list", deps)
+                # Covers 'deps:' with no value at all, which parses to None
+                # and carries no srcinfo -- anchor on the 'deps' key instead.
+                fatal("deps is not a list (got %s)" % type(deps).__name__,
+                      _keyloc(ds_ent, "deps", deps))
             self.read_deps(ds, deps, default_dep_set)
             info.set_dep_set(ds.name, ds)
 
@@ -752,8 +773,15 @@ class IvpmYamlReader(object):
         from .pkg_content_type_rgy import PkgContentTypeRgy
         
         for d in deps:
+            if not isinstance(d, dict):
+                # An empty list item ('- ' with nothing after it) parses to
+                # None, and a bare scalar is a common mistake for what must be
+                # a mapping. Neither carries usable srcinfo, so anchor the
+                # diagnostic on the enclosing 'deps' sequence.
+                fatal("Dependency entry must be a mapping with a 'name' key, "
+                      "not %s" % type(d).__name__, deps)
             si = d.srcinfo
-            
+
             if "name" not in d.keys():
                 fatal("Missing 'name' key in dependency", si)
 
