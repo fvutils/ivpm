@@ -3,8 +3,10 @@ import subprocess
 import unittest
 
 
+from .test_base import venv_python
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_PYTHON = os.path.join(_ROOT, "packages", "python", "bin", "python3")
+_PYTHON = venv_python()
 _SRC = os.path.join(_ROOT, "src")
 _ENV = {**os.environ, "PYTHONPATH": _SRC}
 

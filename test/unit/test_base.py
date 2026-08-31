@@ -12,6 +12,30 @@ sys.path.insert(0, os.path.join(
 from ivpm.project_ops import ProjectOps
 
 
+def venv_python():
+    """Return an interpreter that can run ``-m ivpm`` in a subprocess.
+
+    ``bootstrap.sh`` puts a venv at ``<repo>/packages/python``, and that is
+    what CI runs against.  When IVPM is instead checked out as a dependency of
+    another IVPM project, the repo has no ``packages/`` of its own -- the venv
+    belongs to the enclosing project one level up.  Prefer the bootstrap venv
+    when it exists, then the enclosing project's, and otherwise fall back to
+    the interpreter running the tests.
+
+    Callers put ``<repo>/src`` on PYTHONPATH, so any of the three can import
+    ivpm; the point of the search is only to find one that exists.
+    """
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    candidates = (
+        os.path.join(root, "packages", "python", "bin", "python3"),
+        os.path.join(os.path.dirname(root), "python", "bin", "python3"),
+    )
+    for candidate in candidates:
+        if os.path.isfile(candidate):
+            return candidate
+    return sys.executable
+
+
 def _rmtree_readonly_handler(func, path, exc_info):
     """Handle removing read-only files by making them writable first."""
     # Make the parent directory writable if needed

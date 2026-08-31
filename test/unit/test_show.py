@@ -9,14 +9,13 @@ from .test_base import TestBase
 
 # Path to the Python interpreter with ivpm installed
 import os
-_PYTHON = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "packages", "python", "bin", "python3",
-)
+from .test_base import venv_python
+
 _SRC = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
     "src",
 )
+_PYTHON = venv_python()
 _ENV = {**os.environ, "PYTHONPATH": _SRC}
 
 

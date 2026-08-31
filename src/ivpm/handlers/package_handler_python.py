@@ -151,6 +151,48 @@ def _pep508_split(spec: str):
     return normalised, remainder
 
 
+def _project_name_at(path: str):
+    """Return the normalised distribution name of the project rooted at *path*.
+
+    Reads ``[project] name`` from pyproject.toml, falling back to
+    ``[metadata] name`` in setup.cfg.  Returns None when neither declares one
+    -- a setup.py that computes its name at runtime, for instance.
+    """
+    if not path:
+        return None
+
+    pyproject = os.path.join(path, "pyproject.toml")
+    if os.path.isfile(pyproject):
+        try:
+            import tomllib
+        except ImportError:
+            import tomli as tomllib  # type: ignore[no-redef]
+        try:
+            with open(pyproject, "rb") as fp:
+                data = tomllib.load(fp)
+            name = (data.get("project") or {}).get("name")
+            if isinstance(name, str) and name.strip():
+                return _pep508_split(name)[0]
+        except Exception as e:
+            _logger.warning("could not read the project name from %s (%s)",
+                            pyproject, e)
+
+    setup_cfg = os.path.join(path, "setup.cfg")
+    if os.path.isfile(setup_cfg):
+        try:
+            import configparser
+            cfg = configparser.ConfigParser()
+            cfg.read(setup_cfg)
+            name = cfg.get("metadata", "name", fallback=None)
+            if name and name.strip():
+                return _pep508_split(name)[0]
+        except Exception as e:
+            _logger.warning("could not read the project name from %s (%s)",
+                            setup_cfg, e)
+
+    return None
+
+
 def _expand_dep_group(groups: dict, name: str, seen: frozenset) -> list:
     """Recursively expand a PEP 735 dependency-group, resolving ``include-group``."""
     if name not in groups or name in seen:
@@ -461,7 +503,12 @@ class PackageHandlerPython(PackageHandler):
         # Query the site config for the install spec (e.g. ["ivpm"] for
         # PyPI, or ["/path/to/ivpm-2.2.4.whl"] for a local wheel).
         # Store the raw args for injection into the requirements file.
-        if "ivpm" not in self.pypi_pkg_s:
+        # Skipped when the workspace resolves 'ivpm' itself -- either as a PyPI
+        # dependency or as a source package. In the source case the workspace
+        # checkout is installed editable in a later phase, so injecting the
+        # site-config spec here would install a second, unrelated IVPM over it
+        # and then immediately replace it again.
+        if "ivpm" not in self.pypi_pkg_s and "ivpm" not in self.src_pkg_s:
             from ..site_config import get_site_config
             self._ivpm_install_args = get_site_config().get_ivpm_install_args()
             _logger.info("IVPM install spec from site config: %s", self._ivpm_install_args)
@@ -720,7 +767,8 @@ class PackageHandlerPython(PackageHandler):
                         getattr(update_info.args, "py_prerls_packages", False),
                         self.use_uv,
                         suppress_output=suppress_output,
-                        task=task)
+                        task=task,
+                        force=update_info.force_py_install)
 
         self._push_entrypoint_agent_dirs(python_dir, update_info)
 
@@ -898,11 +946,25 @@ class PackageHandlerPython(PackageHandler):
                               use_pre,
                               use_uv,
                               suppress_output=False,
-                              task=None):
+                              task=None,
+                              force=False):
         """Installs the requirements specified in a file.
 
         If *task* is provided, stdout/stderr are captured and parsed for
         progress messages that are emitted via task.progress().
+
+        When *force* is set, the installer is told to rebuild and reinstall
+        the requirements even if the venv already satisfies them. Without this
+        the installer simply audits the existing environment, which makes
+        --force-py-install a no-op.
+
+        The forced reinstall is scoped to the distributions this file names,
+        never applied blanket. Requirements are installed in dependency-ordered
+        phases, so an earlier phase's editable install is a legitimate way for
+        a later phase's dependency to be satisfied. A blanket reinstall marks
+        those transitive dependencies for reinstallation too and sends the
+        resolver to PyPI looking for workspace-only packages that were never
+        published there.
         """
 
         # When we have a task handle, always capture output for progress parsing.
@@ -936,6 +998,10 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
+            if force:
+                for dist in self._reinstall_targets(requirements_file):
+                    cmd.extend(["--reinstall-package", dist])
+
             returncode, captured_lines = self._run_with_progress(cmd, env=env,
                                                   stdout_arg=stdout_arg,
                                                   stderr_arg=stderr_arg,
@@ -965,15 +1031,26 @@ class PackageHandlerPython(PackageHandler):
             if use_pre:
                 cmd.append("--pre")
 
-            returncode, captured_lines = self._run_with_progress(cmd, env=env,
-                                                  stdout_arg=stdout_arg,
-                                                  stderr_arg=stderr_arg,
-                                                  use_uv=False, task=task,
-                                                  cwd=python_dir)
+            cmds = [cmd]
 
-            if returncode != 0:
-                detail = _format_installer_error(captured_lines)
-                fatal("failed to install Python packages" + detail)
+            if force:
+                # pip has no per-package equivalent of uv's --reinstall-package,
+                # and a blanket --force-reinstall would drag in the transitive
+                # dependencies this phase must leave alone. Instead let the pass
+                # above resolve and install normally, then reinstall exactly the
+                # named requirements with --no-deps.
+                cmds.append(cmd + ["--force-reinstall", "--no-deps"])
+
+            for c in cmds:
+                returncode, captured_lines = self._run_with_progress(c, env=env,
+                                                      stdout_arg=stdout_arg,
+                                                      stderr_arg=stderr_arg,
+                                                      use_uv=False, task=task,
+                                                      cwd=python_dir)
+
+                if returncode != 0:
+                    detail = _format_installer_error(captured_lines)
+                    fatal("failed to install Python packages" + detail)
 
     def _run_with_progress(self, cmd, env, stdout_arg, stderr_arg, use_uv, task, cwd=None):
         """Run cmd and return (exit_code, captured_lines).
@@ -1048,6 +1125,61 @@ class PackageHandlerPython(PackageHandler):
 
         return None
 
+
+    def _reinstall_targets(self, requirements_file) -> List[str]:
+        """Return the distribution names a requirements file directly names.
+
+        Used to scope a forced reinstall to the requirements themselves,
+        leaving their already-installed dependencies alone. Editable entries
+        are resolved to the name declared by the project they point at, since
+        the installer keys reinstallation on distribution name and not path.
+
+        An entry whose name cannot be determined is dropped: omitting it costs
+        a package its forced rebuild, whereas guessing wrong names a different
+        distribution -- or none at all, which some installers reject outright.
+        """
+        targets = []
+        seen = set()
+        try:
+            with open(requirements_file, "r") as fp:
+                lines = fp.readlines()
+        except OSError as e:
+            _logger.warning("could not read requirements file %s (%s)",
+                            requirements_file, e)
+            return targets
+
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+
+            if line.startswith("-e ") or line.startswith("--editable"):
+                path = line.split(None, 1)[1].strip() if " " in line else ""
+                if line.startswith("--editable="):
+                    path = line.split("=", 1)[1].strip()
+                dist = _project_name_at(path)
+                if dist is None:
+                    _logger.warning(
+                        "could not determine the distribution name of editable "
+                        "requirement %s; it will not be force-reinstalled", path)
+                    continue
+            elif line.startswith("-"):
+                # A bare installer option (--pre, --index-url, ...) names nothing.
+                continue
+            elif line.endswith(".whl") or os.path.sep in line:
+                # A wheel or local archive; the installer always reinstalls
+                # these from the file, so no marking is needed.
+                continue
+            else:
+                dist = _pep508_split(line)[0]
+                if not dist:
+                    continue
+
+            if dist not in seen:
+                seen.add(dist)
+                targets.append(dist)
+
+        return targets
 
     def _collect_build_requires(self, deps_dir, pkg_names) -> List[str]:
         """Return the PEP 517 build requirements declared by source packages.
