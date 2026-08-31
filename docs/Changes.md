@@ -1,4 +1,7 @@
 
+# 2.26.0
+- Correct an editable-install ordering bug
+
 # 2.25.0
 - Add support for 'install' command that creates a standalone deps-dir
 - `ivpm install --root-var NAME` names the variable `packages.envrc` exports for

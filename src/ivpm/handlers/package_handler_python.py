@@ -50,6 +50,105 @@ _PYTHON_SENTINEL_BEGIN = "# --- ivpm:python begin ---"
 _PYTHON_SENTINEL_END   = "# --- ivpm:python end ---"
 
 
+def find_sccs(deps_m : Dict[str,Set[str]]) -> List[Set[str]]:
+    """Return the strongly-connected components of a dependency map.
+
+    ``deps_m`` maps a package name to the set of packages it depends on.
+    Edges to names that are not themselves keys of ``deps_m`` are ignored.
+    Implemented iteratively (Tarjan) so that deep dependency chains cannot
+    blow the recursion limit.
+    """
+    index_m = {}
+    lowlink_m = {}
+    on_stack = set()
+    stack = []
+    sccs = []
+    counter = [0]
+
+    for root in deps_m.keys():
+        if root in index_m:
+            continue
+
+        # Each work-item is (node, iterator over its remaining successors)
+        work = [(root, iter(sorted(deps_m[root])))]
+        index_m[root] = lowlink_m[root] = counter[0]
+        counter[0] += 1
+        stack.append(root)
+        on_stack.add(root)
+
+        while work:
+            node, it = work[-1]
+            advanced = False
+            for succ in it:
+                if succ not in deps_m:
+                    # Not a package we are ordering; no edge to follow
+                    continue
+                if succ not in index_m:
+                    index_m[succ] = lowlink_m[succ] = counter[0]
+                    counter[0] += 1
+                    stack.append(succ)
+                    on_stack.add(succ)
+                    work.append((succ, iter(sorted(deps_m[succ]))))
+                    advanced = True
+                    break
+                elif succ in on_stack:
+                    lowlink_m[node] = min(lowlink_m[node], index_m[succ])
+            if advanced:
+                continue
+
+            work.pop()
+            if lowlink_m[node] == index_m[node]:
+                scc = set()
+                while True:
+                    w = stack.pop()
+                    on_stack.discard(w)
+                    scc.add(w)
+                    if w == node:
+                        break
+                sccs.append(scc)
+            if work:
+                parent = work[-1][0]
+                lowlink_m[parent] = min(lowlink_m[parent], lowlink_m[node])
+
+    return sccs
+
+
+def toposort_dep_groups(deps_m : Dict[str,Set[str]]) -> List[Set[str]]:
+    """Order packages into install groups, tolerating dependency cycles.
+
+    Packages within a cycle cannot be ordered relative to one another, so
+    each strongly-connected component is collapsed into a single group.  The
+    members of such a group land in one requirements file and are therefore
+    resolved together in a single install pass, which is what a mutual
+    dependency requires anyway.
+    """
+    sccs = find_sccs(deps_m)
+    scc_of = {}
+    for i, scc in enumerate(sccs):
+        for name in scc:
+            scc_of[name] = i
+
+    condensed = dict((i, set()) for i in range(len(sccs)))
+    for name, deps in deps_m.items():
+        for dep in deps:
+            if dep in scc_of and scc_of[dep] != scc_of[name]:
+                condensed[scc_of[name]].add(scc_of[dep])
+
+    groups = []
+    for grp in toposort.toposort(condensed):
+        members = set()
+        for i in grp:
+            members |= sccs[i]
+        if len(members):
+            groups.append(members)
+
+    for scc in sccs:
+        if len(scc) > 1:
+            _logger.debug("Dependency cycle among Python packages: %s", sorted(scc))
+
+    return groups
+
+
 def _write_python_envrc(deps_dir: str):
     """Write the ``packages/python/export.envrc`` direnv snippet for the venv.
 
@@ -583,56 +682,16 @@ class PackageHandlerPython(PackageHandler):
         _perf = getattr(update_info, "perf", None)
         _reqs_span = _perf.open_span("reqs.assemble") if _perf is not None else None
 
-        # Build up a dependency map for Python package installation
-        python_deps_m = {}
-#        python_pkgs_s = set()
-
-        # Collect the full set of packages
-#        for pkg in self.packages:
-#            python_pkgs_s.add(pkg.name)
-
-        # Map between package name and a set of python
-        # packages it depends on
-        py_pkg_m = {}
-        _logger.debug("src_pkg_s: %s", str(self.src_pkg_s))
-        for pyp in self.src_pkg_s:
-            _logger.debug("pyp: %s", pyp) 
-            p = self.pkgs_info[pyp]
-            if pyp not in python_deps_m.keys():
-                python_deps_m[pyp] = set()
-
-            if p.proj_info is not None:
-                _logger.debug("non-none proj_info")
-                # TODO: see if the package specifies the package set
-                if p.proj_info.has_dep_set(p.proj_info.target_dep_set):
-                    for dp in p.proj_info.get_dep_set(p.proj_info.target_dep_set).keys():
-                        if dp in self.pkgs_info.keys():
-                            dp_p = self.pkgs_info[dp]
-                            if dp_p.src_type != "pypi":
-                                # Only add a dependency edge if dp was resolved
-                                # by this package (pyp). If dp was resolved at a
-                                # higher level (e.g., root or another package),
-                                # there's no dependency edge from pyp to dp.
-                                # This prevents circular dependencies when upper-level
-                                # imports override lower-level imports.
-                                if dp_p.resolved_by == pyp:
-                                    python_deps_m[pyp].add(dp)
-                else:
-                    _logger.warning("Project %s does not contain its target dependency set (%s)",
-                        p.proj_info.name,
-                        p.proj_info.target_dep_set)
-                    for d in p.proj_info.dep_set_m.keys():
-                        _logger.debug("Dep-Set: %s", d)
-
-        # Order the source packages based on their dependencies 
-        it = toposort.toposort(python_deps_m)
-        pysrc_pkg_order = list(it)
+        # Build up a dependency map for Python package installation and
+        # order the source packages based on it
+        python_deps_m = self._build_python_deps_m()
+        pysrc_pkg_order = toposort_dep_groups(python_deps_m)
         if self.debug:
             _logger.debug("python_deps_m: %s", str(python_deps_m))
             _logger.debug("pysrc_pkg_order: %s", str(pysrc_pkg_order))
 
         python_deps_m = {}
-        
+
         python_requirements_paths = []
 
         # Setup deps are a special category. We need to 
@@ -884,10 +943,23 @@ class PackageHandlerPython(PackageHandler):
             _logger.warning("Failed to query pip versions for lock file: %s", e)
             return {}
 
-    def build(self, build_info : ProjectBuildInfo):
+    def _build_python_deps_m(self) -> Dict[str,Set[str]]:
+        """Map each source Python package to the source packages it depends on.
+
+        Only edges between packages that IVPM installs from source are
+        recorded: PyPI packages are installed in an earlier phase, and
+        non-Python packages are never installed into the venv at all.
+
+        A dependency edge is recorded no matter which package resolved the
+        dependency.  A package declaring a dependency needs that dependency
+        present when it is installed, even when the dependency was pulled in
+        by the root project or by a sibling.  Cycles that this may introduce
+        are handled by :func:`toposort_dep_groups`.
+        """
+        python_deps_m = {}
         _logger.debug("src_pkg_s: %s", str(self.src_pkg_s))
         for pyp in self.src_pkg_s:
-            _logger.debug("pyp: %s", pyp) 
+            _logger.debug("pyp: %s", pyp)
             p = self.pkgs_info[pyp]
             if pyp not in python_deps_m.keys():
                 python_deps_m[pyp] = set()
@@ -897,14 +969,8 @@ class PackageHandlerPython(PackageHandler):
                 # TODO: see if the package specifies the package set
                 if p.proj_info.has_dep_set(p.proj_info.target_dep_set):
                     for dp in p.proj_info.get_dep_set(p.proj_info.target_dep_set).keys():
-                        if dp in self.pkgs_info.keys():
-                            dp_p = self.pkgs_info[dp]
-                            if dp_p.src_type != "pypi":
-                                # Only add a dependency edge if dp was resolved
-                                # by this package (pyp). If dp was resolved at a
-                                # higher level, there's no dependency edge.
-                                if dp_p.resolved_by == pyp:
-                                    python_deps_m[pyp].add(dp)
+                        if dp != pyp and dp in self.src_pkg_s:
+                            python_deps_m[pyp].add(dp)
                 else:
                     _logger.warning("Project %s does not contain its target dependency set (%s)",
                         p.proj_info.name,
@@ -912,9 +978,12 @@ class PackageHandlerPython(PackageHandler):
                     for d in p.proj_info.dep_set_m.keys():
                         _logger.debug("Dep-Set: %s", d)
 
-        # Order the source packages based on their dependencies 
-        it = toposort.toposort(python_deps_m)
-        pysrc_pkg_order = list(it)
+        return python_deps_m
+
+    def build(self, build_info : ProjectBuildInfo):
+        # Order the source packages based on their dependencies
+        python_deps_m = self._build_python_deps_m()
+        pysrc_pkg_order = toposort_dep_groups(python_deps_m)
         if self.debug:
             _logger.debug("python_deps_m: %s", str(python_deps_m))
             _logger.debug("pysrc_pkg_order: %s", str(pysrc_pkg_order))
