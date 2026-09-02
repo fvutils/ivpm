@@ -106,22 +106,26 @@ class TestBase(unittest.TestCase):
         with open(fullpath, "w") as fp:
             fp.write(content)
 
-    def ivpm_update(self, 
-                    dep_set="default-dev", 
-                    anonymous=None, 
-                    skip_venv=False, 
-                    args=None):
+    def ivpm_update(self,
+                    dep_set="default-dev",
+                    anonymous=None,
+                    skip_venv=False,
+                    args=None,
+                    refresh_all=False,
+                    force=False):
 
         if args is None:
             class Args(object):
                 def __init__(self, anonymous):
                     self.anonymous_git = anonymous
             args = Args(anonymous)
-        
+
         ProjectOps(self.testdir, args).update(
-                dep_set=dep_set, 
+                dep_set=dep_set,
                 skip_venv=skip_venv,
-                args=args)
+                args=args,
+                refresh_all=refresh_all,
+                force=force)
     
     def ivpm_sync(self, dep_set=None, args=None):
         ProjectOps(self.testdir).sync(dep_set=dep_set, args=args)

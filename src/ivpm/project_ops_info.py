@@ -159,6 +159,13 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)
     _load_planner: Optional['LoadPlanner'] = None  # session load planner (memoized)
     disable_cache: bool = False  # When True, force a null cache provider (--no-cache)
+    # --refresh-all: re-materialize every resident package, not just the ones
+    # whose spec drifted. Read by get_load_planner() when it builds the planner.
+    refresh_all: bool = False
+    # --force: discard a package's local work when refreshing it, instead of
+    # stopping. Carried here (not read off `args`) so a caller driving
+    # ProjectOps directly gets the same behavior as the CLI.
+    force: bool = False
     # Performance-span collector (perf.py). Always constructed by update();
     # --timing only gates the after-run display, not collection.
     perf: Optional['PerfCollector'] = None
@@ -248,7 +255,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         """
         if self._load_planner is None:
             from .load_plan import LoadPlanner
-            self._load_planner = LoadPlanner(self.root_deps_dir, self.lock_data)
+            self._load_planner = LoadPlanner(
+                self.root_deps_dir, self.lock_data,
+                refresh_all=self.refresh_all)
         return self._load_planner
 
     def report_cache_unconfigured(self):

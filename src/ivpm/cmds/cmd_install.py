@@ -95,6 +95,7 @@ class CmdInstall(object):
             deps_dir_override=".",
             root_var=root_var,
             force_py_install=getattr(args, "force_py_install", False),
+            refresh_all=getattr(args, "refresh_all", False),
             timing=getattr(args, "timing", False))
 
 

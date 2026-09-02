@@ -239,9 +239,42 @@ class PackageGit(PackageURL):
                     data={"upstream": upstream}))
         elif branch is not None:
             # On a branch with no upstream: its commits exist nowhere else.
-            # (A pinned commit/tag leaves a detached HEAD -> branch is None,
-            # and is recoverable from the remote, so it is not flagged.)
             reasons.append(SafetyReason("local-branch", data={"branch": branch}))
+        else:
+            # Detached HEAD -- a commit/tag pin, or the user's own checkout.
+            # Usually it sits on a commit the remote already has, so there is
+            # nothing to lose. But committing while detached is possible, and
+            # those commits are reachable from nothing but HEAD and the reflog:
+            # re-cloning destroys them permanently. @{u} does not resolve here,
+            # so the ahead/behind check above cannot see them -- ask the
+            # question directly instead. This is the one place where "what does
+            # no remote have?" must be asked of the commit graph rather than of
+            # a tracking branch.
+            # Only meaningful when there is somewhere the commits could have
+            # come from. With no remote-tracking refs at all, `--not --remotes`
+            # excludes nothing and would call the entire history unpushed --
+            # true in the letter but useless, and it would block every repo
+            # that simply has no remote configured.
+            _, remote_refs = _git(["for-each-ref", "--count=1", "refs/remotes"])
+
+            # Plain `rev-list` for the verdict: it is portable to any git, and
+            # the decision to block must not hinge on pretty-printing support.
+            # Subjects are fetched separately, purely as evidence.
+            shas = []
+            if remote_refs:
+                rc_un, un_raw = _git(["rev-list", "HEAD", "--not", "--remotes"])
+                if rc_un == 0:
+                    shas = [s for s in un_raw.splitlines() if s.strip()]
+            if shas:
+                items = [s[:7] for s in shas[:20]]
+                _, log_raw = _git(
+                    ["log", "--format=%s", "--no-walk"] + shas[:20])
+                subjects = [s for s in log_raw.splitlines() if s.strip()]
+                if len(subjects) == len(items):
+                    items = subjects
+                reasons.append(SafetyReason(
+                    "unpushed", items=items, count=len(shas),
+                    data={"detached": True}))
 
         # --- stashed work ------------------------------------------------ #
         rc_st, stash_raw = _git(["stash", "list"])
@@ -684,8 +717,15 @@ class PackageGit(PackageURL):
         if depth is not None:
             git_cmd.extend(["--depth", str(depth)])
 
-        if self.branch is not None:
-            git_cmd.extend(["-b", str(self.branch)])
+        # -b takes a tag name as readily as a branch name (it sets the initial
+        # checkout, detaching HEAD for a tag). Honoring 'tag:' here matches the
+        # ref resolution everywhere else in this class -- _get_commit_hash_*
+        # and the deps-source probe all read `self.branch or self.tag` -- and
+        # without it a tag pin was silently ignored, leaving the clone on the
+        # remote's default branch.
+        ref = self.branch if self.branch is not None else self.tag
+        if ref is not None:
+            git_cmd.extend(["-b", str(ref)])
 
         url = self._get_effective_url(update_info)
         _logger.debug("Clone URL: %s", url)
@@ -707,9 +747,18 @@ class PackageGit(PackageURL):
                 "Failed to clone %s (git exit %d)" % (url, rc), url, err,
                 update_info=update_info))
 
-        # Checkout a specific commit
+        # Checkout a specific commit.
+        #
+        # Detaching, rather than `git reset --hard`: reset moves the *branch*
+        # pointer to the pinned commit, leaving the clone on an ordinary branch
+        # that merely happens to sit behind its upstream. That misrepresents the
+        # state everywhere it is read -- `ivpm status` showed the branch name as
+        # though the dependency tracked it, and `ivpm sync` would fast-forward
+        # it straight off the pin. A detached HEAD is what a pinned checkout
+        # actually is, and every consumer already knows how to render and
+        # respect that.
         if self.commit is not None:
-            git_cmd = ["git", "reset", "--hard", self.commit]
+            git_cmd = ["git", "checkout", "--detach", self.commit]
             _logger.debug("git_cmd: %s", str(git_cmd))
             with span_or_null(getattr(update_info, "perf", None), "git.checkout", package=self.name):
                 rc, err = self._run_git(git_cmd, update_info, cwd=target_dir)
@@ -765,6 +814,13 @@ class PackageGit(PackageURL):
                 branch="(not fetched)",
                 error="directory not found or not a git repo",
             )
+        # The working tree cannot tell us a pin exists -- a pinned checkout and
+        # a hand-detached one are the same on disk. The declaration is what
+        # distinguishes them, and it reaches us through self.commit (set from
+        # the manifest, or from the lock's 'commit_requested' when this package
+        # was rebuilt from a lock entry, which is how `ivpm status` builds it).
+        if self.commit is not None:
+            st.pinned_commit = self.commit
         return st
 
     def sync(self, sync_info: ProjectSyncInfo):
@@ -780,6 +836,20 @@ class PackageGit(PackageURL):
                 name=self.name, src_type="git", path=pkg_dir,
                 outcome=SyncOutcome.SKIPPED,
                 skipped_reason="pinned to tag %s" % self.tag,
+            )
+
+        # Neither do commit-pinned ones. A pin is a statement about which
+        # commit this dependency must be at; advancing it to the branch tip
+        # contradicts the manifest. Note this is NOT covered by the detached-
+        # HEAD check below: _clone_to_dir pins with `git reset --hard`, which
+        # moves the *branch* pointer, so a pinned clone sits on a normal branch
+        # one or more commits behind its upstream and would fast-forward
+        # straight off its pin.
+        if self.commit is not None:
+            return PkgSyncResult(
+                name=self.name, src_type="git", path=pkg_dir,
+                outcome=SyncOutcome.SKIPPED,
+                skipped_reason="pinned to commit %s" % self.commit[:7],
             )
 
         # Read-only packages are cached; skip silently.
@@ -970,7 +1040,15 @@ class PackageGit(PackageURL):
                 
         if "commit" in opts.keys():
             self.commit = opts["commit"]
-               
+        elif "commit_requested" in opts.keys():
+            # ``opts`` is a package-lock.json entry, not a manifest dep -- the
+            # shape `ivpm sync` builds from. It spells the pin
+            # 'commit_requested'; 'branch', 'tag' and 'url' happen to be spelled
+            # the same in both, which is why only the commit pin went missing
+            # here. Without this, a commit-pinned package reached sync() with
+            # self.commit None and was synced like an unpinned one.
+            self.commit = opts["commit_requested"]
+
         if "tag" in opts.keys():
             self.tag = opts["tag"]
 

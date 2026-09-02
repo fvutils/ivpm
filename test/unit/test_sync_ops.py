@@ -347,6 +347,48 @@ class TestSyncOps(SyncTestBase):
         self.assertIn("tag", r.skipped_reason)
         self.assertIn("v1.0.0", r.skipped_reason)
 
+    # ── SKIPPED — commit-pinned ───────────────────────────────────────────
+
+    def test_skipped_commit_pinned(self):
+        """A commit pin says which commit this dep must be at; sync must not
+        move it off that commit."""
+        upstream = self._make_upstream("pkg_pin")
+        pkg_dir = self._clone_pkg(upstream, "pkg_pin")
+        pinned = _git("rev-parse", "HEAD", cwd=pkg_dir).stdout.strip()
+
+        # Upstream moves on. The clone is on a normal branch (this is how
+        # _clone_to_dir leaves a pinned package -- `git reset --hard` moves the
+        # branch pointer, it does not detach), so nothing but the pin itself
+        # stops a fast-forward.
+        self._add_upstream_commit(upstream)
+
+        self._setup_project({"pkg_pin": {"src": "git",
+                                         "commit_requested": pinned}})
+
+        results = self._sync()
+        r = self._result(results, "pkg_pin")
+        self.assertEqual(r.outcome, SyncOutcome.SKIPPED)
+        self.assertIn("commit", r.skipped_reason)
+        self.assertIn(pinned[:7], r.skipped_reason)
+        self.assertEqual(_git("rev-parse", "HEAD", cwd=pkg_dir).stdout.strip(),
+                         pinned, "sync moved a commit-pinned package")
+
+    def test_unpinned_package_still_syncs(self):
+        """The guard must key on the pin, not disable syncing generally."""
+        upstream = self._make_upstream("pkg_free")
+        pkg_dir = self._clone_pkg(upstream, "pkg_free")
+        before = _git("rev-parse", "HEAD", cwd=pkg_dir).stdout.strip()
+        self._add_upstream_commit(upstream)
+
+        self._setup_project({"pkg_free": {"src": "git",
+                                          "commit_requested": None}})
+
+        results = self._sync()
+        r = self._result(results, "pkg_free")
+        self.assertEqual(r.outcome, SyncOutcome.SYNCED)
+        self.assertNotEqual(
+            _git("rev-parse", "HEAD", cwd=pkg_dir).stdout.strip(), before)
+
     # ── SKIPPED — non-git package ─────────────────────────────────────────
 
     def test_skipped_pypi(self):

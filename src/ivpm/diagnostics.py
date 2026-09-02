@@ -33,6 +33,13 @@ warnings, and errors. It renders through a pluggable :class:`DiagnosticSink`:
 all be reported in one run; ``abort_if_errors()`` stops at a phase boundary with
 a summary. ``fatal()`` renders and raises immediately.
 
+While a live TUI owns the screen, error/fatal rendering is *deferred*
+(:meth:`DiagnosticReporter.set_defer_errors`): a diagnostic printed above a Live
+region scrolls out of the way as the progress display keeps drawing, leaving the
+one thing the user needs to read at the very top of the output. Deferred
+diagnostics are held and rendered by :meth:`DiagnosticReporter.flush_deferred`,
+which ``ivpm.__main__`` calls after every command -- so errors always land last.
+
 ``SrcLoaderError`` (the exception type) lives in :mod:`ivpm.yamlsrc` and is
 re-exported here.
 """
@@ -198,15 +205,50 @@ class DiagnosticReporter(object):
         self.sink = sink if sink is not None else PlainSink()
         self.errors = []
         self.warning_count = 0
+        # Errors held back for end-of-run rendering (see set_defer_errors).
+        self.deferred = []
+        self._defer_errors = False
+
+    def set_defer_errors(self, defer):
+        """Hold error/fatal diagnostics back instead of rendering them inline.
+
+        Returns the previous setting. A TUI turns this on while it owns the
+        screen; the held diagnostics are rendered by :meth:`flush_deferred`
+        once the display has torn down, so they are the last thing the user
+        sees rather than the first thing that scrolled away.
+        """
+        prev = self._defer_errors
+        self._defer_errors = bool(defer)
+        return prev
 
     def emit(self, diag):
-        self.sink.emit(diag)
+        if self._defer_errors and diag.severity >= Severity.ERROR:
+            self.deferred.append(diag)
+        else:
+            self.sink.emit(diag)
         if diag.severity is Severity.WARNING:
             self.warning_count += 1
         elif diag.severity >= Severity.ERROR:
             self.errors.append(diag)
         if diag.severity is Severity.FATAL:
             raise SrcLoaderError(diag.loc_message(), [diag], srcinfo=diag.srcinfo)
+
+    def flush_deferred(self):
+        """Render (and clear) any diagnostics held back by deferral.
+
+        Deferral stays on until this is called: an error raised after the TUI
+        stopped but before the run ends would otherwise print ahead of the ones
+        already queued, scrambling the order.
+        """
+        self._defer_errors = False
+        if not self.deferred:
+            return False
+        pending, self.deferred = self.deferred, []
+        # Separate the report from whatever the TUI left on screen.
+        print("", file=sys.stderr)
+        for diag in pending:
+            self.sink.emit(diag)
+        return True
 
     # -- convenience emitters --------------------------------------------
     def info(self, message, loc=None):

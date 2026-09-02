@@ -55,6 +55,7 @@ class LoadAction(enum.Enum):
     FETCH = enum.auto()      # populate it
     REUSE = enum.auto()      # content is present and acceptable; leave it alone
     RECONCILE = enum.auto()  # present or not, the source must re-examine it
+    REFRESH = enum.auto()    # present, but stale: discard it and fetch again
 
 
 class LoadState(enum.Enum):
@@ -80,11 +81,18 @@ class LoadDecision:
 
     @property
     def should_fetch(self) -> bool:
-        return self.action is LoadAction.FETCH
+        return self.action in (LoadAction.FETCH, LoadAction.REFRESH)
 
     @property
     def is_resident(self) -> bool:
-        """True when content is already present and will be kept as-is."""
+        """True when content is already present and will be kept as-is.
+
+        REFRESH is deliberately *not* resident: the whole point is that the
+        provider takes its fetch path.  The stale tree is cleared out from
+        under it first (``PackageUpdater._refresh_pkg``), so by the time a
+        provider looks, a refreshed package is indistinguishable from an
+        absent one.
+        """
         return self.action is LoadAction.REUSE
 
 
@@ -149,12 +157,17 @@ class LoadPlanner(object):
     same answer it was dispatched with.
     """
 
-    def __init__(self, deps_dir: str, lock_data: Optional[dict] = None):
+    def __init__(self, deps_dir: str, lock_data: Optional[dict] = None,
+                 refresh_all: bool = False):
         self.deps_dir = deps_dir
         self._entries: Dict[str, dict] = dict(
             (lock_data or {}).get("packages", {}) or {})
         self._memo: Dict[str, LoadDecision] = {}
         self._lock = threading.Lock()
+        # --refresh-all: every resident package is re-materialized, whether or
+        # not its spec drifted.  Absent ones are already being fetched, and
+        # patched ones already reconcile, so neither is affected.
+        self.refresh_all = refresh_all
 
     # ------------------------------------------------------------------ #
     # Query                                                               #
@@ -231,9 +244,13 @@ class LoadPlanner(object):
         # (3) A symlink is a cache or deps-source hit.  Tested before any
         # emptiness probe: the target is shared, read-only and potentially
         # large, and must never be traversed just to answer this question.
+        # Comparing the spec against the lock does not traverse it -- that is a
+        # dict comparison -- so a linked package is drift-checked like any
+        # other. Returning early here instead is what left a `cache: true`
+        # dependency pinned to whatever it was first resolved to.
         if os.path.islink(path):
-            return LoadDecision(LoadAction.REUSE, LoadState.RESIDENT_LINK,
-                                "linked from shared content")
+            return self._resident_or_drifted(
+                pkg, LoadState.RESIDENT_LINK, "linked from shared content")
 
         # (4) An empty directory is not a loaded package.  This is the state a
         # pre-populate step leaves behind, and the one the old existence checks
@@ -243,24 +260,55 @@ class LoadPlanner(object):
                                 "directory is present but empty")
 
         # (5) Populated.  The lock decides what we believe it to be.
+        return self._resident_or_drifted(
+            pkg, LoadState.RESIDENT_MATCHING, "present and matches the lock file")
+
+    def _resident_or_drifted(self, pkg, state: LoadState,
+                             reason: str) -> LoadDecision:
+        """Content is present.  Does it still match what the manifest asks for?
+
+        *state* / *reason* describe the matching case; a mismatch always
+        reports ``RESIDENT_DRIFTED``, because that is what the drift report and
+        `ivpm show` key on regardless of how the content happens to be
+        materialized (a real tree or a shared symlink).
+        """
         entry = self._entries.get(self._key(pkg))
         if entry is None:
             # No lock entry: a manual checkout, or a workspace whose lock was
             # deleted.  Never treated as license to overwrite -- disk wins.
-            return LoadDecision(LoadAction.REUSE, LoadState.RESIDENT_UNTRACKED,
-                                "present, not recorded in the lock file")
+            # A link with no entry keeps its own state; only a real directory
+            # is 'untracked' in the sense §3.4 means.
+            if state is LoadState.RESIDENT_MATCHING:
+                state = LoadState.RESIDENT_UNTRACKED
+                reason = "present, not recorded in the lock file"
+            return self._resident(state, reason)
 
         if self._spec_matches(pkg, entry):
-            return LoadDecision(LoadAction.REUSE, LoadState.RESIDENT_MATCHING,
-                                "present and matches the lock file",
-                                lock_entry=entry)
+            return self._resident(state, reason, lock_entry=entry)
 
+        # Drifted: the manifest now asks for something other than what is on
+        # disk.  Acting on that is the whole point of re-running `update`, so
+        # the tree is re-materialized rather than reported and skipped.  The
+        # safety of discarding it is *not* decided here -- the refresh gate in
+        # PackageUpdater asks the package itself, and refuses rather than
+        # destroying uncommitted work.
         from .package_lock import _entry_from_pkg
         return LoadDecision(
-            LoadAction.REUSE, LoadState.RESIDENT_DRIFTED,
-            "present, but its specification has changed since it was locked",
+            LoadAction.REFRESH, LoadState.RESIDENT_DRIFTED,
+            "its specification has changed since it was locked",
             lock_entry=entry,
             drift={"current": _entry_from_pkg(pkg), "locked": entry})
+
+    def _resident(self, state: LoadState, reason: str,
+                  lock_entry: Optional[dict] = None) -> LoadDecision:
+        """A present-and-acceptable package: REUSE, or REFRESH under
+        ``--refresh-all``, which re-materializes regardless of the lock."""
+        if self.refresh_all:
+            return LoadDecision(LoadAction.REFRESH, state,
+                                "--refresh-all was requested",
+                                lock_entry=lock_entry)
+        return LoadDecision(LoadAction.REUSE, state, reason,
+                            lock_entry=lock_entry)
 
     @staticmethod
     def _patch_reason(pkg, path) -> Optional[str]:

@@ -265,7 +265,15 @@ def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
     elif src == "module":
         return getattr(pkg, "module", None) == lock_entry.get("module")
 
-    return False
+    # An unrecognized source type: we have no basis for saying the spec
+    # changed. Reporting "matches" is the conservative answer now that a
+    # drifted package is re-materialized -- claiming a change we cannot
+    # substantiate would discard the tree on every single update. Same
+    # reasoning as the exception path in LoadPlanner._spec_matches: guessing
+    # must never fall on the destructive side.
+    _logger.debug("no spec comparison for src '%s' (%s); assuming unchanged",
+                  src, getattr(pkg, "name", "?"))
+    return True
 
 
 # ---------------------------------------------------------------------------

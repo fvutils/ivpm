@@ -38,7 +38,9 @@ from ivpm.utils import get_venv_python
 from .project_ops_info import ProjectUpdateInfo
 from .dep_mode import FLATTEN
 from .dep_materialize import promote_to_writable
+from .load_plan import LoadAction
 from .perf import span_or_null
+from .pkg_remove import RefreshDenied
 from .prepare import PrepareDenied
 from .dep_scope import (
     DepScope, check_recursion, effective_mode, is_nested, scope_path)
@@ -357,7 +359,7 @@ class PackageUpdater(object):
         processed = []
         for i, result in enumerate(results):
             pkg = pkg_q[i][0]
-            if isinstance(result, PrepareDenied):
+            if isinstance(result, (PrepareDenied, RefreshDenied)):
                 # A refusal is a policy outcome, not a fetch failure: report it
                 # as one, without the "Failed to update" / source-spec framing
                 # that would send the user looking at the wrong thing. The
@@ -433,6 +435,48 @@ class PackageUpdater(object):
         with span_or_null(perf, "prepare.pkg", package=pkg.name):
             self.preparers.prepare(req)
 
+    def _refresh_pkg(self, pkg, decision, update_info) -> None:
+        """Clear a stale tree so the provider's fetch path can re-materialize it.
+
+        Called for LoadAction.REFRESH -- a package whose spec drifted, or every
+        resident package under ``--refresh-all``. Two things have to be true
+        afterwards for the fetch to work: the path is gone (``git clone`` and
+        ``copytree`` cannot write over a populated directory), and we were
+        allowed to remove it.
+
+        The permission question is delegated to the package, not answered here:
+        ``removal_safety()`` is the same gate `ivpm destroy` uses, so a git dep
+        with uncommitted edits, unpushed commits, a local-only branch or a stash
+        blocks a refresh exactly as it blocks a destroy. UNVERIFIABLE does not
+        block -- an archive tree has no VCS to prove anything with, and its
+        content is by definition re-downloadable.
+        """
+        from .pkg_remove import SafetyLevel
+        from .project_ops_info import ProjectRemoveInfo
+
+        force = bool(getattr(update_info, "force", False))
+        remove_info = ProjectRemoveInfo(
+            args=self.args,
+            deps_dir=update_info.deps_dir,
+            install_mode=update_info.install_mode,
+            force=force)
+
+        safety = pkg.removal_safety(remove_info)
+        if safety.level is SafetyLevel.BLOCKED and not force:
+            raise RefreshDenied(pkg.name, safety, decision.reason)
+
+        with span_or_null(getattr(update_info, "perf", None),
+                          "pkg.refresh", package=pkg.name):
+            pkg.remove(remove_info)
+
+        # remove() is best-effort by contract (it collects errors rather than
+        # raising). If the path survived, the fetch below would fail with a
+        # confusing provider-level error, so say what actually happened.
+        if pkg.path is not None and os.path.lexists(pkg.path):
+            raise Exception(
+                "could not clear %s to refresh it; remove it by hand and "
+                "re-run" % pkg.path)
+
     def _update_pkg(self, pkg : Package, scope : DepScope) -> Tuple[Package, DepScope, ProjInfo]:
         """Loads a single package. Returns the package and any dependencies."""
         must_update=False
@@ -474,6 +518,14 @@ class PackageUpdater(object):
             # particular, a preparer creating the target directory cannot flip
             # ABSENT to PREPARED_EMPTY and change the answer under it.
             decision = update_info.get_load_planner().decide(pkg)
+
+            # A stale tree is cleared before anything else looks at it, so the
+            # prepare step and the source provider both see a clean slate --
+            # the provider needs no refresh-awareness of its own, which is what
+            # makes this work uniformly across every source type.
+            if decision.action is LoadAction.REFRESH:
+                note("refreshing %s: %s" % (pkg.name, decision.reason))
+                self._refresh_pkg(pkg, decision, update_info)
 
             # Prepare the location before anything is written into it. This is
             # where a site configures the target (group, mode, ACL) so that

@@ -143,10 +143,13 @@ class RichSyncTUI(SyncProgressListener):
         # Route user-facing diagnostics through this console (above the Live).
         # Suppress informational notes unless -v was given, so the progress
         # display stays clean. Warnings/errors are always shown.
-        from .msg import use_sink
+        from .msg import defer_errors, use_sink
         from .diagnostics import RichSink, Severity
         min_severity = Severity.NOTE if self.verbose else Severity.WARNING
         self._prev_sink = use_sink(RichSink(self.console, min_severity=min_severity))
+        # Held until the run ends so they aren't scrolled off the top by the
+        # Live display; __main__ flushes them last.
+        defer_errors(True)
 
     def stop(self):
         if self._live:

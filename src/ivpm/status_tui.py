@@ -33,6 +33,14 @@ def _branch_label(s: PkgVcsStatus) -> str:
     """Return the branch/tag/detached string for display."""
     if s.vcs != "git":
         return "—"
+    # A declared commit pin outranks everything the working tree can say: it is
+    # why this package sits where it does and why sync will not move it. In
+    # particular it outranks a tag that happens to point at the same commit --
+    # that is a coincidence of the remote's tagging, not what the manifest
+    # asked for, and it would go on being displayed even after the tag moved.
+    # (A `tag:` pin leaves pinned_commit None and still renders as tag: below.)
+    if s.pinned_commit:
+        return "pinned:%s" % s.pinned_commit[:7]
     if s.tag:
         return "tag:%s" % s.tag
     if s.branch:
@@ -45,6 +53,11 @@ def _branch_label(s: PkgVcsStatus) -> str:
 def _upstream_label(s: PkgVcsStatus) -> str:
     """Return ahead/behind annotation, or '?' if unknown."""
     if s.vcs != "git":
+        return "—"
+    # A pinned checkout is detached, so it has no upstream to be ahead of or
+    # behind. That is 'not applicable', not 'unknown' -- '?' next to a pin
+    # reads as a failed lookup and invites the user to go investigate nothing.
+    if s.pinned_commit or s.tag:
         return "—"
     if s.ahead is None or s.behind is None:
         return "?"

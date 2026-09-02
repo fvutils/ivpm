@@ -12,7 +12,7 @@ from typing import Dict, List, Tuple
 
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
-from ivpm.msg import setup_logging, SrcLoaderError
+from ivpm.msg import flush_deferred_errors, setup_logging, SrcLoaderError
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
 from .cmds.cmd_perf import CmdPerf
@@ -938,14 +938,22 @@ def main(project_dir=None):
     try:
         args.func(args)
     except SrcLoaderError as e:
-        # Diagnostics emitted through the reporter are already rendered.
+        # Diagnostics emitted through the reporter are rendered by the flush
+        # below (a TUI defers them; otherwise they were rendered inline).
         # However, some paths (e.g. raw YAML parse errors) may raise
         # SrcLoaderError without going through the reporter. Detect that
         # case and print the message so the user is never left with a
         # silent exit.
+        flush_deferred_errors()
         if not e.diagnostics:
             print(str(e), file=sys.stderr)
         sys.exit(1)
+    finally:
+        # Any errors a TUI deferred are rendered here -- after the progress
+        # display and its summary have been torn down, so the failure reason is
+        # the last thing on screen rather than the first. No-op when nothing
+        # was deferred.
+        flush_deferred_errors()
 
 if __name__ == "__main__":
     main()

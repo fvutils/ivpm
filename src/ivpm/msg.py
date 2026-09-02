@@ -79,6 +79,25 @@ def use_sink(sink) -> object:
     return prev
 
 
+def defer_errors(defer=True) -> bool:
+    """Hold error/fatal diagnostics back for end-of-run rendering.
+
+    TUIs call this on start so an error doesn't get printed above a live
+    progress display (where it immediately scrolls out of sight). Returns the
+    previous setting; :func:`flush_deferred_errors` renders what was held.
+    """
+    return _reporter.set_defer_errors(defer)
+
+
+def flush_deferred_errors() -> bool:
+    """Render any deferred errors and turn deferral back off.
+
+    Called once per run from ``ivpm.__main__`` after the command returns, so
+    errors are always the last thing on screen.
+    """
+    return _reporter.flush_deferred()
+
+
 # --------------------------------------------------------------------------
 # Diagnostic emitters (back-compatible: msg may be a plain string; loc optional)
 # --------------------------------------------------------------------------

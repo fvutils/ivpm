@@ -1,5 +1,50 @@
 
 # 2.26.0
+- **`ivpm update` now applies a changed dependency spec.** Bumping `commit:`,
+  `tag:`, `branch:` or `url:` in `ivpm.yaml` and re-running `ivpm update` used
+  to leave the existing clone untouched: the change was reported as advisory
+  drift and skipped. It is now re-materialized to match the manifest.
+  - A dependency holding local work is never silently discarded. Uncommitted
+    edits, unpushed commits, a local-only branch, a stash or patched-tree drift
+    stop the update with the tree untouched, naming what is in the way; pass
+    `--force` to discard it. This is the same safety gate `ivpm destroy` uses.
+  - Previously the lock was also rewritten with the *new* requested commit
+    beside the *old* resolved one — recording a checkout that never happened,
+    which silenced the drift warning on every subsequent run.
+  - Applies to cached and deps-source dependencies too. Those materialize as a
+    symlink, and a symlinked package was previously not spec-checked at all, so
+    a `cache: true` dependency stayed on whatever it first resolved to.
+- `--refresh-all` and `--force` now work on `ivpm update`. Both were accepted by
+  the CLI, forwarded through `ProjectOps.update`, and then never read, so
+  neither re-fetched anything despite their help text. `ivpm install
+  --refresh-all` was inert for the same reason and is also fixed.
+- **A `commit:` pin now produces a detached HEAD, and `ivpm status` shows it.**
+  Pinning was applied with `git reset --hard`, which moves the *branch* pointer
+  and left the clone on an ordinary branch sitting behind its upstream —
+  indistinguishable from a dependency that tracks that branch. `ivpm status`
+  displayed the branch name; sync fast-forwarded off the pin. A pinned package
+  now reports `pinned:<sha>` (which outranks a tag that happens to point at the
+  same commit) and `upstream:—`, since a pin has no upstream to be ahead of.
+  The destroy gate was already written for this — its comment reads *"a pinned
+  commit/tag leaves a detached HEAD"* — so the clone step was the outlier.
+  - The destroy/refresh gate now also catches commits made *while* detached.
+    Those are reachable from nothing but HEAD and are destroyed by a re-clone,
+    but `@{u}` does not resolve on a detached HEAD, so the ahead/behind check
+    could not see them. Asked of the commit graph directly instead
+    (`rev-list HEAD --not --remotes`).
+- **`ivpm sync` no longer moves a commit-pinned dependency.** A `commit:` pin
+  states which commit the dependency must be at; sync was fast-forwarding it to
+  the branch tip anyway, silently contradicting the manifest. Such packages are
+  now `SKIPPED` with reason `pinned to commit <sha>`, matching how tag pins are
+  already handled. (The detached-HEAD guard did not cover this: `ivpm update`
+  applies a commit pin with `git reset --hard`, which moves the branch pointer
+  rather than detaching, so a pinned clone sits on an ordinary branch behind its
+  upstream.) Sync also could not previously *see* the pin — it builds packages
+  from lock entries, which spell it `commit_requested`, while only the manifest
+  spelling `commit` was read.
+- A `tag:` pin is now honored when cloning. `_clone_to_dir` passed `-b` for
+  `branch:` and reset to `commit:`, but ignored `tag:` entirely, silently
+  leaving the clone on the remote's default branch.
 - Correct an editable-install ordering bug
 
 # 2.25.0

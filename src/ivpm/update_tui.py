@@ -123,10 +123,15 @@ class RichUpdateTUI(UpdateEventListener):
         # Route user-facing diagnostics through this console (above the Live)
         # and suppress informational notes unless -v was given, so the progress
         # display stays clean. Warnings/errors are always shown.
-        from .msg import use_sink
+        from .msg import defer_errors, use_sink
         from .diagnostics import RichSink, Severity
         min_severity = Severity.NOTE if self.verbose else Severity.WARNING
         self._prev_sink = use_sink(RichSink(self.console, min_severity=min_severity))
+        # Errors are held until the run ends. Printed here they would land
+        # above the Live region and be pushed off-screen by the progress rows
+        # that follow -- i.e. at the top, which is where nobody looks for the
+        # reason a command failed. __main__ flushes them last.
+        defer_errors(True)
 
     def stop(self):
         """Stop the live display."""

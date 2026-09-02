@@ -79,6 +79,41 @@ class RemovalSafety:
     reasons: List[SafetyReason] = dc.field(default_factory=list)
 
 
+class RefreshDenied(Exception):
+    """Raised when a package whose spec changed holds work we refuse to discard.
+
+    ``ivpm update`` re-materializes a dependency whose specification drifted,
+    which means deleting what is there.  When the package's own
+    ``removal_safety()`` says BLOCKED, that content is unrecoverable, so the
+    update stops instead: a changed pin is never worth silently destroying a
+    user's commits.  ``--force`` overrides.
+
+    Carries the structured verdict rather than prose so the front-end renders
+    the evidence at the verbosity it chooses -- same contract as `destroy`.
+    """
+
+    def __init__(self, pkg_name: str, safety: 'RemovalSafety', detail: str = ""):
+        self.pkg_name = pkg_name
+        self.safety = safety
+        self.detail = detail
+        super().__init__(self.format())
+
+    def format(self) -> str:
+        # The kind->label map lives with the destroy front-end, which owns all
+        # SafetyReason formatting; imported here rather than duplicated, so the
+        # two renderings of the same evidence cannot drift apart.
+        from .destroy_tui import _reason_summary
+
+        head = "package '%s' has local work and %s" % (
+            self.pkg_name, self.detail or "its specification changed")
+        lines = [head]
+        for reason in self.safety.reasons:
+            lines.append("    %s" % _reason_summary(reason))
+        lines.append("  Commit, push or stash the work above -- or re-run with "
+                     "--force to discard it.")
+        return "\n".join(lines)
+
+
 class RemoveProgressListener:
     """Callback interface for live `ivpm destroy` progress. Implement and pass
     as ``ProjectRemoveInfo.progress`` to receive per-package notifications during

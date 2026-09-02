@@ -36,6 +36,43 @@ from .package_lock import write_lock, _entry_name
 _logger = logging.getLogger("ivpm.project_ops")
 
 
+# Lock fields worth naming in the drift report, in the order a reader wants
+# them. 'commit_requested' is the one the original bug report was about: a
+# changed pin has to say what it changed *from*, or the note is unactionable.
+_DRIFT_FIELDS = (
+    ("url", "url"),
+    ("branch", "branch"),
+    ("tag", "tag"),
+    ("commit_requested", "commit"),
+    ("version_requested", "version"),
+    ("path", "path"),
+    ("patchset_id", "patches"),
+)
+
+
+def _abbrev(value) -> str:
+    """Commit hashes are unreadable at full length; everything else is not."""
+    text = "(none)" if value is None else str(value)
+    if len(text) == 40 and all(c in "0123456789abcdef" for c in text):
+        return text[:7]
+    return text
+
+
+def _describe_drift(drift: dict) -> str:
+    """`` (commit 2c2094c -> dfaad41)`` for a drift record, or '' if nothing
+    nameable changed (an extension source comparing on fields we don't know)."""
+    if not drift:
+        return ""
+    current = drift.get("current") or {}
+    locked = drift.get("locked") or {}
+    changes = [
+        "%s %s -> %s" % (label, _abbrev(locked.get(key)), _abbrev(current.get(key)))
+        for key, label in _DRIFT_FIELDS
+        if key in current and current.get(key) != locked.get(key)
+    ]
+    return " (%s)" % ", ".join(changes) if changes else ""
+
+
 def _apply_effective_settings(infos, **settings) -> None:
     """Apply the resolved project settings to every update-info in *infos*.
 
@@ -210,6 +247,11 @@ class ProjectOps(object):
                 except Exception:
                     _logger.debug("Could not read lock file for change detection")
 
+            # --force implies --refresh-all: it exists to suppress the safety
+            # errors a refresh raises, which is meaningless without one.
+            updater.update_info.refresh_all = bool(refresh_all or force)
+            updater.update_info.force = bool(force)
+
             # Build the load planner now that lock_data is populated and before
             # any parallel package load, so its memo never races. It decides,
             # per package, whether the package needs loading -- replacing the
@@ -292,14 +334,16 @@ class ProjectOps(object):
 
             # Drift report. Emitted after the fetch because that is when every
             # package -- including transitive ones and every nested scope -- has
-            # been decided. Reporting is all it does: re-fetching a drifted tree
-            # would discard whatever the user has in it.
+            # been decided. By this point each of these has been re-materialized
+            # to match its new spec (a drifted package that could not be safely
+            # replaced raised instead, so we never get here reporting one we
+            # silently skipped). The report says what moved, and to what.
             _drifted = updater.update_info.get_load_planner().drifted()
             if _drifted:
-                note("The following packages have changed specs vs package-lock.json:")
+                note("Re-fetched %d package(s) whose spec changed since "
+                     "package-lock.json was written:" % len(_drifted))
                 for _key in sorted(_drifted.keys()):
-                    note("  %s" % _key)
-                note("No packages re-fetched; their existing content was kept.")
+                    note("  %s%s" % (_key, _describe_drift(_drifted[_key])))
 
             _logger.debug("Setup-deps: %s", str(pkgs_info.setup_deps))
 
@@ -352,6 +396,14 @@ class ProjectOps(object):
                 self._persist_and_report(perf, root_span, deps_dir, updater, timing)
             except Exception:
                 _logger.debug("perf persist/report failed", exc_info=True)
+            # Render errors the TUI deferred, now that the display, its summary
+            # and the timing breakdown are all out of the way -- so the reason
+            # the update failed is the last thing on screen. __main__ flushes
+            # too (no-op after this); doing it here as well means callers that
+            # drive ProjectOps directly don't lose the diagnostics.
+            if isinstance(tui, RichUpdateTUI):
+                from .msg import flush_deferred_errors
+                flush_deferred_errors()
 
     def _persist_and_report(self, perf, root_span, deps_dir, updater, timing):
         """Persist the perf record under deps/.ivpm/, prune to the retention

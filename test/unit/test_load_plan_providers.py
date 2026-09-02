@@ -209,8 +209,8 @@ class TestDriftReporting(_ProviderTestBase):
 
         decision = planner.decide(pkg)
         self.assertIs(decision.state, LoadState.RESIDENT_DRIFTED)
-        self.assertIs(decision.action, LoadAction.REUSE,
-                      "drift must report, not re-fetch")
+        self.assertIs(decision.action, LoadAction.REFRESH,
+                      "a drifted spec must be applied, not skipped")
         self.assertIn(target, planner.drifted())
 
 

@@ -89,6 +89,24 @@ class TestResidencyStates(_LoadPlanTestCase):
         self.assertIs(d.state, LoadState.RESIDENT_LINK)
         self.assertIs(d.action, LoadAction.REUSE)
 
+    def test_symlink_matching_the_lock_reuses(self):
+        pkg = self.mkPkg(url="https://example.com/p1.git")
+        self.mkLink(pkg)
+        lock = self.mkLock({"p1": self.gitEntry("p1")})
+        d = LoadPlanner(self.deps_dir, lock).decide(pkg)
+        self.assertIs(d.state, LoadState.RESIDENT_LINK)
+        self.assertIs(d.action, LoadAction.REUSE)
+
+    def test_symlink_drifted_refreshes(self):
+        """A cache/deps-source hit is drift-checked like any other residency.
+        Skipping the check here left `cache: true` deps pinned forever."""
+        pkg = self.mkPkg(url="https://example.com/CHANGED.git")
+        self.mkLink(pkg)
+        lock = self.mkLock({"p1": self.gitEntry("p1")})
+        d = LoadPlanner(self.deps_dir, lock).decide(pkg)
+        self.assertIs(d.state, LoadState.RESIDENT_DRIFTED)
+        self.assertIs(d.action, LoadAction.REFRESH)
+
     def test_populated_untracked_reuses(self):
         """No lock entry must never mean 'safe to overwrite'."""
         pkg = self.mkPkg()
@@ -105,16 +123,30 @@ class TestResidencyStates(_LoadPlanTestCase):
         self.assertIs(d.state, LoadState.RESIDENT_MATCHING)
         self.assertIs(d.action, LoadAction.REUSE)
 
-    def test_populated_drifted_reports_but_reuses(self):
-        """Drift is detected and reported; re-fetching stays opt-in."""
+    def test_populated_drifted_refreshes(self):
+        """A spec that no longer matches the lock is acted on, not skipped:
+        re-running `update` after changing a pin is how you apply the change.
+        Whether the resident tree may be discarded to do it is decided by the
+        refresh gate (PackageUpdater._refresh_pkg), not here."""
         pkg = self.mkPkg(url="https://example.com/CHANGED.git")
         self.populate(pkg)
         lock = self.mkLock({"p1": self.gitEntry("p1")})
         d = LoadPlanner(self.deps_dir, lock).decide(pkg)
         self.assertIs(d.state, LoadState.RESIDENT_DRIFTED)
-        self.assertIs(d.action, LoadAction.REUSE)
+        self.assertIs(d.action, LoadAction.REFRESH)
+        self.assertTrue(d.should_fetch)
+        self.assertFalse(d.is_resident)
         self.assertIsNotNone(d.drift)
         self.assertEqual(d.drift["locked"]["url"], "https://example.com/p1.git")
+
+    def test_refresh_all_refreshes_a_matching_package(self):
+        """--refresh-all re-materializes regardless of what the lock says."""
+        pkg = self.mkPkg(url="https://example.com/p1.git")
+        self.populate(pkg)
+        lock = self.mkLock({"p1": self.gitEntry("p1")})
+        d = LoadPlanner(self.deps_dir, lock, refresh_all=True).decide(pkg)
+        self.assertIs(d.state, LoadState.RESIDENT_MATCHING)
+        self.assertIs(d.action, LoadAction.REFRESH)
 
     def test_plain_file_is_resident(self):
         """A `src: file` dependency is a file, not a directory."""

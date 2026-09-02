@@ -40,6 +40,11 @@ class PkgVcsStatus:
     deps_source_auto: bool = False  # from_deps_source resolves into the parent git worktree
     is_root: bool = False           # True for the root-project entry (not a package)
     provider: Optional[str] = None  # clone-provider name that described a root entry
+    # The commit this dependency is *declared* to sit at, when the manifest
+    # pins one. Distinguishes "IVPM put it here and will keep it here" from a
+    # detached HEAD the user produced by hand -- the two look identical on
+    # disk, and only the former means sync will leave it alone.
+    pinned_commit: Optional[str] = None
 
 
 def git_working_tree_status(path: str, name: str) -> Optional["PkgVcsStatus"]:

@@ -137,6 +137,67 @@ class TestMsgFacade(unittest.TestCase):
         self.assertEqual(str(ctx.exception), "ivpm.yaml:8:7: missing url")
 
 
+class TestDeferredErrors(unittest.TestCase):
+    """Errors raised while a TUI owns the screen must render at the *end*.
+
+    Printed inline they land above the Live region and are pushed off the top
+    by the progress rows that keep drawing -- so the reason a command failed
+    ends up as the first thing on screen instead of the last.
+    """
+
+    def setUp(self):
+        self._sink = CollectingSink()
+        self._reporter = DiagnosticReporter(self._sink)
+        self._prev = msg.set_reporter(self._reporter)
+
+    def tearDown(self):
+        msg.set_reporter(self._prev)
+
+    def test_errors_are_held_until_flush(self):
+        msg.defer_errors(True)
+        msg.error("boom")
+        self.assertEqual(self._sink.records, [])
+        # ...but still counted, so abort_if_errors() behaves as before.
+        self.assertEqual(self._reporter.error_count, 1)
+
+        self.assertTrue(msg.flush_deferred_errors())
+        self.assertEqual(len(self._sink.records), 1)
+        self.assertIn("boom", self._sink.messages()[0])
+
+    def test_fatal_is_deferred_but_still_raises(self):
+        msg.defer_errors(True)
+        with self.assertRaises(SrcLoaderError):
+            msg.fatal("dead", _si(3, 1))
+        self.assertEqual(self._sink.records, [])
+
+        msg.flush_deferred_errors()
+        self.assertEqual(len(self._sink.records), 1)
+        self.assertIn("ivpm.yaml:3:1", self._sink.messages()[0])
+
+    def test_notes_and_warnings_still_render_inline(self):
+        msg.defer_errors(True)
+        msg.note("looking")
+        msg.warning("odd")
+        self.assertEqual(len(self._sink.records), 2)
+        msg.flush_deferred_errors()
+
+    def test_flush_is_idempotent_and_clears_deferral(self):
+        msg.defer_errors(True)
+        msg.error("boom")
+        self.assertTrue(msg.flush_deferred_errors())
+        # Nothing left to render, and deferral is off again...
+        self.assertFalse(msg.flush_deferred_errors())
+        self.assertEqual(len(self._sink.records), 1)
+        # ...so a later error renders inline, as it would with no TUI running.
+        msg.error("second")
+        self.assertEqual(len(self._sink.records), 2)
+
+    def test_deferral_is_off_by_default(self):
+        msg.error("boom")
+        self.assertEqual(len(self._sink.records), 1)
+        self.assertFalse(msg.flush_deferred_errors())
+
+
 class TestRichSink(unittest.TestCase):
 
     def test_rich_sink_prints_through_console(self):
