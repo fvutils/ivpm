@@ -30,13 +30,23 @@ class CmdSync(object):
         # per-package notifications during the parallel sync.
         args._sync_progress = tui
 
+        from ..msg import flush_deferred_errors
+
         tui.start()
         try:
-            results = ProjectOps(args.project_dir).sync(args=args, walk=not explicit)
-        finally:
-            tui.stop()
+            try:
+                results = ProjectOps(args.project_dir).sync(args=args, walk=not explicit)
+            finally:
+                tui.stop()
 
-        tui.render(results, dry_run=dry_run)
+            tui.render(results, dry_run=dry_run)
+        finally:
+            # tui.start() deferred errors so they wouldn't be printed above the
+            # live progress region and scroll away. Render them here, after the
+            # results table, so the failure reason is the last thing on screen.
+            # __main__ flushes too (a no-op after this); doing it here as well
+            # means a caller driving CmdSync directly doesn't lose them.
+            flush_deferred_errors()
 
         # Only exit non-zero on true fatal errors (network failure, git crash, etc.).
         # CONFLICT, DIRTY, and AHEAD are informational — the tool completed successfully.

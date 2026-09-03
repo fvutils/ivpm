@@ -32,7 +32,7 @@ import logging
 import os
 import subprocess
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 _logger = logging.getLogger("ivpm.package_lock")
 
@@ -286,6 +286,7 @@ def write_lock(
     handler_contributions: Optional[dict] = None,
     source_manifest: Optional[dict] = None,
     install_record: Optional[dict] = None,
+    dep_sets: Optional[List[str]] = None,
 ) -> None:
     """Write ``<deps_dir>/package-lock.json`` atomically.
 
@@ -308,6 +309,13 @@ def write_lock(
     directory.  Order is significant: it determines PATH precedence.  These are
     additive top-level keys; a reader that does not know them is unaffected, so
     ``ivpm_lock_version`` is not bumped.
+
+    *dep_sets* is the ordered list of dep-set(s) the workspace was resolved
+    with.  It is recorded at top level so a later bare ``ivpm update`` in this
+    directory re-uses the same selection instead of silently falling back to
+    the manifest default.  The lock is the workspace's record of what is
+    installed, so it -- not the (regenerable) ``ivpm.json`` -- is the durable
+    home for this.  Additive key; ``ivpm_lock_version`` is not bumped.
     """
     packages = {}
     ivpm_sources = {}
@@ -352,13 +360,23 @@ def write_lock(
     # Carry forward the root-project record (written by `ivpm clone` via
     # stamp_root_record) so ordinary `ivpm update` re-writes preserve it.
     lock_path = os.path.join(deps_dir, "package-lock.json")
+    existing_lock = {}
     if os.path.isfile(lock_path):
         try:
-            existing_root = read_lock(lock_path).get("root")
+            existing_lock = read_lock(lock_path)
         except Exception:
-            existing_root = None
+            existing_lock = {}
+        existing_root = existing_lock.get("root")
         if existing_root:
             lock["root"] = existing_root
+
+    # Record the dep-set selection. When the caller doesn't supply one (a code
+    # path that isn't dep-set-driven), keep whatever the previous run recorded
+    # rather than dropping the workspace back to "default" on the next update.
+    if dep_sets:
+        lock["dep_sets"] = list(dep_sets)
+    elif existing_lock.get("dep_sets"):
+        lock["dep_sets"] = list(existing_lock["dep_sets"])
 
     if source_manifest:
         lock["source_manifest"] = source_manifest

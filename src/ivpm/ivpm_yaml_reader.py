@@ -886,6 +886,7 @@ class IvpmYamlReader(object):
 
             # Unless specified, load the same dep-set from sub-packages
             if pkg.dep_set is None:
+                pkg.dep_set_inherited = True
                 if default_dep_set is not None:
                     pkg.dep_set = default_dep_set
                 else:

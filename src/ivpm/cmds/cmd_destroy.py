@@ -33,6 +33,18 @@ class CmdDestroy(object):
         pass
 
     def __call__(self, args):
+        from ..msg import flush_deferred_errors
+        try:
+            self._run(args)
+        finally:
+            # Render whatever the TUI deferred, now that the live displays and
+            # the blocking/summary report are out of the way -- so the reason
+            # destroy stopped is the last thing on screen. __main__ flushes too
+            # (a no-op after this); doing it here as well means a caller
+            # driving CmdDestroy directly doesn't lose the diagnostics.
+            flush_deferred_errors()
+
+    def _run(self, args):
         deps_only = getattr(args, "deps_only", False)
         verbose = getattr(args, "verbose", 0)
 

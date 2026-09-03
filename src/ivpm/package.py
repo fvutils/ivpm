@@ -155,6 +155,10 @@ class Package(object):
     resolved_by_key : str = None
     setup_deps : Set[str] = dc.field(default_factory=set)
     dep_set : str = None
+    # True when 'dep_set' was not written on the dependency entry, but inherited
+    # from the name of the dep-set that declares it (see IvpmYamlReader.read_deps).
+    # Diagnostics use this to explain where an unexpected dep-set name came from.
+    dep_set_inherited : bool = False
     proj_info : 'ProjInfo'= None
     # Track which package caused this dependency to be resolved.
     # None means it was resolved at the root level.

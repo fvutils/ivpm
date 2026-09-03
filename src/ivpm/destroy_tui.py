@@ -266,12 +266,20 @@ class RichDestroyTUI(RemoveProgressListener):
     # ── lifecycle ────────────────────────────────────────────────────────
     def _start(self, phase):
         from rich.live import Live
+        from .msg import defer_errors
         self._phase = phase
         self._states = {}
         self._order = []
         self._live = Live(self._build_table(), console=self.console,
                           refresh_per_second=12)
         self._live.start()
+        # Hold errors back while the Live owns the screen, exactly as the
+        # update and sync TUIs do: printed here they would land above the live
+        # region and be pushed off-screen by the rows that follow. Deferral
+        # spans both phases (gate, then teardown) and the summary that follows;
+        # __main__ flushes last, so the reason destroy failed is what the user
+        # is left looking at.
+        defer_errors(True)
 
     def _stop(self):
         if self._live:

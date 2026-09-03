@@ -1,5 +1,14 @@
 
 # 2.26.0
+- **The selected dep-set now survives a bare `ivpm update`, and is reported.**
+  The dep-set was recovered only from `<deps-dir>/ivpm.json` — regenerated
+  state that is not written when an update fails partway — so a workspace that
+  lost it silently reverted to the manifest's default dep-set on the next bare
+  `ivpm update`, rewriting the lock with whatever that default names. The
+  resolved dep-set(s) are now also recorded in `package-lock.json` and
+  recovered from there, and a run that adopts the recorded selection says so:
+  `note: Using dep-set dev, recorded in .../package-lock.json`. Changing the
+  selection still requires `-d <name>` *and* `--force`, as before.
 - **`ivpm update` now applies a changed dependency spec.** Bumping `commit:`,
   `tag:`, `branch:` or `url:` in `ivpm.yaml` and re-running `ivpm update` used
   to leave the existing clone untouched: the change was reported as advisory
@@ -45,6 +54,36 @@
 - A `tag:` pin is now honored when cloning. `_clone_to_dir` passed `-b` for
   `branch:` and reset to `commit:`, but ignored `tag:` entirely, silently
   leaving the clone on the remote's default branch.
+- **Errors now render once, at the bottom of the output.** While a live progress
+  display owns the screen, error and fatal diagnostics are held back and
+  rendered after it tears down, so the reason a command failed is the last
+  thing on screen rather than the first thing that scrolled away.
+  - A fetch failure was being reported twice in full — once by the code that
+    hit it and again by the batch driver re-quoting it — so a single bad URL
+    printed git's output and the auth hint two times over. The driver now adds
+    only what the first report lacks (which dependency entry failed, and its
+    `file:line`) and re-raises the original exception, so the reason is still
+    carried in the exception text callers read.
+  - `ivpm destroy` now defers errors like `update` and `sync` do; its live gate
+    and teardown tables previously pushed any diagnostic off the top.
+  - `ivpm sync` and `ivpm destroy` flush deferred errors themselves once their
+    results table is on screen, instead of relying solely on the top-level
+    handler — so a caller driving those commands directly can no longer lose
+    the diagnostics.
+- **Switching dep-sets is possible again.** A workspace records the dep-set it
+  was installed with in `<deps-dir>/ivpm.json`, and asking for a different one
+  failed with `Attempting to update with a different dep-set than previously
+  used` — with no way past it, since `--force` was not consulted. `--force` now
+  performs the switch (the same escape-hatch role it plays for the refresh
+  safety errors), and the refusal names the requested set, the installed set,
+  the deps-dir, and both ways forward.
+- **A shrinking lock no longer orphans packages silently.** `package-lock.json`
+  is what `ivpm status` reports from, so a package the lock stops naming
+  becomes invisible even though its directory is still on disk. That happened
+  with no diagnostic whenever the resolved dep-set shrank — most starkly when
+  it resolved to *no* packages, which rewrote the lock to `packages: {}` and
+  left a fully-populated deps-dir behind reporting `0 package(s)`. `ivpm
+  update` now lists the packages it dropped from the lock but left on disk.
 - Correct an editable-install ordering bug
 
 # 2.25.0

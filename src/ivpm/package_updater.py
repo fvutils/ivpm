@@ -29,7 +29,8 @@ import tarfile
 import urllib
 from zipfile import ZipFile
 
-from ivpm.msg import note, fatal, warning
+from ivpm.msg import note, error, fatal, warning
+from ivpm.diagnostics import SrcLoaderError
 from ivpm.package import Package, SourceType, SourceType2Ext, PackageType
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
@@ -68,6 +69,36 @@ def _origin_suffix(pkg) -> str:
     if resolved_by:
         parts.append("required by: %s" % resolved_by)
     return (" [%s]" % ", ".join(parts)) if parts else ""
+
+
+def _already_reported(exc) -> bool:
+    """True if *exc* carries diagnostics that have already been rendered.
+
+    A ``SrcLoaderError`` with a diagnostics list came out of ``fatal()`` (or
+    ``abort_if_errors()``), which renders as it raises -- so the failure has
+    already been described in full: git's output, the auth hint, all of it.
+    A bare exception from a code path that never touched the diagnostics
+    layer has been reported nowhere.
+    """
+    return isinstance(exc, SrcLoaderError) and bool(exc.diagnostics)
+
+
+def _failure_message(pkg, exc) -> str:
+    """How the batch driver describes *pkg* failing with *exc*.
+
+    Its job is to name the dependency entry that failed -- the file:line comes
+    from ``pkg.srcinfo``, the source spec from :func:`_origin_suffix`. Whether
+    it also has to state the *reason* depends on where the exception came
+    from: repeating an already-rendered report prints the whole body a second
+    time, and while a TUI is deferring errors the two copies land adjacent at
+    the end of the run, precisely where the user is reading. So for an
+    already-reported failure this adds only what the first report lacks;
+    otherwise the reason must be quoted here or it is lost entirely.
+    """
+    if _already_reported(exc):
+        return "Failed to update package %s%s" % (pkg.name, _origin_suffix(pkg))
+    return "Failed to update package %s: %s%s" % (
+        pkg.name, str(exc), _origin_suffix(pkg))
 
 
 class PackageUpdater(object):
@@ -176,10 +207,7 @@ class PackageUpdater(object):
 
                         if proj_info.process_deps:
                             if not proj_info.has_dep_set(pkg.dep_set):
-                                fatal("package %s in %s does not contain specified dep-set %s" % (
-                                    proj_info.name,
-                                    pkg.name,
-                                    pkg.dep_set))
+                                fatal(self._mk_missing_dep_set_msg(pkg, proj_info))
                                 continue
                             else:
                                 note("Loading package %s dependencies from dep-set %s" % (proj_info.name, pkg.dep_set))
@@ -282,6 +310,40 @@ class PackageUpdater(object):
                 dep.version = version
                 dep.resolved_version = version
 
+    def _mk_missing_dep_set_msg(self, pkg, proj_info) -> str:
+        """Explain a dep-set that the resolved package does not declare.
+
+        The dep-set name is often *inherited* -- a dependency entry that names
+        no dep-set picks up the name of the dep-set that declares it -- so the
+        name in the message may appear nowhere near the package it failed on.
+        Point at the entry that asked, and at what the package actually offers.
+        """
+        from .utils import getlocstr
+
+        avail = sorted(proj_info.dep_set_m.keys())
+        msg = "package '%s' does not contain dep-set '%s'\n" % (
+            proj_info.name, pkg.dep_set)
+
+        loc = getlocstr(pkg)
+        if pkg.dep_set_inherited:
+            msg += ("  '%s' was inherited: the dependency entry for '%s' @ %s "
+                    "names no 'dep-set', so it uses the name of the dep-set "
+                    "that declares it.\n" % (pkg.dep_set, pkg.name, loc))
+        else:
+            msg += "  requested by the dependency entry for '%s' @ %s\n" % (
+                pkg.name, loc)
+
+        if pkg.resolved_by is not None:
+            msg += "  resolved while processing package '%s'\n" % (
+                pkg.resolved_by_key or pkg.resolved_by,)
+
+        msg += "  dep-sets declared by '%s': %s\n" % (
+            proj_info.name,
+            ", ".join(avail) if avail else "<none>")
+        msg += ("  Add an explicit 'dep-set: <name>' to that dependency entry, "
+                "or declare '%s' in '%s'." % (pkg.dep_set, proj_info.name))
+        return msg
+
     def _scope_for_deps(self, pkg, scope: DepScope, proj_info,
                         ds: PackagesInfo) -> 'Optional[DepScope]':
         """Which scope *pkg*'s own dependencies resolve into.
@@ -365,17 +427,17 @@ class PackageUpdater(object):
                 # that would send the user looking at the wrong thing. The
                 # dependency's file:line:col still comes from pkg.srcinfo.
                 fatal(str(result), pkg)
+            elif _already_reported(result):
+                # The reason was rendered where it was hit; all that is missing
+                # is which dependency entry is responsible. Report that much,
+                # then re-raise the original -- rather than fatal()'ing a
+                # shorter message, which would strip the reason out of the
+                # exception text that library callers (and any handler that
+                # inspects it) still rely on.
+                error(_failure_message(pkg, result), pkg)
+                raise result
             elif isinstance(result, Exception):
-                # The per-package PACKAGE_ERROR event was already dispatched by
-                # _update_pkg (closest to the failure, with source location), so
-                # we don't re-report it here -- that would duplicate the
-                # '<< <pkg> ERROR:' line. Raise a fatal that points at the exact
-                # dependency specification (file:line:col, plus the source/url
-                # that failed) so the user knows which entry to fix and where.
-                fatal(
-                    "Failed to update package %s: %s%s" % (
-                        pkg.name, str(result), _origin_suffix(pkg)),
-                    pkg)
+                fatal(_failure_message(pkg, result), pkg)
             else:
                 processed.append(result)
 

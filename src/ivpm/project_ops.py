@@ -172,7 +172,8 @@ class ProjectOps(object):
                     from_manifest=from_manifest,
                     deps_dir_override=deps_dir_override,
                     default_config=default_config,
-                    merged_proj_info=merged_proj_info)
+                    merged_proj_info=merged_proj_info,
+                    force=force)
 
             # Merge any clone-provided handler overlay into the effective
             # handler_configs before the handler update-info is built from them
@@ -367,7 +368,16 @@ class ProjectOps(object):
                 handler_contributions = pkg_handler.get_lock_entries(deps_dir)
                 write_lock(deps_dir, updater.all_pkgs, handler_contributions,
                            source_manifest=source_manifest,
-                           install_record=install_record)
+                           install_record=install_record,
+                           dep_sets=dep_sets)
+
+                # The lock is the record of what the workspace contains, so a
+                # package it no longer names is invisible to status/destroy
+                # even though its directory is still on disk. That happens
+                # whenever the resolved dep-set shrinks -- including the "empty
+                # dep-set silently zeroes the lock" case. Say so; the trees are
+                # left alone (removing them is 'ivpm destroy').
+                self._report_orphans(deps_dir, updater)
 
                 # Write ivpm.json with dep-set(s) and handler state. "dep-set"
                 # always names the primary set (back-compat); "dep-sets" records
@@ -404,6 +414,34 @@ class ProjectOps(object):
             if isinstance(tui, RichUpdateTUI):
                 from .msg import flush_deferred_errors
                 flush_deferred_errors()
+
+    def _report_orphans(self, deps_dir, updater):
+        """Warn about packages the previous lock recorded that this one drops.
+
+        Only entries whose directory still exists are reported: a package that
+        was never materialized (or was removed by hand) is not an orphan, just
+        a stale lock entry. Best effort -- reporting must never fail an update.
+        """
+        try:
+            prev = getattr(updater.update_info, "lock_data", None) or {}
+            prev_keys = set((prev.get("packages") or {}).keys())
+            if not prev_keys:
+                return
+            cur_keys = set(getattr(updater.all_pkgs, "packages",
+                                   updater.all_pkgs).keys())
+            dropped = sorted(
+                k for k in prev_keys - cur_keys
+                if os.path.exists(os.path.join(deps_dir, k)))
+            if not dropped:
+                return
+            note("%d package(s) remain in %s but are no longer recorded in "
+                 "package-lock.json (the selected dep-set no longer names "
+                 "them); 'ivpm status' will not report them:" % (
+                     len(dropped), deps_dir))
+            for key in dropped:
+                note("  %s" % key)
+        except Exception:
+            _logger.debug("orphan report failed", exc_info=True)
 
     def _persist_and_report(self, perf, root_span, deps_dir, updater, timing):
         """Persist the perf record under deps/.ivpm/, prune to the retention
@@ -1215,11 +1253,41 @@ class ProjectOps(object):
                               os.path.abspath(self.root_dir))
         return sm, rel
 
+    def _load_dep_sets_from_lock(self, deps_dir: str):
+        """Return the dep-set(s) recorded in *deps_dir*'s lock, or ``None``.
+
+        Written by ``write_lock`` on every update, so it survives the cases
+        where ``ivpm.json`` doesn't: a hand-deleted state file, or an update
+        that failed after the lock was written.  ``source_manifest`` carries
+        the same selection for ``--from``-driven workspaces (older locks only
+        have it there), so accept either spelling.
+        """
+        from .package_lock import read_lock
+
+        lock_path = os.path.join(deps_dir, "package-lock.json")
+        if not os.path.isfile(lock_path):
+            return None
+
+        try:
+            lock = read_lock(lock_path)
+        except Exception as e:
+            _logger.debug("could not read lock for dep-set recovery: %s", e)
+            return None
+
+        for src in (lock, lock.get("source_manifest") or {}):
+            if src.get("dep_sets"):
+                return list(src["dep_sets"])
+            if src.get("dep_set") is not None:
+                return [src["dep_set"]]
+
+        return None
+
     def _init(self, dep_set=None, cli_overrides=None,
               from_manifest : str = None,
               deps_dir_override : str = None,
               default_config : dict = None,
-              merged_proj_info = None) -> Tuple['ProjInfo', str, List[str], 'dict']:
+              merged_proj_info = None,
+              force : bool = False) -> Tuple['ProjInfo', str, List[str], 'dict']:
         from .proj_info import ProjInfo
 
         # Normalize the requested dep-set(s) to a list (or None for "default").
@@ -1354,16 +1422,48 @@ class ProjectOps(object):
         # Recover the dep-set(s) recorded by a previous run. "dep-sets" (list)
         # takes precedence over the legacy single "dep-set" key.
         persisted_dep_sets = None
+        persisted_from = None
         if "dep-sets" in ivpm_json.keys():
             persisted_dep_sets = list(ivpm_json["dep-sets"])
+            persisted_from = "ivpm.json"
         elif ivpm_json.get("dep-set") is not None:
             persisted_dep_sets = [ivpm_json["dep-set"]]
+            persisted_from = "ivpm.json"
+
+        if persisted_dep_sets is None:
+            # ivpm.json is regenerated state and can be missing or stale (it is
+            # not written when an update fails partway). The lock is the record
+            # of what the workspace actually contains, so fall back to it --
+            # otherwise an existing workspace silently reverts to the manifest's
+            # default dep-set on the next bare update.
+            persisted_dep_sets = self._load_dep_sets_from_lock(deps_dir)
+            if persisted_dep_sets is not None:
+                persisted_from = "package-lock.json"
 
         if persisted_dep_sets is not None:
             if req_dep_sets is None:
                 req_dep_sets = persisted_dep_sets
+                note("Using dep-set %s, recorded in %s. Selecting a different "
+                     "dep-set requires -d <name> together with --force." % (
+                         ",".join(persisted_dep_sets),
+                         os.path.join(deps_dir, persisted_from)))
             elif set(req_dep_sets) != set(persisted_dep_sets):
-                fatal("Attempting to update with a different dep-set than previously used")
+                # Switching dep-sets re-shapes the workspace, so it is refused
+                # by default. --force is the escape hatch (same role it plays
+                # for the refresh safety errors): the requested set wins and is
+                # persisted, and packages the previous set installed that the
+                # new one does not name are reported as orphans after the lock
+                # is rewritten.
+                if not force:
+                    fatal("Attempting to update with a different dep-set than "
+                          "previously used: requested %s, but %s was installed "
+                          "in %s. Re-run with --force to switch dep-sets, or "
+                          "'ivpm destroy' to start from a clean workspace." % (
+                              ",".join(req_dep_sets),
+                              ",".join(persisted_dep_sets),
+                              deps_dir))
+                note("Switching dep-set %s -> %s (--force)" % (
+                    ",".join(persisted_dep_sets), ",".join(req_dep_sets)))
 
         return (proj_info, deps_dir, req_dep_sets, source_manifest)
     
