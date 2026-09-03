@@ -1,4 +1,7 @@
 
+# 2.28.0
+- Enhancements to Python/Node package-installation error reporting
+
 # 2.26.0
 - **The selected dep-set now survives a bare `ivpm update`, and is reported.**
   The dep-set was recovered only from `<deps-dir>/ivpm.json` — regenerated
