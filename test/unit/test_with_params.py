@@ -13,6 +13,7 @@ import dataclasses as dc
 
 from .test_base import TestBase
 from ivpm.pkg_content_type import PythonTypeData, RawTypeData
+from ivpm.content_attrib import OriginMap
 from ivpm.handlers.package_handler_python import PackageHandlerPython
 from ivpm.package import Package
 from ivpm.pkg_types.package_git import PackageGit
@@ -68,6 +69,9 @@ def _make_pypi_pkg(name, version=None, extras=None, type_data=None):
 def _write(pkgs, packages_dir="/fake/packages"):
     """Run _write_requirements_txt and return the file content as lines."""
     handler = PackageHandlerPython.__new__(PackageHandlerPython)
+    # Writing a requirements file also records where each line came from; see
+    # test_content_attrib.py. __new__ skips the field defaults.
+    handler._origins = OriginMap()
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
         fname = f.name
     try:

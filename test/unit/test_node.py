@@ -17,8 +17,10 @@ Covers:
   N22      Auto-detection of source packages with package.json
   N23-N24  Hash-based install skip (sync-like idempotency)
   N25-N32  Root node_modules symlink: creation, config, guards, destroy
+  N33      A failed install keeps the installer output that explains it
 """
 
+import contextlib
 import dataclasses as dc
 import json
 import os
@@ -40,6 +42,7 @@ from ivpm.handlers.package_handler_node import (
     PackageHandlerNode, _patch_packages_envrc_node, _write_node_envrc,
     _NODE_SENTINEL_BEGIN, _NODE_SENTINEL_END,
 )
+from ivpm.installer_run import InstallerResult
 from ivpm.project_ops_info import ProjectUpdateInfo
 
 from .test_base import TestBase
@@ -48,6 +51,24 @@ from .test_base import TestBase
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+@contextlib.contextmanager
+def patch_npm(returncode=0, lines=()):
+    """Stand in for the node package manager for the duration of a block.
+
+    These tests assert on the command the handler *builds*; none of them want
+    a real ``npm install``. The handler runs installers through
+    ``run_installer`` rather than ``subprocess.run``, so that is what has to be
+    intercepted -- patching ``subprocess.run`` would leave npm to run for real.
+
+    The mock's ``call_args_list`` holds the argv as ``args[0]``, matching what
+    the previous ``subprocess.run`` patch exposed.
+    """
+    with patch("ivpm.handlers.package_handler_node.run_installer") as m:
+        m.side_effect = lambda cmd, **kw: InstallerResult(
+            returncode=returncode, lines=list(lines), cmd=list(cmd))
+        yield m
+
 
 def _make_update_info(testdir, node_config=None, handler_state=None):
     """Build a minimal ProjectUpdateInfo for handler tests."""
@@ -229,12 +250,24 @@ class TestNodeContentType(unittest.TestCase):
         PkgContentTypeRgy._inst = None
 
     def test_N07_node_content_type_parsed(self):
-        """N07: type: node creates NodeTypeData(link=True) by default."""
+        """N07: type: node leaves dev/link unspecified; resolved() applies the
+        defaults.
+
+        The fields default to None rather than to False/True so that a
+        provider's 'provides:' declaration and a consumer's 'with:' can be
+        merged field by field -- with concrete defaults, "unset" and
+        "explicitly set to the default" are the same value and the provider's
+        setting could never survive.
+        """
         ct = NodeContentType()
         data = ct.create_data({}, si=None)
         self.assertIsInstance(data, NodeTypeData)
-        self.assertFalse(data.dev)
-        self.assertTrue(data.link)
+        self.assertIsNone(data.dev)
+        self.assertIsNone(data.link)
+
+        resolved = data.resolved()
+        self.assertFalse(resolved.dev)
+        self.assertTrue(resolved.link)
         self.assertEqual(data.type_name, "node")
 
     def test_N08_node_content_type_dev_link(self):
@@ -337,7 +370,7 @@ class TestGeneratedPackageJson(TestBase):
         handler, ui = self._make_handler_with_pkgs(pkgs)
         pkg_json_path = os.path.join(ui.deps_dir, "node", "package.json")
 
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         self.assertTrue(os.path.isfile(pkg_json_path))
@@ -358,7 +391,7 @@ class TestGeneratedPackageJson(TestBase):
         handler, ui = self._make_handler_with_pkgs(pkgs)
         pkg_json_path = os.path.join(ui.deps_dir, "node", "package.json")
 
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         with open(pkg_json_path) as f:
@@ -385,7 +418,7 @@ class TestPackagesEnvrcPatching(TestBase):
         for p in pkgs:
             handler.on_leaf_post_load(p, ui)
 
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         envrc_path = os.path.join(ui.deps_dir, "packages.envrc")
@@ -425,7 +458,7 @@ class TestNvmrc(TestBase):
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
 
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         nvmrc = os.path.join(ui.deps_dir, "node", ".nvmrc")
@@ -441,7 +474,7 @@ class TestNvmrc(TestBase):
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
 
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         nvmrc = os.path.join(ui.deps_dir, "node", ".nvmrc")
@@ -473,14 +506,13 @@ class TestHandlerSkip(TestBase):
 class TestSubprocessCalls(TestBase):
 
     def test_N19_npm_install_called(self):
-        """N19: Verify subprocess.run is invoked with npm install --prefix."""
+        """N19: Verify the installer is invoked with npm install --prefix."""
         handler = PackageHandlerNode()
         ui = _make_update_info(self.testdir)
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch_npm() as mock_run:
             handler.on_root_post_load(ui)
 
         node_dir = os.path.join(ui.deps_dir, "node")
@@ -494,7 +526,7 @@ class TestSubprocessCalls(TestBase):
         """N20: type: node source packages become file: deps, not a link call.
 
         Asserts on the generated package.json rather than on argv: the previous
-        spelling of this test mocked subprocess.run and only checked that an
+        spelling of this test mocked the installer and only checked that an
         `npm link ... --prefix` command was *constructed*. That command could
         never succeed -- --prefix is the global prefix in link mode, so npm
         looked for <node_dir>/lib and exited ENOENT -- and the failure was
@@ -509,8 +541,7 @@ class TestSubprocessCalls(TestBase):
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(src_pkg, ui)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch_npm() as mock_run:
             handler.on_root_post_load(ui)
 
         data = _read_generated_pkg_json(ui)
@@ -538,8 +569,7 @@ class TestSubprocessCalls(TestBase):
         handler.on_leaf_post_load(dev_pkg, ui)
         handler.on_leaf_post_load(skip_pkg, ui)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch_npm() as mock_run:
             handler.on_root_post_load(ui)
 
         data = _read_generated_pkg_json(ui)
@@ -559,8 +589,7 @@ class TestSubprocessCalls(TestBase):
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(src_pkg, ui)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch_npm() as mock_run:
             handler.on_root_post_load(ui)
 
         spec = _read_generated_pkg_json(ui)["dependencies"]["rel-lib"]
@@ -585,9 +614,8 @@ class TestRootNodeModulesLink(TestBase):
             ui.install_mode = install_mode
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
-            # subprocess.run is mocked, so npm never creates node_modules;
+        with patch_npm() as mock_run:
+            # the installer is mocked, so npm never creates node_modules;
             # create it so the handler sees a real install to link at.
             os.makedirs(os.path.join(ui.deps_dir, "node", "node_modules"),
                         exist_ok=True)
@@ -685,7 +713,7 @@ class TestHandlerState(TestBase):
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
         handler.on_leaf_post_load(_make_npm_pkg("jest", dev=True), ui)
 
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         state = handler.get_state_entries()
@@ -744,8 +772,7 @@ class TestHashBasedSkip(TestBase):
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
 
-        with patch("subprocess.run") as mock_run:
-            mock_run.return_value = MagicMock(returncode=0)
+        with patch_npm() as mock_run:
             handler.on_root_post_load(ui)
 
         called_cmds = [c.args[0] for c in mock_run.call_args_list if c.args]
@@ -762,7 +789,7 @@ class TestHashBasedSkip(TestBase):
         # First run to get real hash
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash", "^4.0.0"), ui)
-        with patch("subprocess.run"):
+        with patch_npm():
             handler.on_root_post_load(ui)
 
         real_hash = handler.get_state_entries()["package_json_hash"]
@@ -780,7 +807,7 @@ class TestHashBasedSkip(TestBase):
         handler2.on_root_pre_load(ui2)
         handler2.on_leaf_post_load(_make_npm_pkg("lodash", "^4.0.0"), ui2)
 
-        with patch("subprocess.run") as mock_run2:
+        with patch_npm() as mock_run2:
             handler2.on_root_post_load(ui2)
 
         called_cmds = [c.args[0] for c in mock_run2.call_args_list if c.args]
@@ -788,6 +815,55 @@ class TestHashBasedSkip(TestBase):
         self.assertEqual(len(install_calls), 0,
                          "Expected npm install to be skipped when hash unchanged. "
                          "Calls: %s" % called_cmds)
+
+
+# ---------------------------------------------------------------------------
+# N33 — a failed install keeps its evidence
+# ---------------------------------------------------------------------------
+
+class TestFailedInstallReporting(TestBase):
+    """suppress_output used to mean stdout=DEVNULL, which threw away npm's
+    account of the failure at exactly the moment it was needed."""
+
+    def _run_failing_install(self, lines):
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        ui.suppress_output = True
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
+
+        with patch_npm(returncode=1, lines=lines):
+            with self.assertRaises(Exception) as ctx:
+                handler.on_root_post_load(ui)
+        return str(ctx.exception)
+
+    def test_N33a_installer_output_survives_suppression(self):
+        out = self._run_failing_install([
+            "npm error code EJSONPARSE",
+            "npm error JSON.parse Unexpected token } in JSON at position 91",
+        ])
+        self.assertIn("EJSONPARSE", out)
+        self.assertIn("Unexpected token", out)
+
+    def test_N33b_exit_code_and_command_are_reported(self):
+        out = self._run_failing_install(["npm error boom"])
+        self.assertIn("exit 1", out)
+        self.assertIn("npm", out)
+
+    def test_N33c_missing_npm_is_reported_as_missing(self):
+        """127 means the manager is absent, which needs different advice from
+        an install that ran and failed."""
+        out = self._run_failing_install([])
+        self.assertIn("exit 1", out)
+
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
+        with patch_npm(returncode=127):
+            with self.assertRaises(Exception) as ctx:
+                handler.on_root_post_load(ui)
+        self.assertIn("not found", str(ctx.exception))
 
 
 if __name__ == "__main__":

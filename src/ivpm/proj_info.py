@@ -104,6 +104,15 @@ class ProjInfo():
         self.env_settings : List[EnvSpec] = []
         # Raw (type_name, opts) pairs from 'package: { type: … }' in this project's ivpm.yaml.
         self.self_types : list = []
+        # Raw (type_name, opts) pairs from 'package: { provides: … }' -- what
+        # this package declares it provides to whoever imports it.
+        #
+        # None and [] are NOT the same, and collapsing them loses the single
+        # most useful thing a package can say. None means "did not say", so a
+        # probe still guesses. [] means "I provide nothing" -- a deliberate
+        # instruction to stop guessing, and the cheapest possible fix for a
+        # package that keeps being mis-detected.
+        self.provides : Optional[list] = None
         # Raw package-level 'with:' dict, retained so a selected dep-set's
         # own 'with:' can be merged onto it at update time. None if the
         # project declared no package-level ``with:``.

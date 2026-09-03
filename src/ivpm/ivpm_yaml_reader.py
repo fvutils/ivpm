@@ -19,7 +19,7 @@ from ivpm.dep_mode import parse_deps_mode
 
 # Valid keys at the ``package:`` level in ivpm.yaml.
 _KNOWN_PACKAGE_KEYS = {
-    "name", "description", "version", "type", "with",
+    "name", "description", "version", "type", "provides", "with",
     "deps-dir", "deps-mode", "default-dep-set",
     "dep-sets", "setup-deps",
     "paths", "env",
@@ -352,6 +352,14 @@ class IvpmYamlReader(object):
 
         if "type" in pkg.keys():
             ret.self_types = parse_type_field(pkg["type"])
+
+        # 'provides:' is the explicit spelling of "this package carries
+        # <language> content". Distinct from an absent key: see
+        # ProjInfo.provides -- an empty value means "nothing, stop probing",
+        # which is a real declaration and must survive as one.
+        if "provides" in pkg.keys():
+            raw = pkg["provides"]
+            ret.provides = parse_type_field(raw) if raw else []
 
         if "with" in pkg.keys():
             # Retain the raw block so a selected dep-set's own 'with:' can be

@@ -708,3 +708,64 @@ See Also
 - :doc:`dependency_sets` - Organizing Node.js and other deps together
 - :doc:`package_types` - npm and package.json source types
 - :doc:`python_packages` - Python package management (similar patterns)
+
+.. _node-auto-detection:
+
+How IVPM Decides a Package Is a Node Package
+=============================================
+
+In order, IVPM asks:
+
+1. **Is the source unambiguous?**  ``src: npm`` is a Node package by
+   definition.
+2. **Did the dependency entry say so?**  ``type: node`` at the import site.
+3. **Did the package say so?**  ``provides:`` in the package's own
+   ``ivpm.yaml`` -- see :ref:`declaring-provided-content`.
+4. **Otherwise, auto-detect.**  IVPM looks for a ``package.json`` in the
+   fetched directory.
+
+A ``package.json`` merely existing is not enough: it must describe something
+npm can install as a dependency.  Auto-detection **declines** when the
+manifest:
+
+- declares no ``name`` -- for instance a file that exists only to hold
+  ``devDependencies`` or a ``scripts`` block;
+- declares no ``version``, which npm requires for a ``file:`` dependency;
+- declares ``workspaces``, making it a monorepo root that npm cannot install
+  as a dependency.
+
+Those are ordinary situations, so IVPM records a note rather than a warning;
+run with ``-v`` to see them, or with ``--strict`` to turn them into errors.
+
+A ``package.json`` that is not valid JSON is different: something on disk is
+broken, and IVPM always warns, naming the file with a line and column --
+rather than letting npm fail later with ``EJSONPARSE`` and no indication of
+which dependency is responsible.
+
+.. note::
+
+   ``private: true`` does **not** exclude a package.  A private package with a
+   name and version installs perfectly well from a ``file:`` specifier, and
+   rejecting it would break working setups.  Only a real ``workspaces`` root
+   is declined.
+
+Excluding a Package
+-------------------
+
+.. code-block:: yaml
+
+    deps:
+      - name: some-tool
+        url: https://example.com/some-tool.git
+        type: raw
+
+``type: raw`` at the dependency entry always wins, including over a
+``provides:`` in the package's own manifest.  If the package is yours, prefer
+``provides: []`` in *its* ``ivpm.yaml``, so every consumer benefits.
+
+.. note::
+
+   Passing every gate here does not guarantee a package installs.  When an
+   install fails, IVPM traces the failure back to the dependency and the
+   ``ivpm.yaml`` line that imported it -- see
+   :ref:`reading-content-install-failures`.

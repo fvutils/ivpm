@@ -708,6 +708,30 @@ loaded. ``ivpm show site-config <name>`` shows the detail for one config, and
 ``--json`` emits the same information for tooling.
 
 
+Handlers That Install Content
+=============================
+
+If your handler passes package-contributed inputs to an external installer
+(pip, npm, cargo, ...), it must be able to attribute a failure back to the
+dependency that caused it and to the ``ivpm.yaml`` line that imported it.  A
+user who is shown only the installer's output has no next step -- the failing
+input is usually contributed by a transitive dependency they never wrote down.
+
+Two obligations:
+
+1. Record every emitted input against its contributing ``Package``, at the
+   point it is emitted.
+2. Provide a way to identify the culprit that does **not** depend on parsing
+   the installer's output.  ``ivpm.content_attrib.isolate`` does this by
+   re-running inputs individually.
+
+Run installers through ``ivpm.installer_run.run_installer`` rather than
+``subprocess`` directly: it captures output unconditionally, so a quiet run
+still has the evidence a failure report needs.
+
+See :ref:`handler-content-attribution` in :doc:`handlers` for the API and
+worked examples.
+
 See Also
 ========
 

@@ -8,6 +8,7 @@ Covers:
   FP04  A workspace that resolves 'ivpm' itself does not also inject the
         site-config IVPM install spec
   FP05  Editable requirements resolve to their declared distribution name
+  FP06  A failed install reaches the reporter, whichever installer ran
 """
 
 import os
@@ -22,6 +23,9 @@ from ivpm.handlers.package_handler_python import (
     PackageHandlerPython,
     _project_name_at,
 )
+from ivpm.diagnostics import SrcLoaderError
+from ivpm.package import Package
+from ivpm.installer_run import InstallerResult
 from ivpm.project_ops_info import ProjectUpdateInfo
 
 from .test_base import TestBase
@@ -56,11 +60,12 @@ def _capture_cmd(handler, reqs_path, **kwargs):
     """
     seen = []
 
-    def fake_run(cmd, env, stdout_arg, stderr_arg, use_uv, task, cwd=None):
+    def fake_run(cmd, **kw):
         seen.append(list(cmd))
-        return 0, []
+        return InstallerResult(returncode=0, lines=[], cmd=list(cmd))
 
-    with patch.object(handler, "_run_with_progress", side_effect=fake_run):
+    with patch("ivpm.handlers.package_handler_python.run_installer",
+               side_effect=fake_run):
         with patch("ivpm.handlers.package_handler_python.shutil.which",
                    return_value="/usr/bin/uv"):
             with patch("ivpm.handlers.package_handler_python.get_venv_python",
@@ -155,7 +160,13 @@ class TestFP03FlagPropagation(TestBase):
 
         handler = _make_handler()
         handler.pypi_pkg_s.add("somepkg")
-        handler.pkgs_info["somepkg"] = MagicMock(name="somepkg", src_type="pypi")
+        # A real Package, not a MagicMock: the requirements writer reads
+        # several fields off it, and a Mock answers every one of them with a
+        # Mock, which is not what any of the code under test is given.
+        somepkg = Package("somepkg")
+        somepkg.src_type = "pypi"
+        somepkg.version = None
+        handler.pkgs_info["somepkg"] = somepkg
 
         calls = []
 
@@ -296,6 +307,50 @@ class TestFP05EditableTargets(TestBase):
         lines = ["-e %s" % _write_project(self.testdir, n, n) for n in names]
         reqs = _write_reqs(self.testdir, lines)
         self.assertEqual(names, _make_handler()._reinstall_targets(reqs))
+
+
+# ---------------------------------------------------------------------------
+# FP06 — a failed install reaches the reporter, whichever installer ran
+# ---------------------------------------------------------------------------
+
+class TestFP06InstallFailureIsReported(TestBase):
+    """The uv branch used to `raise Exception(...)`, which bypasses the
+    reporter entirely -- so the one branch users hit by default was the one
+    that produced an unlocated traceback instead of a diagnostic."""
+
+    def _failing_install(self, use_uv, lines):
+        handler = _make_handler()
+        reqs = _write_reqs(self.testdir, ["Sphinx"])
+
+        def fake_run(cmd, **kw):
+            return InstallerResult(returncode=1, lines=list(lines), cmd=list(cmd))
+
+        with patch("ivpm.handlers.package_handler_python.run_installer",
+                   side_effect=fake_run):
+            with patch("ivpm.handlers.package_handler_python.shutil.which",
+                       return_value="/usr/bin/uv"):
+                with patch("ivpm.handlers.package_handler_python.get_venv_python",
+                           return_value="/venv/bin/python"):
+                    with self.assertRaises(SrcLoaderError) as ctx:
+                        handler._install_requirements(
+                            "/venv", reqs, False, use_uv=use_uv)
+        return str(ctx.exception)
+
+    def test_FP06a_uv_failure_is_a_diagnostic_not_a_bare_exception(self):
+        out = self._failing_install(True, ["error: could not compile widget"])
+        self.assertIn("could not compile widget", out)
+
+    def test_FP06b_pip_failure_still_reports(self):
+        out = self._failing_install(False, ["ERROR: no matching distribution"])
+        self.assertIn("no matching distribution", out)
+
+    def test_FP06c_the_package_being_built_is_named(self):
+        out = self._failing_install(True, [
+            "Building widget @ file:///w",
+            "  × Failed to build `widget @ file:///w`",
+            "  error: missing header",
+        ])
+        self.assertIn("widget", out)
 
 
 if __name__ == "__main__":

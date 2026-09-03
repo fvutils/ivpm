@@ -109,3 +109,22 @@ class TestCliHelp(unittest.TestCase):
         for opt in ("--deps-only", "--dry-run", "--force", "--yes",
                     "wsdir", "--verbose", "--jobs", "--no-rich"):
             self.assertIn(opt, result.stdout)
+
+
+class TestStrictFlag(unittest.TestCase):
+    """--strict escalates content-detection notes to errors. It has to be on
+    the commands that actually detect content, or the flag is inert."""
+
+    def test_update_accepts_strict(self):
+        result = _run("update", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--strict", result.stdout)
+
+    def test_install_accepts_strict(self):
+        result = _run("install", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("--strict", result.stdout)
+
+    def test_the_help_says_what_it_escalates(self):
+        result = _run("update", "--help")
+        self.assertIn("provides", result.stdout)

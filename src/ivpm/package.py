@@ -174,6 +174,16 @@ class Package(object):
     # (Plain class attribute, not a dataclass field -- it is identity, not data.)
     virtual = False
 
+    # The set of content types this package's own ivpm.yaml declared via
+    # 'provides:', or None when it declared no 'provides:' at all. The
+    # difference matters: an empty set is the package saying "I provide
+    # nothing, stop probing me", while None is the package saying nothing, so
+    # auto-detection still runs. Set by package_updater once proj_info is
+    # read; read by content_attrib.probe_allowed.
+    # (Plain class attribute, not a dataclass field -- it is derived, not
+    # something a dependency entry can set.)
+    provides_declared = None
+
     # Option keys accepted on a dependency entry regardless of which source it
     # selects. These are consumed by the reader (IvpmYamlReader.read_deps) or by
     # Package.process_options, not by any single source provider. Each source

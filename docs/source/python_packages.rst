@@ -873,3 +873,65 @@ See Also
 - :doc:`package_types` - PyPI package configuration
 - :doc:`nested_deps` - Why nesting does not give per-scope Python isolation
 - :doc:`troubleshooting` - Solutions to Python package problems
+
+.. _python-auto-detection:
+
+How IVPM Decides a Package Is a Python Package
+===============================================
+
+In order, IVPM asks:
+
+1. **Is the source unambiguous?**  ``src: pypi`` is a Python package by
+   definition.
+2. **Did the dependency entry say so?**  ``type: python`` at the import site.
+3. **Did the package say so?**  ``provides:`` in the package's own
+   ``ivpm.yaml`` -- see :ref:`declaring-provided-content`.
+4. **Otherwise, auto-detect.**  IVPM looks in the fetched directory.
+
+Auto-detection accepts a package when it finds any of:
+
+- a ``pyproject.toml`` with a ``[project] name``;
+- a ``pyproject.toml`` with a ``[build-system]`` table alongside a
+  ``setup.py`` or ``setup.cfg``;
+- a ``setup.py``;
+- a ``setup.cfg`` with a ``[metadata] name``.
+
+It **declines**, without installing anything, when the metadata is present but
+describes no installable project -- most commonly a ``pyproject.toml`` that
+carries only tool configuration such as ``[tool.ruff]``.  That is an ordinary,
+expected situation, so IVPM records a note rather than a warning; run with
+``-v`` to see them, or with ``--strict`` to turn them into errors.
+
+A manifest that cannot be *parsed* is different: something on disk is broken,
+and IVPM always warns, naming the file with a line and column.
+
+.. note::
+
+   A ``setup.py`` cannot be inspected without executing it, and IVPM will not
+   execute a dependency's ``setup.py`` in order to decide whether to install
+   it.  A package whose only Python metadata is a ``setup.py`` is therefore
+   always accepted by auto-detection.  Use ``type: raw`` at the dependency
+   entry to exclude one.
+
+Excluding a Package
+-------------------
+
+Auto-detection is a guess, and a wrong guess costs one line to correct:
+
+.. code-block:: yaml
+
+    deps:
+      - name: some-tool
+        url: https://example.com/some-tool.git
+        type: raw
+
+``type: raw`` at the dependency entry always wins, including over a
+``provides:`` in the package's own manifest.  If the package is yours, prefer
+``provides: []`` in *its* ``ivpm.yaml``, so every consumer benefits.
+
+.. note::
+
+   Passing every gate here does not guarantee a package installs.  A manifest
+   can be entirely valid and the build can still fail.  When that happens,
+   IVPM traces the failure back to the dependency and the ``ivpm.yaml`` line
+   that imported it -- see :ref:`reading-content-install-failures`.

@@ -25,6 +25,44 @@ class TypeData:
     """Base class for type-specific package data produced by PkgContentType.create_data()."""
     # Populated by PkgContentType.create_data() to record which type produced this data.
     type_name: str = dc.field(default="", init=False)
+    # True when this type was declared by the package's own ivpm.yaml rather
+    # than by the dependency entry that imported it. The two produce identical
+    # data but carry different authority, and a diagnostic has to be located
+    # at whichever file actually made the claim.
+    self_declared: bool = dc.field(default=False, init=False)
+
+    # Fields that are bookkeeping rather than user-settable configuration, and
+    # so are never merged between a provider's declaration and a consumer's.
+    _MERGE_EXCLUDED = ("type_name", "self_declared")
+
+    def merge_over(self, base: 'TypeData') -> 'TypeData':
+        """Return *self* laid over *base*, field by field.
+
+        ``self`` is the consumer's declaration at the dependency entry and
+        wins wherever it said anything; ``base`` is what the provider package
+        declared about itself. ``None`` means "not specified", which is why
+        every mergeable field has to default to ``None`` rather than to its
+        effective default -- otherwise "unset" and "explicitly set to the
+        default" are the same value, and a provider could never supply
+        anything the consumer did not repeat.
+
+        Returns ``self`` unchanged when the two are not the same content type:
+        merging a 'python' declaration onto a 'node' one is a caller error,
+        not something to paper over.
+        """
+        if base is None or type(base) is not type(self):
+            return self
+
+        merged = dc.replace(self)
+        merged.type_name = self.type_name or base.type_name
+        merged.self_declared = self.self_declared and base.self_declared
+
+        for f in dc.fields(self):
+            if f.name in self._MERGE_EXCLUDED:
+                continue
+            if getattr(self, f.name, None) is None:
+                setattr(merged, f.name, getattr(base, f.name, None))
+        return merged
 
 
 class PkgContentType:
@@ -194,9 +232,30 @@ class RawContentType(PkgContentType):
 
 @dc.dataclass
 class NodeTypeData(TypeData):
-    """Type-specific data for packages processed by the Node handler."""
-    dev: bool = False   # install as devDependency
-    link: bool = True   # use npm link (editable); default True for source packages
+    """Type-specific data for packages processed by the Node handler.
+
+    Both fields default to ``None``, meaning "not specified", so that a
+    provider's declaration and a consumer's ``with:`` can be merged field by
+    field (see ``TypeData.merge_over``). Concrete defaults are applied by
+    ``resolved()`` at the point the handler commits to using the data --
+    defaulting at construction would make "unset" indistinguishable from
+    "explicitly set to the default", and a provider could then never supply a
+    value the consumer had not already repeated.
+    """
+    dev: bool = None    # install as devDependency (effective default: False)
+    link: bool = None   # editable file: install (effective default: True)
+
+    DEFAULTS = {"dev": False, "link": True}
+
+    def resolved(self) -> 'NodeTypeData':
+        """A copy with every unspecified field filled in with its default."""
+        out = dc.replace(self)
+        out.type_name = self.type_name
+        out.self_declared = self.self_declared
+        for name, default in self.DEFAULTS.items():
+            if getattr(out, name) is None:
+                setattr(out, name, default)
+        return out
 
 
 class NodeContentType(PkgContentType):

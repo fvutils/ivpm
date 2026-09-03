@@ -83,6 +83,63 @@ def _already_reported(exc) -> bool:
     return isinstance(exc, SrcLoaderError) and bool(exc.diagnostics)
 
 
+def _merge_self_declared_types(pkg) -> None:
+    """Fold a package's own type declarations into the ones it was imported with.
+
+    A package can say what it provides two ways in its own ivpm.yaml:
+    ``provides:`` (the explicit spelling) and a package-level ``type:`` (the
+    older one). Both mean the same thing here.
+
+    Where the importing dependency entry declared the same content type, the
+    two are merged *field by field* with the consumer winning per field --
+    not "consumer present, so ignore the provider entirely". That is what
+    lets a package ship ``provides: {python: {extras: [runtime]}}`` and still
+    be imported with ``with: {python: {editable: false}}`` without the
+    consumer having to restate the extras it knows nothing about.
+
+    ``provides: []`` records itself on the package as an empty set, which is
+    a declaration that the package provides nothing and probing must stop.
+    An absent ``provides:`` records None, which means "did not say".
+    """
+    from .pkg_content_type_rgy import PkgContentTypeRgy
+
+    proj_info = pkg.proj_info
+    declared = []
+    if proj_info.self_types:
+        declared.extend(proj_info.self_types)
+    if proj_info.provides:
+        declared.extend(proj_info.provides)
+
+    if proj_info.provides is not None:
+        # Distinct from absent: an explicit (possibly empty) list of what this
+        # package provides. Handlers read it to decide whether to probe.
+        pkg.provides_declared = {name for name, _ in proj_info.provides}
+
+    if not declared:
+        return
+
+    ct_rgy = PkgContentTypeRgy.inst()
+    by_name = {td.type_name: td for td in pkg.type_data}
+
+    for type_name, opts in declared:
+        if not ct_rgy.has(type_name):
+            continue
+        provider_td = ct_rgy.get(type_name).create_data(opts, None)
+        # Remember which file made the claim. The merged result is one object,
+        # but a diagnostic about it has to be located at whichever ivpm.yaml
+        # actually said it -- the importer cannot fix a provider's mistake.
+        provider_td.self_declared = True
+
+        consumer_td = by_name.get(type_name)
+        if consumer_td is None:
+            pkg.type_data.append(provider_td)
+            by_name[type_name] = provider_td
+        else:
+            merged = consumer_td.merge_over(provider_td)
+            pkg.type_data[pkg.type_data.index(consumer_td)] = merged
+            by_name[type_name] = merged
+
+
 def _failure_message(pkg, exc) -> str:
     """How the batch driver describes *pkg* failing with *exc*.
 
@@ -602,13 +659,14 @@ class PackageUpdater(object):
             # Merge self-declared types from the dep's own ivpm.yaml into pkg.type_data.
             # Caller-specified types take priority; self-declared ones are appended only
             # if their type name is not already present.
-            if pkg.proj_info is not None and pkg.proj_info.self_types:
-                from .pkg_content_type_rgy import PkgContentTypeRgy
-                ct_rgy = PkgContentTypeRgy.inst()
-                caller_names = {td.type_name for td in pkg.type_data}
-                for type_name, opts in pkg.proj_info.self_types:
-                    if type_name not in caller_names and ct_rgy.has(type_name):
-                        pkg.type_data.append(ct_rgy.get(type_name).create_data(opts, None))
+            if pkg.proj_info is not None:
+                _merge_self_declared_types(pkg)
+
+            # Register the package before the handlers see it, so a handler
+            # that fails during this callback can still render the import
+            # chain that led here.
+            from .handlers.scope_keys import pkg_key
+            update_info.all_pkgs_by_key[pkg_key(pkg)] = pkg
 
             # Notify the package handlers after the source is loaded
             from .handlers.package_handler import HandlerFatalError

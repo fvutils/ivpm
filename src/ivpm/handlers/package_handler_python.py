@@ -33,6 +33,14 @@ import sys
 from typing import ClassVar, Dict, List, Optional, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import note, fatal, get_venv_python, setup_venv, resolve_pkg_path
+from ..installer_run import run_installer, format_output_tail
+from ..content_attrib import (
+    ENROLLED_EXPLICIT, ENROLLED_PROBE, ENROLLED_PROVIDES, ENROLLED_SRC_TYPE,
+    OriginMap, isolate, isolation_identified_by,
+    isolation_note, report_content_failure, report_manifest_problem,
+    probe_allowed, report_probe_adoption, set_enrollment,
+)
+from ..manifest_check import check_python_manifest
 from ..pkg_content_type import PythonTypeData
 from ..package import get_type_data
 
@@ -45,6 +53,13 @@ from ..perf import span_or_null
 # HasType no longer used in root_when (handler self-gates via on_root_post_load)
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_python")
+
+
+def _strict(update_info) -> bool:
+    """Whether --strict was given. Absent everywhere but the CLI, so read
+    defensively: handlers are driven directly by tests and by the API."""
+    args = getattr(update_info, "args", None)
+    return bool(getattr(args, "strict", False))
 
 _PYTHON_SENTINEL_BEGIN = "# --- ivpm:python begin ---"
 _PYTHON_SENTINEL_END   = "# --- ivpm:python end ---"
@@ -273,8 +288,11 @@ def _project_name_at(path: str):
             if isinstance(name, str) and name.strip():
                 return _pep508_split(name)[0]
         except Exception as e:
-            _logger.warning("could not read the project name from %s (%s)",
-                            pyproject, e)
+            # msg.warning, not _logger.warning: the logging logger is silent
+            # under the default configuration, so this used to be invisible
+            # precisely when it mattered.
+            warning("could not read the project name from %s (%s)"
+                    % (pyproject, e))
 
     setup_cfg = os.path.join(path, "setup.cfg")
     if os.path.isfile(setup_cfg):
@@ -347,6 +365,12 @@ class PackageHandlerPython(PackageHandler):
     src_pkg_s  : Set[str] = dc.field(default_factory=set)
     pypi_pkg_s : Set[str] = dc.field(default_factory=set)
     _pyproject_toml_pkgs : list = dc.field(default_factory=list)
+    # Which emitted requirement came from which package. Populated as the
+    # requirements files are written, where the Package is already in hand, so
+    # it is exact by construction rather than reconstructed after the fact.
+    _origins : OriginMap = dc.field(default_factory=OriginMap)
+    # build-system requirement spec -> the source package that declared it
+    _build_requires_src : dict = dc.field(default_factory=dict)
     use_uv : bool = False
     debug : bool = True
 
@@ -355,6 +379,12 @@ class PackageHandlerPython(PackageHandler):
         self.src_pkg_s  = set()
         self.pypi_pkg_s = set()
         self._pyproject_toml_pkgs = []
+        # Which emitted requirement came from which package. Populated as the
+        # requirements files are written, where the Package is already in
+        # hand, so it is exact rather than reconstructed.
+        self._origins = OriginMap()
+        # build-system requirement spec -> the source package that declared it
+        self._build_requires_src = {}
 
     @classmethod
     def handler_info(cls):
@@ -387,6 +417,7 @@ class PackageHandlerPython(PackageHandler):
         if pkg.src_type == "pypi":
             with self._lock:
                 self.pypi_pkg_s.add(pkg.name)
+            set_enrollment(pkg, "python", ENROLLED_SRC_TYPE)
             add = True
         elif pkg.src_type == "pyproject.toml":
             with self._lock:
@@ -394,22 +425,42 @@ class PackageHandlerPython(PackageHandler):
             # Virtual package — do not add to pkgs_info or set pkg_type
             return
         elif get_type_data(pkg, PythonTypeData) is not None:
-            # Explicit type: python
+            # Explicit type: python -- either at the dependency entry or in the
+            # package's own ivpm.yaml. Which one decides where a later failure
+            # gets located, so keep them apart.
+            td = get_type_data(pkg, PythonTypeData)
+            set_enrollment(pkg, "python",
+                           ENROLLED_PROVIDES if getattr(td, "self_declared", False)
+                           else ENROLLED_EXPLICIT)
             with self._lock:
                 self.src_pkg_s.add(pkg.name)
             add = True
         elif pkg.pkg_type is not None and pkg.pkg_type == PackageHandlerPython.name:
+            set_enrollment(pkg, "python", ENROLLED_EXPLICIT)
             with self._lock:
                 self.src_pkg_s.add(pkg.name)
             add = True
-        elif pkg.pkg_type is None and hasattr(pkg, "path"):
-            # Check if there are known Python files
-            for py in ("setup.py", "setup.cfg", "pyproject.toml"):
-                if os.path.isfile(os.path.join(pkg.path, py)):
+        elif probe_allowed(pkg, "python") and hasattr(pkg, "path"):
+            # Auto-detection. Finding Python metadata is not the same as
+            # finding an installable project: a pyproject.toml carrying only
+            # [tool.ruff] is valid, common, and nothing pip can install. The
+            # gate rejects those without troubling the user, which is the
+            # cheapest possible fix for a mis-enrollment.
+            diag = check_python_manifest(pkg.path)
+            if diag is not None:
+                set_enrollment(pkg, "python", ENROLLED_PROBE,
+                               evidence=os.path.basename(diag.path))
+                if diag.ok:
                     add = True
+                    report_probe_adoption(
+                        pkg, "python", evidence=os.path.basename(diag.path),
+                        strict=_strict(update_info))
                     with self._lock:
                         self.src_pkg_s.add(pkg.name)
-                    break
+                else:
+                    report_manifest_problem(
+                        pkg, diag, "python",
+                        strict=_strict(update_info))
         if add:
             pkg.pkg_type = PackageHandlerPython.name
             with self._lock:
@@ -751,6 +802,15 @@ class PackageHandlerPython(PackageHandler):
             with open(requirements_path, "w") as fp:
                 for spec in build_requires:
                     fp.write("%s\n" % spec)
+                    # Attributed to the package that declared the requirement,
+                    # not to the backend named in the spec: a failure here is
+                    # the declaring package's problem to fix.
+                    owner = self.pkgs_info.get(
+                        self._build_requires_src.get(spec))
+                    if owner is not None:
+                        self._origins.record(
+                            spec, owner, requirements_path, language="python",
+                            dist=_pep508_split(spec)[0])
             python_requirements_paths.append(requirements_path)
 
         # Next, create a requirements file for all
@@ -827,7 +887,8 @@ class PackageHandlerPython(PackageHandler):
                         self.use_uv,
                         suppress_output=suppress_output,
                         task=task,
-                        force=update_info.force_py_install)
+                        force=update_info.force_py_install,
+                        update_info=update_info)
 
         self._push_entrypoint_agent_dirs(python_dir, update_info)
 
@@ -1001,13 +1062,18 @@ class PackageHandlerPython(PackageHandler):
                             'build_ext',
                             '--inplace'
                         ]
-                        result = subprocess.run(
+                        result = run_installer(
                             cmd,
                             env=env,
                             cwd=os.path.join(build_info.deps_dir, pkg))
 
-                        if result.returncode != 0:
-                            raise Exception("Failed to build package %s" % pkg)
+                        if not result.ok:
+                            # The build's own output is the only explanation of
+                            # why it failed; quoting the tail beats "Failed to
+                            # build <pkg>" with the reason discarded.
+                            fatal("failed to build package %s%s" % (
+                                pkg, format_output_tail(result.lines)),
+                                loc=getattr(p, "srcinfo", None))
                         
     def _install_requirements(self,
                               python_dir,
@@ -1016,7 +1082,8 @@ class PackageHandlerPython(PackageHandler):
                               use_uv,
                               suppress_output=False,
                               task=None,
-                              force=False):
+                              force=False,
+                              update_info=None):
         """Installs the requirements specified in a file.
 
         If *task* is provided, stdout/stderr are captured and parsed for
@@ -1036,17 +1103,10 @@ class PackageHandlerPython(PackageHandler):
         published there.
         """
 
-        # When we have a task handle, always capture output for progress parsing.
-        # Otherwise fall back to suppress or inherit.
-        if task is not None:
-            stdout_arg = subprocess.PIPE
-            stderr_arg = subprocess.STDOUT
-        elif suppress_output:
-            stdout_arg = subprocess.DEVNULL
-            stderr_arg = subprocess.DEVNULL
-        else:
-            stdout_arg = None
-            stderr_arg = None
+        # Output is always captured; suppress_output and the presence of a task
+        # only decide whether it is also displayed. A failure has to be able to
+        # quote the installer whatever mode the run was in.
+        quiet = suppress_output or task is not None
 
         if use_uv:
             env = os.environ.copy()
@@ -1071,13 +1131,13 @@ class PackageHandlerPython(PackageHandler):
                 for dist in self._reinstall_targets(requirements_file):
                     cmd.extend(["--reinstall-package", dist])
 
-            returncode, captured_lines = self._run_with_progress(cmd, env=env,
-                                                  stdout_arg=stdout_arg,
-                                                  stderr_arg=stderr_arg,
-                                                  use_uv=True, task=task)
-            if returncode != 0:
-                detail = _format_installer_error(captured_lines)
-                raise Exception("Failed to install Python packages" + detail)
+            result = run_installer(cmd, env=env, task=task, quiet=quiet,
+                                   line_parser=self._uv_line_parser)
+            if not result.ok:
+                self._report_install_failure(
+                    requirements_file, result, update_info,
+                    python_dir=python_dir, use_uv=True, use_pre=use_pre,
+                    env=env)
         else: # Use pip
             import sys
             import platform
@@ -1111,42 +1171,128 @@ class PackageHandlerPython(PackageHandler):
                 cmds.append(cmd + ["--force-reinstall", "--no-deps"])
 
             for c in cmds:
-                returncode, captured_lines = self._run_with_progress(c, env=env,
-                                                      stdout_arg=stdout_arg,
-                                                      stderr_arg=stderr_arg,
-                                                      use_uv=False, task=task,
-                                                      cwd=python_dir)
+                result = run_installer(c, env=env, cwd=python_dir, task=task,
+                                       quiet=quiet,
+                                       line_parser=self._pip_line_parser)
 
-                if returncode != 0:
-                    detail = _format_installer_error(captured_lines)
-                    fatal("failed to install Python packages" + detail)
+                if not result.ok:
+                    self._report_install_failure(
+                        requirements_file, result, update_info,
+                        python_dir=python_dir, use_uv=False, use_pre=use_pre,
+                        env=env)
 
-    def _run_with_progress(self, cmd, env, stdout_arg, stderr_arg, use_uv, task, cwd=None):
-        """Run cmd and return (exit_code, captured_lines).
+    def _report_install_failure(self, requirements_file, result, update_info,
+                                python_dir=None, use_uv=False, use_pre=False,
+                                env=None):
+        """Attribute a failed install and report it. Always raises.
 
-        When stdout_arg is PIPE (i.e. task is not None), stream output
-        line by line and emit progress events via task.progress().
-        All captured lines are returned so the caller can surface them on error.
-        Otherwise call subprocess.run() directly and return an empty line list.
+        Two routes to the culprit:
+
+        1. The installer named a distribution, and that distribution is one we
+           recorded emitting. Cheap and exact when it fires -- and it fires
+           only when the installer happens to have worded things the way this
+           version of IVPM expects.
+        2. Re-install each of the phase's packages on its own and see which
+           ones fail. Expensive, but it answers *which* without ever asking
+           *why*, so no failure mode can slip past it and no installer
+           rewording can break it.
+
+        Route 1 is an optimization. Route 2 is the guarantee. Nothing may be
+        built on the assumption that route 1 succeeds -- see the fast-path
+        independence test in test_install_isolation.py.
         """
-        if stdout_arg != subprocess.PIPE:
-            result = subprocess.run(cmd, env=env, stdout=stdout_arg, stderr=stderr_arg, cwd=cwd)
-            return result.returncode, []
+        lines = result.lines
+        pkgs_by_key = getattr(update_info, "all_pkgs_by_key", None) or {}
+        output = format_output_tail(lines)
+        installer = "%s (exit %d)" % (" ".join(result.cmd), result.returncode)
 
-        captured_lines = []
-        # Use Popen as a context manager so the stdout pipe is closed (and the
-        # process waited on) on exit -- otherwise the lingering pipe triggers a
-        # ResourceWarning when the Popen object is garbage-collected.
-        with subprocess.Popen(cmd, env=env, stdout=subprocess.PIPE,
-                              stderr=subprocess.STDOUT, text=True,
-                              errors="replace", cwd=cwd) as proc:
-            for raw_line in proc.stdout:
-                line = raw_line.rstrip()
-                captured_lines.append(line)
-                msg = self._parse_installer_line(line, use_uv)
-                if msg and task is not None:
-                    task.progress(msg)
-        return proc.returncode, captured_lines
+        contributors = self._origins.by_group(requirements_file)
+
+        origins = []
+        identified_by = None
+        note_text = None
+
+        dist = _installer_failed_dist(lines)
+        if dist is not None:
+            origin = self._origins.resolve_dist(dist, group=requirements_file)
+            if origin is not None:
+                origins = [origin]
+                identified_by = "the installer named '%s' in its output" % dist
+
+        if not origins and len(contributors) > 1 and python_dir:
+            iso = isolate(
+                contributors,
+                lambda o: self._retry_one(o, python_dir, use_uv, use_pre, env))
+            if iso.culprits:
+                origins = iso.culprits
+            identified_by = isolation_identified_by(iso)
+            note_text = isolation_note(iso)
+
+        if not origins:
+            origins = contributors
+            if identified_by is None and origins:
+                identified_by = "every package in this install phase"
+
+        if not origins:
+            # Nothing was recorded for this file -- it was written by a path
+            # that does not record provenance (the site-config ivpm spec).
+            # Report what there is rather than inventing an owner.
+            fatal("failed to install Python packages%s"
+                  % _format_installer_error(lines))
+            return
+
+        report_content_failure(
+            "python", origins, pkgs_by_key,
+            group=requirements_file,
+            installer=installer,
+            output=output,
+            identified_by=identified_by,
+            note_text=note_text)
+
+    def _retry_one(self, origin, python_dir, use_uv, use_pre, env) -> bool:
+        """Install a single requirement by itself; True if it succeeds.
+
+        Run against the *real* venv with ``--no-deps``. Earlier phases have
+        already been installed there, so each package still sees the
+        dependencies it is entitled to, and only the one under test is being
+        judged. ``--dry-run`` is not an option: it skips the build, and the
+        build is where most of these failures actually live.
+
+        This mutates the environment. The environment has already failed, so
+        that is acceptable -- but the report says a diagnostic pass happened,
+        because a user who later inspects the venv deserves to know why it
+        looks the way it does.
+        """
+        import tempfile
+
+        fd, path = tempfile.mkstemp(prefix="ivpm_isolate_", suffix=".txt")
+        try:
+            with os.fdopen(fd, "w") as fp:
+                fp.write("%s\n" % origin.spec)
+
+            if use_uv:
+                cmd = [shutil.which("uv"), "pip", "install",
+                       "--no-build-isolation", "--no-deps", "-r", path]
+            else:
+                cmd = [get_venv_python(python_dir), "-m", "pip", "install",
+                       "--no-deps", "-r", path]
+            if use_pre:
+                cmd.append("--pre")
+
+            return run_installer(cmd, env=env, cwd=python_dir, quiet=True).ok
+        finally:
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
+
+    @classmethod
+    def _uv_line_parser(cls, line: str):
+        return cls._parse_installer_line(line, True)
+
+    @classmethod
+    def _pip_line_parser(cls, line: str):
+        return cls._parse_installer_line(line, False)
 
     @staticmethod
     def _parse_installer_line(line: str, use_uv: bool):
@@ -1213,8 +1359,8 @@ class PackageHandlerPython(PackageHandler):
             with open(requirements_file, "r") as fp:
                 lines = fp.readlines()
         except OSError as e:
-            _logger.warning("could not read requirements file %s (%s)",
-                            requirements_file, e)
+            warning("could not read requirements file %s (%s); nothing in it "
+                    "will be force-reinstalled" % (requirements_file, e))
             return targets
 
         for line in lines:
@@ -1228,9 +1374,15 @@ class PackageHandlerPython(PackageHandler):
                     path = line.split("=", 1)[1].strip()
                 dist = _project_name_at(path)
                 if dist is None:
-                    _logger.warning(
-                        "could not determine the distribution name of editable "
-                        "requirement %s; it will not be force-reinstalled", path)
+                    # Visible, not logged: the user asked for a forced
+                    # reinstall, and this is IVPM quietly not doing it for
+                    # one of their packages. --py-force-install silently
+                    # doing nothing is indistinguishable from a bug.
+                    warning(
+                        "could not determine the distribution name of "
+                        "editable requirement %s (no '[project] name' in "
+                        "pyproject.toml and no '[metadata] name' in "
+                        "setup.cfg); it will NOT be force-reinstalled" % path)
                     continue
             elif line.startswith("-"):
                 # A bare installer option (--pre, --index-url, ...) names nothing.
@@ -1290,12 +1442,18 @@ class PackageHandlerPython(PackageHandler):
                 with open(path, "rb") as fp:
                     data = tomllib.load(fp)
             except Exception as e:
-                # A source package we cannot parse is not fatal here: it may
-                # not use a pyproject build at all, and the install itself
-                # will report a real problem far more precisely than we can.
-                _logger.warning(
-                    "package %s: could not parse pyproject.toml for build "
-                    "requirements (%s)", name, e)
+                # The old comment here claimed the install would report this
+                # "far more precisely than we can". Under --no-build-isolation
+                # it does not: the user gets a ModuleNotFoundError raised from
+                # inside uv, naming the build backend and neither the package
+                # nor the file. Report it here, where both are known.
+                diag = check_python_manifest(os.path.dirname(path))
+                located = diag.located() if diag is not None else path
+                warning("package '%s': could not read build requirements from "
+                        "%s (%s). If it needs a build backend that is not "
+                        "already installed, its build will fail with a bare "
+                        "ModuleNotFoundError." % (name, located, e),
+                        getattr(self.pkgs_info.get(name), "srcinfo", None))
                 continue
 
             build_system = data.get("build-system")
@@ -1315,6 +1473,10 @@ class PackageHandlerPython(PackageHandler):
                     continue
                 seen.add(spec)
                 requires.append(spec)
+                # Remember who asked for it. A build backend that fails to
+                # install is otherwise unattributable: the spec names the
+                # backend, and nothing names the package that needs it.
+                self._build_requires_src[spec] = name
                 _logger.debug("build requirement %s (from %s)", spec, name)
 
         return requires
@@ -1323,8 +1485,20 @@ class PackageHandlerPython(PackageHandler):
                                 packages_dir,
                                 python_pkgs : List[Package],
                                 file):
-        """Writes a requirements file for pip to use in installing packages"""
+        """Writes a requirements file for pip to use in installing packages.
+
+        Each emitted line is also recorded against the package that
+        contributed it. This is the only point at which the two are known
+        together: once the file is written it is just text, and recovering the
+        mapping afterwards means guessing.
+        """
         with open(file, "w") as fp:
+
+            def emit(line, pkg, dist=None):
+                fp.write("%s\n" % line)
+                self._origins.record(line, pkg, file, language="python",
+                                     dist=dist)
+
             for pkg in python_pkgs:
 
                 if getattr(pkg, "src_type", None) != "pypi":
@@ -1345,17 +1519,20 @@ class PackageHandlerPython(PackageHandler):
                     extras_str = "[%s]" % ",".join(extras) if extras else ""
 
                     pkg_path = "%s/%s" % (packages_dir.replace("\\","/"), pkg.name)
+                    # The installer refers to a local tree by its declared
+                    # distribution name, which need not match the directory.
+                    dist = _project_name_at(pkg_path) or pkg.name
                     if editable:
-                        fp.write("-e %s%s\n" % (pkg_path, extras_str))
+                        emit("-e %s%s" % (pkg_path, extras_str), pkg, dist)
                     else:
-                        fp.write("%s%s\n" % (pkg_path, extras_str))
+                        emit("%s%s" % (pkg_path, extras_str), pkg, dist)
                 else:
                     # PyPi package — build PEP 508 specifier: name[extras]version
                     # If a raw specifier was stored (e.g. from src: pyproject.toml),
                     # emit it verbatim so extras and markers are preserved exactly.
                     raw_spec = getattr(pkg, "_raw_spec", None)
                     if raw_spec is not None:
-                        fp.write("%s\n" % raw_spec)
+                        emit(raw_spec, pkg, _pep508_split(raw_spec)[0])
                     else:
                         # Extras: prefer type_data if present, fall back to pkg.extras (PackagePyPi)
                         td = get_type_data(pkg, PythonTypeData)
@@ -1366,35 +1543,44 @@ class PackageHandlerPython(PackageHandler):
                         extras_str = "[%s]" % ",".join(extras) if extras else ""
                         if pkg.version is not None:
                             if pkg.version[0] in _VERSION_OPERATORS:
-                                fp.write("%s%s%s\n" % (pkg.name, extras_str, pkg.version))
+                                emit("%s%s%s" % (pkg.name, extras_str, pkg.version),
+                                     pkg, pkg.name)
                             else:
-                                fp.write("%s%s==%s\n" % (pkg.name, extras_str, pkg.version))
+                                emit("%s%s==%s" % (pkg.name, extras_str, pkg.version),
+                                     pkg, pkg.name)
                         else:
-                            fp.write("%s%s\n" % (pkg.name, extras_str))
+                            emit("%s%s" % (pkg.name, extras_str), pkg, pkg.name)
+
+
+def _installer_failed_dist(captured_lines: list):
+    """The distribution the installer *said* it choked on, or None.
+
+    A fast path, and nothing more. It reads installer prose, so it is wrong
+    the moment uv or pip rewords a message, and it is silent about failure
+    modes that name nothing at all. Callers must treat None as ordinary and
+    fall back to a mechanism that cannot come up empty -- never as a reason to
+    give up on attribution.
+    """
+    for line in reversed(captured_lines or []):
+        m = re.search(r'Failed to build `([^`@\s]+)', line)
+        if m:
+            return m.group(1)
+        stripped = line.strip()
+        if stripped.startswith("Building "):
+            return stripped[len("Building "):].split(" @ ")[0].split(" ")[0]
+    return None
 
 
 def _format_installer_error(captured_lines: list, tail: int = 20) -> str:
     """Return a newline-prefixed string with the last *tail* lines of installer
-    output, or an empty string when nothing was captured (non-PIPE mode).
+    output, or an empty string when nothing was captured.
     Prepends the name of the package being built when identifiable."""
     if not captured_lines:
         return ""
-    relevant = [l for l in captured_lines if l.strip()]
-    snippet = relevant[-tail:] if len(relevant) > tail else relevant
+    body = format_output_tail(captured_lines, tail)
+    if not body:
+        return ""
 
-    # Scan backwards for the last "Building <pkg>" or uv "× Failed to build `<pkg>`"
-    # line so the error message identifies which package caused the failure.
-    pkg_context = None
-    import re as _re
-    for line in reversed(captured_lines):
-        m = _re.search(r'Failed to build `([^`@\s]+)', line)
-        if m:
-            pkg_context = m.group(1)
-            break
-        stripped = line.strip()
-        if stripped.startswith("Building "):
-            pkg_context = stripped[len("Building "):].split(" @ ")[0].split(" ")[0]
-            break
-
+    pkg_context = _installer_failed_dist(captured_lines)
     prefix = ("\n  while building package: %s" % pkg_context) if pkg_context else ""
-    return prefix + "\n" + "\n".join(snippet)
+    return prefix + body

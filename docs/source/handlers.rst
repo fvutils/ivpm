@@ -798,6 +798,104 @@ This shows both built-in and third-party handlers installed in the current
 environment.
 
 
+.. _handler-content-attribution:
+
+Attributing Content-Install Failures
+====================================
+
+A handler that hands inputs to an external installer is expected to record
+where each input came from, so that a failure can be traced back to the
+dependency that caused it and to the ``ivpm.yaml`` line that imported it.
+
+Recording provenance
+--------------------
+
+Record each emitted input **at the point it is emitted**, where the
+``Package`` is still in hand.  Reconstructing the mapping afterwards means
+guessing:
+
+.. code-block:: python
+
+    from ivpm.content_attrib import OriginMap
+
+    self._origins = OriginMap()
+    ...
+    self._origins.record(line, pkg, group, language="mylang", dist=dist_name)
+
+* ``group`` identifies the batch -- typically the input file's path.  Isolation
+  and reporting both work per group.
+* ``dist`` is the name the *installer* will use, which is often not the IVPM
+  package name.  Supplying it lets an installer that names a failure be
+  matched to the package that caused it.
+* ``language`` makes ``record`` read the enrollment reason off the package, so
+  the reason travels with the input automatically.
+
+Recording enrollment
+--------------------
+
+Whenever a handler decides a package carries its content, record *why*:
+
+.. code-block:: python
+
+    from ivpm.content_attrib import (
+        ENROLLED_EXPLICIT, ENROLLED_PROBE, ENROLLED_PROVIDES,
+        ENROLLED_SRC_TYPE, set_enrollment,
+    )
+
+    set_enrollment(pkg, "mylang", ENROLLED_PROBE, evidence="mylang.toml")
+
+The reason determines how loudly a problem with that package is reported: a
+package the user explicitly declared gets a fatal error, while one the handler
+merely guessed at gets a note and is quietly left alone.  ``evidence`` is what
+made the decision, and turns an unfalsifiable claim into one the user can
+check.
+
+Gating auto-detection
+---------------------
+
+Use ``probe_allowed(pkg, language)`` rather than testing ``pkg.pkg_type``.
+``pkg_type`` is a single slot shared by every handler, so gating on it makes
+one language's declaration silently switch off another's detection:
+
+.. code-block:: python
+
+    from ivpm.content_attrib import probe_allowed
+
+    if probe_allowed(pkg, "mylang") and pkg.path:
+        ...
+
+Reporting a failure
+-------------------
+
+.. code-block:: python
+
+    from ivpm.content_attrib import (
+        isolate, isolation_identified_by, isolation_note,
+        report_content_failure,
+    )
+
+    contributors = self._origins.by_group(group)
+    iso = isolate(contributors, retry_one)
+    report_content_failure(
+        "mylang", iso.culprits or contributors,
+        update_info.all_pkgs_by_key,
+        group=group,
+        installer="%s (exit %d)" % (" ".join(cmd), result.returncode),
+        output=format_output_tail(result.lines),
+        identified_by=isolation_identified_by(iso),
+        note_text=isolation_note(iso))
+
+``isolate`` takes a ``retry_one(origin) -> bool`` callback that installs one
+input on its own.  It asks only *which* input fails, never *why*, which is what
+makes it work for failure modes nobody anticipated.
+
+.. warning::
+
+   Parsing an installer's output to identify the culprit is acceptable **only**
+   as a fast path.  It stops working the moment the installer rewords a
+   message, and it says nothing at all about failures that name no package.
+   Every handler must have a route to an answer that does not depend on it.
+
 Writing Custom Handlers
 =======================
 

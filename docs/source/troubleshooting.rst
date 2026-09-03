@@ -21,6 +21,127 @@ regardless of ``--log-level``, and IVPM exits non-zero without a Python
 traceback when it stops on an error.  See :doc:`diagnostics` for the full
 reference on severities, rich vs. plain output, and more examples.
 
+.. _reading-content-install-failures:
+
+Reading a Content-Install Failure
+---------------------------------
+
+When installing Python or Node content fails, IVPM does not simply pass the
+installer's output along.  It identifies which dependency contributed the
+failing input, and where that dependency was imported from::
+
+    packages/bar/ivpm.yaml:17:1: fatal: failed to install python content for package 'foo'
+
+      imported by:
+        ivpm.yaml:42:1                            ->  bar
+        packages/bar/ivpm.yaml:17:1               ->  foo
+
+      'foo' was treated as a python package because IVPM found pyproject.toml in it and enrolled it automatically
+
+      installer input: packages/python_pkgs_4.txt
+      installer: uv pip install -r packages/python_pkgs_4.txt (exit 2)
+
+      identified by: a diagnostic re-run of 3 packages, installed one at a time
+
+      installer output:
+        x Failed to build `foo @ file:///w/packages/foo`
+        error: missing header
+
+      next step:
+        if 'foo' does not provide python content, say so at packages/bar/ivpm.yaml:17:1:
+            - name: foo
+              type: raw
+
+Each block answers a different question:
+
+**imported by**
+    The chain from your ``ivpm.yaml`` down to the failing package, one hop per
+    line, each with the file and line that named the next.  This is what you
+    edit.  A dependency three levels down is not something you declared, but
+    the top line of the chain always is.
+
+**was treated as ... because**
+    Why IVPM believed this package carried Python or Node content.  Four
+    answers are possible, and they differ in who decided:
+
+    .. list-table::
+       :header-rows: 1
+       :widths: 30 70
+
+       * - Reason
+         - Means
+       * - explicit source type
+         - ``src: pypi`` or ``src: npm`` -- unambiguous.
+       * - the dependency entry declares ``type:``
+         - You said so, at the line shown in the chain.
+       * - its own ivpm.yaml declares ``provides:``
+         - The package said so.  See :ref:`declaring-provided-content`.
+       * - IVPM found ``<file>`` in it
+         - Auto-detection.  IVPM guessed, and names the file it guessed from
+           so you can check.
+
+**identified by**
+    How IVPM decided *this* package was the culprit.  Either the installer
+    named it, or IVPM re-installed the phase's packages one at a time to see
+    which failed.  That second route does not depend on understanding the
+    failure, so it works for causes nobody anticipated -- but it does mean the
+    environment was modified after the failure, which the report says.
+
+    When the failure cannot be reduced to one package, the report says that
+    too rather than picking one:
+
+    .. list-table::
+       :header-rows: 1
+       :widths: 40 60
+
+       * - Wording
+         - Means
+       * - "these failed individually"
+         - Several packages are independently broken.
+       * - "every one of them failed individually"
+         - A dependency cycle installed as one unit.  No single member is
+           established as the cause.
+       * - "each installed cleanly alone, so the failure is a conflict"
+         - The packages are individually fine and mutually incompatible --
+           usually two pins that cannot both be satisfied.
+       * - "IVPM_MAX_ISOLATE"
+         - The phase had too many packages to re-run individually.  Raise the
+           limit to narrow it further.
+
+**next step**
+    Offered only when IVPM guessed.  If the package genuinely is not a
+    Python/Node package, ``type: raw`` at the named line stops the guessing.
+    When you or the package declared the content type deliberately, no such
+    suggestion appears -- the fix is in the package, not in the declaration.
+
+Four Kinds of Content Failure
+-----------------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 45 30
+
+   * - Kind
+     - What it looks like
+     - Where to fix it
+   * - Malformed manifest
+     - ``package.json is not valid JSON`` / ``pyproject.toml could not be
+       parsed as TOML``, with a line and column
+     - The named file, at the named line
+   * - Not an install target
+     - ``declares no '[project] name'`` / ``is a workspace root``
+     - Usually nothing -- IVPM declines to enroll it and says so
+   * - Build failure
+     - The manifest is fine; the build fails
+     - The package's own build, or its missing build dependencies
+   * - Resolution conflict
+     - Every package installs alone; together they do not
+     - The pins, at the import points the report lists
+
+Only the first is something validation can catch ahead of time.  The other
+three are why the report traces the failure back to a dependency and its
+import point rather than relying on the manifest having been checked.
+
 Installation Issues
 -------------------
 
@@ -444,6 +565,69 @@ Version Conflict
 
        $ direnv exec . pip show package-name
 
+Package Detected as Python When It Is Not
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** A dependency is being installed into the virtual environment when
+it is not a Python package at all.
+
+**Cause:** Auto-detection.  IVPM enrolls a source package containing
+``pyproject.toml``, ``setup.py``, or ``setup.cfg``.  A ``pyproject.toml``
+carrying only tool configuration (``[tool.ruff]``, ``[tool.black]``) is
+declined automatically, but anything that looks like a real project is
+enrolled.
+
+**Solutions:**
+
+1. **Tell IVPM at the dependency entry:**
+
+   .. code-block:: yaml
+
+       deps:
+         - name: foo
+           url: https://example.com/foo.git
+           type: raw
+
+2. **Or, if the package is yours,** declare it once in its own ``ivpm.yaml``
+   with ``provides:`` -- see :ref:`declaring-provided-content`.
+
+.. note::
+
+   A ``setup.py`` cannot be inspected without executing it, and IVPM will not
+   execute a dependency's ``setup.py`` to decide whether to install it.  A
+   package whose only Python metadata is a ``setup.py`` is therefore always
+   enrolled by auto-detection.  ``type: raw`` is the way to exclude it.
+
+--py-force-install Did Not Reinstall a Package
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``ivpm update --py-force-install`` leaves one package alone.
+
+**Cause:** The forced reinstall is scoped to the distributions each phase
+names, and an editable requirement is matched by its *distribution* name --
+which IVPM reads from ``[project] name`` in ``pyproject.toml`` or
+``[metadata] name`` in ``setup.cfg``.  A package that declares neither cannot
+be named, so it is skipped rather than guessed at.  IVPM warns when this
+happens, naming the package.
+
+**Solution:** Add a ``[project] name`` to the package's ``pyproject.toml``.
+
+Build Backend Missing (ModuleNotFoundError During Build)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** A build fails with ``ModuleNotFoundError: No module named
+'<backend>'``.
+
+**Cause:** IVPM installs with ``--no-build-isolation`` so each package builds
+against the workspace's editable packages rather than fresh copies from PyPI.
+The trade-off is that the installer no longer provisions
+``[build-system] requires``, so IVPM collects those declarations and installs
+them first.  A package whose ``pyproject.toml`` cannot be read is skipped by
+that collection -- IVPM warns, naming the package and the file.
+
+**Solution:** Fix the named ``pyproject.toml``, or add the backend explicitly
+to your own dependencies.
+
 Native Extension Build Failed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -481,6 +665,89 @@ Native Extension Build Failed
 
        $ ivpm build --debug
        $ direnv exec . python setup.py build_ext --verbose
+
+Node Package Issues
+-------------------
+
+package.json Is Not Valid JSON
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``packages/foo/package.json:3:12 is not valid JSON``
+
+**Cause:** A dependency ships a broken ``package.json``.  IVPM reports the
+file with a line and column rather than letting npm fail with ``EJSONPARSE``
+and no indication of which of your dependencies is responsible.
+
+**Solutions:**
+
+1. **Fix the file** if the package is yours.
+
+2. **Exclude it** if it is not.  A package with a broken manifest is not one
+   npm can install:
+
+   .. code-block:: yaml
+
+       deps:
+         - name: foo
+           url: https://example.com/foo.git
+           type: raw
+
+Package Detected as Node When It Is Not
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** A dependency that merely *contains* a ``package.json`` -- for a
+docs site, an example, or a tool configuration -- is being installed into the
+Node environment.
+
+**Cause:** Auto-detection.  IVPM enrolls a source package that looks
+installable.  Most non-packages are already rejected (a manifest with no
+``name``, or a workspace root, is declined without troubling you), but a
+manifest that is a complete, valid package will be enrolled.
+
+**Solutions:**
+
+1. **Tell IVPM at the dependency entry:**
+
+   .. code-block:: yaml
+
+       deps:
+         - name: foo
+           url: https://example.com/foo.git
+           type: raw
+
+2. **Or, if the package is yours, say so once in its own ivpm.yaml** so every
+   consumer benefits:
+
+   .. code-block:: yaml
+
+       package:
+         name: foo
+         provides: []
+
+npm Install Fails With No Obvious Cause
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``npm install`` fails and the output does not name a package.
+
+**Cause:** Many npm failures name nothing actionable.
+
+**Solution:** IVPM re-installs each dependency on its own, in a scratch
+directory, to find which one fails -- the real ``node_modules`` is not
+disturbed.  Read the ``imported by`` chain in the report; see
+:ref:`reading-content-install-failures`.
+
+Node Environment Reinstalls Every Run
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``npm install`` runs on every ``ivpm update``, even with nothing
+changed.
+
+**Cause:** IVPM skips the install when the generated ``package.json`` is
+unchanged, which it detects by hashing the file.  If that file cannot be read,
+the hash is empty, never matches, and the install always runs.  IVPM warns
+when this happens.
+
+**Solution:** Check the permissions on ``packages/node/package.json``.
 
 Cache Issues
 ------------

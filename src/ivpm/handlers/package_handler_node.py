@@ -26,11 +26,27 @@ from typing import ClassVar, Dict, List, Optional
 from ..package import Package, get_type_data
 from ..project_ops_info import ProjectUpdateInfo
 from ..utils import note, fatal, getpkgdir, resolve_pkg_path
+from ..msg import warning
 from ..pkg_content_type import NodeTypeData
+from ..installer_run import run_installer, format_output_tail
+from ..content_attrib import (
+    ENROLLED_EXPLICIT, ENROLLED_PROBE, ENROLLED_PROVIDES, ENROLLED_SRC_TYPE,
+    OriginMap, isolate, isolation_identified_by,
+    isolation_note, report_content_failure, report_manifest_problem,
+    probe_allowed, report_probe_adoption, set_enrollment,
+)
+from ..manifest_check import check_node_manifest
 from .package_handler import PackageHandler, HandlerFatalError
 from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_node")
+
+
+def _strict(update_info) -> bool:
+    """Whether --strict was given. Absent everywhere but the CLI, so read
+    defensively: handlers are driven directly by tests and by the API."""
+    args = getattr(update_info, "args", None)
+    return bool(getattr(args, "strict", False))
 
 _NODE_SENTINEL_BEGIN = "# --- ivpm:node begin ---"
 _NODE_SENTINEL_END   = "# --- ivpm:node end ---"
@@ -160,20 +176,57 @@ def _unlink_root_node_modules(project_root: str, node_modules_dir: str,
     return link_path
 
 
-def _read_package_name(pkg_path: str) -> Optional[str]:
+def _read_package_name(pkg_path: str, pkg=None) -> Optional[str]:
     """Return the ``name`` declared by the package.json in *pkg_path*.
 
     The dep key in the generated package.json must be the package's *real*
     name: npm happily installs a ``file:`` dep under whatever key it is given,
     but then the package is not importable under the name its own sources and
     dependants use.
+
+    Returning None falls back to the directory name, which installs the
+    package under a name nothing imports it by. That is worth a word: it is
+    the one point in the node path where a malformed manifest is read and
+    could be reported against a specific package.
     """
+    path = os.path.join(pkg_path, "package.json")
     try:
-        with open(os.path.join(pkg_path, "package.json")) as fp:
+        with open(path) as fp:
             name = json.load(fp).get("name")
-        return name if isinstance(name, str) and name else None
-    except Exception:
+    except (OSError, ValueError) as e:
+        warning("could not read the package name from %s (%s); falling back "
+                "to the directory name, which may not be the name this "
+                "package is imported by" % (path, e),
+                getattr(pkg, "srcinfo", None) if pkg is not None else None)
         return None
+    return name if isinstance(name, str) and name else None
+
+
+_NPM_NAMED_DEP_RE = (
+    # "npm error notarget No matching version found for lodash@^99.0.0"
+    r"No matching version found for (\S+?)@",
+    # "npm error 404  'no-such-pkg@1.0.0' is not in this registry"
+    r"404\s+'([^'@]+)@",
+    # "npm error While resolving: my-pkg@1.0.0"
+    r"While resolving:\s+(\S+?)@",
+)
+
+
+def _installer_failed_dep(lines) -> Optional[str]:
+    """The dependency npm *said* it choked on, or None.
+
+    A fast path, and nothing more. It reads npm's prose, so it breaks the
+    moment npm rewords a message, and it says nothing at all about the many
+    failures that name no dependency. None is an ordinary result; the caller
+    must have another way to reach an answer.
+    """
+    import re
+    for line in reversed(lines or []):
+        for pattern in _NPM_NAMED_DEP_RE:
+            m = re.search(pattern, line)
+            if m:
+                return m.group(1)
+    return None
 
 
 def _is_gitignored(path: str) -> bool:
@@ -189,11 +242,19 @@ def _is_gitignored(path: str) -> bool:
 
 
 def _package_json_hash(path: str) -> str:
-    """Return a hex digest of the contents of a package.json file, or '' on error."""
+    """Return a hex digest of the contents of a package.json file, or ''.
+
+    The empty string never matches a stored hash, so a read failure here
+    silently forces a full reinstall on every single run. That is a real cost
+    and it used to be invisible; say what happened, then take the safe path.
+    """
     try:
         with open(path, "rb") as fp:
             return hashlib.sha256(fp.read()).hexdigest()
-    except Exception:
+    except OSError as e:
+        warning("could not read %s (%s); the node install cannot be skipped "
+                "on an unchanged manifest and will re-run every time"
+                % (path, e))
         return ""
 
 
@@ -212,6 +273,9 @@ class PackageHandlerNode(PackageHandler):
     _explicit_names:     set               = dc.field(default_factory=set)
     _prev_pkg_json_hash: str               = dc.field(default="")
     _current_pkg_json_hash: str            = dc.field(default="")
+    # Which generated package.json dependency came from which package.
+    # Recorded as the manifest is synthesised, where the Package is in hand.
+    _origins:            OriginMap         = dc.field(default_factory=OriginMap)
 
     def reset(self):
         self._npm_pkgs = {}
@@ -219,6 +283,7 @@ class PackageHandlerNode(PackageHandler):
         self._explicit_names = set()
         self._prev_pkg_json_hash = ""
         self._current_pkg_json_hash = ""
+        self._origins = OriginMap()
 
     @classmethod
     def handler_info(cls):
@@ -249,6 +314,7 @@ class PackageHandlerNode(PackageHandler):
             return
 
         if pkg.src_type == "npm":
+            set_enrollment(pkg, "node", ENROLLED_SRC_TYPE)
             with self._lock:
                 self._npm_pkgs[pkg.name] = pkg
                 self._explicit_names.add(pkg.name)
@@ -256,6 +322,16 @@ class PackageHandlerNode(PackageHandler):
 
         node_data = get_type_data(pkg, NodeTypeData)
         if node_data is not None:
+            # Fill in the unspecified fields now that merging is over. Past
+            # this point the handler works with concrete values.
+            node_data = node_data.resolved()
+            # 'type: node' at the dependency entry, or the package's own
+            # ivpm.yaml declaring it. Which one decides where a later failure
+            # is located, so keep them apart.
+            set_enrollment(pkg, "node",
+                           ENROLLED_PROVIDES
+                           if getattr(node_data, "self_declared", False)
+                           else ENROLLED_EXPLICIT)
             with self._lock:
                 self._source_pkgs[pkg.name] = (pkg, node_data)
                 self._explicit_names.add(pkg.name)
@@ -265,15 +341,28 @@ class PackageHandlerNode(PackageHandler):
             self._harvest_packagejson_pkg(pkg, update_info)
             return
 
-        # Auto-detection: source packages (git/dir/http) without an explicit type
-        # that contain a package.json are treated as node source packages.
+        # Auto-detection: source packages (git/dir/http) without an explicit
+        # type that contain an *installable* package.json. A package.json
+        # existing is not the same as npm being able to install from it: a
+        # workspace root, or one with no name, is valid JSON and not a
+        # dependency. Rejecting those here costs the user nothing.
         if (pkg.src_type in ("git", "dir", "http", "gh-rls") and
-                getattr(pkg, "pkg_type", None) is None and
+                probe_allowed(pkg, "node") and
                 hasattr(pkg, "path") and pkg.path):
-            if os.path.isfile(os.path.join(pkg.path, "package.json")):
-                td = NodeTypeData()  # defaults: dev=False, link=True
-                with self._lock:
-                    self._source_pkgs[pkg.name] = (pkg, td)
+            diag = check_node_manifest(pkg.path)
+            if diag is not None:
+                set_enrollment(pkg, "node", ENROLLED_PROBE,
+                               evidence="package.json")
+                if diag.ok:
+                    td = NodeTypeData().resolved()  # dev=False, link=True
+                    report_probe_adoption(pkg, "node",
+                                          evidence="package.json",
+                                          strict=_strict(update_info))
+                    with self._lock:
+                        self._source_pkgs[pkg.name] = (pkg, td)
+                else:
+                    report_manifest_problem(pkg, diag, "node",
+                                            strict=_strict(update_info))
 
     def _harvest_packagejson_pkg(self, pkg, update_info: ProjectUpdateInfo):
         """Read a package.json URL and synthesize PackageNpm entries."""
@@ -447,11 +536,20 @@ class PackageHandlerNode(PackageHandler):
         """
         deps = {}
         dev_deps = {}
+
+        def record(dep_name, spec, pkg):
+            # The generated manifest is just JSON once written; this is the
+            # only point at which a dependency key and the package that
+            # contributed it are both in hand.
+            self._origins.record("%s@%s" % (dep_name, spec), pkg, "node",
+                                 language="node", dist=dep_name)
+
         for name, pkg in self._npm_pkgs.items():
             if pkg.dev:
                 dev_deps[name] = pkg.version
             else:
                 deps[name] = pkg.version
+            record(name, pkg.version, pkg)
 
         for pkg_name, (pkg, node_data) in self._source_pkgs.items():
             # link: false means "track the source but keep it out of the node
@@ -464,11 +562,12 @@ class PackageHandlerNode(PackageHandler):
             # Relative so the whole tree stays relocatable: the symlinks npm
             # creates from a relative file: spec are themselves relative.
             spec = "file:" + os.path.relpath(pkg_path, node_dir).replace(os.sep, "/")
-            dep_name = _read_package_name(pkg_path) or pkg_name
+            dep_name = _read_package_name(pkg_path, pkg) or pkg_name
             if node_data.dev:
                 dev_deps[dep_name] = spec
             else:
                 deps[dep_name] = spec
+            record(dep_name, spec, pkg)
 
         data = {
             "name": "ivpm-node-env",
@@ -497,16 +596,118 @@ class PackageHandlerNode(PackageHandler):
             fatal("Unknown node package manager: %s" % manager)
 
         _logger.info("Running: %s", " ".join(cmd))
-        kwargs = {}
-        if suppress:
-            kwargs["stdout"] = subprocess.DEVNULL
-            kwargs["stderr"] = subprocess.DEVNULL
-        try:
-            subprocess.run(cmd, check=True, **kwargs)
-        except subprocess.CalledProcessError as e:
-            fatal("Node package install failed (exit %d): %s" % (e.returncode, " ".join(cmd)))
-        except FileNotFoundError:
+
+        # Captured whether or not it is displayed: suppress_output used to mean
+        # DEVNULL, which destroyed the only account of why the install failed
+        # at precisely the moment it mattered.
+        result = run_installer(cmd, quiet=suppress)
+
+        if result.returncode == 127:
             fatal("'%s' not found — please install Node.js and %s" % (manager, manager))
+        elif not result.ok:
+            self._report_install_failure(cmd, result, update_info,
+                                         manager, node_dir)
+
+    def _report_install_failure(self, cmd, result, update_info,
+                                manager=None, node_dir=None):
+        """Attribute a failed node install and report it. Always raises.
+
+        npm does sometimes name the offending dependency (``ETARGET``, a 404,
+        a resolution trace), and when it does the fast path below finds it in
+        one step. When it does not -- which covers most of the interesting
+        cases, including the malformed ``package.json`` in a ``file:`` dep
+        that prompted all of this -- each dependency is installed on its own
+        until the culprit falls out. That second route asks only *which*, so
+        it is indifferent to how npm words things or to what went wrong.
+        """
+        pkgs_by_key = getattr(update_info, "all_pkgs_by_key", None) or {}
+        output = format_output_tail(result.lines)
+
+        contributors = self._origins.by_group("node")
+
+        origins = []
+        identified_by = None
+        note_text = None
+
+        dist = _installer_failed_dep(result.lines)
+        if dist is not None:
+            origin = self._origins.resolve_dist(dist, group="node")
+            if origin is not None:
+                origins = [origin]
+                identified_by = "npm named '%s' in its output" % dist
+
+        if not origins and len(contributors) > 1 and node_dir:
+            iso = isolate(
+                contributors,
+                lambda o: self._retry_one(o, manager or "npm", node_dir))
+            if iso.culprits:
+                origins = iso.culprits
+            identified_by = isolation_identified_by(iso)
+            note_text = isolation_note(iso)
+
+        if not origins:
+            origins = contributors
+            if identified_by is None and origins:
+                identified_by = "every package in the node environment"
+
+        if not origins:
+            fatal("Node package install failed (exit %d): %s%s" % (
+                result.returncode, " ".join(cmd), output))
+            return
+
+        report_content_failure(
+            "node", origins, pkgs_by_key,
+            group=os.path.join(node_dir or "", "package.json"),
+            installer="%s (exit %d)" % (" ".join(cmd), result.returncode),
+            output=output,
+            identified_by=identified_by,
+            note_text=note_text)
+
+    def _retry_one(self, origin, manager: str, node_dir: str) -> bool:
+        """Install a single dependency by itself; True if it succeeds.
+
+        Done in a scratch prefix rather than in the real node environment: the
+        diagnostic pass must not further disturb a ``node_modules`` the user
+        will want to look at, and installing one dependency into the real
+        prefix would prune everything else out of it.
+
+        ``file:`` specs are rewritten to absolute paths. The generated
+        manifest keeps them relative so the workspace stays relocatable, but a
+        relative path resolved from the scratch directory points nowhere --
+        which would make every source package look broken.
+        """
+        import shutil
+        import tempfile
+
+        dep_name = origin.dist or origin.name
+        spec = origin.spec
+        if spec.startswith(dep_name + "@"):
+            spec = spec[len(dep_name) + 1:]
+
+        if spec.startswith("file:"):
+            rel = spec[len("file:"):]
+            spec = "file:" + os.path.abspath(os.path.join(node_dir, rel))
+
+        scratch = tempfile.mkdtemp(prefix="ivpm_node_isolate_")
+        try:
+            with open(os.path.join(scratch, "package.json"), "w") as fp:
+                json.dump({
+                    "name": "ivpm-node-isolate",
+                    "version": "1.0.0",
+                    "private": True,
+                    "dependencies": {dep_name: spec},
+                }, fp, indent=2)
+
+            if manager == "pnpm":
+                cmd = ["pnpm", "install", "--dir", scratch]
+            elif manager == "yarn":
+                cmd = ["yarn", "install", "--cwd", scratch]
+            else:
+                cmd = ["npm", "install", "--prefix", scratch]
+
+            return run_installer(cmd, quiet=True).ok
+        finally:
+            shutil.rmtree(scratch, ignore_errors=True)
 
     # ------------------------------------------------------------------
     # State persistence

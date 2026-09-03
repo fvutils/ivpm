@@ -19,6 +19,10 @@ def _handler(workspace_pkgs=()):
     """A handler with just enough state for _collect_build_requires."""
     h = PackageHandlerPython.__new__(PackageHandlerPython)
     h.pkgs_info = {name: None for name in workspace_pkgs}
+    # _collect_build_requires also records which package declared each
+    # requirement, so that a backend that fails to install can be traced back
+    # to the package that needs it.
+    h._build_requires_src = {}
     return h
 
 

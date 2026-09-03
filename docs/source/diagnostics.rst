@@ -100,6 +100,16 @@ stuck::
       name: [unclosed
             ^
 
+Content-install failures
+========================
+
+A failure to install Python or Node content is reported in a longer form than
+a single located message: it names the package that contributed the failing
+input, the chain of ``ivpm.yaml`` lines that imported it, why IVPM believed
+the package carried that content, and how the culprit was identified.  See
+:ref:`reading-content-install-failures` in :doc:`troubleshooting` for a worked
+example and how to read each block.
+
 For extension authors
 =====================
 
@@ -125,4 +135,8 @@ Semantics:
   CLI boundary for a clean, traceback-free exit).
 * When *loc* is omitted, the message is printed without a location prefix, so
   existing single-argument calls keep working.
+
+A handler that installs content through an external tool has a further
+obligation: a failure must be traceable to the dependency that caused it.  See
+:ref:`handler-content-attribution` in :doc:`handlers`.
 

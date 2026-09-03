@@ -401,6 +401,11 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     # dest is explicit because the old spelling came first historically, so
     # argparse derived 'skip_py_install' while the python handler reads
     # 'py_skip_install' -- leaving the flag a silent no-op.
+    update_cmd.add_argument("--strict", dest="strict", action="store_true",
+        help="Treat content-detection notes as errors: a package with an "
+             "ivpm.yaml but no 'provides:', or one whose manifest is valid "
+             "but is not an install target, fails the run instead of being "
+             "noted")
     update_cmd.add_argument("--py-skip-install", "--skip-py-install",
         dest="py_skip_install",
         help="Skip installation of Python packages",
@@ -512,6 +517,11 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     install_cmd.add_argument("--git-auth-order", dest="git_auth_order",
         type=parse_git_auth_order, default=None,
         help="Comma-separated git auth order to try (gh,ssh,https)")
+    install_cmd.add_argument("--strict", dest="strict", action="store_true",
+        help="Treat content-detection notes as errors: a package with an "
+             "ivpm.yaml but no 'provides:', or one whose manifest is valid "
+             "but is not an install target, fails the run instead of being "
+             "noted")
     install_cmd.add_argument("--py-skip-install", "--skip-py-install",
         dest="py_skip_install", action="store_true",
         help="Skip installation of Python packages")

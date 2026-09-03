@@ -480,6 +480,98 @@ Package Types
 
 Package types determine how IVPM processes a package after fetching.
 
+.. _declaring-provided-content:
+
+Declaring Provided Content (``provides:``)
+------------------------------------------
+
+A package that ships an ``ivpm.yaml`` can declare what content it carries, so
+that every project importing it gets the right answer without guessing:
+
+.. code-block:: yaml
+
+    package:
+      name: mypkg
+      provides: [python]
+
+Or with settings attached:
+
+.. code-block:: yaml
+
+    package:
+      name: mypkg
+      provides:
+        python:
+          editable: true
+          extras: [runtime]
+
+Both spellings are accepted, and both accept the same ``with:`` parameters as
+the corresponding ``type:`` at a dependency entry.
+
+``provides: []`` is not the same as no ``provides:``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Declaration
+     - Meaning
+   * - ``provides:`` absent
+     - The package said nothing.  Auto-detection runs.
+   * - ``provides: []``
+     - The package provides nothing.  Auto-detection is switched off for
+       every language.
+   * - ``provides: [python]``
+     - The package provides Python content -- and, by saying so, declares
+       that it provides nothing else.  Node auto-detection is switched off.
+
+An empty ``provides:`` is the fix for a package that keeps being mis-detected:
+one line in the package's own manifest, and every consumer stops guessing.
+
+Precedence
+~~~~~~~~~~
+
+Three places can decide a package's content type.  From strongest to weakest:
+
+1. **The dependency entry** -- ``type:`` and ``with:`` where the package is
+   imported.  The importing project always wins; ``type: raw`` in particular
+   overrides any claim the package makes about itself.
+2. **The package's own ``provides:``** (or a package-level ``type:``).
+3. **Auto-detection** -- IVPM inspects the fetched directory.
+
+Merging is per *field*, not all-or-nothing.  Given a package that declares:
+
+.. code-block:: yaml
+
+    package:
+      name: mypkg
+      provides:
+        python:
+          extras: [runtime]
+
+imported as:
+
+.. code-block:: yaml
+
+    - name: mypkg
+      url: https://example.com/mypkg.git
+      type: python
+      with:
+        python:
+          editable: false
+
+the result has **both** ``extras: [runtime]`` and ``editable: false``.  The
+consumer overrides only what it mentions; it does not have to restate settings
+it knows nothing about.
+
+.. note::
+
+   Because "unset" and "explicitly set to the default" must be
+   distinguishable for this merge to work, an omitted ``with:`` parameter is
+   genuinely absent rather than defaulted.  Defaults are applied only after
+   merging.
+
 Python (``python``)
 -------------------
 
@@ -491,10 +583,11 @@ Python packages are installed into the project's virtual environment.
    ``pyproject.toml`` are installed with ``pip install -e``
 2. **Binary mode**: PyPI packages are installed normally
 
-**Auto-detection:** A package is considered Python if:
-
-- ``src: pypi`` is specified, OR
-- Directory contains ``setup.py``, ``setup.cfg``, or ``pyproject.toml``
+**Auto-detection:** A package is considered Python if ``src: pypi`` is
+specified, or if the fetched directory contains Python packaging metadata that
+describes an installable project.  See
+:ref:`python-auto-detection` for exactly what counts, and
+:ref:`declaring-provided-content` for how to declare it explicitly instead.
 
 **Examples:**
 
@@ -565,10 +658,11 @@ Node (``node``)
 Node.js packages are installed into the project's Node.js environment at
 ``packages/node/``.
 
-**Auto-detection:** A package is considered Node.js if:
-
-- ``src: npm`` is specified, OR
-- Directory contains ``package.json``
+**Auto-detection:** A package is considered Node.js if ``src: npm`` is
+specified, or if the fetched directory contains a ``package.json`` that npm
+can install as a dependency.  See :ref:`node-auto-detection` for exactly what
+counts, and :ref:`declaring-provided-content` for how to declare it explicitly
+instead.
 
 **Examples:**
 
