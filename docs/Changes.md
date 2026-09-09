@@ -1,4 +1,7 @@
 
+# 2.29.0
+- Add support for platform matrix variables
+
 # 2.28.0
 - **`type: node` gains `subdir`, and a source dependency now rebuilds itself.**
   Two changes that together make a repository whose npm package sits in a
