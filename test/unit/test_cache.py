@@ -567,6 +567,144 @@ class TestCacheGit(TestBase):
         if result.returncode == 0:
             self.assertEqual(result.stdout.strip(), "1")
 
+    # ------------------------------------------------------------------ #
+    # commit-pinned + cache: true                                         #
+    # ------------------------------------------------------------------ #
+
+    def _commit(self, path, rel, content, msg):
+        """Add/update one file and commit it; returns the new commit hash.
+
+        Dates are pinned so a commit is a pure function of tree+message+parent
+        (see the hash-determinism note in test_patch_reconcile.py).
+        """
+        env = dict(os.environ)
+        env.update({
+            "GIT_AUTHOR_DATE": "2020-01-01T00:00:00 +0000",
+            "GIT_COMMITTER_DATE": "2020-01-01T00:00:00 +0000",
+        })
+        with open(os.path.join(path, rel), "w") as f:
+            f.write(content)
+        subprocess.check_call(["git", "add", "-A"], cwd=path, env=env)
+        subprocess.check_call(["git", "commit", "-m", msg], cwd=path, env=env)
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=path, text=True).strip()
+
+    def _mk_pinned_repo(self, allow_sha_in_want):
+        """A repo whose *first* commit is well behind the default-branch tip.
+
+        Returns (repo_path, pinned_commit). ``allow_sha_in_want`` controls
+        whether the repo serves unadvertised objects: True exercises the
+        shallow fetch-by-SHA path, False the full-clone fallback (what a plain
+        local/self-hosted git server does by default).
+        """
+        src_repo = os.path.join(self.testdir, 'src_repo')
+        self._init_git_repo(src_repo, files={"test.txt": "pinned content"})
+        pinned = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=src_repo, text=True).strip()
+        # Move the default branch well past the pin.
+        self._commit(src_repo, "test.txt", "tip content", "second")
+        self._commit(src_repo, "test.txt", "newer tip content", "third")
+        subprocess.check_call(
+            ["git", "config", "uploadpack.allowReachableSHA1InWant",
+             "true" if allow_sha_in_want else "false"], cwd=src_repo)
+        return src_repo, pinned
+
+    def _mk_pinned_manifest(self, src_repo, commit):
+        self.mkFile("ivpm.yaml", f"""
+        package:
+            name: cache_test
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: test_pkg
+                      url: file://{src_repo}
+                      src: git
+                      commit: {commit}
+                      cache: true
+        """)
+
+    def _assert_pinned(self, pinned):
+        """The materialized package is the pinned commit, and the cache entry
+        is keyed by that commit rather than by the moving branch tip."""
+        pkg_dir = os.path.join(self.testdir, "packages", "test_pkg")
+        self.assertTrue(os.path.islink(pkg_dir))
+        with open(os.path.join(pkg_dir, "test.txt")) as f:
+            self.assertEqual(f.read(), "pinned content")
+        head = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=pkg_dir, text=True).strip()
+        self.assertEqual(head, pinned)
+        # Cache key == the pinned SHA (the bug keyed it on the default-branch
+        # tip, so the pin re-missed whenever upstream advanced).
+        self.assertEqual(os.path.basename(os.path.realpath(pkg_dir)), pinned)
+        self.assertTrue(os.path.isdir(
+            os.path.join(self.cache_dir, "test_pkg", pinned)))
+        return pkg_dir
+
+    def test_git_cache_commit_pin_behind_tip(self):
+        """cache: true + commit: pinned behind the branch tip must check out.
+
+        The cache-miss path clones shallowly; a plain `clone --depth 1` fetches
+        only the default-branch tip, so the checkout used to fail with
+        "unable to read tree".
+        """
+        src_repo, pinned = self._mk_pinned_repo(allow_sha_in_want=True)
+        self._mk_pinned_manifest(src_repo, pinned)
+
+        self.ivpm_update(skip_venv=True)
+
+        pkg_dir = self._assert_pinned(pinned)
+        # The pinned SHA was fetched directly, so history stays shallow.
+        count = subprocess.check_output(
+            ["git", "rev-list", "--count", "HEAD"], cwd=pkg_dir, text=True).strip()
+        self.assertEqual(count, "1")
+
+    def test_git_cache_commit_pin_full_clone_fallback(self):
+        """Remotes that refuse unadvertised objects fall back to a full clone.
+
+        The pin must still be checked out, and still key the cache entry.
+        """
+        src_repo, pinned = self._mk_pinned_repo(allow_sha_in_want=False)
+        self._mk_pinned_manifest(src_repo, pinned)
+
+        self.ivpm_update(skip_venv=True)
+
+        self._assert_pinned(pinned)
+
+    def test_git_cache_commit_pin_hits_cache_after_tip_moves(self):
+        """A second update hits the pinned-SHA entry even once upstream moves."""
+        src_repo, pinned = self._mk_pinned_repo(allow_sha_in_want=True)
+        self._mk_pinned_manifest(src_repo, pinned)
+
+        self.ivpm_update(skip_venv=True)
+        pkg_dir = self._assert_pinned(pinned)
+        cache_target = os.path.realpath(pkg_dir)
+
+        # Drop the symlink (so the load planner does not take the resident fast
+        # path) and advance the default branch past where it was.
+        os.unlink(pkg_dir)
+        self._commit(src_repo, "test.txt", "moved on", "fourth")
+
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(os.path.realpath(pkg_dir), cache_target)
+        # A single cache entry: the moving tip never became a cache key.
+        self.assertEqual(
+            sorted(e for e in os.listdir(os.path.join(self.cache_dir, "test_pkg"))
+                   if not e.endswith(".meta.json")),
+            [pinned])
+
+    def test_git_cache_commit_pin_failure_removes_temp_dir(self):
+        """A failed cache-miss fetch leaves no .cache_temp_* tree behind."""
+        src_repo, _ = self._mk_pinned_repo(allow_sha_in_want=True)
+        bogus = "0" * 40
+        self._mk_pinned_manifest(src_repo, bogus)
+
+        with self.assertRaises(Exception):
+            self.ivpm_update(skip_venv=True)
+
+        temp_dir = os.path.join(self.testdir, "packages", ".cache_temp_test_pkg")
+        self.assertFalse(os.path.exists(temp_dir))
+
     def test_git_unspecified_cache_full_clone(self):
         """Test that cache unspecified does full clone with write access."""
         src_repo = os.path.join(self.testdir, 'src_repo')

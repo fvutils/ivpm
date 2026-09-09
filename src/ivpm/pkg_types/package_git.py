@@ -461,11 +461,17 @@ class PackageGit(PackageURL):
         
         ref = self.branch or self.tag or "HEAD"
 
-        
         # Get the commit hash - use GitHub API for GitHub URLs, git ls-remote otherwise
         commit_hash = None
         with span_or_null(getattr(update_info, "perf", None), "git.resolve_hash", package=self.name) as s:
-            if is_github_url(self._mapped_url()):
+            if self.commit is not None:
+                # A commit pin *is* the resolved hash. Resolving 'ref' here
+                # instead keyed the cache on the moving default-branch tip (the
+                # 'HEAD' fallback), so the pin was stored/looked up under the
+                # wrong SHA and re-missed every time upstream advanced.
+                s.meta["path"] = "pinned"
+                commit_hash = self.commit
+            elif is_github_url(self._mapped_url()):
                 s.meta["path"] = "github_api"
                 owner, repo = parse_github_url(self._mapped_url())
                 commit_hash = self._get_github_commit_hash(owner, repo, ref, update_info)
@@ -506,12 +512,19 @@ class PackageGit(PackageURL):
         update_info.report_cache_miss()
 
         # Clone to a temporary location first
+        import shutil
         temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
         if os.path.exists(temp_dir):
-            import shutil
             shutil.rmtree(temp_dir)
 
-        self._clone_to_dir(update_info, temp_dir, depth=1)
+        # A failed fetch/checkout must not leave a partial .cache_temp_* tree
+        # behind: the next run would then find (and delete) foreign state, and
+        # the stale directory confuses anyone looking at deps_dir.
+        try:
+            self._clone_to_dir(update_info, temp_dir, depth=1)
+        except BaseException:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
 
         # Store in cache and link
         with span_or_null(getattr(update_info, "perf", None), "cache.store", package=self.name):
@@ -712,6 +725,25 @@ class PackageGit(PackageURL):
 
         sys.stdout.flush()
 
+        # Shallow + commit-pinned: `clone --depth N` fetches only the tip of the
+        # ref it clones (the default branch when no branch/tag is declared), so
+        # the pinned commit is usually absent from the resulting history and the
+        # checkout below fails with "unable to read tree". Fetch the pinned
+        # object itself instead, keeping the shallow intent of this path.
+        if depth is not None and self.commit is not None:
+            if self._fetch_pinned_commit(update_info, target_dir, depth):
+                self._update_submodules(update_info, target_dir)
+                return
+            # The server refused the unadvertised-object request (no
+            # uploadpack.allowReachableSHA1InWant -- the default for plain
+            # local/self-hosted repos). Fall back to a clone with full history,
+            # where the pinned commit is guaranteed present.
+            _logger.debug("shallow fetch of %s failed; falling back to a full clone",
+                          self.commit)
+            import shutil
+            shutil.rmtree(target_dir, ignore_errors=True)
+            depth = None
+
         git_cmd = ["git", "clone"]
 
         if depth is not None:
@@ -769,6 +801,42 @@ class PackageGit(PackageURL):
                     % (self.commit, url, rc), url, err, update_info=update_info))
 
 
+        self._update_submodules(update_info, target_dir)
+
+    def _fetch_pinned_commit(self, update_info: ProjectUpdateInfo,
+                             target_dir: str, depth) -> bool:
+        """Shallow-fetch exactly ``self.commit`` into a fresh repo at
+        *target_dir* and detach HEAD onto it.
+
+        Returns False (leaving *target_dir* for the caller to clean up) if any
+        step fails -- most commonly because the remote does not serve
+        unadvertised objects -- so the caller can fall back to a full clone.
+        """
+        url = self._get_effective_url(update_info)
+        _logger.debug("Fetch URL: %s (pinned commit %s)", url, self.commit)
+
+        os.makedirs(target_dir, exist_ok=True)
+
+        steps = [
+            ["git", "init"],
+            ["git", "remote", "add", "origin", url],
+            ["git", "fetch", "--depth", str(depth), "origin", self.commit],
+            ["git", "checkout", "--detach", self.commit],
+        ]
+
+        with span_or_null(getattr(update_info, "perf", None), "git.fetch_commit",
+                          package=self.name, depth=depth):
+            for git_cmd in steps:
+                _logger.debug("git_cmd: %s", str(git_cmd))
+                rc, err = self._run_git(
+                    git_cmd, update_info, cwd=target_dir,
+                    progress=(git_cmd[1] == "fetch"))
+                if rc != 0:
+                    self._last_git_err = err
+                    return False
+        return True
+
+    def _update_submodules(self, update_info: ProjectUpdateInfo, target_dir: str):
         # TODO: Existence of .gitmodules should trigger this
         if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
             sys.stdout.flush()

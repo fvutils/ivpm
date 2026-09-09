@@ -1,4 +1,7 @@
 
+# 2.30.0
+- Correct an issue with cached git repos pinned to a specific commit
+
 # 2.29.0
 - Add support for platform matrix variables
 
