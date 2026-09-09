@@ -133,6 +133,21 @@ class Package(object):
     # IvpmYamlReader.read_deps for patch-capable sources only.
     patches : List['PatchSpec'] = dc.field(default_factory=list)
 
+    # Environment-derived variables (platform builtins, match results) that
+    # this dependency entry's fields expanded. Non-empty means the artifact
+    # this entry resolves to is platform-specific, which is what the cache key
+    # (package_http/package_gh_rls) and the lock entry's 'resolved_on'
+    # (package_lock) key off. Empty -> byte-identical behavior to before the
+    # platform-variable feature existed.
+    used_derived_vars : Set[str] = dc.field(default_factory=set)
+    # The platform this entry was RESOLVED for -- the manifest's resolved
+    # ${{ivpm_platform}}, which is not the same as the running machine once
+    # -D ivpm_os / IVPM_VAR_IVPM_OS is in play. The lock's 'resolved_on' must
+    # record this, not a fresh probe: a cross-resolved macOS URL tagged
+    # 'linux-x86_64' would be treated as native on the next bare run here, and
+    # never re-resolved. None when no manifest resolution produced it.
+    resolved_platform : Optional[str] = None
+
     process_deps : bool = True
     # Consumer-declared 'deps-mode' from this dependency entry. None means the
     # consumer said nothing, so the producer's manifest (or the enclosing

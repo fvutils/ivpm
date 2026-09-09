@@ -319,7 +319,14 @@ The cache is organized by package name, with version-specific subdirectories:
 
 - For Git packages, the version is the commit hash
 - For HTTP packages, the version is derived from the Last-Modified header or ETag
-- For GitHub Releases, the version includes the release tag and platform info
+- For GitHub Releases, the version is the release tag plus a digest of the
+  selected asset URL
+
+The rule behind all three: **the cache version identifies the artifact that
+was resolved, not the inputs that resolved it.** Enumerating inputs does not
+scale -- a GitHub Release key would need OS, arch, glibc, distro and distro
+version, and would need extending again the next time asset selection
+consults something new. Identifying the output is stable under all of that.
 
 Example structure::
 
@@ -331,8 +338,8 @@ Example structure::
    │   ├── Thu_01-Jan-2024_120000/   # HTTP Last-Modified timestamp
    │   └── Fri_15-Mar-2024_093000/
    └── uv/
-       ├── 0.1.0_linux_x86_64/       # GitHub Release with platform
-       └── 0.1.1_darwin_arm64/
+       ├── 0.1.0_9f2c1ab34de0/       # GitHub Release: tag + asset digest
+       └── 0.1.1_4b7e0c19aa52/
 
 Each version directory contains the complete, read-only package content.
 
@@ -433,7 +440,16 @@ For cacheable HTTP URLs (e.g., ``.tar.gz`` files):
        url: https://cdn.example.com/vectors-v2.tar.gz
        cache: true
 
-**Cache key:** Last-Modified header (converted to safe filename) or ETag
+**Cache key:** Last-Modified header (converted to safe filename) or ETag.
+
+When the dependency's ``url`` was built from a platform variable (see
+:doc:`variables`), a short digest of the resolved URL is appended:
+``<etag>_<url-digest>``. The cache is keyed on package *name* plus version, so
+without that digest one package name resolving to a different URL per platform
+would put two platforms' artifacts under one key -- and with a shared cache
+(NFS, a CI cache volume) the first writer's bytes would be served to everyone
+else. Dependencies that use no platform variable key exactly as they always
+have, so existing cache entries stay valid.
 
 **Benefits:**
 
@@ -454,15 +470,29 @@ GitHub Release packages support platform-specific caching:
        version: latest
        cache: true
 
-**Cache key:** ``<release-tag>_<platform>_<architecture>``
+**Cache key:** ``<release-tag>_<digest-of-selected-asset-url>``
 
 Examples:
 
-- ``0.1.0_linux_x86_64``
-- ``0.1.0_darwin_arm64``
-- ``0.1.0_windows_x86_64``
+- ``0.1.0_9f2c1ab34de0``
+- ``0.1.0_4b7e0c19aa52``
 
-This allows different platforms to cache different binaries for the same release.
+This allows different platforms to cache different binaries for the same
+release.
+
+.. note::
+
+   **Changed key.** This key was previously
+   ``<release-tag>_<platform>_<architecture>``, which omitted the rest of what
+   asset selection actually consults: ``manylinux`` assets are chosen using
+   glibc, and distro-tagged assets using the distro and its version. Two Linux
+   x86_64 machines -- one glibc 2.17, one glibc 2.34 -- therefore selected
+   *different* assets and stored them under the identical key, and a shared
+   cache silently handed the second machine a binary built against the wrong
+   floor. ``ubuntu-22.04`` and ``ubuntu-24.04`` assets collided the same way.
+
+   After upgrading, existing ``gh-rls`` cache entries miss once and are
+   refetched. Some of those entries were the wrong bytes, which is the point.
 
 **Benefits:**
 

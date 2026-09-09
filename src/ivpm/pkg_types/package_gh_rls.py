@@ -28,9 +28,11 @@ import re
 import platform
 import subprocess
 import shutil
+import hashlib
 import xml.etree.ElementTree as ET
 import dataclasses as dc
 from typing import Optional
+from .. import platform_info
 from ..proj_info import ProjInfo
 from ..utils import note
 from .package_http import PackageHttp
@@ -498,7 +500,13 @@ class PackageGhRls(PackageHttp):
         return file_url, forced_ext
 
     def _determine_src_type(self, file_url, forced_ext):
-        """Determine the source type for unpacking."""
+        """Record the archive extension of the selected asset, for unpacking.
+
+        Writes ``archive_ext``, NOT ``src_type``: this package's source type is
+        "gh-rls" and must stay that way. Overwriting it with ".tar.gz" dropped
+        the entry out of the lock file's gh-rls branch, so the release tag and
+        resolved version were never recorded.
+        """
         if forced_ext is not None:
             ext = forced_ext
         else:
@@ -507,23 +515,37 @@ class PackageGhRls(PackageHttp):
                 ext = ".tar.gz"
 
         if ext == ".tgz":
-            self.src_type = ".tar.gz"
+            self.archive_ext = ".tar.gz"
         else:
-            self.src_type = ext
-            if self.src_type in [".gz", ".xz", ".bz2"]:
+            self.archive_ext = ext
+            if self.archive_ext in [".gz", ".xz", ".bz2"]:
                 pdot = file_url.rfind('.')
                 pdot = file_url.rfind('.', 0, pdot - 1)
-                self.src_type = file_url[pdot:]
+                self.archive_ext = file_url[pdot:]
+
+    def _cache_version(self, release_tag, file_url):
+        """Cache version identifying the asset that was selected.
+
+        Keying on (tag, sysname, arch) was wrong: _select_linux_asset also
+        chooses on glibc, and the distro-tagged path chooses on distro and
+        version. So two Linux x86_64 machines -- one glibc 2.17, one 2.34 --
+        select *different* assets and stored them under one key; with a shared
+        cache (NFS, a CI cache volume) the first writer won and everyone else
+        silently got a binary built against the wrong floor.
+
+        Enumerating the inputs does not scale -- the key would need extending
+        every time a selector consults something new. Digesting the selected
+        asset URL identifies the output instead, and is stable under all of it.
+        """
+        return "%s_%s" % (
+            release_tag,
+            hashlib.sha256(file_url.encode()).hexdigest()[:12])
 
     def _update_with_cache(self, update_info, pkg_dir, file_url, forced_ext, release_tag):
         """Update using the cache."""
         note("loading package %s with cache" % self.name)
 
-        # Use release tag as version identifier for caching
-        # Include platform info for binary releases to cache per-platform
-        sysname, machine, _ = self._get_system_info()
-        norm_arch = self._normalize_arch(sysname, machine)
-        version = f"{release_tag}_{sysname}_{norm_arch}"
+        version = self._cache_version(release_tag, file_url)
 
         provider = update_info.get_cache_provider()
         result = provider.lookup(self, version)
@@ -700,6 +722,12 @@ class PackageGhRls(PackageHttp):
     # Helper methods for asset selection and platform detection
 
     def _normalize_arch(self, system, machine):
+        # Deliberately OS-dependent, and deliberately NOT the same as
+        # platform_info._normalize_arch (which answers 'arm64' everywhere).
+        # This one feeds matching against release *filenames*, and those really
+        # do say 'aarch64' on Linux and 'arm64' on macOS. ${{ivpm_arch}} is a
+        # published fact about the machine; this is a spelling convention of
+        # the assets being matched. Do not unify them.
         system = (system or "").lower()
         m = (machine or "").lower()
         if system == "linux":
@@ -723,49 +751,40 @@ class PackageGhRls(PackageHttp):
         """
         Get Linux distribution information.
         Returns (distro_name, version_str) or (None, None) if unable to determine.
+
+        Thin wrapper over the shared probe; the (None, None) unknown spelling
+        is preserved because the asset selectors test for it.
         """
-        try:
-            if os.path.exists("/etc/os-release"):
-                with open("/etc/os-release", "r") as f:
-                    content = f.read()
-                    distro_id = None
-                    version_id = None
-                    for line in content.split('\n'):
-                        if line.startswith("ID="):
-                            distro_id = line.split("=", 1)[1].strip().strip('"').lower()
-                        elif line.startswith("VERSION_ID="):
-                            version_id = line.split("=", 1)[1].strip().strip('"')
-                    if distro_id and version_id:
-                        return (distro_id, version_id)
-        except Exception:
-            pass
+        pi = platform_info.probe()
+        if pi.distro and pi.distro_version:
+            return (pi.distro, pi.distro_version)
         return (None, None)
 
     def _get_system_info(self):
+        """Return ``(sysname, machine, glibc_tuple)`` for asset selection.
+
+        Thin wrapper over the shared probe, preserving this method's original
+        return shape: ``sysname``/``machine`` are the *raw* platform strings
+        (the selectors normalize them themselves via _normalize_arch), and
+        ``glibc`` is a ``(major, minor)`` tuple or None.
+
+        The probe establishes the libc *family* before trusting a version, so
+        musl no longer masquerades as a very old glibc here: on musl this
+        returns None, which is the honest answer for a glibc-floor comparison.
+        """
         sysname = platform.system().lower()
         machine = platform.machine()
         glibc = None
         if sysname == "linux":
-            libc_name, libc_ver = platform.libc_ver()
-            ver_t = None
-            if libc_ver:
+            pi = platform_info.probe()
+            if pi.libc == "glibc" and pi.libc_version:
+                parts = pi.libc_version.split(".")
                 try:
-                    parts = libc_ver.split(".")
                     major = int(parts[0]) if len(parts) > 0 else 0
                     minor = int(parts[1]) if len(parts) > 1 else 0
-                    ver_t = (major, minor)
-                except Exception:
-                    ver_t = None
-            if ver_t is None:
-                try:
-                    # Fallback to parsing ldd --version
-                    out = subprocess.check_output(["ldd", "--version"], stderr=subprocess.STDOUT, text=True)
-                    m = re.search(r"(\d+)\.(\d+)", out)
-                    if m:
-                        ver_t = (int(m.group(1)), int(m.group(2)))
-                except Exception:
-                    ver_t = None
-            glibc = ver_t
+                    glibc = (major, minor)
+                except ValueError:
+                    glibc = None
         return sysname, machine, glibc
 
     def _parse_manylinux(self, name):

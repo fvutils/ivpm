@@ -1518,7 +1518,19 @@ class PackageHandlerPython(PackageHandler):
                         extras = td.extras
                     extras_str = "[%s]" % ",".join(extras) if extras else ""
 
-                    pkg_path = "%s/%s" % (packages_dir.replace("\\","/"), pkg.name)
+                    # Prefer the location the source provider actually fetched
+                    # into. Reconstructing it as <root deps-dir>/<name> assumes
+                    # every package sits directly in the root deps-dir, which
+                    # `deps-mode: nested` makes false: a package below a nested
+                    # boundary lives in *its parent's* deps-dir. The venv stays
+                    # root-scoped either way (one venv cannot hold two versions
+                    # of a distribution), so the requirement line has to name
+                    # the real path -- otherwise the installer is handed a
+                    # directory that does not exist and reports the package as
+                    # missing rather than mislocated.
+                    pkg_path = getattr(pkg, "path", None) or "%s/%s" % (
+                        packages_dir, pkg.name)
+                    pkg_path = pkg_path.replace("\\", "/")
                     # The installer refers to a local tree by its declared
                     # distribution name, which need not match the directory.
                     dist = _project_name_at(pkg_path) or pkg.name

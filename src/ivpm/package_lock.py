@@ -34,6 +34,8 @@ import subprocess
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from . import platform_info
+
 _logger = logging.getLogger("ivpm.package_lock")
 
 # Version 2 keys the ``packages`` map by *scope path* rather than bare package
@@ -145,15 +147,68 @@ def _entry_scope(key: str, entry: dict) -> str:
     return key.rsplit("/", 1)[0] if "/" in key else ""
 
 
+def current_platform() -> str:
+    """``"{ivpm_os}-{ivpm_arch}"`` for the running machine.
+
+    The same string a manifest sees as ``${{ivpm_platform}}``, so a
+    ``resolved_on`` value is directly comparable to it.
+    """
+    return platform_info.as_variables(platform_info.probe())["ivpm_platform"]
+
+
+def pkg_platform(pkg) -> str:
+    """The platform *pkg* was resolved for.
+
+    Its manifest-resolved ``${{ivpm_platform}}`` when there is one, so a
+    ``-D ivpm_os=macos`` cross-resolution is tagged ``macos-...`` rather than
+    with the machine that ran it. Falls back to the probe for packages that
+    did not come from a manifest resolve (the lock reader, clone providers).
+    """
+    return getattr(pkg, "resolved_platform", None) or current_platform()
+
+
+def _lock_src(pkg) -> str:
+    """The source-type spec name to record for *pkg*.
+
+    ``Package.src_type`` is not always a spec name. ``PackageFile`` (and so
+    ``PackageHttp``) stores the archive *extension* there -- ``".tar.gz"``,
+    ``".tar.xz"`` -- because that is what its unpacker keys on. Recording that
+    verbatim silently dropped every http-family entry out of the typed branch
+    below, so the lock kept no ``url``, ``etag`` or ``cache`` for a downloaded
+    archive at all, and reproduction could not rebuild it.
+
+    Extensions map back through ``Ext2SourceType``; a ``SourceType`` enum
+    (some providers set one) maps through ``SourceType2Spec``; anything else
+    is already a spec name.
+    """
+    from .package import Ext2SourceType, SourceType2Spec
+    src = getattr(pkg, "src_type", None) or ""
+    if hasattr(src, "name"):
+        return SourceType2Spec.get(src, src.name.lower())
+    src = str(src)
+    src_t = Ext2SourceType.get(src)
+    if src_t is not None:
+        return SourceType2Spec[src_t]
+    return src
+
+
+def _lock_entry_src(entry: dict) -> str:
+    """The source-type spec name of an existing lock *entry*.
+
+    Locks written before ``_lock_src`` existed carry an extension here; map
+    them the same way so an old lock still reconstructs.
+    """
+    from .package import Ext2SourceType, SourceType2Spec
+    src = entry.get("src", "") or ""
+    src_t = Ext2SourceType.get(src)
+    if src_t is not None:
+        return SourceType2Spec[src_t]
+    return src
+
+
 def _entry_from_pkg(pkg) -> dict:
     """Build a lock-file entry dict from a resolved Package object."""
-    src = getattr(pkg, "src_type", None) or ""
-    # Normalize src: may be a SourceType enum or a string
-    if hasattr(src, "name"):
-        from .package import SourceType2Spec
-        src = SourceType2Spec.get(src, src.name.lower())
-    else:
-        src = str(src)
+    src = _lock_src(pkg)
     entry = {
         "src": src,
         "resolved_by": pkg.resolved_by or "root",
@@ -193,6 +248,13 @@ def _entry_from_pkg(pkg) -> dict:
         entry["etag"] = getattr(pkg, "resolved_etag", None)
         entry["last_modified"] = getattr(pkg, "resolved_last_modified", None)
         entry["cache"] = getattr(pkg, "cache", None)
+        # For these types the URL *is* the artifact, so a lock committed from
+        # Linux would otherwise hand a macOS teammate a Linux tarball with a
+        # perfectly valid ETag. Record the platform that resolved it -- but
+        # only when the URL actually depended on one, so platform-independent
+        # packages and every pre-existing lock file are unchanged.
+        if getattr(pkg, "used_derived_vars", None):
+            entry["resolved_on"] = pkg_platform(pkg)
 
     elif src == "pypi":
         entry["version_requested"] = getattr(pkg, "version", None)
@@ -226,7 +288,7 @@ def _entry_from_pkg(pkg) -> dict:
 
 def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
     """Return True if the user-specified fields of *pkg* match *lock_entry*."""
-    src = getattr(pkg, "src_type", None) or ""
+    src = _lock_src(pkg)
 
     # A patch-set change (different MD5/order/membership) is a spec change for
     # every source type -- check it before the type-specific / extension paths.
@@ -253,6 +315,12 @@ def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
             and getattr(pkg, "version", None) == lock_entry.get("version_requested")
         )
     elif src in ("http", "tgz", "txz", "zip", "jar"):
+        # An entry resolved on another platform does not describe this one,
+        # whatever its URL says. Reporting a mismatch is what sends the
+        # package back through the manifest to be re-resolved here.
+        resolved_on = lock_entry.get("resolved_on")
+        if resolved_on is not None and resolved_on != pkg_platform(pkg):
+            return False
         return getattr(pkg, "url", None) == lock_entry.get("url")
     elif src == "pypi":
         return getattr(pkg, "version", None) == lock_entry.get("version_requested")
@@ -720,7 +788,7 @@ class IvpmLockReader:
             name = _entry_name(key, entry)
             if not include_nested and _entry_scope(key, entry):
                 continue
-            src = entry.get("src", "")
+            src = _lock_entry_src(entry)
             pkg = None
 
             if src == "git":
@@ -744,6 +812,21 @@ class IvpmLockReader:
                 pkg = p
 
             elif src in ("http", "tgz", "txz", "zip", "jar"):
+                # 'resolved_on' says the locked URL is one platform's
+                # artifact. Reproduction has no manifest to re-resolve from,
+                # so fetching it anyway would silently install (say) a Linux
+                # toolchain on macOS -- exactly what the tag exists to
+                # prevent. Say so instead.
+                resolved_on = entry.get("resolved_on")
+                if resolved_on is not None and resolved_on != current_platform():
+                    from .utils import fatal
+                    fatal(
+                        "Package '%s' in %s was resolved on %s, but this is %s. "
+                        "Its URL is platform-specific, and a lock file cannot "
+                        "be re-resolved. Run 'ivpm update' to regenerate the "
+                        "lock on this platform." % (
+                            name, self.lock_path, resolved_on,
+                            current_platform()))
                 p = PackageHttp(name)
                 p.url = entry.get("url")
                 p.resolved_etag = entry.get("etag")

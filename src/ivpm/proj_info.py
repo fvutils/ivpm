@@ -25,7 +25,7 @@ from enum import Enum, auto
 from ivpm.packages_info import PackagesInfo
 from .ivpm_yaml_reader import IvpmYamlReader
 from .msg import error, fatal, note
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Set
 from .env_spec import EnvSpec
 
 
@@ -128,6 +128,12 @@ class ProjInfo():
         # name (e.g. "direnv"), value is the raw dict/value from YAML.
         self.handler_configs : Dict[str, object] = {}
         self.resolved_vars : Dict[str, str] = {}
+        # Subset of resolved_vars whose value is a function of the environment:
+        # every ``ivpm_*`` platform builtin, plus every variable produced by a
+        # ``match``. These are deliberately *not* persisted to ivpm.json --
+        # persisted values outrank defaults, so a derived value written on one
+        # machine would beat the match on another. See project_ops.
+        self.derived_vars : Set[str] = set()
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()

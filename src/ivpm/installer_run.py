@@ -46,6 +46,14 @@ class InstallerResult:
     lines      : List[str] = dc.field(default_factory=list)
     cmd        : List[str] = dc.field(default_factory=list)
 
+    #: The installer itself could not be started, as opposed to running and
+    #: failing. Distinguished explicitly because the synthesised exit code for
+    #: this case (127) is also what a *successfully started* installer returns
+    #: when a command inside it is missing -- `npm install` reports 127 when a
+    #: lifecycle script hits `tsc: not found`. Callers that read the code alone
+    #: told the user to install npm when npm was working perfectly well.
+    spawn_failed : bool = False
+
     @property
     def ok(self) -> bool:
         return self.returncode == 0
@@ -106,7 +114,8 @@ def run_installer(cmd,
         return InstallerResult(
             returncode=127,
             lines=["%s: command not found (%s)" % (cmd[0], e)],
-            cmd=cmd)
+            cmd=cmd,
+            spawn_failed=True)
 
     return InstallerResult(returncode=returncode, lines=lines, cmd=cmd)
 

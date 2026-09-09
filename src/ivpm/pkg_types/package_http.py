@@ -48,7 +48,7 @@ class PackageHttp(PackageFile):
         src = getattr(self, "_pristine_archive", None)
         if src is None or not os.path.isfile(src):
             return                       # nothing to retain; restore returns False
-        ext = self.src_type or os.path.splitext(src)[1]
+        ext = self.resolve_archive_ext() or os.path.splitext(src)[1]
         ivpm_dir = os.path.join(pkg_dir, ".ivpm")
         os.makedirs(ivpm_dir, exist_ok=True)
         dest = os.path.join(ivpm_dir, "base" + ext)
@@ -144,7 +144,7 @@ class PackageHttp(PackageFile):
         """Resolve the base version (ETag/Last-Modified), then hand off to the
         patch-aware resolver, which owns the cache interaction."""
         from ..patch import PatchAwareResolver
-        base_version = self._get_url_version(self.url)
+        base_version = self._cache_version()
         return PatchAwareResolver().resolve(update_info, self, base_version)
 
     def update(self, update_info : ProjectUpdateInfo):
@@ -237,13 +237,35 @@ class PackageHttp(PackageFile):
             import hashlib
             return hashlib.md5(url.encode()).hexdigest()[:16]
     
+    def _cache_version(self) -> str:
+        """Cache version identifying the artifact this package resolves to.
+
+        The URL's ETag / Last-Modified identifies the *bytes*, but the cache
+        is keyed on (package name, version) -- and one package name can resolve
+        to a different URL per platform once its ``url:`` reads a platform
+        variable. Two platforms' artifacts would then contend for one key, and
+        a shared cache would serve the first writer's bytes to everyone.
+
+        So when the entry consumed a derived variable, fold a digest of the
+        resolved URL in. When it did not -- every manifest written before this
+        feature existed -- the string is byte-identical to what it always was,
+        which is what keeps existing cache entries valid.
+        """
+        base_version = self._get_url_version(self.url)
+        if not getattr(self, "used_derived_vars", None):
+            return base_version
+        import hashlib
+        digest = hashlib.sha256(self.url.encode()).hexdigest()[:12]
+        return "%s_%s" % (base_version, digest)
+
     def _update_with_cache(self, update_info: ProjectUpdateInfo, pkg_dir: str):
         """Update using the cache."""
         note("loading package %s with cache" % self.name)
-        
-        # Get version from URL metadata
-        version = self._get_url_version(self.url)
-        
+
+        # Get version from URL metadata (plus the resolved-artifact digest
+        # when this package's URL is platform-dependent)
+        version = self._cache_version()
+
         provider = update_info.get_cache_provider()
         result = provider.lookup(self, version)
 

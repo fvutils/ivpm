@@ -17,6 +17,7 @@
 #*
 #****************************************************************************
 import dataclasses as dc
+import os
 from .utils import fatal, getlocstr
 
 
@@ -230,11 +231,33 @@ class RawContentType(PkgContentType):
 # Built-in: node
 # ---------------------------------------------------------------------------
 
+def _norm_subdir(value, si) -> str:
+    """Validate and normalise a ``subdir`` value to a relative POSIX path.
+
+    Rejected at parse time rather than at use: an absolute path or one that
+    climbs out with ``..`` would resolve outside the fetched package, and the
+    generated ``file:`` spec would silently point somewhere the manifest never
+    named. Windows separators are accepted and normalised, because the value
+    ends up in a package.json where npm wants forward slashes regardless of
+    the platform that wrote it.
+    """
+    text = str(value).strip().replace("\\", "/").strip("/")
+    if not text or text == ".":
+        return None
+    parts = [p for p in text.split("/") if p and p != "."]
+    if os.path.isabs(str(value)) or ".." in parts:
+        fatal("Invalid 'subdir' for type 'node': %r must be a relative path "
+              "inside the package, with no '..' segments @ %s" % (
+                  value,
+                  getlocstr(value) if hasattr(value, 'srcinfo') else str(si)))
+    return "/".join(parts)
+
+
 @dc.dataclass
 class NodeTypeData(TypeData):
     """Type-specific data for packages processed by the Node handler.
 
-    Both fields default to ``None``, meaning "not specified", so that a
+    Every field defaults to ``None``, meaning "not specified", so that a
     provider's declaration and a consumer's ``with:`` can be merged field by
     field (see ``TypeData.merge_over``). Concrete defaults are applied by
     ``resolved()`` at the point the handler commits to using the data --
@@ -244,6 +267,20 @@ class NodeTypeData(TypeData):
     """
     dev: bool = None    # install as devDependency (effective default: False)
     link: bool = None   # editable file: install (effective default: True)
+
+    #: Directory *within* the fetched package holding the ``package.json`` npm
+    #: should install. ``None`` -- the effective default -- means the package
+    #: root, which is why it is absent from DEFAULTS: unlike ``dev`` and
+    #: ``link``, "unspecified" and the default value are the same state, so
+    #: there is nothing for ``resolved()`` to fill in.
+    #:
+    #: This exists because a repository whose npm package is one directory
+    #: among several is an ordinary shape, not an exotic one -- a C++ project
+    #: with a TypeScript binding in ``ts/``, a monorepo with ``packages/x``.
+    #: Without it the generated ``file:`` spec names the repository root, npm
+    #: symlinks a directory it cannot read a manifest from, and the install
+    #: *succeeds*: the package is simply not importable afterwards.
+    subdir: str = None
 
     DEFAULTS = {"dev": False, "link": True}
 
@@ -266,7 +303,7 @@ class NodeContentType(PkgContentType):
         return "node"
 
     def create_data(self, with_opts: dict, si) -> NodeTypeData:
-        known = {"dev", "link"}
+        known = {"dev", "link", "subdir"}
         for k in with_opts:
             if k not in known:
                 fatal("Unknown parameter '%s' for type 'node' @ %s" % (
@@ -276,6 +313,8 @@ class NodeContentType(PkgContentType):
             data.dev = bool(with_opts["dev"])
         if "link" in with_opts:
             data.link = bool(with_opts["link"])
+        if "subdir" in with_opts:
+            data.subdir = _norm_subdir(with_opts["subdir"], si)
         data.type_name = self.name
         return data
 
@@ -287,6 +326,7 @@ class NodeContentType(PkgContentType):
             params=[
                 ParamInfo("dev", "Install as devDependency (default: false)", type_hint="bool"),
                 ParamInfo("link", "Use npm link (editable install). Default: true for source packages", type_hint="bool"),
+                ParamInfo("subdir", "Directory within the package holding package.json (default: the package root)", type_hint="str"),
             ],
         )
 
@@ -302,6 +342,10 @@ class NodeContentType(PkgContentType):
                 "link": {
                     "type": "boolean",
                     "title": "Use npm link (editable install). Default: true for source packages."
+                },
+                "subdir": {
+                    "type": "string",
+                    "title": "Directory within the package holding the package.json to install (default: the package root)."
                 }
             }
         }

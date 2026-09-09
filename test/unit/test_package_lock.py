@@ -12,7 +12,8 @@ import tempfile
 import unittest
 
 from ivpm.package_lock import (
-    write_lock, read_lock, check_lock_changes, stamp_root_record, LOCK_VERSION)
+    write_lock, read_lock, check_lock_changes, stamp_root_record,
+    current_platform, _spec_matches_lock, LOCK_VERSION)
 from ivpm.packages_info import PackagesInfo
 
 
@@ -444,6 +445,139 @@ class TestPackageLock(unittest.TestCase):
         write_lock(self.tmpdir, self._make_pkgs())
         root = read_lock(os.path.join(self.tmpdir, "package-lock.json"))["root"]
         self.assertEqual(root["config"]["default_package"]["name"], "x")
+
+
+class TestResolvedOn(unittest.TestCase):
+    """``resolved_on`` -- the cross-platform guard on http-family entries.
+
+    An http-family entry's ``url`` *is* the artifact, so a lock committed from
+    Linux would otherwise hand a macOS teammate a Linux tarball with a
+    perfectly valid ETag and no error anywhere.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _make_pkgs(self, *pkgs):
+        pi = PackagesInfo("root")
+        for p in pkgs:
+            pi[p.name] = p
+        return pi
+
+    def _http_pkg(self, name, url, derived=None):
+        from ivpm.pkg_types.package_http import PackageHttp
+        p = PackageHttp(name)
+        p.url = url
+        p.src_type = "http"
+        p.resolved_etag = "etag-1"
+        p.resolved_by = "root"
+        p.used_derived_vars = set(derived or ())
+        return p
+
+    def _entry(self, pkg):
+        write_lock(self.tmpdir, self._make_pkgs(pkg))
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        return data["packages"][pkg.name]
+
+    def test_written_for_derived_package(self):
+        pkg = self._http_pkg("emsdk", "https://ex.com/linux/x.tar.xz",
+                             derived={"p"})
+        self.assertEqual(current_platform(), self._entry(pkg)["resolved_on"])
+
+    def test_records_the_resolved_platform_not_the_running_machine(self):
+        # Cross-resolution (-D ivpm_os=macos on a Linux box) must tag the entry
+        # with the platform it resolved *for*. Tagging it with the machine that
+        # ran the resolve is worse than not tagging it: on the next bare run
+        # here the entry would look native, and the macOS URL would never be
+        # re-resolved.
+        pkg = self._http_pkg("emsdk", "https://ex.com/mac/x-arm64.tar.xz",
+                             derived={"p"})
+        pkg.resolved_platform = "macos-arm64"
+        entry = self._entry(pkg)
+        self.assertEqual("macos-arm64", entry["resolved_on"])
+        self.assertNotEqual(current_platform(), entry["resolved_on"])
+        # ...and it still matches, because the *package* is a macOS package.
+        self.assertTrue(_spec_matches_lock(pkg, entry))
+
+    def test_cross_resolved_entry_rejected_on_a_plain_run(self):
+        # Same lock, read back by a run that did not pass -D: the package now
+        # resolves for this machine, so the macOS entry must not match.
+        pkg = self._http_pkg("emsdk", "https://ex.com/mac/x-arm64.tar.xz",
+                             derived={"p"})
+        pkg.resolved_platform = "macos-arm64"
+        entry = self._entry(pkg)
+
+        native = self._http_pkg("emsdk", "https://ex.com/mac/x-arm64.tar.xz",
+                                derived={"p"})
+        native.resolved_platform = current_platform()
+        self.assertFalse(_spec_matches_lock(native, entry))
+
+    def test_absent_for_non_derived_package(self):
+        # Every manifest written before this feature existed lands here; the
+        # entry shape must be exactly what it always was.
+        pkg = self._http_pkg("plain", "https://ex.com/x.tar.gz")
+        self.assertNotIn("resolved_on", self._entry(pkg))
+
+    def test_gh_rls_entry_unchanged(self):
+        # gh-rls records the repo URL and re-runs asset selection per
+        # platform, so it needs no tag even when it is platform-dependent.
+        pkg = _make_gh_rls_pkg("mytool", "https://github.com/org/mytool")
+        pkg.used_derived_vars = {"p"}
+        write_lock(self.tmpdir, self._make_pkgs(pkg))
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        self.assertNotIn("resolved_on", data["packages"]["mytool"])
+
+    def test_spec_match_rejects_foreign_platform(self):
+        # The URL matches, but it was resolved elsewhere: report a mismatch so
+        # the package goes back through the manifest.
+        pkg = self._http_pkg("emsdk", "https://ex.com/linux/x.tar.xz",
+                             derived={"p"})
+        entry = dict(self._entry(pkg))
+        entry["resolved_on"] = "someother-platform"
+        self.assertFalse(_spec_matches_lock(pkg, entry))
+
+    def test_spec_match_accepts_own_platform(self):
+        pkg = self._http_pkg("emsdk", "https://ex.com/linux/x.tar.xz",
+                             derived={"p"})
+        self.assertTrue(_spec_matches_lock(pkg, self._entry(pkg)))
+
+    def test_entry_without_resolved_on_honoured(self):
+        # Back-compat: an old lock file has no tag at all.
+        pkg = self._http_pkg("plain", "https://ex.com/x.tar.gz")
+        entry = self._entry(pkg)
+        self.assertNotIn("resolved_on", entry)
+        self.assertTrue(_spec_matches_lock(pkg, entry))
+
+    def test_reproduction_of_foreign_entry_is_refused(self):
+        from ivpm.package_lock import IvpmLockReader
+        from ivpm.yamlsrc import SrcLoaderError
+        pkg = self._http_pkg("emsdk", "https://ex.com/linux/x.tar.xz",
+                             derived={"p"})
+        write_lock(self.tmpdir, self._make_pkgs(pkg))
+        lock_path = os.path.join(self.tmpdir, "package-lock.json")
+        data = read_lock(lock_path)
+        data["packages"]["emsdk"]["resolved_on"] = "someother-platform"
+        with open(lock_path, "w") as fp:
+            json.dump(data, fp)
+
+        # Reproduction has no manifest to re-resolve from, so installing the
+        # foreign artifact anyway is exactly the silent failure to avoid.
+        with self.assertRaises(SrcLoaderError) as ctx:
+            IvpmLockReader(lock_path).build_packages_info()
+        self.assertIn("someother-platform", str(ctx.exception))
+
+    def test_reproduction_of_own_entry_works(self):
+        from ivpm.package_lock import IvpmLockReader
+        pkg = self._http_pkg("emsdk", "https://ex.com/linux/x.tar.xz",
+                             derived={"p"})
+        write_lock(self.tmpdir, self._make_pkgs(pkg))
+        lock_path = os.path.join(self.tmpdir, "package-lock.json")
+        pkgs = IvpmLockReader(lock_path).build_packages_info()
+        self.assertEqual("https://ex.com/linux/x.tar.xz", pkgs["emsdk"].url)
 
 
 if __name__ == "__main__":

@@ -35,7 +35,7 @@ from ..content_attrib import (
     isolation_note, report_content_failure, report_manifest_problem,
     probe_allowed, report_probe_adoption, set_enrollment,
 )
-from ..manifest_check import check_node_manifest
+from ..manifest_check import ManifestDiag, check_node_manifest
 from .package_handler import PackageHandler, HandlerFatalError
 from .handler_phases import HandlerPhase
 
@@ -176,6 +176,21 @@ def _unlink_root_node_modules(project_root: str, node_modules_dir: str,
     return link_path
 
 
+def _node_pkg_dir(pkg, node_data) -> Optional[str]:
+    """The directory npm should install for *pkg* -- its path, plus ``subdir``.
+
+    One function so the two places that need it (the ``file:`` spec and the
+    manifest read that supplies the dep *key*) cannot drift apart. They
+    disagreeing would install the right directory under the wrong name, or the
+    reverse, and both look like the package simply not being there.
+    """
+    pkg_path = getattr(pkg, "path", None)
+    if not pkg_path:
+        return None
+    subdir = getattr(node_data, "subdir", None)
+    return os.path.join(pkg_path, *subdir.split("/")) if subdir else pkg_path
+
+
 def _read_package_name(pkg_path: str, pkg=None) -> Optional[str]:
     """Return the ``name`` declared by the package.json in *pkg_path*.
 
@@ -265,6 +280,16 @@ class PackageHandlerNode(PackageHandler):
     leaf_when:          ClassVar[Optional[List]] = None
     root_when:          ClassVar[Optional[List]] = None
     phase:              ClassVar[str]            = HandlerPhase.INSTALL
+    #: After the Python environment exists. `npm install` runs a linked source
+    #: package's `prepare` script, which is arbitrary build code -- and a
+    #: TypeScript package generated from a Python tool (a code generator, a
+    #: schema compiler) is an ordinary shape, so `prepare` may well invoke
+    #: something from the venv. Both handlers sit in INSTALL, where the
+    #: tie-break is alphabetical, so without this "node" ran first and such a
+    #: prepare failed against a venv that did not exist yet. The converse --
+    #: a Python build needing the Node environment -- is not something IVPM
+    #: supports, so the dependency runs one way only.
+    run_after:          ClassVar[List[str]]      = ["python"]
     conditions_summary: ClassVar[str]            = ("leaf: all packages; "
                                                      "root: always (skips if no Node packages and no node config)")
 
@@ -332,6 +357,16 @@ class PackageHandlerNode(PackageHandler):
                            ENROLLED_PROVIDES
                            if getattr(node_data, "self_declared", False)
                            else ENROLLED_EXPLICIT)
+            # An explicit declaration is a claim that can be wrong, and until
+            # now nothing checked it: a 'type: node' package whose manifest is
+            # somewhere else (or absent) produced a file: spec naming a
+            # directory npm cannot read, npm reported "added 1 package", and
+            # the update exited 0 leaving a symlink that resolves to nothing.
+            # report_manifest_problem makes that fatal at the entry that
+            # declared it, which is where it can be fixed.
+            if node_data.link:
+                self._check_installable(pkg, node_data,
+                                        strict=_strict(update_info))
             with self._lock:
                 self._source_pkgs[pkg.name] = (pkg, node_data)
                 self._explicit_names.add(pkg.name)
@@ -363,6 +398,45 @@ class PackageHandlerNode(PackageHandler):
                 else:
                     report_manifest_problem(pkg, diag, "node",
                                             strict=_strict(update_info))
+
+    def _linked_source_pkgs(self):
+        """The source packages that are actually in the node environment.
+
+        ``link: false`` means "track the source but keep it out of the node
+        environment", so such a package contributes no ``file:`` dependency and
+        has no ``prepare`` for npm to re-run.
+        """
+        with self._lock:
+            return [name for name, (_pkg, node_data) in self._source_pkgs.items()
+                    if node_data.link]
+
+    def _check_installable(self, pkg, node_data, strict: bool = False):
+        """Verify the directory an explicitly-declared node package names.
+
+        ``check_node_manifest`` returns None for "no package.json at all",
+        which is the *common* failure once ``subdir`` exists -- a wrong subdir,
+        or none where one was needed -- so it is turned into a diagnosis here
+        rather than being treated as "nothing claimed".
+        """
+        pkg_dir = _node_pkg_dir(pkg, node_data)
+        if not pkg_dir:
+            return
+
+        diag = check_node_manifest(pkg_dir)
+        if diag is None:
+            subdir = getattr(node_data, "subdir", None)
+            where = ("in '%s'" % subdir) if subdir else "at its root"
+            hint = ("" if subdir else
+                    "\n  If its package.json is in a subdirectory, name it: "
+                    "type: { node: { subdir: <dir> } }")
+            diag = ManifestDiag(
+                ok=False,
+                path=os.path.join(pkg_dir, "package.json"),
+                reason="does not exist -- there is no package.json %s%s" % (
+                    where, hint))
+
+        if not diag.ok:
+            report_manifest_problem(pkg, diag, "node", strict=strict)
 
     def _harvest_packagejson_pkg(self, pkg, update_info: ProjectUpdateInfo):
         """Read a package.json URL and synthesize PackageNpm entries."""
@@ -493,6 +567,19 @@ class PackageHandlerNode(PackageHandler):
         install_needed = (
             new_hash != self._prev_pkg_json_hash
             or not os.path.isdir(node_modules_dir)
+            # A linked source package builds itself through npm's `prepare`
+            # script, which npm re-runs on every install of a file: dependency
+            # -- that is how a source dependency's build output stays current
+            # with its sources. The hash only covers the *generated manifest*,
+            # which does not change when the linked package's sources do, so
+            # skipping here means a source dependency is fetched, its build
+            # never re-runs, and the consumer keeps building against whatever
+            # the first update produced.
+            #
+            # Only linked source packages force it. A registry-only
+            # environment has nothing whose sources could have changed, and
+            # that is the case the skip was added for.
+            or bool(self._linked_source_pkgs())
         )
         self._current_pkg_json_hash = new_hash
 
@@ -556,7 +643,7 @@ class PackageHandlerNode(PackageHandler):
             # environment" -- it is not a request for a non-editable install.
             if not node_data.link:
                 continue
-            pkg_path = getattr(pkg, "path", None)
+            pkg_path = _node_pkg_dir(pkg, node_data)
             if not pkg_path:
                 continue
             # Relative so the whole tree stays relocatable: the symlinks npm
@@ -602,7 +689,10 @@ class PackageHandlerNode(PackageHandler):
         # at precisely the moment it mattered.
         result = run_installer(cmd, quiet=suppress)
 
-        if result.returncode == 127:
+        # spawn_failed, not returncode == 127: npm exits 127 when a lifecycle
+        # script it ran hits a missing command, and reading the code alone told
+        # the user to install npm when npm had just run a build for them.
+        if result.spawn_failed:
             fatal("'%s' not found — please install Node.js and %s" % (manager, manager))
         elif not result.ok:
             self._report_install_failure(cmd, result, update_info,

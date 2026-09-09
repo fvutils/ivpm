@@ -11,7 +11,7 @@ from .package import Package
 from .env_spec import EnvSpec
 
 from .utils import fatal, getlocstr, warning
-from .variables import resolve_variables
+from .variables import get_used_vars, resolve_variables
 from ivpm.package import Package, PackageType, SourceType
 from ivpm.packages_info import PackagesInfo
 from ivpm.pkg_content_type import parse_type_field
@@ -297,8 +297,15 @@ class IvpmYamlReader(object):
     
     def __init__(self):
         self.debug = False
-        pass
-    
+        # Names whose value is a function of the environment (platform
+        # builtins and match results) for the manifest currently being read.
+        # Consulted in read_deps to record, per package, which of them its
+        # fields actually consumed -- that is what makes the cache key and the
+        # lock entry platform-aware (see platform-match-design.md 5.5, 5.6).
+        self._derived_vars = set()
+        # The manifest's resolved ${{ivpm_platform}} for the read in progress.
+        self._resolved_platform = None
+
     def read(self, fp, name, cli_overrides=None, persisted_vars=None,
              allow_include=True, is_root=False) -> 'ProjInfo':
         """Read a manifest into a ProjInfo.
@@ -325,8 +332,12 @@ class IvpmYamlReader(object):
         pkg = self._load_merged_pkg(fp, name, allow_include=allow_include)
 
         # Resolve ${{var}} references before any other processing
+        derived_vars = set()
         pkg, resolved_vars = resolve_variables(
-            pkg, cli_overrides or {}, persisted_vars or {})
+            pkg, cli_overrides or {}, persisted_vars or {},
+            derived_out=derived_vars)
+        self._derived_vars = derived_vars
+        self._resolved_platform = resolved_vars.get("ivpm_platform")
 
         if "name" not in pkg.keys():
             fatal("Missing 'name' key in package (file %s)" % name, pkg)
@@ -343,6 +354,7 @@ class IvpmYamlReader(object):
 
         ret.name = pkg["name"]
         ret.resolved_vars = resolved_vars
+        ret.derived_vars = derived_vars
         if "description" in pkg.keys():
             ret.description = pkg["description"]
         if "version" in pkg.keys():
@@ -839,6 +851,15 @@ class IvpmYamlReader(object):
                         d["name"], src, getlocstr(d),
                         ", ".join(pt_rgy.getSrcTypes())), d)
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
+
+            # Which environment-derived variables this entry's fields read.
+            # Non-empty means the resolved artifact is platform-specific, so
+            # the cache key and the lock entry must say which platform.
+            pkg.used_derived_vars = get_used_vars(d) & self._derived_vars
+            # The platform this entry resolved *for*, which is the overridden
+            # value when -D / IVPM_VAR_* cross-resolved it -- not the machine
+            # running the resolve.
+            pkg.resolved_platform = self._resolved_platform
 
             # Validate keys against the *source-specific* accepted set. Each
             # provider declares the options it understands via dep_keys(), so a

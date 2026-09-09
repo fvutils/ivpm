@@ -133,6 +133,51 @@ Fields common to all entries:
     factory.  Records the factory's ``"<url>#<dep-set>"`` so ``ivpm show deps``
     can explain where the dependency came from.  See :ref:`ivpm-yaml-factory`.
 
+``resolved_on`` *(optional)*
+    See below.
+
+Platform-Specific Entries (``resolved_on``)
+===========================================
+
+For ``http``, ``tgz``, ``txz``, ``zip`` and ``jar`` entries the ``url`` *is*
+the artifact -- unlike ``gh-rls``, which records the repository and the
+release tag and re-runs asset selection on each machine.  So when such a URL
+was built from a platform variable (see :doc:`variables`), the entry records
+the platform that resolved it:
+
+.. code-block:: json
+
+    {
+      "src": "url",
+      "url": "https://.../linux/f04ea.../wasm-binaries.tar.xz",
+      "etag": "\"-CNLglcuhzJYDEAE=\"",
+      "resolved_on": "linux-x86_64"
+    }
+
+The value is ``"{os}-{arch}"`` -- the same string a manifest sees as
+``${{ivpm_platform}}``, which is the platform the entry was resolved *for*.
+With ``-D ivpm_os=macos`` on a Linux machine the entry is tagged
+``macos-arm64``, not ``linux-x86_64``; tagging it with the resolving machine
+would make it look native on the next bare run there and it would never be
+re-resolved.
+
+``resolved_on`` is written **only** when the entry actually used a platform
+variable, so platform-independent packages and every lock file written before
+this feature existed are unchanged, and an entry without it is honoured
+exactly as before.
+
+When it is present and does not match the current platform:
+
+- On ``ivpm update``, the entry is treated as not matching, and the package
+  is re-resolved from the manifest for this platform.  A mismatch is not an
+  error -- re-resolution is the expected outcome.
+- On ``ivpm update --lock`` (reproduction), the lock is the only source of
+  packages, so there is nothing to re-resolve from and IVPM reports an error
+  naming both platforms.  Regenerate the lock on this platform.
+
+Without this, a lock committed from Linux would hand a macOS teammate a Linux
+tarball with a perfectly valid ETag and no error anywhere.
+
 Dep-Set Factory Sources (``ivpm_sources``)
 ==========================================
 

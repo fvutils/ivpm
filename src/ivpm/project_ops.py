@@ -385,8 +385,18 @@ class ProjectOps(object):
                 ivpm_json = {"dep-set": dep_sets[0] if dep_sets else None}
                 if dep_sets is not None and len(dep_sets) > 1:
                     ivpm_json["dep-sets"] = list(dep_sets)
-                if proj_info.resolved_vars:
-                    ivpm_json["vars"] = proj_info.resolved_vars
+                # Persist only variables that are a pinned *choice*. A derived
+                # variable -- a platform builtin, or one produced by a match --
+                # is a function of the environment, and persisted values sit
+                # ABOVE defaults in precedence (variables._merge_values). So a
+                # persisted derived value would beat the match on a different
+                # machine: resolve on Linux, move the tree to a Mac, and the
+                # stored 'linux' silently wins. Do not "simplify" this away.
+                _derived = getattr(proj_info, "derived_vars", set()) or set()
+                _persist_vars = {k: v for k, v in proj_info.resolved_vars.items()
+                                 if k not in _derived}
+                if _persist_vars:
+                    ivpm_json["vars"] = _persist_vars
                 state_contributions = pkg_handler.get_state_entries()
                 if state_contributions:
                     ivpm_json["handlers"] = state_contributions

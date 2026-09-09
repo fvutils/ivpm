@@ -34,6 +34,11 @@ from ..utils import getlocstr
 @dc.dataclass
 class PackageFile(PackageURL):
     unpack : bool = None
+    # The archive extension the unpacker keys on (".tar.gz", ".zip", ...),
+    # derived from the URL. Distinct from src_type, which is the source-type
+    # spec ("file", "http", "gh-rls") that the lock file and status output
+    # record. See process_options.
+    archive_ext : str = None
 
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
         # Report this package for cache statistics (file packages are not cacheable by default)
@@ -54,10 +59,31 @@ class PackageFile(PackageURL):
         else:
             return None
     
+    def resolve_archive_ext(self) -> str:
+        """The archive extension to unpack with.
+
+        ``archive_ext`` when ``process_options`` set it. Otherwise fall back,
+        because not every package is built through the reader: the lock reader
+        constructs a ``PackageHttp`` and assigns ``src_type`` directly, and so
+        does a fair amount of test code. An extension-valued ``src_type`` is
+        honoured for those; failing that, the URL is re-read.
+        """
+        if self.archive_ext:
+            return self.archive_ext
+        src_type = self.src_type or ""
+        if src_type.startswith("."):
+            return ".tar.gz" if src_type == ".tgz" else src_type
+        return self.ext_from_url(self.url)
+
     def _install(self, pkg_src, pkg_path):
-        if self.src_type in (".tar.gz", ".tar.xz", ".tar.bz2"):
+        # A local source may be spelled as a file:// URL; the extractors want a
+        # path. (PackageDir strips the same prefix.)
+        if isinstance(pkg_src, str) and pkg_src.startswith("file://"):
+            pkg_src = pkg_src[7:]
+        ext = self.resolve_archive_ext()
+        if ext in (".tar.gz", ".tar.xz", ".tar.bz2"):
             self._install_tgz(pkg_src, pkg_path)
-        elif self.src_type in (".jar", ".zip"):
+        elif ext in (".jar", ".zip"):
             self._install_zip(pkg_src, pkg_path)
         else:
             hint = ""
@@ -66,7 +92,7 @@ class PackageFile(PackageURL):
             raise Exception(
                 "Package '%s': unsupported archive type '%s' (url: %s) @ %s\n"
                 "  Supported types: .tar.gz, .tar.xz, .tar.bz2, .jar, .zip%s" % (
-                    self.name, self.src_type if self.src_type else "<none detected>",
+                    self.name, ext if ext else "<none detected>",
                     self.url, getlocstr(self), hint))
 
     def _install_tgz(self, pkg_src, pkg_path):
@@ -163,29 +189,53 @@ class PackageFile(PackageURL):
     def dep_keys(cls):
         return super().dep_keys() | {"unpack"}
 
+    @staticmethod
+    def ext_from_url(url: str) -> str:
+        """The archive extension implied by *url* (``".tar.gz"``, ``".zip"``...).
+
+        ``""`` when the URL carries no usable extension.
+        """
+        url = url or ""
+        ext = os.path.splitext(url)[1]
+        if ext == ".tgz":
+            return ".tar.gz"
+        if ext in (".gz", ".xz", ".bz2"):
+            # Two-part extension: back up over the inner '.' so ".tar.gz"
+            # survives rather than a bare ".gz".
+            pdot = url.rfind('.')
+            pdot = url.rfind('.', 0, pdot - 1)
+            if pdot >= 0:
+                return url[pdot:]
+        return ext
+
     def process_options(self, opts, si):
         super().process_options(opts, si)
 
+        # Two different things used to share ``src_type``: the source-type
+        # *spec* the user wrote ("file", "http", "url") and the archive
+        # *extension* the unpacker keys on (".tar.gz"). Writing the spec into
+        # it meant `src: http` and `src: file` unpacked nothing and died with
+        # "unsupported archive type 'http'" -- only the auto-detected form,
+        # which happened to leave an extension there, ever worked. They are
+        # now separate: archive_ext is what _install reads.
+        self.archive_ext = self.ext_from_url(self.url)
+
         if "src" in opts.keys():
-            self.src_type = opts["src"]
+            src = str(opts["src"])
+            self.src_type = src
+            # An extension-valued `src:` (`src: .tar.gz`) is a deliberate
+            # override for a URL whose own extension is missing or wrong.
+            if src.startswith("."):
+                self.archive_ext = ".tar.gz" if src == ".tgz" else src
         else:
-            ext = os.path.splitext(self.url)
-            if ext == ".tgz":
-                self.src_type = ".tar.gz"
-            else:
-                self.src_type = os.path.splitext(self.url)[1]
-                if self.src_type in [".gz", ".xz", ".bz2"]:
-                    pdot = self.url.rfind('.')
-                    pdot = self.url.rfind('.', 0, pdot-1)
-                    self.src_type = self.url[pdot:]
+            # No explicit spec: the extension doubles as the source type, as
+            # it always has, so lock entries and status output are unchanged.
+            self.src_type = self.archive_ext
 
         if "unpack" in opts.keys():
             self.unpack = opts["unpack"]
         else:
-            if self.src_type in [".jar"]:
-                self.unpack = False
-            else:
-                self.unpack = True
+            self.unpack = self.archive_ext not in (".jar",)
 
     @staticmethod
     def create(name, opts, si) -> 'PackageFile':

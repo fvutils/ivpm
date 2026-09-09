@@ -298,5 +298,112 @@ class TestUpdateInfoCacheProvider(unittest.TestCase):
             self.assertIsInstance(ui.get_cache_provider(), NullCacheProvider)
 
 
+class TestArtifactCacheIdentity(unittest.TestCase):
+    """The cache version must identify the *resolved artifact*, not the inputs
+    that chose it.
+
+    The cache is keyed on (package name, version), and one package name can
+    resolve to a different URL per platform once its ``url:`` reads a platform
+    variable. If the version does not say which, a shared cache serves the
+    first writer's bytes to every other platform -- silently.
+    """
+
+    def _http_pkg(self, url, derived=None):
+        from ivpm.pkg_types.package_http import PackageHttp
+        p = PackageHttp("emsdk")
+        p.url = url
+        p.used_derived_vars = set(derived or ())
+        return p
+
+    def _version(self, pkg, base="etag-abc"):
+        with patch.object(type(pkg), "_get_url_version", return_value=base):
+            return pkg._cache_version()
+
+    def test_same_package_two_platforms_differ(self):
+        # Same package, same ETag-shaped base version, different artifact.
+        linux = self._http_pkg("https://ex.com/linux/wasm.tar.xz", {"p"})
+        macos = self._http_pkg("https://ex.com/mac/wasm.tar.xz", {"p"})
+        self.assertNotEqual(self._version(linux), self._version(macos))
+
+    def test_no_derived_vars_is_byte_identical_to_the_base_version(self):
+        # The guard against invalidating every existing cache entry: a
+        # package that uses no platform variable must key exactly as before.
+        pkg = self._http_pkg("https://ex.com/x.tar.gz")
+        self.assertEqual("etag-abc", self._version(pkg))
+
+    def test_derived_version_extends_the_base_version(self):
+        pkg = self._http_pkg("https://ex.com/linux/x.tar.xz", {"p"})
+        version = self._version(pkg)
+        self.assertTrue(version.startswith("etag-abc_"), version)
+        self.assertNotEqual("etag-abc", version)
+
+    def test_version_is_stable_for_the_same_url(self):
+        a = self._http_pkg("https://ex.com/linux/x.tar.xz", {"p"})
+        b = self._http_pkg("https://ex.com/linux/x.tar.xz", {"p", "sfx"})
+        self.assertEqual(self._version(a), self._version(b))
+
+
+class TestGhRlsCacheIdentity(unittest.TestCase):
+    """The design 2.4 regression: the gh-rls cache key omitted the selection
+    inputs, so two machines that select *different* assets stored them under
+    one key. Keying on the selected asset URL is stable no matter what a
+    future selector consults."""
+
+    def _pkg(self):
+        from ivpm.pkg_types.package_gh_rls import PackageGhRls
+        return PackageGhRls("mytool")
+
+    def _version(self, asset_url, release_tag="v1.2.3"):
+        # The production key computation, exercised without the network:
+        # _update_with_cache calls exactly this with the selected asset URL.
+        return self._pkg()._cache_version(release_tag, asset_url)
+
+    def _select(self, assets, arch, glibc):
+        pkg = self._pkg()
+        return pkg._select_linux_asset(assets, arch, glibc)
+
+    def test_two_glibc_values_select_different_assets_and_keys(self):
+        assets = [
+            {"name": "mytool-manylinux_2_17_x86_64.tar.gz",
+             "browser_download_url": "https://ex.com/a-2-17.tar.gz"},
+            {"name": "mytool-manylinux_2_34_x86_64.tar.gz",
+             "browser_download_url": "https://ex.com/a-2-34.tar.gz"},
+        ]
+        old = self._select(assets, "x86_64", (2, 17))
+        new = self._select(assets, "x86_64", (2, 34))
+        self.assertIsNotNone(old)
+        self.assertIsNotNone(new)
+        old_url = old["browser_download_url"]
+        new_url = new["browser_download_url"]
+        self.assertNotEqual(old_url, new_url)
+        # Before the fix both were "v1.2.3_linux_x86_64".
+        self.assertNotEqual(self._version(old_url), self._version(new_url))
+
+    def test_two_distro_versions_select_different_assets_and_keys(self):
+        assets = [
+            {"name": "mytool-ubuntu-22.04-x86_64.tar.gz",
+             "browser_download_url": "https://ex.com/jammy.tar.gz"},
+            {"name": "mytool-ubuntu-24.04-x86_64.tar.gz",
+             "browser_download_url": "https://ex.com/noble.tar.gz"},
+        ]
+        pkg = self._pkg()
+        with patch.object(type(pkg), "_get_linux_distro_info",
+                          return_value=("ubuntu", "22.04")):
+            jammy = pkg._select_linux_asset(assets, "x86_64", (2, 35))
+        with patch.object(type(pkg), "_get_linux_distro_info",
+                          return_value=("ubuntu", "24.04")):
+            noble = pkg._select_linux_asset(assets, "x86_64", (2, 39))
+        self.assertIsNotNone(jammy)
+        self.assertIsNotNone(noble)
+        jammy_url = jammy["browser_download_url"]
+        noble_url = noble["browser_download_url"]
+        self.assertNotEqual(jammy_url, noble_url)
+        self.assertNotEqual(self._version(jammy_url), self._version(noble_url))
+
+    def test_same_asset_gives_the_same_key(self):
+        url = "https://ex.com/a-2-17.tar.gz"
+        self.assertEqual(self._version(url), self._version(url))
+
+
 if __name__ == '__main__':
     unittest.main()

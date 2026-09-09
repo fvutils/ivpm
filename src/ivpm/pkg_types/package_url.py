@@ -43,8 +43,51 @@ class PackageURL(Package):
 
     @staticmethod
     def create(name, opts, si) -> 'PackageURL':
-        pkg = PackageURL(name)
+        """Build the concrete package ``src: url`` names.
+
+        PackageURL is the abstract base of PackageDir/PackageFile/PackageHttp
+        and has no ``update()`` of its own, so returning one made ``src: url``
+        report success and fetch nothing at all. It resolves to the same type
+        the reader would have auto-detected had ``src:`` been omitted -- which
+        is what "the fetch method is resolved from the URL" has always meant.
+        """
+        from ..utils import fatal, getlocstr
+        from .package_dir import PackageDir
+        from .package_file import PackageFile
+        from .package_http import PackageHttp
+
+        url = opts.get("url")
+        if url is None:
+            fatal("Package '%s': 'src: url' requires a 'url' @ %s" % (
+                name, getlocstr(opts)), opts)
+        url = str(url)
+
+        if url.endswith(".git"):
+            fatal("Package '%s': 'src: url' cannot fetch a git repository "
+                  "(url: %s) @ %s\n  Use 'src: git' instead." % (
+                      name, url, getlocstr(opts)), opts)
+
+        if url.startswith("http://") or url.startswith("https://"):
+            cls = PackageHttp
+        elif url.startswith("file://"):
+            # A file:// archive is a PackageFile; a plain directory is a
+            # PackageDir. The extension is what separates them.
+            cls = PackageFile if PackageFile.ext_from_url(url) else PackageDir
+        else:
+            fatal("Package '%s': cannot determine how to fetch '%s' @ %s\n"
+                  "  'src: url' understands http://, https:// and file:// "
+                  "URLs; name another src explicitly for anything else." % (
+                      name, url, getlocstr(opts)), opts)
+
+        pkg = cls(name)
         pkg.process_options(opts, si)
+        # process_options recorded the literal spec "url". Report the resolved
+        # type instead, so the lock file records (and can reproduce) the entry
+        # exactly as the auto-detected spelling does.
+        if isinstance(pkg, PackageFile):
+            pkg.src_type = pkg.archive_ext
+        elif isinstance(pkg, PackageDir):
+            pkg.src_type = "dir"
         return pkg
 
     @classmethod

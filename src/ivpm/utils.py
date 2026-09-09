@@ -315,7 +315,10 @@ def which(exe : str):
     return None  
       
 def getlocstr(e):
-    if hasattr(e, "srcinfo"):
+    # ``srcinfo`` may be present but None (a package built outside the reader),
+    # so test the value, not just the attribute -- otherwise formatting a
+    # diagnostic raises AttributeError and hides the diagnostic.
+    if getattr(e, "srcinfo", None) is not None:
         return "%s:%d:%d" % (
             e.srcinfo.filename, 
             e.srcinfo.lineno,

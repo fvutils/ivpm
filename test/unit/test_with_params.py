@@ -95,6 +95,32 @@ class TestWriteRequirementsTxt(unittest.TestCase):
         self.assertTrue(lines[0].startswith("-e "), lines)
         self.assertIn("mypkg", lines[0])
 
+    def test_src_uses_the_fetched_path_not_deps_dir_plus_name(self):
+        """A package below a `deps-mode: nested` boundary is not in the root
+        deps-dir, and the requirement line has to name where it actually is.
+
+        The path used to be reconstructed as `<root deps-dir>/<name>`, which
+        assumes every package sits directly in the root deps-dir. Nesting makes
+        that false -- the package lives in *its parent's* deps-dir -- while the
+        venv stays root-scoped (one venv cannot hold two versions of a
+        distribution), so the two genuinely differ. The installer was handed a
+        directory that does not exist and reported the package as missing
+        rather than mislocated.
+        """
+        pkg = _make_src_pkg("pyastbuilder", type_data=None)
+        pkg.path = "/ws/packages/pssparser/packages/pyastbuilder"
+        lines = _write([pkg], packages_dir="/ws/packages")
+        self.assertEqual(len(lines), 1)
+        self.assertIn("/ws/packages/pssparser/packages/pyastbuilder", lines[0])
+        self.assertNotIn("/ws/packages/pyastbuilder ", lines[0] + " ")
+
+    def test_src_without_path_falls_back_to_deps_dir(self):
+        """No `path` -- the flat case, and every existing caller -- is
+        unchanged."""
+        pkg = _make_src_pkg("mypkg", type_data=None)
+        lines = _write([pkg], packages_dir="/ws/packages")
+        self.assertIn("/ws/packages/mypkg", lines[0])
+
     def test_src_with_python_type_data_editable_none(self):
         """PythonTypeData(editable=None) → editable (None means use default)."""
         pkg = _make_src_pkg("mypkg", type_data=PythonTypeData())

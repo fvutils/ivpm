@@ -361,9 +361,24 @@ Use a local directory. Symlinked or copied into ``packages/``.
 URL (``url``)
 -------------
 
-Generic URL source — the fetch method is resolved from the URL extension, just
-like ``http``, but the ``src`` field can be omitted for URLs that IVPM cannot
-auto-detect as a specific type.
+Generic URL source — resolves to the same type IVPM would have auto-detected
+had ``src:`` been omitted:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - URL
+     - Resolves to
+   * - ``https://`` or ``http://``
+     - ``http`` (fetch method from the extension)
+   * - ``file://`` naming an archive
+     - ``file``
+   * - ``file://`` naming a directory
+     - ``dir``
+
+A ``.git`` URL or an unrecognized scheme is an error naming the ``src:`` you
+should have used instead.
 
 **Basic usage:**
 
@@ -382,8 +397,56 @@ auto-detect as a specific type.
 .. note::
 
    In most cases IVPM auto-detects the source type from the URL, so ``src:
-   url`` is rarely needed explicitly.  It is available as an explicit override
-   when the URL extension is unusual but the content is a standard archive.
+   url`` is rarely needed explicitly.  Writing it is a way of saying "this is
+   a fetchable URL, work out how" without committing to a type.
+
+.. note::
+
+   To fetch an archive whose URL carries no usable extension (a download
+   endpoint such as ``?id=7``), name the *extension* as the source type:
+
+   .. code-block:: yaml
+
+       - name: my-package
+         src: .tar.gz
+         url: https://example.com/download?id=7
+
+   The lock file still records the resolved source type, not the literal
+   spelling used here.
+
+**Platform-dependent URLs**
+
+Where a project publishes one archive per platform, the URL can be written as
+a function of the platform using the ``ivpm_*`` builtins and ``match`` (see
+:doc:`variables`), instead of a dep-set per platform.  The Emscripten
+toolchain is the canonical case -- its naming depends on OS and arch
+*independently*:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+
+      vars:
+        emsdk_hash: f04ea239d533260dd1db760dd2d668d5f9a88d6b
+        p:   { match: { on: "${{ivpm_os}}",   cases: { linux: linux, macos: mac, windows: win } } }
+        sfx: { match: { on: "${{ivpm_arch}}", cases: { x86_64: "", arm64: "-arm64" } } }
+        ext: { match: { on: "${{ivpm_os}}",   cases: { windows: zip }, default: tar.xz } }
+
+      dep-sets:
+        - name: wasm-build
+          deps:
+            - name: emsdk
+              src: url
+              cache: true
+              url: https://storage.googleapis.com/webassembly/emscripten-releases-builds/${{p}}/${{emsdk_hash}}/wasm-binaries${{sfx}}.${{ext}}
+
+``.tar.xz`` is a first-class archive type, and the bucket serves both ``ETag``
+and ``Last-Modified``, so ``cache: true`` needs no further ceremony.  IVPM
+folds the resolved URL into the cache key for any dependency whose URL was
+built from a platform variable, so two platforms never contend for one cache
+entry (see :doc:`caching`), and the lock entry records which platform resolved
+it (see :doc:`package_lock`).
 
 GitHub Releases (``gh-rls``)
 -----------------------------

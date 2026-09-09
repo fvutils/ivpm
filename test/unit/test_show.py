@@ -269,7 +269,7 @@ class TestShowCLI(unittest.TestCase):
         names = [d["name"] for d in data]
         self.assertEqual(
             names,
-            ["direnv", "modules", "node", "python", "agents", "dv-flow", "fusesoc"])
+            ["direnv", "modules", "python", "node", "agents", "dv-flow", "fusesoc"])
 
     def test_show_all_json(self):
         out, rc = _run("show", "--json")

@@ -18,6 +18,8 @@ Covers:
   N23-N24  Hash-based install skip (sync-like idempotency)
   N25-N32  Root node_modules symlink: creation, config, guards, destroy
   N33      A failed install keeps the installer output that explains it
+  N34-N36  subdir: the package.json is not always at the package root
+  N24b-c   A linked source package re-runs npm install, so `prepare` rebuilds
 """
 
 import contextlib
@@ -33,6 +35,7 @@ from unittest.mock import MagicMock, patch, call
 sys.path.insert(0, os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "src"))
 
+from ivpm.package import get_type_data
 from ivpm.pkg_types.package_npm import PackageNpm
 from ivpm.pkg_types.package_packagejson import PackagePackageJson
 from ivpm.pkg_content_type import NodeTypeData, NodeContentType, parse_type_field
@@ -45,6 +48,8 @@ from ivpm.handlers.package_handler_node import (
 from ivpm.installer_run import InstallerResult
 from ivpm.project_ops_info import ProjectUpdateInfo
 
+from ivpm.yamlsrc.loader import SrcLoaderError as FATAL_ERROR
+
 from .test_base import TestBase
 
 
@@ -53,7 +58,7 @@ from .test_base import TestBase
 # ---------------------------------------------------------------------------
 
 @contextlib.contextmanager
-def patch_npm(returncode=0, lines=()):
+def patch_npm(returncode=0, lines=(), spawn_failed=False):
     """Stand in for the node package manager for the duration of a block.
 
     These tests assert on the command the handler *builds*; none of them want
@@ -66,7 +71,8 @@ def patch_npm(returncode=0, lines=()):
     """
     with patch("ivpm.handlers.package_handler_node.run_installer") as m:
         m.side_effect = lambda cmd, **kw: InstallerResult(
-            returncode=returncode, lines=list(lines), cmd=list(cmd))
+            returncode=returncode, lines=list(lines), cmd=list(cmd),
+            spawn_failed=spawn_failed)
         yield m
 
 
@@ -87,24 +93,29 @@ def _make_update_info(testdir, node_config=None, handler_state=None):
     return ui
 
 
-def _make_node_src_pkg(testdir, name, pkg_json_name=None, dev=False, link=True):
+def _make_node_src_pkg(testdir, name, pkg_json_name=None, dev=False, link=True,
+                       subdir=None):
     """Build a source Package carrying NodeTypeData, backed by a real dir.
 
     A package.json is written when *pkg_json_name* is given so the handler can
     read the package's true name -- which is what the generated dep must be
-    keyed by.
+    keyed by. It is written into *subdir* when one is given, which is the
+    layout ``subdir`` exists for: a repository whose npm package is one
+    directory among several.
     """
     from ivpm.package import Package
     pkg = Package(name)
     pkg.src_type = "git"
     pkg.pkg_type = None
     pkg.path = os.path.join(testdir, "packages", name)
-    os.makedirs(pkg.path, exist_ok=True)
+    manifest_dir = (os.path.join(pkg.path, *subdir.split("/"))
+                    if subdir else pkg.path)
+    os.makedirs(manifest_dir, exist_ok=True)
     if pkg_json_name is not None:
-        with open(os.path.join(pkg.path, "package.json"), "w") as fp:
+        with open(os.path.join(manifest_dir, "package.json"), "w") as fp:
             json.dump({"name": pkg_json_name, "version": "1.0.0"}, fp)
 
-    nd = NodeTypeData(dev=dev, link=link)
+    nd = NodeTypeData(dev=dev, link=link, subdir=subdir)
     nd.type_name = "node"
     pkg.type_data.append(nd)
     return pkg
@@ -277,6 +288,49 @@ class TestNodeContentType(unittest.TestCase):
         self.assertTrue(data.dev)
         self.assertFalse(data.link)
 
+    def test_N08b_subdir_parsed_and_normalised(self):
+        """N08b: subdir is a relative POSIX path; separators are normalised.
+
+        Windows separators are accepted because the value lands in a
+        package.json, where npm wants forward slashes whatever platform wrote
+        the file.
+        """
+        ct = NodeContentType()
+        self.assertIsNone(ct.create_data({}, si=None).subdir)
+        self.assertEqual(ct.create_data({"subdir": "ts"}, si=None).subdir, "ts")
+        self.assertEqual(
+            ct.create_data({"subdir": "packages/core"}, si=None).subdir,
+            "packages/core")
+        self.assertEqual(
+            ct.create_data({"subdir": "packages\\core"}, si=None).subdir,
+            "packages/core")
+        self.assertEqual(ct.create_data({"subdir": "ts/"}, si=None).subdir, "ts")
+        # "the package root", spelled two ways, is the same as unspecified.
+        self.assertIsNone(ct.create_data({"subdir": "."}, si=None).subdir)
+        self.assertIsNone(ct.create_data({"subdir": ""}, si=None).subdir)
+
+    def test_N08c_subdir_escaping_the_package_is_rejected(self):
+        """N08c: '..' and absolute paths are refused at parse time.
+
+        They resolve outside the fetched package, so the generated file: spec
+        would name a directory the manifest never mentioned -- a dependency
+        silently taken from somewhere else entirely. An absolute path is
+        rejected rather than quietly reinterpreted as relative: '/ts' meaning
+        'ts' is a guess about intent, and guessing here picks a different
+        package's sources.
+        """
+        ct = NodeContentType()
+        for bad in ("../elsewhere", "ts/../../elsewhere", "/abs/path", "/ts/"):
+            with self.subTest(subdir=bad):
+                with self.assertRaises(FATAL_ERROR):
+                    ct.create_data({"subdir": bad}, si=None)
+
+    def test_N08d_unknown_node_option_still_rejected(self):
+        """N08d: adding subdir did not open the option set."""
+        ct = NodeContentType()
+        with self.assertRaises(FATAL_ERROR):
+            ct.create_data({"subdirectory": "ts"}, si=None)
+
     def test_node_content_type_registered(self):
         """NodeContentType is registered in the registry."""
         rgy = PkgContentTypeRgy.inst()
@@ -288,8 +342,10 @@ class TestNodeContentType(unittest.TestCase):
         schema = ct.get_json_schema()
         self.assertIn("dev", schema["properties"])
         self.assertIn("link", schema["properties"])
+        self.assertIn("subdir", schema["properties"])
         self.assertEqual(schema["properties"]["dev"]["type"], "boolean")
         self.assertEqual(schema["properties"]["link"]["type"], "boolean")
+        self.assertEqual(schema["properties"]["subdir"]["type"], "string")
 
     def tearDown(self):
         PkgContentTypeRgy._inst = None
@@ -597,6 +653,98 @@ class TestSubprocessCalls(TestBase):
                         "expected a relative file: spec, got %r" % spec)
         self.assertNotIn(self.testdir, spec)
 
+    def test_N34_subdir_routes_spec_and_key(self):
+        """N34: subdir moves *both* the file: spec and the dep key.
+
+        The two are asserted together deliberately. They are read from the same
+        directory by construction (`_node_pkg_dir`), and letting them drift
+        would install the right tree under a name nothing imports it by --
+        which presents exactly like the package not being installed at all.
+        """
+        src_pkg = _make_node_src_pkg(self.testdir, "pssparser",
+                                     pkg_json_name="@psstools/pssparser",
+                                     subdir="ts")
+
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(src_pkg, ui)
+
+        with patch_npm():
+            handler.on_root_post_load(ui)
+
+        deps = _read_generated_pkg_json(ui)["dependencies"]
+        self.assertEqual(deps.get("@psstools/pssparser"),
+                         "file:../pssparser/ts")
+        # Not the repository root, which is what it named before subdir
+        # existed and is a directory npm cannot read a manifest from.
+        self.assertNotIn("file:../pssparser", deps.values())
+
+    def test_N35_subdir_absent_names_the_package_root(self):
+        """N35: without subdir the spec is unchanged — the default is the root."""
+        src_pkg = _make_node_src_pkg(self.testdir, "flat_lib",
+                                     pkg_json_name="flat-lib")
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(src_pkg, ui)
+
+        with patch_npm():
+            handler.on_root_post_load(ui)
+
+        self.assertEqual(
+            _read_generated_pkg_json(ui)["dependencies"]["flat-lib"],
+            "file:../flat_lib")
+
+    def test_N36_explicit_node_without_manifest_is_fatal(self):
+        """N36: 'type: node' naming a directory with no package.json is fatal.
+
+        The regression this closes: the handler warned, wrote a file: spec for
+        the manifest-less directory, npm reported "added 1 package", and the
+        update exited 0 -- leaving a symlink that resolves to nothing. A silent
+        success is the worst available outcome for a declaration that cannot be
+        honoured.
+        """
+        src_pkg = _make_node_src_pkg(self.testdir, "no_manifest",
+                                     pkg_json_name=None)
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+
+        with self.assertRaises(FATAL_ERROR):
+            handler.on_leaf_post_load(src_pkg, ui)
+
+    def test_N36b_wrong_subdir_is_fatal_and_says_so(self):
+        """N36b: a subdir that names the wrong directory is fatal, located."""
+        src_pkg = _make_node_src_pkg(self.testdir, "wrong_subdir",
+                                     pkg_json_name="wrong-subdir",
+                                     subdir="ts")
+        # The manifest is at ts/; point the declaration at a sibling.
+        get_type_data(src_pkg, NodeTypeData).subdir = "client"
+
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+
+        with self.assertRaises(FATAL_ERROR):
+            handler.on_leaf_post_load(src_pkg, ui)
+
+    def test_N36c_link_false_is_not_checked(self):
+        """N36c: link: false keeps the package out of the environment, so it
+        has no manifest requirement to meet."""
+        src_pkg = _make_node_src_pkg(self.testdir, "tracked_no_manifest",
+                                     pkg_json_name=None, link=False)
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(src_pkg, ui)  # must not raise
+
+        with patch_npm():
+            handler.on_root_post_load(ui)
+
+        data = _read_generated_pkg_json(ui)
+        self.assertNotIn("tracked_no_manifest", data.get("dependencies", {}))
+
 
 # ---------------------------------------------------------------------------
 # N25-N29 — root node_modules symlink (code-development support)
@@ -816,6 +964,86 @@ class TestHashBasedSkip(TestBase):
                          "Expected npm install to be skipped when hash unchanged. "
                          "Calls: %s" % called_cmds)
 
+    def test_N24b_linked_source_pkg_defeats_the_skip(self):
+        """N24b: a linked source package forces the install even on a match.
+
+        This is what makes a source dependency's build automatic. npm re-runs a
+        file: dependency's `prepare` script on every install, and `prepare` is
+        where a source package builds itself. The hash only covers the
+        *generated manifest*, which does not change when the linked package's
+        sources do -- so skipping meant the dependency was fetched, its build
+        ran exactly once, and every later update left the consumer compiling
+        against a stale artifact with nothing said.
+        """
+        src_pkg = _make_node_src_pkg(self.testdir, "src_lib",
+                                     pkg_json_name="src-lib")
+
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(src_pkg, ui)
+        with patch_npm():
+            handler.on_root_post_load(ui)
+
+        real_hash = handler.get_state_entries()["package_json_hash"]
+        os.makedirs(os.path.join(ui.deps_dir, "node", "node_modules"),
+                    exist_ok=True)
+
+        # Second run: identical manifest, node_modules present -- every
+        # condition the skip tests for is satisfied.
+        handler2 = PackageHandlerNode()
+        ui2 = _make_update_info(self.testdir)
+        ui2.handler_state = {"node": {"package_json_hash": real_hash}}
+        ui2.deps_dir = ui.deps_dir
+        handler2.on_root_pre_load(ui2)
+        handler2.on_leaf_post_load(
+            _make_node_src_pkg(self.testdir, "src_lib",
+                               pkg_json_name="src-lib"), ui2)
+
+        with patch_npm() as mock_run2:
+            handler2.on_root_post_load(ui2)
+
+        install_calls = [c.args[0] for c in mock_run2.call_args_list
+                         if c.args and "install" in c.args[0]]
+        self.assertEqual(len(install_calls), 1,
+                         "a linked source package must re-run npm install so "
+                         "its prepare script rebuilds")
+
+    def test_N24c_link_false_source_pkg_does_not_defeat_the_skip(self):
+        """N24c: link: false keeps the package out of the environment, so it
+        has no prepare to re-run and must not force an install."""
+        src_pkg = _make_node_src_pkg(self.testdir, "tracked_lib",
+                                     pkg_json_name="tracked-lib", link=False)
+
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(src_pkg, ui)
+        handler.on_leaf_post_load(_make_npm_pkg("lodash", "^4.0.0"), ui)
+        with patch_npm():
+            handler.on_root_post_load(ui)
+
+        real_hash = handler.get_state_entries()["package_json_hash"]
+        os.makedirs(os.path.join(ui.deps_dir, "node", "node_modules"),
+                    exist_ok=True)
+
+        handler2 = PackageHandlerNode()
+        ui2 = _make_update_info(self.testdir)
+        ui2.handler_state = {"node": {"package_json_hash": real_hash}}
+        ui2.deps_dir = ui.deps_dir
+        handler2.on_root_pre_load(ui2)
+        handler2.on_leaf_post_load(
+            _make_node_src_pkg(self.testdir, "tracked_lib",
+                               pkg_json_name="tracked-lib", link=False), ui2)
+        handler2.on_leaf_post_load(_make_npm_pkg("lodash", "^4.0.0"), ui2)
+
+        with patch_npm() as mock_run2:
+            handler2.on_root_post_load(ui2)
+
+        install_calls = [c.args[0] for c in mock_run2.call_args_list
+                         if c.args and "install" in c.args[0]]
+        self.assertEqual(len(install_calls), 0, "Calls: %s" % install_calls)
+
 
 # ---------------------------------------------------------------------------
 # N33 — a failed install keeps its evidence
@@ -851,8 +1079,8 @@ class TestFailedInstallReporting(TestBase):
         self.assertIn("npm", out)
 
     def test_N33c_missing_npm_is_reported_as_missing(self):
-        """127 means the manager is absent, which needs different advice from
-        an install that ran and failed."""
+        """An absent package manager needs different advice from an install
+        that ran and failed."""
         out = self._run_failing_install([])
         self.assertIn("exit 1", out)
 
@@ -860,10 +1088,32 @@ class TestFailedInstallReporting(TestBase):
         ui = _make_update_info(self.testdir)
         handler.on_root_pre_load(ui)
         handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
-        with patch_npm(returncode=127):
+        with patch_npm(returncode=127, spawn_failed=True):
             with self.assertRaises(Exception) as ctx:
                 handler.on_root_post_load(ui)
         self.assertIn("not found", str(ctx.exception))
+
+    def test_N33d_exit_127_from_a_script_is_not_missing_npm(self):
+        """127 alone does not mean the manager is absent.
+
+        npm exits 127 when a lifecycle script it ran hits a missing command --
+        a `prepare` that reaches `tsc: not found` is the case that produced
+        this. Reporting that as "npm not found, please install Node.js" sends
+        the user to fix a tool that had just successfully run their build, and
+        throws away npm's own output, which names the real missing command.
+        """
+        handler = PackageHandlerNode()
+        ui = _make_update_info(self.testdir)
+        handler.on_root_pre_load(ui)
+        handler.on_leaf_post_load(_make_npm_pkg("lodash"), ui)
+
+        with patch_npm(returncode=127, lines=["sh: 1: tsc: not found"]):
+            with self.assertRaises(Exception) as ctx:
+                handler.on_root_post_load(ui)
+
+        msg = str(ctx.exception)
+        self.assertNotIn("please install Node.js", msg)
+        self.assertIn("tsc: not found", msg)
 
 
 if __name__ == "__main__":
