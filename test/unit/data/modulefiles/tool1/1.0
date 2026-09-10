@@ -1,0 +1,8 @@
+#%Module1.0
+##
+## tool1/1.0 -- inert fixture modulefile for the ivpm unit tests.
+## Nothing executes this; the tests only need a real file on disk.
+##
+set root /opt/tool1/1.0
+setenv TOOL1_HOME $root
+prepend-path PATH $root/bin

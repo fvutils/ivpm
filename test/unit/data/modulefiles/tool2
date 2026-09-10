@@ -1,0 +1,5 @@
+#%Module1.0
+##
+## tool2 -- inert fixture modulefile (flat, unversioned) for the unit tests.
+##
+setenv TOOL2_HOME /opt/tool2

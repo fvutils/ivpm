@@ -1,4 +1,7 @@
 
+# 2.31.0
+- Update 'modules' source to support full-path specification (modulefile)
+
 # 2.30.0
 - Correct an issue with cached git repos pinned to a specific commit
 

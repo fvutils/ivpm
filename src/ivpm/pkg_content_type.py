@@ -387,7 +387,8 @@ def parse_type_field(value) -> list:
 class ModuleTypeData(TypeData):
     """Type-specific data for packages processed by the modules handler."""
     load: bool = True        # emit 'module load' into envrc
-    module: str = None       # module specifier (copied from PackageModule.module)
+    module: str = None       # logical specifier (copied from PackageModule.module)
+    modulefile: str = None   # resolved absolute modulefile path ('modulefile:' form)
 
 
 class ModuleContentType(PkgContentType):

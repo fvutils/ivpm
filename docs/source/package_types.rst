@@ -538,6 +538,64 @@ If no platform-specific binary is found, falls back to source (tarball/zipball).
       version: latest
       source: true
 
+Environment Module (``module``)
+-------------------------------
+
+Reference an already-installed tool through its `Environment Modules
+<https://modules.readthedocs.io/>`_ modulefile.  IVPM does not fetch or
+install anything: it resolves the modulefile to a root directory, sets the
+package path, and emits a ``module load`` line into
+``packages/modules.envrc``.
+
+**Basic usage:**
+
+.. code-block:: yaml
+
+    deps:
+      # logical specifier, looked up on MODULEPATH
+      - name: gcc
+        src: module
+        module: gcc/15.2.0
+
+      # a modulefile path on disk
+      - name: mytool
+        src: module
+        modulefile: etc/modulefiles/mytool/1.0
+
+**Attributes:**
+
+``module``
+    Logical module specifier (e.g. ``gcc/15.2.0``), resolved through the
+    modules system.  Mutually exclusive with ``modulefile``
+
+``modulefile``
+    Path to a modulefile on disk.  Relative paths resolve against the
+    ``ivpm.yaml`` that declared the dependency; ``$VAR`` and ``~`` are
+    expanded.  Mutually exclusive with ``module`` and ``version``
+
+``version``
+    Shorthand for the logical specifier ``<name>/<version>``
+
+``root``
+    Explicit root-directory override
+
+``resolve-root``
+    Parse ``module show`` output to find the install prefix (default:
+    false)
+
+**Root directory:** ``root:`` if given, else the ``resolve-root:`` result,
+else the modulefile's parent directory.
+
+**Requirements:** the ``module:`` form needs a modules installation with
+the module on ``MODULEPATH``.  The ``modulefile:`` form needs no modules
+installation to *resolve*, but loading a modulefile by path requires
+Environment Modules 4.x or Lmod.
+
+**Use case:** declare the site toolchain a workspace expects, so entering
+the environment loads it, instead of documenting it in a README.
+
+See :doc:`environment_modules` for the full reference.
+
 Package Types
 =============
 

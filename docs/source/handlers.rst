@@ -551,9 +551,10 @@ Generates ``module load`` statements for `Environment Modules
 **Purpose**
 
 Packages can declare an Environment Module dependency via the ``module``
-content type in ``ivpm.yaml``.  The modules handler collects these
-declarations, generates ``packages/modules.envrc`` with ``module load``
-statements, and patches ``packages/packages.envrc`` to source it.
+source type, or carry the ``module`` content type in ``ivpm.yaml``.  The
+modules handler collects these declarations, generates
+``packages/modules.envrc`` with ``module load`` statements, and patches
+``packages/packages.envrc`` to source it.
 
 **Leaf phase**
 
@@ -563,19 +564,37 @@ Inspects every package.  Packages carrying ``ModuleTypeData`` with
 **Root phase**
 
 Writes ``packages/modules.envrc`` with one ``module load <spec>`` line per
-discovered module.  Patches ``packages/packages.envrc`` with a
-sentinel-wrapped ``source_env`` line.  Cleans up stale entries when no
-modules remain.
+discovered module.  The spec is a logical specifier (``gcc/15.2.0``) for a
+dependency declared with ``module:``, and the resolved **absolute
+modulefile path** for one declared with ``modulefile:``.  Patches
+``packages/packages.envrc`` with a sentinel-wrapped ``source_env`` line.
+Cleans up stale entries when no modules remain.
 
 **Configuration (``ivpm.yaml``)**
 
 .. code-block:: yaml
 
     deps:
+      # logical specifier, resolved via the modules system
       - name: gcc-toolchain
-        type: { module: { load: true, module: "gcc/15.2.0" } }
+        src: module
+        module: "gcc/15.2.0"
+
+      # a modulefile on disk (requires Modules 4.x or Lmod to load)
+      - name: mytool
+        src: module
+        modulefile: etc/modulefiles/mytool/1.0
+
+      # resolve the root but emit no 'module load' line
+      - name: quiet-tool
+        src: module
+        module: "quiet/1.0"
+        type: { module: { load: false } }
 
 **Output:** ``packages/modules.envrc``
+
+See :doc:`environment_modules` for the full source-type reference,
+root-directory selection, and troubleshooting.
 
 
 .. _handler-fusesoc:

@@ -37,6 +37,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    package_lock
    python_packages
    node_packages
+   environment_modules
    github_releases
    environment_paths
    workflows

@@ -261,7 +261,7 @@
 						},
 						{
 							"const": "module",
-							"title": "Environment Module -- resolves a module specifier to its modulefile directory"
+							"title": "Environment Module -- resolves a logical module specifier ('module') or a modulefile path ('modulefile') to a directory on disk"
 						},
 						{
 							"const": "ivpm.yaml",
@@ -363,7 +363,11 @@
 				},
 				"module": {
 					"type": "string",
-					"title": "Module specifier (e.g. gcc/15.2.0). Required when src is module"
+					"title": "Logical module specifier (e.g. gcc/15.2.0), looked up via the modules system. For src: module; mutually exclusive with 'modulefile'"
+				},
+				"modulefile": {
+					"type": "string",
+					"title": "Path to a modulefile on disk, resolved relative to the declaring ivpm.yaml. For src: module; mutually exclusive with 'module'/'version'"
 				},
 				"root": {
 					"type": "string",

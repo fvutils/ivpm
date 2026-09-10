@@ -2,10 +2,11 @@
 
 ## Implementation Status
 
-> **Status: Phases 1-4 implemented** (2026-05-06)
+> **Status: Phases 1-5 implemented** (Phase 5: 2026-09-10)
 >
-> All four phases have been implemented with passing tests.
-> Documentation updates (Phase 5/6) remain pending.
+> All phases have been implemented with passing tests, and the
+> documentation gap Phase 5/6 tracked is now closed by
+> `docs/source/environment_modules.rst`.
 
 | Phase | Status | Tests |
 |-------|--------|-------|
@@ -13,8 +14,14 @@
 | 2. `PackageModule` source type | **Done** | 14/14 pass (`test_package_module.py`) |
 | 3. `ModuleContentType` | **Done** | 7/7 pass (added to `test_pkg_content_type.py`) |
 | 4. `PackageHandlerModules` | **Done** | 6/6 pass (`test_modules_handler.py`) |
-| Test fixtures | **Done** | `module_leaf1/`, `module_leaf2/`, `module_no_ivpm/` |
-| Documentation | Pending | |
+| 5. `modulefile:` paths | **Done** | 38 pass (`test_package_module.py`), 13 pass (`test_modules_handler.py`) |
+| Test fixtures | **Done** | `module_leaf1/`, `module_leaf2/`, `module_no_ivpm/`, `modulefiles/` |
+| Documentation | **Done** | `docs/source/environment_modules.rst` + `package_types.rst`, `handlers.rst`, `index.rst`, `ivpm.json` |
+
+**Phase 5** adds a second, non-overlapping way to name a modulefile:
+`modulefile:` takes a path on disk where `module:` takes a logical
+specifier.  See `modulefile-path-plan.md` for the design and the resolved
+decisions behind it.
 
 ### Implementation Notes
 
