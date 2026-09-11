@@ -37,6 +37,8 @@ dev = [
     # JSON Schema implementation. IVPM never uses it at runtime -- diagnostics
     # must not vary with what happens to be installed.
     "jsonschema>=4.0",
+    "coverage[toml]>=7.0",
+    "pytest-cov>=5.0",
 ]
 
 [project.entry-points."agent.skills"]
@@ -62,4 +64,40 @@ testpaths = ["test/unit"]
 norecursedirs = [
     "build", "dist", "out", "ou", "tmp", "v", "packages", "examples",
     "test/rundir", "test/log", "*.egg", ".*", "node_modules", "*_ws",
+]
+
+# --------------------------------------------------------------------------- #
+# Coverage. Not enabled by default -- `pytest --cov` (or `make coverage`) opts
+# in, so a bare run stays fast.
+# --------------------------------------------------------------------------- #
+[tool.coverage.run]
+# source_pkgs, not source: the tests import `ivpm` from src/ via conftest.py,
+# but a subprocess started by a test may resolve the copy installed in
+# packages/python. Measuring by package name catches both; [tool.coverage.paths]
+# below folds the two file trees back into one report.
+source_pkgs = ["ivpm"]
+branch = true
+# Subprocess coverage lands in its own data file; combining is what makes the
+# whole run add up. pytest-cov combines automatically at session end.
+parallel = true
+relative_files = true
+omit = [
+    "*/ivpm/__version__.py",
+]
+
+[tool.coverage.paths]
+source = [
+    "src/ivpm",
+    "*/site-packages/ivpm",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 1
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@(abc\\.)?abstractmethod",
+    "if __name__ == .__main__.:",
 ]

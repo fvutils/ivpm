@@ -453,3 +453,27 @@ class TestPT14RelativePathBase(TestBase):
         ui.project_dir = leaf_dir
         result = handler._harvest_pyproject_toml(pkg, ui)
         self.assertIn("requests", {p.name for p in result})
+
+
+# ---------------------------------------------------------------------------
+# PT15 — Minimal form: neither 'url' nor 'path' specified
+# ---------------------------------------------------------------------------
+
+class TestPT15MinimalForm(TestBase):
+    """'src: pyproject.toml' with no url/path uses the pyproject.toml beside
+    the declaring ivpm.yaml."""
+
+    def test_PT15a_defaults_to_pyproject_toml(self):
+        pkg = PackagePyprojectToml.create("python", {}, None)
+        self.assertIsNone(pkg.url)
+        self.assertEqual(pkg.toml_path, "pyproject.toml")
+        self.assertEqual(pkg.include, ["dependencies"])
+
+    def test_PT15b_harvests_from_declaring_yaml_dir(self):
+        leaf_dir = os.path.join(self.data_dir, "pyproject_leaf1")
+        pkg = PackagePyprojectToml.create("python", {}, None)
+        pkg.srcinfo = MagicMock()
+        pkg.srcinfo.filename = os.path.join(leaf_dir, "ivpm.yaml")
+        handler = _make_handler()
+        result = handler._harvest_pyproject_toml(pkg, _make_update_info(self.testdir))
+        self.assertIn("requests", {p.name for p in result})

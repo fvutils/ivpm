@@ -227,13 +227,19 @@ dep-set take precedence over same-named entries read from the file.
     deps:
       - name: root-pyproject
         src: pyproject.toml
-        url: file://${PROJECT_ROOT}/pyproject.toml
+
+With neither ``url`` nor ``path``, IVPM reads the ``pyproject.toml`` sitting
+beside the ``ivpm.yaml`` that declares the entry.
 
 **Attributes:**
 
-``url``
+``url`` — optional
     Path to the ``pyproject.toml`` file (``file://`` prefix + ``${VAR}``
     substitution supported).
+
+``path`` — optional, default: ``pyproject.toml``
+    Filesystem path to the ``pyproject.toml``.  A relative path is resolved
+    against the directory of the declaring ``ivpm.yaml``.
 
 ``include`` — optional, default: ``[dependencies]``
     One section name, a list of section names, or the special value

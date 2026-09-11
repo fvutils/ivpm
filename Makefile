@@ -24,6 +24,16 @@ html : $(PACKAGES_DIR)/python
 	if test ! -f build/html/ivpm.json; then cd $(IVPM_DIR)/build/html; ln -s $(IVPM_DIR)/src/ivpm/share/ivpm.json; fi
 	if test ! -f build/html/ivpm.schema.json; then cd $(IVPM_DIR)/build/html; ln -s $(IVPM_DIR)/src/ivpm/share/ivpm.json ivpm.schema.json; fi
 
+test :
+	$(PACKAGES_DIR)/python/bin/python3 -m pytest
+
+# Coverage of src/ivpm from the unit suite. HTML lands in build/coverage/,
+# and coverage.xml is written for CI/editor consumption.
+coverage :
+	$(PACKAGES_DIR)/python/bin/python3 -m pytest \
+		--cov --cov-report=term --cov-report=html:build/coverage \
+		--cov-report=xml:build/coverage.xml
+
 clean :
-	rm -rf build 
+	rm -rf build .coverage .coverage.*
 

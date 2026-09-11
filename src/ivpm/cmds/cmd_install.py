@@ -127,7 +127,9 @@ def _load_sources(specs, args):
         # Record where it actually came from -- fetch_manifest may have
         # appended /ivpm.yaml to a bare host URL.
         spec.src = fetched.origin
-        names, ds = ProjectOps._getDepSets(pi, spec.dep_sets)
+        names, ds = ProjectOps._getDepSets(
+            pi, spec.dep_sets,
+            origin="the install spec for %s" % spec.src)
         loaded.append(LoadedSource(spec=spec, proj_info=pi, dep_set=ds,
                                    dep_set_names=list(names)))
     return loaded

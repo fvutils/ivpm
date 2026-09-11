@@ -462,7 +462,11 @@ instead of duplicating the list in ``ivpm.yaml``.
     deps:
       - name: root-pyproject
         src: pyproject.toml
-        url: file://${PROJECT_ROOT}/pyproject.toml
+
+When neither ``url:`` nor ``path:`` is given, IVPM reads the
+``pyproject.toml`` next to the ``ivpm.yaml`` that declares the entry.  Point
+at a different file with ``url: file://${PROJECT_ROOT}/pyproject.toml`` or a
+``path:`` relative to the declaring ``ivpm.yaml``.
 
 **Select which sections to import** with the optional ``include:`` field:
 

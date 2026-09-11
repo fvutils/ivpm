@@ -269,8 +269,16 @@ def _entry_from_pkg(pkg) -> dict:
         entry["reproducible"] = False
 
     elif src == "module":
-        entry["module"] = getattr(pkg, "module", None)
-        entry["modulefile"] = getattr(pkg, "modulefile_path", None)
+        # Record the *declared* form only -- 'module:' or 'modulefile:', never
+        # both. The two keys are mutually exclusive in a manifest, so writing
+        # both (one of them null) produced an entry that could not be read back
+        # through process_options(). The resolved modulefile path lives under
+        # its own key so it cannot be mistaken for a declared spec.
+        if getattr(pkg, "is_modulefile", False):
+            entry["modulefile"] = getattr(pkg, "modulefile_spec", None)
+        else:
+            entry["module"] = getattr(pkg, "module", None)
+        entry["modulefile_resolved"] = getattr(pkg, "modulefile_path", None)
         entry["root"] = getattr(pkg, "module_root", None)
         entry["reproducible"] = False
 
@@ -284,6 +292,53 @@ def _entry_from_pkg(pkg) -> dict:
         entry["from_ivpm_source"] = pkg.from_ivpm_source
 
     return entry
+
+
+def _module_entry_forms(entry: dict):
+    """Split a ``src: module`` lock entry into (module, modulefile_spec, resolved).
+
+    Handles locks written before ``modulefile_resolved`` existed, where
+    ``modulefile`` held the *resolved* path and ``module`` was written as null
+    for the modulefile form. There, a truthy ``module`` identifies the logical
+    form, which makes the ``modulefile`` value resolved data rather than a
+    declared spec.
+    """
+    module = entry.get("module") or None
+    resolved = entry.get("modulefile_resolved") or None
+    modulefile = entry.get("modulefile") or None
+
+    if resolved is None:
+        # Legacy entry: 'modulefile' is the resolved path.
+        resolved = modulefile
+        if module is not None:
+            modulefile = None
+    if module is not None:
+        modulefile = None
+
+    return module, modulefile, resolved
+
+
+def lock_entry_opts(entry: dict) -> dict:
+    """Return *entry* as an options dict safe to pass to ``process_options()``.
+
+    A lock entry mixes the declared spec with data resolved during update, and
+    the two can collide: ``src: module`` rejects a manifest that names both
+    ``module:`` and ``modulefile:``, so an entry carrying both keys (as every
+    pre-``modulefile_resolved`` lock does) would fatal when read back. Strip
+    the resolved fields so only the declared form survives.
+    """
+    if entry.get("src") != "module":
+        return entry
+
+    module, modulefile, _ = _module_entry_forms(entry)
+    opts = dict(entry)
+    opts.pop("module", None)
+    opts.pop("modulefile", None)
+    if module is not None:
+        opts["module"] = module
+    elif modulefile is not None:
+        opts["modulefile"] = modulefile
+    return opts
 
 
 def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
@@ -331,7 +386,11 @@ def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
         return url == lock_entry.get("path")
 
     elif src == "module":
-        return getattr(pkg, "module", None) == lock_entry.get("module")
+        # Compare the declared form: switching a dep between 'module:' and
+        # 'modulefile:' -- or repointing the modulefile -- is a spec change.
+        module, modulefile, _ = _module_entry_forms(lock_entry)
+        return (getattr(pkg, "module", None) == module
+                and getattr(pkg, "modulefile_spec", None) == modulefile)
 
     # An unrecognized source type: we have no basis for saying the spec
     # changed. Reporting "matches" is the conservative answer now that a
@@ -853,11 +912,23 @@ class IvpmLockReader:
             elif src == "module":
                 from .pkg_types.package_module import PackageModule
                 p = PackageModule(name)
-                p.module = entry.get("module")
-                p.modulefile_path = entry.get("modulefile")
+                module, modulefile, resolved = _module_entry_forms(entry)
+                p.module = module
+                p.modulefile_spec = modulefile
+                p.modulefile_path = resolved
                 p.module_root = entry.get("root")
                 p.path = entry.get("root")
                 p.src_type = "module"
+                # process_options() -- which attaches this -- is not on the
+                # reconstruction path, and without it the modules handler sees
+                # no module deps at all and *deletes* modules.envrc while
+                # reproducing the workspace that needs it.
+                from .pkg_content_type import ModuleTypeData
+                td = ModuleTypeData()
+                td.type_name = "module"
+                td.module = module
+                td.modulefile = modulefile
+                p.type_data.append(td)
                 pkg = p
 
             else:

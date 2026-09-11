@@ -64,19 +64,11 @@ class ProjectSync(object):
                     print("  Package: %s" % d)
                     
         # Determine which dep-set to use
-        if self.dep_set is None:
-            # Priority: 1) default-dep-set setting, 2) first dep-set in file
-            if proj_info.default_dep_set is not None:
-                self.dep_set = proj_info.default_dep_set
-            elif len(proj_info.dep_set_m.keys()) > 0:
-                self.dep_set = list(proj_info.dep_set_m.keys())[0]
-            else:
-                fatal("No dependency sets defined in project")
-
-        if self.dep_set not in proj_info.dep_set_m.keys():
-            raise Exception("Dep-set %s is not present" % self.dep_set)
-        else:
-            ds = proj_info.dep_set_m[self.dep_set]
+        from .proj_info import select_dep_set
+        self.dep_set, ds = select_dep_set(
+            proj_info, self.dep_set,
+            origin=("the -d/--dep-set command-line option"
+                    if self.dep_set is not None else None))
 
         # If the root dependency set doesn't specify a source
         # for IVPM, auto-load it from PyPi

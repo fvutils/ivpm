@@ -133,6 +133,115 @@ class TestPackageLock(unittest.TestCase):
         self.assertEqual(entry["version_resolved"], "2.31.0")
         self.assertTrue(entry["reproducible"])
 
+    # ------------------------------------------------------------------
+    # src: module -- the entry must read back through process_options()
+    # ------------------------------------------------------------------
+
+    def _make_module_pkg(self, name, module=None, modulefile=None,
+                         resolved=None, root=None):
+        from ivpm.pkg_types.package_module import PackageModule
+        opts = {"module": module} if module else {"modulefile": modulefile}
+        p = PackageModule.create(name, opts, None)
+        p.modulefile_path = resolved
+        p.module_root = root
+        p.resolved_by = "root"
+        return p
+
+    def _roundtrip_module(self, pkg):
+        """write_lock -> read_lock -> rebuild through the pkg-type registry."""
+        from ivpm.package_lock import lock_entry_opts
+        from ivpm.pkg_types.pkg_type_rgy import PkgTypeRgy
+        write_lock(self.tmpdir, self._make_pkgs(pkg))
+        data = read_lock(os.path.join(self.tmpdir, "package-lock.json"))
+        entry = data["packages"][pkg.name]
+        rebuilt = PkgTypeRgy.inst().mkPackage(
+            entry["src"], pkg.name, lock_entry_opts(entry), None)
+        return entry, rebuilt
+
+    def test_module_logical_form_roundtrip(self):
+        pkg = self._make_module_pkg(
+            "gcc", module="gcc/15.2.0",
+            resolved="/opt/mods/gcc/15.2.0", root="/opt/mods/gcc")
+        entry, rebuilt = self._roundtrip_module(pkg)
+
+        # Only the declared form is recorded as a spec; the resolved path has
+        # its own key so it cannot read back as a second declared form.
+        self.assertEqual(entry["module"], "gcc/15.2.0")
+        self.assertNotIn("modulefile", entry)
+        self.assertEqual(entry["modulefile_resolved"], "/opt/mods/gcc/15.2.0")
+        self.assertEqual(rebuilt.module, "gcc/15.2.0")
+        self.assertFalse(rebuilt.is_modulefile)
+
+    def test_module_modulefile_form_roundtrip(self):
+        pkg = self._make_module_pkg(
+            "dfm", modulefile="etc/mf/dfm",
+            resolved="/proj/etc/mf/dfm", root="/proj/etc/mf")
+        entry, rebuilt = self._roundtrip_module(pkg)
+
+        self.assertEqual(entry["modulefile"], "etc/mf/dfm")
+        self.assertNotIn("module", entry)
+        self.assertEqual(entry["modulefile_resolved"], "/proj/etc/mf/dfm")
+        self.assertTrue(rebuilt.is_modulefile)
+        self.assertEqual(rebuilt.modulefile_spec, "etc/mf/dfm")
+        self.assertIsNone(rebuilt.module)
+
+    def test_module_legacy_entry_opts(self):
+        """Pre-'modulefile_resolved' locks carry both keys; both forms read back."""
+        from ivpm.package_lock import lock_entry_opts
+
+        legacy_modulefile = {"src": "module", "module": None,
+                             "modulefile": "/proj/etc/mf/dfm"}
+        legacy_logical = {"src": "module", "module": "gcc/15.2.0",
+                          "modulefile": "/opt/mods/gcc/15.2.0"}
+
+        opts = lock_entry_opts(legacy_modulefile)
+        self.assertEqual(opts.get("modulefile"), "/proj/etc/mf/dfm")
+        self.assertNotIn("module", opts)
+
+        opts = lock_entry_opts(legacy_logical)
+        self.assertEqual(opts.get("module"), "gcc/15.2.0")
+        self.assertNotIn("modulefile", opts)
+
+    def test_module_legacy_entry_reader(self):
+        """IvpmLockReader recovers the resolved path from a legacy entry."""
+        from ivpm.package_lock import _module_entry_forms
+
+        module, modulefile, resolved = _module_entry_forms(
+            {"src": "module", "module": None, "modulefile": "/proj/etc/mf/dfm"})
+        self.assertIsNone(module)
+        self.assertEqual(modulefile, "/proj/etc/mf/dfm")
+        self.assertEqual(resolved, "/proj/etc/mf/dfm")
+
+        module, modulefile, resolved = _module_entry_forms(
+            {"src": "module", "module": "gcc/15.2.0",
+             "modulefile": "/opt/mods/gcc/15.2.0"})
+        self.assertEqual(module, "gcc/15.2.0")
+        self.assertIsNone(modulefile)
+        self.assertEqual(resolved, "/opt/mods/gcc/15.2.0")
+
+    def test_module_spec_match_unchanged(self):
+        pkg = self._make_module_pkg(
+            "dfm", modulefile="etc/mf/dfm", resolved="/proj/etc/mf/dfm")
+        entry, _ = self._roundtrip_module(pkg)
+        self.assertTrue(_spec_matches_lock(pkg, entry))
+
+    def test_module_spec_match_form_switched(self):
+        """Switching a dep from module: to modulefile: is a spec change."""
+        locked = self._make_module_pkg(
+            "dfm", module="dfm/current", resolved="/opt/mods/dfm/current")
+        entry, _ = self._roundtrip_module(locked)
+
+        now = self._make_module_pkg("dfm", modulefile="etc/mf/dfm")
+        self.assertFalse(_spec_matches_lock(now, entry))
+
+    def test_module_spec_match_modulefile_repointed(self):
+        locked = self._make_module_pkg(
+            "dfm", modulefile="etc/mf/dfm", resolved="/proj/etc/mf/dfm")
+        entry, _ = self._roundtrip_module(locked)
+
+        now = self._make_module_pkg("dfm", modulefile="etc/mf/dfm-next")
+        self.assertFalse(_spec_matches_lock(now, entry))
+
     def test_dir_package_not_reproducible(self):
         pkg = _make_dir_pkg("locallib", "/home/user/locallib")
         pkgs = self._make_pkgs(pkg)

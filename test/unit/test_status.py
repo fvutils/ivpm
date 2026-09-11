@@ -164,6 +164,64 @@ class TestStatus(TestBase):
         with self.assertRaises(Exception):
             ProjectOps(self.testdir).status()
 
+    def test_module_pkg_modulefile_form(self):
+        """A 'modulefile:' module dep in the lock reports status, not a fatal.
+
+        Regression: the lock recorded both 'module' and 'modulefile' (one
+        null), and status fed the raw entry back through the manifest parser,
+        which rejects an entry naming both forms.
+        """
+        packages_dir = self._make_project({
+            "dfm": {"src": "module", "resolved_by": "root", "dep_set": None,
+                    "modulefile": "etc/mf/dfm",
+                    "modulefile_resolved": "/opt/etc/mf/dfm",
+                    "root": "/opt/etc/mf", "reproducible": False}
+        })
+        self.assertTrue(os.path.isdir(packages_dir))
+
+        from ivpm.project_ops import ProjectOps
+        _root, results = ProjectOps(self.testdir).status()
+
+        r = next(x for x in results if x.name == "dfm")
+        self.assertEqual(r.src_type, "module")
+
+    def test_module_pkg_logical_form(self):
+        """A 'module:' module dep in the lock reports status, not a fatal."""
+        self._make_project({
+            "gcc": {"src": "module", "resolved_by": "root", "dep_set": None,
+                    "module": "gcc/15.2.0",
+                    "modulefile_resolved": "/opt/mods/gcc/15.2.0",
+                    "root": "/opt/mods/gcc", "reproducible": False}
+        })
+
+        from ivpm.project_ops import ProjectOps
+        _root, results = ProjectOps(self.testdir).status()
+
+        r = next(x for x in results if x.name == "gcc")
+        self.assertEqual(r.src_type, "module")
+
+    def test_module_pkg_legacy_lock_entry(self):
+        """Locks written before 'modulefile_resolved' still read back.
+
+        Those entries carry *both* keys -- 'module' null for the modulefile
+        form, and the resolved path under 'modulefile' for the logical form.
+        """
+        self._make_project({
+            "dfm": {"src": "module", "resolved_by": "root", "dep_set": None,
+                    "module": None, "modulefile": "/opt/etc/mf/dfm",
+                    "root": "/opt/etc/mf", "reproducible": False},
+            "gcc": {"src": "module", "resolved_by": "root", "dep_set": None,
+                    "module": "gcc/15.2.0",
+                    "modulefile": "/opt/mods/gcc/15.2.0",
+                    "root": "/opt/mods/gcc", "reproducible": False},
+        })
+
+        from ivpm.project_ops import ProjectOps
+        _root, results = ProjectOps(self.testdir).status()
+
+        names = sorted(r.name for r in results)
+        self.assertEqual(names, ["dfm", "gcc"])
+
     def test_transcript_render(self):
         """TranscriptStatusTUI.render() produces output without error."""
         from ivpm.pkg_status import PkgVcsStatus

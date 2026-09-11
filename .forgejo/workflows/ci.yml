@@ -104,7 +104,10 @@ jobs:
       # resolve its own manifest.
       run: |
         ./bootstrap.sh
-        ./packages/python/bin/python -m pip install --upgrade setuptools build twine
+        # pytest-cov is in the `dev` dependency-group, which bootstrap.sh does
+        # not install (it resolves ivpm.yaml, not pyproject groups).
+        ./packages/python/bin/python -m pip install --upgrade setuptools build twine \
+          'coverage[toml]>=7.0' 'pytest-cov>=5.0'
         # Build once with the source deps already present so egg-info exists and
         # entry points are discoverable via PYTHONPATH=src.
         ./packages/python/bin/python -m build --no-isolation .
@@ -119,7 +122,47 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GH_API_TOKEN }}
       run: |
         export PYTHONPATH=$(pwd)/src:$(pwd)/test
-        ./packages/python/bin/python -m pytest test/unit -q
+        # Coverage rides along on the gating test run rather than a second pass:
+        # the suite takes ~3 minutes, and running it twice to measure it would
+        # double that for no extra signal. Test failures still fail this step;
+        # everything downstream of coverage is non-gating.
+        ./packages/python/bin/python -m pytest test/unit -q \
+          --cov --cov-report=term \
+          --cov-report=xml:build/coverage.xml \
+          --cov-report=html:build/coverage
+
+    - name: Coverage report
+      # NON-GATING BY DESIGN. Coverage here is a review aid, not a merge
+      # criterion -- no `fail_under`, and this step cannot redden the build.
+      # `if: always()` so a failing test run still reports whatever was
+      # measured before the failure, which is often the most useful moment.
+      if: always()
+      continue-on-error: true
+      run: |
+        pct=$(./packages/python/bin/python -m coverage report --format=total 2>/dev/null || echo "n/a")
+        echo "total coverage: ${pct}%"
+        {
+          echo "### Coverage: ${pct}%"
+          echo
+          echo '```'
+          ./packages/python/bin/python -m coverage report --sort=cover --skip-covered 2>/dev/null | head -40
+          echo '```'
+          echo
+          echo "_Full HTML report: the \`coverage-fvutils-ivpm\` artifact on this run._"
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload coverage report
+      if: always()
+      continue-on-error: true
+      uses: forgejo/upload-artifact@v4
+      with:
+        name: coverage-fvutils-ivpm
+        path: |
+          build/coverage/**
+          build/coverage.xml
+        # Not `error`: this must never fail the build, and there is nothing to
+        # upload when the test step died before writing a report.
+        if-no-files-found: warn
 
     - name: Stamp build version
       # Tag builds keep the clean BASE version; everything else gets a

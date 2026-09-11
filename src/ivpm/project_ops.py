@@ -202,7 +202,9 @@ class ProjectOps(object):
                 scope_pins = lock_reader.scope_pins()
             else:
                 with perf.span("depset.resolve"):
-                    dep_sets, ds = self._getDepSets(proj_info, dep_sets)
+                    dep_sets, ds = self._getDepSets(
+                        proj_info, dep_sets,
+                        origin=getattr(self, "_dep_sets_origin", None))
 
                 # Spec-vs-lock drift used to be detected here, before resolution,
                 # against the root dep-set only -- so drift in a transitive
@@ -481,7 +483,8 @@ class ProjectOps(object):
         proj_info, deps_dir, dep_sets, _ = self._init(dep_set)
 
         dep_set = dep_sets[0] if dep_sets else None
-        dep_set, ds = self._getDepSet(proj_info, dep_set)
+        dep_set, ds = self._getDepSet(
+            proj_info, dep_set, origin=getattr(self, "_dep_sets_origin", None))
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
         updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False,
@@ -586,7 +589,7 @@ class ProjectOps(object):
         from .pkg_status import PkgVcsStatus
         from .project_ops_info import ProjectStatusInfo
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
-        from .package_lock import read_lock
+        from .package_lock import read_lock, lock_entry_opts
 
         proj_info, deps_dir = self._resolve_deps_dir(walk=walk)
         if deps_dir is None:
@@ -622,7 +625,10 @@ class ProjectOps(object):
                 ))
                 continue
 
-            pkg = rgy.mkPackage(src, pkg_name, entry, None)
+            # The entry mixes declared spec with resolved data; reconstruct
+            # from the declared form only, so round-tripped resolution results
+            # cannot look like a contradictory manifest entry.
+            pkg = rgy.mkPackage(src, pkg_name, lock_entry_opts(entry), None)
             pkg.path = os.path.join(deps_dir, key)
             pkg.scope_key = key
             result = pkg.status(status_info)
@@ -706,7 +712,7 @@ class ProjectOps(object):
         lock (the authoritative record of what is on disk). Shared by
         destroy_plan() and destroy_apply() so both gate identically."""
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
-        from .package_lock import read_lock
+        from .package_lock import read_lock, lock_entry_opts
         from .project_ops_info import ProjectRemoveInfo
 
         import multiprocessing
@@ -764,7 +770,7 @@ class ProjectOps(object):
                 if src in ("tgz", "txz", "zip", "jar", "http"):
                     src = "url"
                 if rgy.hasPkgType(src):
-                    pkg = rgy.mkPackage(src, name, entry, None)
+                    pkg = rgy.mkPackage(src, name, lock_entry_opts(entry), None)
                 else:
                     pkg = Package(name)
                     pkg.src_type = src or "non-vcs"
@@ -987,7 +993,7 @@ class ProjectOps(object):
         from .pkg_sync import PkgSyncResult, SyncOutcome
         from .project_ops_info import ProjectSyncInfo
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
-        from .package_lock import read_lock, patch_lock_after_sync
+        from .package_lock import read_lock, patch_lock_after_sync, lock_entry_opts
 
         _, deps_dir = self._resolve_deps_dir(walk=walk)
         if deps_dir is None:
@@ -1073,7 +1079,7 @@ class ProjectOps(object):
                             skipped_reason=src or "non-git",
                         )
                     else:
-                        pkg = rgy.mkPackage(src, name, entry, None)
+                        pkg = rgy.mkPackage(src, name, lock_entry_opts(entry), None)
                         pkg.path = os.path.join(deps_dir, key)
                         pkg.scope_key = key
                         result = await loop.run_in_executor(
@@ -1309,6 +1315,12 @@ class ProjectOps(object):
         else:
             req_dep_sets = list(dep_set)
 
+        # Where the dep-set selection came from, for diagnostics. Updated below
+        # when the selection is recovered from persisted workspace state.
+        self._dep_sets_origin = (
+            "the -d/--dep-set command-line option"
+            if req_dep_sets is not None else None)
+
         # The directory used to look up persisted state precedes knowing the
         # manifest's own deps-dir; honor an explicit --deps-dir, else "packages".
         _pre_deps_dir_name = deps_dir_override or "packages"
@@ -1453,6 +1465,11 @@ class ProjectOps(object):
         if persisted_dep_sets is not None:
             if req_dep_sets is None:
                 req_dep_sets = persisted_dep_sets
+                self._dep_sets_origin = (
+                    "the dep-set recorded by a previous update in %s "
+                    "(pass '-d <name> --force' to select a different one, or "
+                    "run 'ivpm destroy' to start from a clean workspace)" %
+                    os.path.join(deps_dir, persisted_from))
                 note("Using dep-set %s, recorded in %s. Selecting a different "
                      "dep-set requires -d <name> together with --force." % (
                          ",".join(persisted_dep_sets),
@@ -1481,25 +1498,12 @@ class ProjectOps(object):
     # directly (ProjectOps._getDepSets) to select dep-sets out of each fetched
     # source manifest without constructing a ProjectOps.
     @staticmethod
-    def _getDepSet(proj_info, dep_set):
-        if dep_set is None:
-            # Priority: 1) default-dep-set setting, 2) first dep-set in file
-            if proj_info.default_dep_set is not None:
-                dep_set = proj_info.default_dep_set
-            elif len(proj_info.dep_set_m.keys()) > 0:
-                dep_set = list(proj_info.dep_set_m.keys())[0]
-            else:
-                fatal("No dependency sets defined in project")
-
-        if dep_set not in proj_info.dep_set_m.keys():
-            raise Exception("Dep-set %s is not present" % dep_set)
-        else:
-            ds = proj_info.dep_set_m[dep_set]
-
-        return dep_set, ds
+    def _getDepSet(proj_info, dep_set, origin=None):
+        from .proj_info import select_dep_set
+        return select_dep_set(proj_info, dep_set, origin)
 
     @staticmethod
-    def _getDepSets(proj_info, dep_sets):
+    def _getDepSets(proj_info, dep_sets, origin=None):
         """Resolve one or more requested dep-sets into a single PackagesInfo.
 
         Returns ``(names, ds)`` where *names* is the ordered list of resolved
@@ -1510,11 +1514,11 @@ class ProjectOps(object):
         from .packages_info import PackagesInfo
 
         if not dep_sets:
-            name, ds = ProjectOps._getDepSet(proj_info, None)
+            name, ds = ProjectOps._getDepSet(proj_info, None, origin)
             return [name], ds
 
         if len(dep_sets) == 1:
-            name, ds = ProjectOps._getDepSet(proj_info, dep_sets[0])
+            name, ds = ProjectOps._getDepSet(proj_info, dep_sets[0], origin)
             return [name], ds
 
         from .ivpm_yaml_reader import merge_with
@@ -1522,7 +1526,7 @@ class ProjectOps(object):
         merged = PackagesInfo("+".join(dep_sets))
         merged_with = {}
         for name in dep_sets:
-            _, ds = ProjectOps._getDepSet(proj_info, name)
+            _, ds = ProjectOps._getDepSet(proj_info, name, origin)
             # Later dep-sets win on name collisions; a shared package pulled by
             # more than one set is installed once.
             merged.packages.update(ds.packages)

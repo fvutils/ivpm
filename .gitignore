@@ -12,3 +12,8 @@ rundir/
 build/
 dist/
 tmp/
+
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/

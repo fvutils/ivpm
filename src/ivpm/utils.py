@@ -314,6 +314,59 @@ def which(exe : str):
             return exe_file_e
     return None  
       
+def describe_exception(exc) -> str:
+    """Render *exc* for a user-facing diagnostic, with enough to act on.
+
+    ``str(exc)`` alone is frequently useless: an ``OSError`` raised without a
+    filename renders as a bare "[Errno 2] No such file or directory", naming
+    neither the operation nor the path, and an exception with an empty message
+    renders as the empty string. So this always names the exception type, adds
+    the OSError filename(s) when the exception carries them, and points at the
+    innermost ivpm frame -- which is what actually tells the user (or a bug
+    report) *where* in ivpm the failure happened.
+    """
+    text = str(exc).strip()
+    type_name = type(exc).__name__
+    head = "%s: %s" % (type_name, text) if text else type_name
+
+    extra = []
+    # OSError-family: the path is the whole story, and is absent from str(exc)
+    # whenever the raiser did not pass a filename.
+    for f in (getattr(exc, "filename", None), getattr(exc, "filename2", None)):
+        if f and str(f) not in text:
+            extra.append("path: %s" % f)
+
+    frame = _innermost_ivpm_frame(exc)
+    if frame is not None:
+        extra.append("raised at %s" % frame)
+
+    return "%s (%s)" % (head, "; ".join(extra)) if extra else head
+
+
+def _innermost_ivpm_frame(exc):
+    """"<file>:<line> in <func>" for the deepest ivpm frame in *exc*'s traceback.
+
+    Third-party frames (httpx, tarfile, subprocess) are skipped: they say how
+    the operation failed, not which ivpm step asked for it.
+    """
+    import traceback
+
+    tb = getattr(exc, "__traceback__", None)
+    if tb is None:
+        return None
+    ivpm_root = os.path.dirname(os.path.abspath(__file__))
+    best = None
+    for fs in traceback.extract_tb(tb):
+        try:
+            path = os.path.abspath(fs.filename)
+        except Exception:
+            continue
+        if path.startswith(ivpm_root + os.sep) or path == ivpm_root:
+            best = "%s:%d in %s" % (os.path.relpath(path, ivpm_root),
+                                    fs.lineno, fs.name)
+    return best
+
+
 def getlocstr(e):
     # ``srcinfo`` may be present but None (a package built outside the reader),
     # so test the value, not just the attribute -- otherwise formatting a

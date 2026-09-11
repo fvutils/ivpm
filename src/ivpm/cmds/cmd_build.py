@@ -75,16 +75,18 @@ class CmdBuild(object):
                 except Exception as e:
                     warning("failed to read ivpm.json: %s" % str(e))
 
+        ds_origin = ("the -d/--dep-set command-line option"
+                     if ds_name is not None else None)
         if "dep-set" in ivpm_json.keys():
             if ds_name is None:
                 ds_name = ivpm_json["dep-set"]
+                ds_origin = ("the dep-set recorded by a previous update in %s" %
+                             os.path.join(deps_dir, "ivpm.json"))
             elif ds_name != ivpm_json["dep-set"]:
                 fatal("Attempting to update with a different dep-set than previously used")
-        
-        if ds_name not in proj_info.dep_set_m.keys():
-            raise Exception("Dep-set %s is not present" % ds_name)
-        else:
-            ds = proj_info.dep_set_m[ds_name]
+
+        from ..proj_info import select_dep_set
+        ds_name, ds = select_dep_set(proj_info, ds_name, ds_origin)
 
         # TODO: need a way to step through packages without updating
         pkg_handler = PackageHandlerRgy.inst().mkHandler()

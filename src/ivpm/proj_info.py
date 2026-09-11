@@ -86,6 +86,12 @@ class ProjInfo():
         self.ivpm_info = {}
         self.requirements_txt = None
 
+        # Path (or pseudo-path, for a manifest read from a buffer) of the file
+        # this info was read from. Diagnostics about the manifest as a whole --
+        # eg a dep-set that it does not declare -- have no per-key srcinfo to
+        # anchor on, so they name this file instead.
+        self.manifest_file = None
+
         self.name = None
         self.version = None
         # Optional one-line summary from 'package.description'
@@ -137,17 +143,16 @@ class ProjInfo():
 
     def has_dep_set(self, name):
         return name in self.dep_set_m.keys()
-            
+
     def get_dep_set(self, name):
         return self.dep_set_m[name]
-    
+
     def get_target_dep_set(self):
         if self.target_dep_set is None:
             raise Exception("target_dep_set is not specified")
-        if self.target_dep_set not in self.dep_set_m.keys():
-            raise Exception("Dep-set %s is not present in project %s" % (
-                self.target_dep_set, self.name))
-        return self.dep_set_m[self.target_dep_set]
+        _, ds = select_dep_set(self, self.target_dep_set,
+                               origin="the target dep-set of this package")
+        return ds
     
     def set_dep_set(self, name, ds):
         self.dep_set_m[name] = ds
@@ -186,6 +191,48 @@ class ProjInfo():
 #    @property
 #    def deps(self):
 #        return self.dependencies
+
+
+def describe_manifest(proj_info) -> str:
+    """Name the manifest a dep-set diagnostic is about ("<name> (<file>)")."""
+    name = getattr(proj_info, "name", None) or "<unnamed>"
+    path = getattr(proj_info, "manifest_file", None)
+    return "'%s' (%s)" % (name, path) if path else "'%s'" % name
+
+
+def select_dep_set(proj_info, dep_set, origin=None):
+    """Select *dep_set* out of *proj_info*, returning ``(name, PackagesInfo)``.
+
+    *dep_set* of None selects the manifest's default. *origin* describes where
+    the name came from (eg the dep-set recorded by a previous update, or the
+    -d option). The name is frequently *not* something the user typed on this
+    command line, so a bare "dep-set X is not present" leaves them with nothing
+    to act on -- say which manifest was searched, what it does offer, and who
+    asked for X.
+    """
+    if dep_set is None:
+        # Priority: 1) default-dep-set setting, 2) first dep-set in file
+        if proj_info.default_dep_set is not None:
+            dep_set = proj_info.default_dep_set
+            if origin is None:
+                origin = "the 'default-dep-set' setting in this manifest"
+        elif len(proj_info.dep_set_m.keys()) > 0:
+            dep_set = list(proj_info.dep_set_m.keys())[0]
+        else:
+            fatal("No dependency sets defined in package %s" %
+                  describe_manifest(proj_info))
+
+    if dep_set not in proj_info.dep_set_m.keys():
+        avail = sorted(proj_info.dep_set_m.keys())
+        msg = "dep-set '%s' is not present in package %s\n" % (
+            dep_set, describe_manifest(proj_info))
+        msg += "  Available dep-sets: %s\n" % (
+            ", ".join(avail) if avail else "<none>")
+        if origin is not None:
+            msg += "  '%s' was requested by %s\n" % (dep_set, origin)
+        fatal(msg.rstrip())
+
+    return dep_set, proj_info.dep_set_m[dep_set]
 
 
 # Name of the deps-dir lockfile written by 'ivpm update'.

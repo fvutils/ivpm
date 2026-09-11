@@ -263,6 +263,28 @@ class TestPackageModulefileCreate(unittest.TestCase):
     def test_modulefile_accepted_as_dep_key(self):
         self.assertIn("modulefile", PackageModule.dep_keys())
 
+    def test_null_module_with_modulefile(self):
+        """A carried-along null 'module' is not a conflict.
+
+        Options also arrive from a lock entry, which may name the unused form
+        explicitly as null; the guard tests the value, not the key.
+        """
+        pkg = PackageModule.create(
+            "mytool", {"module": None, "modulefile": "etc/mf/tool"}, None)
+        self.assertTrue(pkg.is_modulefile)
+        self.assertEqual(pkg.modulefile_spec, "etc/mf/tool")
+
+    def test_null_modulefile_with_module(self):
+        pkg = PackageModule.create(
+            "gcc", {"module": "gcc/15.2.0", "modulefile": None}, None)
+        self.assertFalse(pkg.is_modulefile)
+        self.assertEqual(pkg.module, "gcc/15.2.0")
+
+    def test_null_modulefile_with_version(self):
+        pkg = PackageModule.create(
+            "vcs", {"version": "2024.09", "modulefile": None}, None)
+        self.assertEqual(pkg.module, "vcs/2024.09")
+
 
 class TestPackageModulefileUpdate(TestBase):
     """Resolution of the 'modulefile:' form during update()."""

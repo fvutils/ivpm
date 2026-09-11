@@ -136,6 +136,38 @@ Fields common to all entries:
 ``resolved_on`` *(optional)*
     See below.
 
+Environment-Module Entries (``src: module``)
+============================================
+
+A ``src: module`` entry records the form the dependency was *declared* with --
+``module`` for a logical specifier, ``modulefile`` for a path on disk -- never
+both, since a manifest naming both is an error.  The path resolution produced
+is recorded separately:
+
+.. code-block:: json
+
+    {
+      "gcc": {
+        "src": "module",
+        "module": "gcc/15.2.0",
+        "modulefile_resolved": "/opt/modules/gcc/15.2.0",
+        "root": "/opt/gcc/15.2.0",
+        "reproducible": false
+      },
+      "mytool": {
+        "src": "module",
+        "modulefile": "etc/modulefiles/mytool/1.0",
+        "modulefile_resolved": "/home/user/proj/etc/modulefiles/mytool/1.0",
+        "root": "/home/user/proj/etc/modulefiles/mytool",
+        "reproducible": false
+      }
+    }
+
+``modulefile_resolved`` is the absolute modulefile path and ``root`` the
+directory the package resolved to; both are outputs of the update, not part of
+the declared spec.  Older locks wrote the resolved path under ``modulefile``
+and the unused form as ``null``; those entries are still read correctly.
+
 Platform-Specific Entries (``resolved_on``)
 ===========================================
 

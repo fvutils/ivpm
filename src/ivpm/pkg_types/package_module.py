@@ -111,19 +111,21 @@ class PackageModule(Package):
         # The key is the discriminator: 'module:'/'version:' name a logical
         # module to look up, 'modulefile:' names a file on disk. Mixing them
         # is always a mistake, so reject it rather than picking a winner.
-        if "modulefile" in opts and "module" in opts:
+        # Tested by value, not presence: options also arrive from a lock entry,
+        # where an unused form can be carried as an explicit null.
+        if opts.get("modulefile") and opts.get("module"):
             fatal("src: module accepts either a logical module name via 'module:' "
                   "or a modulefile path via 'modulefile:', not both", self)
-        if "modulefile" in opts and "version" in opts:
+        if opts.get("modulefile") and opts.get("version"):
             fatal("src: module accepts either a modulefile path via 'modulefile:' "
                   "or a 'version:' (which derives a logical module name), not both",
                   self)
 
-        if "modulefile" in opts:
+        if opts.get("modulefile"):
             self.modulefile_spec = opts["modulefile"]
-        elif "module" in opts:
+        elif opts.get("module"):
             self.module = opts["module"]
-        elif "version" in opts:
+        elif opts.get("version"):
             # Derive specifier from name/version (e.g. vcs/2024.09)
             self.module = "%s/%s" % (self.name, opts["version"])
         else:
@@ -348,4 +350,6 @@ class PackageModule(Package):
         else:
             _logger.info("Module: %s", self.module)
             _logger.info("  Modulefile: %s", self.modulefile_path or "unknown")
-        _logger.info("  Root: %s", self.module_root or "unknown")
+        # Reconstructed from a lock entry, the recorded root arrives as
+        # root_override -- update() has not run, so module_root is unset.
+        _logger.info("  Root: %s", self.module_root or self.root_override or "unknown")

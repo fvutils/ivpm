@@ -154,8 +154,13 @@ def _failure_message(pkg, exc) -> str:
     """
     if _already_reported(exc):
         return "Failed to update package %s%s" % (pkg.name, _origin_suffix(pkg))
+    # Not routed through the diagnostics layer, so this is the only chance to
+    # say what went wrong: describe_exception() adds the exception type, any
+    # path the exception carries, and the ivpm frame it came from -- without
+    # them an OSError reads as a bare "[Errno 2] No such file or directory".
+    from .utils import describe_exception
     return "Failed to update package %s: %s%s" % (
-        pkg.name, str(exc), _origin_suffix(pkg))
+        pkg.name, describe_exception(exc), _origin_suffix(pkg))
 
 
 class PackageUpdater(object):
@@ -688,10 +693,19 @@ class PackageUpdater(object):
 
             return (pkg, scope, pkg.proj_info)
         except Exception as e:
+            # asyncio.gather(return_exceptions=True) hands the exception back to
+            # the batch driver detached from its traceback context, so this is
+            # the one place the full stack is still available. Keep it on the
+            # developer channel ('ivpm --log-level DEBUG') for the cases the
+            # one-line description isn't enough to localize.
+            _logger.debug("Package %s failed", pkg.name, exc_info=True)
             # Signal package error, carrying the dependency's source location so
             # the TUI can show file:line:col alongside the message.
+            from .utils import describe_exception
             self.update_info.package_error(
-                pkg.name, str(e), loc=getattr(pkg, "srcinfo", None))
+                pkg.name,
+                str(e) if _already_reported(e) else describe_exception(e),
+                loc=getattr(pkg, "srcinfo", None))
             raise
 
     

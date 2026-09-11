@@ -93,6 +93,53 @@ class TestDepSetSwitch(TestBase):
         self.assertIn("--force", notes)
 
 
+class TestMissingDepSetDiagnostic(TestBase):
+    """A dep-set name that the manifest doesn't declare must be actionable.
+
+    The name is usually *not* something the user typed: a workspace installed
+    before the manifest renamed its dep-sets keeps requesting the old name out
+    of ivpm.json/the lock. A bare "Dep-set X is not present" (raised as a bare
+    Exception, so it printed a traceback) named neither the manifest nor what
+    it does offer.
+    """
+
+    def _mkws(self, persisted_dep_set):
+        deps_dir = os.path.join(self.testdir, "packages")
+        os.makedirs(deps_dir, exist_ok=True)
+        with open(os.path.join(self.testdir, "ivpm.yaml"), "w") as fp:
+            fp.write(_MANIFEST)
+        with open(os.path.join(deps_dir, "ivpm.json"), "w") as fp:
+            json.dump({"dep-set": persisted_dep_set}, fp)
+        return deps_dir
+
+    def test_persisted_name_missing_reports_source_and_options(self):
+        self._mkws("default-dev")
+        ops = ProjectOps(self.testdir)
+        proj_info, _, dep_sets, _ = ops._init()
+        with self.assertRaises(SrcLoaderError) as ctx:
+            ops._getDepSets(proj_info, dep_sets,
+                            origin=ops._dep_sets_origin)
+        msg = str(ctx.exception)
+        self.assertIn("default-dev", msg)
+        # names the manifest that was searched ...
+        self.assertIn("ivpm.yaml", msg)
+        self.assertIn("'t'", msg)
+        # ... what it does offer ...
+        self.assertIn("dev, use", msg)
+        # ... and who asked for the missing name.
+        self.assertIn("ivpm.json", msg)
+
+    def test_cli_name_missing_names_the_option(self):
+        self._mkws("use")
+        ops = ProjectOps(self.testdir)
+        proj_info, _, dep_sets, _ = ops._init("nope", force=True)
+        with self.assertRaises(SrcLoaderError) as ctx:
+            ops._getDepSets(proj_info, dep_sets, origin=ops._dep_sets_origin)
+        msg = str(ctx.exception)
+        self.assertIn("nope", msg)
+        self.assertIn("--dep-set", msg)
+
+
 class TestDepSetFromLock(TestBase):
     """The lock is the fallback when ivpm.json is missing or has no dep-set.
 

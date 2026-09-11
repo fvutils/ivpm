@@ -518,8 +518,12 @@ class PackageHandlerPython(PackageHandler):
             # Relative paths are relative to the ivpm.yaml that declared the
             # entry -- not to the root project.
             path = resolve_pkg_path(pkg, toml_path, proj_dir)
-        else:
+        elif getattr(pkg, "url", None):
             path = _resolve_pyproject_url(pkg.url, pkg, proj_dir)
+        else:
+            # Neither 'url' nor 'path' -- fall back to the pyproject.toml
+            # beside the ivpm.yaml that declared the entry.
+            path = resolve_pkg_path(pkg, "pyproject.toml", proj_dir)
         if not os.path.isfile(path):
             source_ref = getattr(pkg, "toml_path", None) or getattr(pkg, "url", None) or "<unknown>"
             fatal(

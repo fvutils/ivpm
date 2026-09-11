@@ -29,6 +29,9 @@ class PackagePyprojectToml(Package):
 
     Explicit ``src: pypi`` entries always win on name collision.
 
+    When neither ``url`` nor ``path`` is specified, the ``pyproject.toml``
+    sitting beside the declaring ``ivpm.yaml`` is used.
+
     Supported ``include`` section names:
 
     * ``dependencies``                  — ``[project].dependencies``
@@ -51,6 +54,9 @@ class PackagePyprojectToml(Package):
             self.url = str(opts["url"])
         if "path" in opts:
             self.toml_path = str(opts["path"])
+        if self.url is None and self.toml_path is None:
+            # Minimal form: the pyproject.toml next to the declaring ivpm.yaml
+            self.toml_path = "pyproject.toml"
         if "include" in opts:
             raw = opts["include"]
             self.include = [raw] if isinstance(raw, str) else list(raw)
@@ -78,6 +84,7 @@ class PackagePyprojectToml(Package):
                 ParamInfo(
                     "path",
                     "relative or absolute filesystem path to the pyproject.toml",
+                    default="pyproject.toml (beside the declaring ivpm.yaml)",
                 ),
                 ParamInfo(
                     "include",

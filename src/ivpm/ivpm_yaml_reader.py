@@ -318,6 +318,7 @@ class IvpmYamlReader(object):
         from ivpm.proj_info import ProjInfo
 
         ret = ProjInfo(is_src=True)
+        ret.manifest_file = name
 
         # File I/O streams have a name field that is read-only.
         # Add a name field to non-I/O streams
