@@ -19,7 +19,7 @@
 #*     Author: mballance
 #*
 #****************************************************************************
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 from ivpm.package import Package
 
 class PackagesInfo():
@@ -32,6 +32,9 @@ class PackagesInfo():
         self.name = name
         # Optional one-line summary from the dep-set's 'description'
         self.description : Optional[str] = None
+        # Optional long-form documentation body from the dep-set's 'doc'.
+        # Opaque: stored verbatim, never interpreted.
+        self.doc : Optional[str] = None
         # Optional explicit classification ("package" | "collection") from the
         # dep-set's 'kind'. None -> inferred from dep count / name / 'uses'.
         self.kind : Optional[str] = None
@@ -49,6 +52,28 @@ class PackagesInfo():
         # target. Kept raw so the effective config is computed (merged + parsed)
         # once the install target is known.
         self.with_raw : Optional[dict] = None
+
+        # --- Inheritance provenance (documentation/introspection only) ---
+        # 'packages' above is, and remains, the fully-resolved set every
+        # existing consumer reads. These three record what inheritance merged
+        # away, so a renderer can show the delta between a dep-set and its
+        # bases rather than only the flattened result.
+        #
+        # Packages as literally declared by this dep-set's own 'deps:',
+        # captured BEFORE inheritance merging. Empty for a 'uses'-only
+        # compound dep-set; equal to 'packages' for a dep-set with no 'uses'.
+        self.own_packages : Dict[str,Package] = {}
+        # package name -> name of the base dep-set that supplied it. Only names
+        # NOT declared locally appear here: a locally-declared name is never
+        # "from" a base, even when it overrides one. When several bases supply
+        # the same name, the winner (the last one, matching the merge) is
+        # recorded.
+        self.inherited_from : Dict[str,str] = {}
+        # package name -> (base dep-set name, the Package spec that was
+        # displaced), for locally-declared names that shadowed a base entry.
+        # Retaining the displaced Package (rather than a rendered string) is
+        # what lets a renderer show "UVM_1_2 -> UVM_2_0".
+        self.overrides : Dict[str,Tuple[str,Package]] = {}
 
         # Map of package name to set of packages
         # required for setup. This is Python-specific
@@ -80,11 +105,21 @@ class PackagesInfo():
         self.packages[key] = value
         
     def copy(self) -> 'PackagesInfo':
+        # Enumerates every field explicitly, so anything added to __init__ and
+        # not listed here silently vanishes on copy. In particular the
+        # inheritance-provenance fields below: dropping them would yield an
+        # empty delta view in exactly the cases that involve copying.
         ret = PackagesInfo(self.name)
+        ret.description = self.description
+        ret.doc      = self.doc
+        ret.kind     = self.kind
         ret.uses     = self.uses
         ret.deps_mode = self.deps_mode
         ret.packages = self.packages.copy()
         ret.options  = self.options.copy()
         ret.with_raw = self.with_raw
+        ret.own_packages   = self.own_packages.copy()
+        ret.inherited_from = self.inherited_from.copy()
+        ret.overrides      = self.overrides.copy()
 
         return ret

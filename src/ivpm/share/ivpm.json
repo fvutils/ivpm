@@ -42,6 +42,29 @@
 					"type": "string",
 					"description": "One-line summary of what this package/catalog offers"
 				},
+				"doc": {
+					"type": "string",
+					"description": "Long-form documentation body. Stored verbatim and never interpreted by IVPM; the markup dialect is the renderer's choice"
+				},
+				"license": {
+					"type": "string",
+					"description": "License identifier for this project (e.g. Apache-2.0)"
+				},
+				"homepage": {
+					"type": "string",
+					"description": "Project home page"
+				},
+				"documentation": {
+					"type": "string",
+					"description": "Where this project's documentation lives. Consumers link their generated pages here with no configuration of their own"
+				},
+				"maintainers": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					},
+					"description": "Project maintainers, one free-form string each"
+				},
 				"version": {
 					"type": "string",
 					"description": "Version of the package"
@@ -81,6 +104,12 @@
 					"description": "Organize project paths for tools to discover (e.g., rtl/vlog, dv/sv)",
 					"additionalProperties": {
 						"type": "object",
+						"properties": {
+							"description": {
+								"type": "string",
+								"title": "One-line summary of what this path set publishes. Documentation only; not a path kind"
+							}
+						},
 						"additionalProperties": {
 							"type": "array",
 							"items": {
@@ -115,6 +144,10 @@
 				"description": {
 					"type": "string",
 					"title": "One-line summary of what this dependency set installs"
+				},
+				"doc": {
+					"type": "string",
+					"title": "Long-form documentation body for this dependency set. Stored verbatim and never interpreted by IVPM"
 				},
 				"kind": {
 					"type": "string",
@@ -210,6 +243,14 @@
 				"name": {
 					"type": "string",
 					"description": "Package identifier"
+				},
+				"description": {
+					"type": "string",
+					"title": "One-line summary of what this dependency is for. Documentation only"
+				},
+				"doc": {
+					"type": "string",
+					"title": "Long-form documentation body for this dependency -- e.g. why it is pinned where it is. Stored verbatim and never interpreted by IVPM"
 				},
 				"url": {
 					"type": "string",
@@ -388,6 +429,10 @@
 				"name": {
 					"type": "string",
 					"title": "Environment variable name"
+				},
+				"description": {
+					"type": "string",
+					"title": "One-line summary of what this variable is for. Documentation only; never emitted into packages.envrc"
 				},
 				"value": {
 					"oneOf": [

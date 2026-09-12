@@ -39,6 +39,13 @@ Key Properties
   complete set of pip-installed package versions under the
   ``python_packages`` key, enabling full Python environment reproducibility.
   This works regardless of whether ``pip`` or ``uv`` was used to install.
+* **No documentation keys** — ``description``, ``doc``, ``license``,
+  ``homepage``, ``documentation`` and ``maintainers`` are deliberately **not**
+  recorded here.  The lock records what you *got*; prose is what you
+  *declared*, and the declaring manifest is its only home.  Copying it in would
+  conflate the two, churn the lock on doc-only edits, and make a documentation
+  key observable in a fetch artifact.  ``ivpm show deps`` and ``ivpm show bom``
+  read it from the manifest instead — see :doc:`documenting`.
 * **Integrity checksum** — a SHA-256 checksum of the lock file body is
   embedded in the ``sha256`` field.  IVPM warns (but does not fail) if the
   checksum does not match, allowing you to detect accidental manual edits.

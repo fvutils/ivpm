@@ -27,7 +27,31 @@ import sys
 import warnings
 from typing import Dict, List, Optional, Set
 
-from .dep_info import DepGraph, DepNode
+from .dep_info import (DepGraph, DepNode, DepSetInfo, OverrideInfo,
+                       declared_spec, spec_label)
+
+
+def mk_dep_set_info(name: str, info) -> DepSetInfo:
+    """Build a :class:`DepSetInfo` from a parsed ``PackagesInfo``.
+
+    Shared by the resolved-graph loader and the ``--from`` catalog view so both
+    report the inheritance delta identically.
+    """
+    return DepSetInfo(
+        name=name,
+        description=getattr(info, "description", None),
+        doc=getattr(info, "doc", None),
+        kind=getattr(info, "kind", None),
+        uses=list(info.uses) if getattr(info, "uses", None) else [],
+        contains=sorted(info.packages.keys()),
+        own=sorted(getattr(info, "own_packages", {}).keys()),
+        inherited_from=dict(getattr(info, "inherited_from", {})),
+        overrides={
+            n: OverrideInfo(base=base, spec=spec_label(pkg),
+                            displaced=declared_spec(pkg))
+            for n, (base, pkg) in getattr(info, "overrides", {}).items()
+        },
+    )
 
 
 def _load_lock(deps_dir: str) -> Optional[dict]:
@@ -56,13 +80,17 @@ def _live_info(src: str, name: str, deps_dir: str) -> dict:
     return {}
 
 
-def _declared_deps(proj_dir: str, dep_set: str) -> List[str]:
-    """Return the list of dep names declared in ivpm.yaml for the given dep-set.
+def _declared_pkgs(proj_dir: str, dep_set: str) -> dict:
+    """Return ``{dep name: Package}`` as declared in ivpm.yaml for *dep_set*.
 
     Reads through IvpmYamlReader so that ``include:`` directives are resolved
     (a raw yaml parse would miss dep-sets that live in included files).
 
-    Returns an empty list when ivpm.yaml is absent or the dep-set is not found.
+    The Package objects -- not merely the names -- are returned because the
+    declaring manifest is the only source of a dependency's prose
+    (``description``/``doc``); the lock deliberately does not record it.
+
+    Returns an empty dict when ivpm.yaml is absent or the dep-set is not found.
     This function is called while scanning sub-package dirs, so it must stay
     lenient: any read/parse/validation error (IvpmYamlReader raises
     SrcLoaderError on malformed manifests or unknown source types) is swallowed
@@ -70,16 +98,21 @@ def _declared_deps(proj_dir: str, dep_set: str) -> List[str]:
     """
     yaml_path = os.path.join(proj_dir, "ivpm.yaml")
     if not os.path.isfile(yaml_path):
-        return []
+        return {}
     try:
         from ..ivpm_yaml_reader import IvpmYamlReader
         with open(yaml_path) as f:
             pi = IvpmYamlReader().read(f, yaml_path, allow_include=True)
         if dep_set in pi.dep_set_m:
-            return list(pi.dep_set_m[dep_set].packages.keys())
+            return dict(pi.dep_set_m[dep_set].packages)
     except Exception:
         pass
-    return []
+    return {}
+
+
+def _declared_deps(proj_dir: str, dep_set: str) -> List[str]:
+    """Return the list of dep names declared in ivpm.yaml for *dep_set*."""
+    return list(_declared_pkgs(proj_dir, dep_set).keys())
 
 
 def _build_node(name: str,
@@ -87,13 +120,18 @@ def _build_node(name: str,
                 lock: Optional[dict],
                 shadowed: bool,
                 also_requested_by: List[str],
-                scope: str = "") -> DepNode:
+                scope: str = "",
+                declared=None) -> DepNode:
     """Construct a DepNode from lock-file data (or minimal data if lock absent).
 
     *scope* is the key prefix for the dependency scope this package was
     resolved into ("" at the root, else e.g. "toolB/packages/"). Lock keys are
     scope paths, so it is what makes the lookup find the right one of two
     same-named packages.
+
+    *declared* is the ``Package`` the declaring manifest holds for this name, if
+    it could be read. It supplies the prose only: the lock records what you
+    *got*, the manifest what you *declared*, and prose belongs to the latter.
     """
     entry = (lock or {}).get(scope + name) or {}
     src = entry.get("src", "")
@@ -122,6 +160,16 @@ def _build_node(name: str,
         cache_val = entry.get("cache")
         if cache_val is not None:
             node.cache = bool(cache_val)
+        repro = entry.get("reproducible")
+        if repro is not None:
+            node.reproducible = bool(repro)
+        node.patchset_id = entry.get("patchset_id")
+        node.patches = list(entry.get("patches") or [])
+
+    if declared is not None:
+        node.description = getattr(declared, "description", None)
+        node.doc = getattr(declared, "doc", None)
+        node.declared = declared_spec(declared)
 
     return node
 
@@ -148,8 +196,11 @@ class DepLoader:
 
     def load(self) -> DepGraph:
         """Build and return the complete DepGraph."""
-        (root_name, root_version, root_description,
-         root_dep_set, root_declared, deps_dir) = self._load_root()
+        root = self._load_root()
+        (root_name, root_version, root_description, root_doc,
+         root_dep_set, root_declared_pkgs, root_dep_set_info,
+         deps_dir) = root
+        root_declared = list(root_declared_pkgs.keys())
 
         lock = _load_lock(deps_dir)
         lock_available = lock is not None
@@ -178,6 +229,7 @@ class DepLoader:
             in_scope=set(),      # nothing is shadowed at root level
             ancestors=set(),
             build_tree=True,
+            declared=root_declared_pkgs,
         )
 
         return DepGraph(
@@ -187,6 +239,8 @@ class DepLoader:
             nodes=nodes,
             lock_available=lock_available,
             description=root_description,
+            doc=root_doc,
+            dep_set_info=root_dep_set_info,
         )
 
     # ------------------------------------------------------------------
@@ -195,7 +249,8 @@ class DepLoader:
 
     def _load_root(self):
         """Parse the root ivpm.yaml; return
-        (name, version, description, dep_set, dep_names, deps_dir).
+        (name, version, description, doc, dep_set, declared_pkgs,
+        dep_set_info, deps_dir).
 
         Reads through IvpmYamlReader (rather than a raw yaml parse) so that
         ``include:`` directives are resolved and dep-sets defined in included
@@ -233,11 +288,15 @@ class DepLoader:
         else:
             dep_set = "default"
 
-        # Collect declared dep names (insertion-ordered)
-        dep_names = (list(pi.dep_set_m[dep_set].packages.keys())
-                     if dep_set in pi.dep_set_m else [])
+        # Collect the declared dep entries (insertion-ordered). The Package
+        # objects carry the prose the lock does not record.
+        declared_pkgs = (dict(pi.dep_set_m[dep_set].packages)
+                         if dep_set in pi.dep_set_m else {})
+        dep_set_info = (mk_dep_set_info(dep_set, pi.dep_set_m[dep_set])
+                        if dep_set in pi.dep_set_m else None)
 
-        return name, version, description, dep_set, dep_names, deps_dir
+        return (name, version, description, pi.doc, dep_set, declared_pkgs,
+                dep_set_info, deps_dir)
 
     def _build_requesters_index(
         self,
@@ -293,12 +352,16 @@ class DepLoader:
         ancestors: Set[str],
         build_tree: bool,
         scope: str = "",
+        declared: Optional[dict] = None,
     ) -> List[DepNode]:
         """Recursively build DepNode objects for the given list of package names.
 
         *scope* is the lock-key prefix for the dependency scope these names were
         resolved into -- "" at the root, else e.g. "toolB/packages/".
+        *declared* is ``{name: Package}`` from the manifest that declared these
+        names; it supplies each node's prose.
         """
+        declared = declared or {}
         nodes = []
         for name in names:
             owner = self._owner(name, lock, scope)
@@ -306,7 +369,8 @@ class DepLoader:
 
             also = sorted(requesters.get(scope + name, set()) - {owner})
 
-            node = _build_node(name, owner, lock, shadowed, also, scope)
+            node = _build_node(name, owner, lock, shadowed, also, scope,
+                               declared=declared.get(name))
 
             # Enrich node with live environment data when lock-file fields are absent
             if not shadowed:
@@ -321,7 +385,8 @@ class DepLoader:
                 # Recurse into this package's own deps
                 pkg_dir = os.path.join(deps_dir, scope + name)
                 child_dep_set = node.dep_set or "default"
-                child_names = _declared_deps(pkg_dir, child_dep_set)
+                child_declared = _declared_pkgs(pkg_dir, child_dep_set)
+                child_names = list(child_declared.keys())
                 if child_names:
                     # A boundary's dependencies live in ITS scope; a flat
                     # package's live in the same scope it does.
@@ -346,6 +411,7 @@ class DepLoader:
                         ancestors=child_ancestors,
                         build_tree=True,
                         scope=child_scope,
+                        declared=child_declared,
                     )
 
             nodes.append(node)

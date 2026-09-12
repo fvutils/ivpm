@@ -64,6 +64,9 @@ Descriptions are purely informational. The package-level ``description`` is
 shown by ``ivpm show deps`` (tree view and ``--json``); dep-set descriptions
 make a manifest self-documenting for anyone browsing the available sets.
 
+Individual dependencies take a ``description`` too, and all three levels accept
+a long-form ``doc`` block.  See :doc:`documenting`.
+
 Standard Names
 --------------
 
@@ -79,9 +82,36 @@ While you can use any names, IVPM recognizes these standard names:
 Dep-Set Inheritance with ``uses``
 ----------------------------------
 
-The ``uses`` field lets a dep-set inherit all packages from another dep-set
-defined in the same ``ivpm.yaml``.  This avoids duplicating shared entries
-across multiple sets.
+``uses`` is **inheritance**: a dep-set inherits every package from one or more
+base dep-sets defined in the same ``ivpm.yaml``, then adds to or overrides what
+it inherited.  This avoids duplicating shared entries across multiple sets.
+
+**The three flavours**
+
+Relative to its bases, every package in a derived dep-set is exactly one of:
+
+**inherited**
+    Supplied by a base and not mentioned in this dep-set's own ``deps:``.
+
+**overridden**
+    Declared in this dep-set's own ``deps:`` *and* present in a base.  This
+    dep-set's definition wins; the base's is displaced.
+
+**added**
+    Declared in this dep-set's own ``deps:`` and absent from every base.
+
+.. _no-removal-operator:
+
+**There is no removal operator.**  A derived dep-set can override a package or
+add one, but it can never *subtract* one that a base contributes.  This is a
+real property of the model, not an oversight: it means the packages of a base
+are a subset of the packages of everything derived from it, so ``uses:`` can
+only ever grow the set.  When you need a smaller set, declare it as its own
+dep-set (or as the base) rather than trying to derive it by removal.
+
+The three flavours are reported per dep-set by ``ivpm show deps --json`` and by
+``ivpm show deps --from <manifest> --json``, under ``own``, ``inherited_from``
+and ``overrides`` — see :doc:`show_deps`.
 
 **Merge rules**
 

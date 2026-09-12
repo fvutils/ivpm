@@ -152,6 +152,67 @@ Add ``--json`` to get structured output for scripting and CI pipelines.
       "also_requested_by": []
     }
 
+Documentation fields
+~~~~~~~~~~~~~~~~~~~~
+
+Every dependency object additionally carries ``description`` and ``doc`` — the
+prose declared on its manifest entry (see :doc:`documenting`), or ``null`` when
+the entry declares none.  These come from the **declaring manifest**, never from
+``package-lock.json``; see :doc:`package_lock`.
+
+The tree form adds the root project's ``doc`` and a ``dep_set_info`` object
+describing the selected dep-set:
+
+.. code-block:: bash
+
+    $ ivpm show deps --tree --json -d sim
+    {
+      "project": "demo",
+      "description": "A demonstration workspace.",
+      "doc": "Long-form prose about the project.\n",
+      "dep_set": "sim",
+      "dep_set_info": {
+        "name": "sim",
+        "description": "Base plus the simulator VIP.",
+        "doc": "Use this one in CI.",
+        "kind": "collection",
+        "uses": ["base"],
+        "contains": ["plainlib", "somelib", "vip"],
+        "own": ["somelib", "vip"],
+        "inherited_from": {"plainlib": "base"},
+        "overrides": {
+          "somelib": {
+            "base": "base",
+            "spec": "https://example.com/somelib.git@commit=a1b2c3d4e5f6",
+            "displaced": {"url": "...", "commit": "a1b2c3d4e5f6"}
+          }
+        }
+      },
+      "deps": [ ... ]
+    }
+
+``contains`` is the full resolved leaf set, as before.  Beside it,
+``own`` / ``inherited_from`` / ``overrides`` give the **inheritance delta** — the
+three flavours described in :doc:`dependency_sets`:
+
+``own``
+    Names this dep-set declared in its own ``deps:`` (added *or* overriding).
+
+``inherited_from``
+    ``{package: base dep-set}`` for names supplied by a base and not declared
+    here.  With a chain (``ci uses sim uses rtl``), the attribution is to the
+    **direct** base — ``sim`` — not to the original declarer; walk ``uses``
+    upward for the rest of the chain.
+
+``overrides``
+    ``{package: {base, spec, displaced}}`` for names declared here that
+    displaced a base's entry.  ``displaced`` is the *replaced* spec, which is
+    what lets a renderer show ``UVM_1_2 → UVM_2_0`` rather than a bare
+    "overridden".
+
+The same three keys appear per dep-set in
+``ivpm show deps --from <manifest> --json``.
+
 Useful ``jq`` recipes:
 
 .. code-block:: bash
@@ -206,3 +267,100 @@ commit hashes will be missing.
     ...
 
 Run ``ivpm update`` first to get a fully resolved view.
+
+---
+
+.. _show-bom:
+
+Bill of materials (``ivpm show bom``)
+--------------------------------------
+
+``ivpm show bom`` reports one row per package in the resolved closure, joining
+three things that otherwise live apart:
+
+* what the manifest **declared** — name, source, prose, and the pin
+  (``branch`` / ``tag`` / ``commit`` / ``version`` / ``module``);
+* what ``package-lock.json`` **resolved** it to — ``version_resolved``,
+  ``commit_resolved``, ``reproducible``, ``cache``, and patch fingerprints;
+* what the package itself **publishes** — ``license``, ``homepage`` and
+  ``documentation``.
+
+.. code-block:: bash
+
+    $ ivpm show bom
+    demo  v1.0.0  (base)
+      A demonstration workspace.
+
+    Package   Src   Version / Ref  License      Repro  Patches            Declared by
+    ------------------------------------------------------------------------------
+    plainlib  pypi  1.2.3          BSD-3-Clause  yes                      root
+    somelib   git   a1b2c3d4       MIT           yes    fix.patch(0123456) root
+
+It performs **no resolution and no fetching** — it is a pure projection over
+data that already exists, so it is safe to run in CI.
+
+Where the metadata comes from
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``license`` / ``homepage`` / ``documentation`` are read from the installed
+package's own ``ivpm.yaml``.  When it declares none, IVPM falls back to the
+package's upstream manifest — ``pyproject.toml`` (``project.license``,
+``project.urls.Homepage``, ``project.urls.Documentation``) or ``package.json``
+(``license``, ``homepage``).  **The ``ivpm.yaml`` manifest always wins**;
+upstream metadata only fills a field the manifest left unset.  Most Python and
+Node dependencies therefore get a usable BOM row without restating anything.
+
+JSON output
+~~~~~~~~~~~
+
+.. code-block:: bash
+
+    $ ivpm show bom --json
+    {
+      "project": "demo",
+      "version": "1.0.0",
+      "dep_set": "base",
+      "description": "A demonstration workspace.",
+      "license": "Apache-2.0",
+      "homepage": "https://demo.example",
+      "documentation": "https://docs.demo.example",
+      "maintainers": ["Alice <alice@example.com>"],
+      "lock_available": true,
+      "packages": [
+        {
+          "name": "somelib",
+          "src": "git",
+          "description": "Vendor DPI shim.",
+          "doc": "Pinned to a commit rather than a tag ...\n",
+          "declared": {"url": "https://example.com/somelib.git",
+                       "commit": "a1b2c3d4e5f6"},
+          "version_resolved": null,
+          "commit_resolved": "a1b2c3d4e5f6789012345678",
+          "reproducible": true,
+          "cache": true,
+          "patches": [{"name": "fix.patch", "md5": "0123456789abcdef",
+                       "strip": 1, "directory": null}],
+          "patchset_id": "deadbeef",
+          "license": "MIT",
+          "homepage": "https://somelib.example",
+          "documentation": "https://docs.somelib.example",
+          "specifier": "root",
+          "dep_set": "base",
+          "scope": ""
+        }
+      ]
+    }
+
+``reproducible`` is ``false`` for sources that cannot be pinned — a ``dir:``
+dependency or a ``module:`` reference — and ``null`` when no lock file exists.
+
+Diffing two of these between release tags is a supply-chain change report:
+
+.. code-block:: bash
+
+    $ git checkout v1.0 && ivpm show bom --json -o /tmp/bom-1.0.json
+    $ git checkout v1.1 && ivpm show bom --json -o /tmp/bom-1.1.json
+    $ diff <(jq -S . /tmp/bom-1.0.json) <(jq -S . /tmp/bom-1.1.json)
+
+Options mirror ``show deps``: ``--json``, ``--no-rich``, ``-p/--project-dir``,
+``-d/--dep-set`` and ``-o/--output``.

@@ -379,6 +379,235 @@ package:
         self.assertEqual("dev", proj.get_dep_set("dev").packages["a"].dep_set)
 
 
+class TestDepSetInheritanceProvenance(unittest.TestCase):
+    """Inheritance provenance: which packages a dep-set declared itself, which
+    base supplied each of the rest, and which declarations displaced a base's.
+
+    'packages' stays the fully-resolved set throughout -- these three fields
+    record only what the merge would otherwise have thrown away.
+    """
+
+    def test_three_flavours_distinguishable(self):
+        proj = _parse("""
+package:
+  name: p
+  dep-sets:
+    - name: rtl-only
+      deps:
+        - name: uvm
+          url: https://example.com/uvm.git
+          tag: UVM_1_2
+        - name: rtl
+          src: pypi
+    - name: sim-questa
+      uses: rtl-only
+      deps:
+        - name: uvm
+          url: https://example.com/uvm.git
+          tag: UVM_2_0
+        - name: questa-vip
+          src: pypi
+""")
+        ds = proj.get_dep_set("sim-questa")
+
+        # inherited, untouched
+        self.assertEqual(ds.inherited_from, {"rtl": "rtl-only"})
+        # declared locally (whether or not it displaced a base entry)
+        self.assertEqual(sorted(ds.own_packages.keys()), ["questa-vip", "uvm"])
+        # declared locally AND displaced a base entry
+        self.assertEqual(list(ds.overrides.keys()), ["uvm"])
+        base, displaced = ds.overrides["uvm"]
+        self.assertEqual(base, "rtl-only")
+        self.assertEqual(displaced.tag, "UVM_1_2")
+        # ...while the resolved set holds the winning entry
+        self.assertEqual(ds.packages["uvm"].tag, "UVM_2_0")
+        # added: locally declared and NOT an override
+        self.assertNotIn("questa-vip", ds.overrides)
+        self.assertNotIn("questa-vip", ds.inherited_from)
+
+    def test_no_uses_own_equals_packages(self):
+        """A dep-set with no 'uses' still gets a meaningful own_packages, so
+        consumers need no special case for the un-derived kind."""
+        proj = _parse("""
+package:
+  name: p
+  dep-sets:
+    - name: default
+      deps:
+        - name: a
+          src: pypi
+        - name: b
+          src: pypi
+""")
+        ds = proj.get_dep_set("default")
+        self.assertEqual(sorted(ds.own_packages.keys()), ["a", "b"])
+        self.assertEqual(ds.own_packages, ds.packages)
+        self.assertEqual(ds.inherited_from, {})
+        self.assertEqual(ds.overrides, {})
+
+    def test_uses_only_compound(self):
+        proj = _parse("""
+package:
+  name: p
+  dep-sets:
+    - name: one
+      deps:
+        - name: a
+          src: pypi
+    - name: two
+      deps:
+        - name: b
+          src: pypi
+    - name: both
+      uses: [one, two]
+""")
+        ds = proj.get_dep_set("both")
+        self.assertEqual(ds.own_packages, {})
+        self.assertEqual(ds.overrides, {})
+        self.assertEqual(ds.inherited_from, {"a": "one", "b": "two"})
+
+    def test_colliding_bases_attribution_matches_the_merge(self):
+        """The later base wins in 'packages'; inherited_from must name that
+        same base. An attribution that disagrees with the merge result is
+        worse than no attribution at all."""
+        proj = _parse("""
+package:
+  name: p
+  dep-sets:
+    - name: one
+      deps:
+        - name: shared
+          url: https://example.com/shared.git
+          branch: from-one
+    - name: two
+      deps:
+        - name: shared
+          url: https://example.com/shared.git
+          branch: from-two
+    - name: both
+      uses: [one, two]
+""")
+        ds = proj.get_dep_set("both")
+        self.assertEqual(ds.packages["shared"].branch, "from-two")
+        self.assertEqual(ds.inherited_from["shared"], "two")
+
+    def test_three_level_chain_attributes_to_direct_base(self):
+        """Attribution is to the DIRECT base, not the original declarer.
+
+        With 'ci uses sim uses rtl', a package reaching 'ci' from 'rtl' is
+        reported as coming from 'sim': the question is what ci's own bases
+        contribute. The full chain stays walkable via 'uses'.
+        """
+        proj = _parse("""
+package:
+  name: p
+  dep-sets:
+    - name: rtl
+      deps:
+        - name: a
+          src: pypi
+    - name: sim
+      uses: rtl
+      deps:
+        - name: b
+          src: pypi
+    - name: ci
+      uses: sim
+      deps:
+        - name: c
+          src: pypi
+""")
+        ci = proj.get_dep_set("ci")
+        self.assertEqual(ci.inherited_from, {"a": "sim", "b": "sim"})
+        self.assertEqual(list(ci.own_packages.keys()), ["c"])
+        # ...and the intermediate level attributes to ITS direct base
+        self.assertEqual(proj.get_dep_set("sim").inherited_from, {"a": "rtl"})
+
+    def test_base_not_polluted(self):
+        """Resolving a derived dep-set must not write provenance onto its base."""
+        proj = _parse("""
+package:
+  name: p
+  dep-sets:
+    - name: base
+      deps:
+        - name: a
+          src: pypi
+    - name: derived
+      uses: base
+      deps:
+        - name: a
+          src: pypi
+          version: "2.0"
+""")
+        base = proj.get_dep_set("base")
+        self.assertEqual(base.inherited_from, {})
+        self.assertEqual(base.overrides, {})
+        self.assertEqual(sorted(base.own_packages.keys()), ["a"])
+
+    def test_copy_preserves_provenance(self):
+        """PackagesInfo.copy() enumerates its fields explicitly, so a field it
+        forgets vanishes silently -- exactly in the cases that involve copying."""
+        proj = _parse("""
+package:
+  name: p
+  description: X
+  dep-sets:
+    - name: base
+      deps:
+        - name: a
+          url: https://example.com/a.git
+          branch: one
+    - name: derived
+      description: Derived set.
+      doc: Prose.
+      kind: collection
+      uses: base
+      deps:
+        - name: a
+          url: https://example.com/a.git
+          branch: two
+        - name: b
+          src: pypi
+""")
+        ds = proj.get_dep_set("derived")
+        cp = ds.copy()
+
+        self.assertEqual(cp.own_packages, ds.own_packages)
+        self.assertEqual(cp.inherited_from, ds.inherited_from)
+        self.assertEqual(cp.overrides, ds.overrides)
+        self.assertEqual(cp.description, "Derived set.")
+        self.assertEqual(cp.doc, "Prose.")
+        self.assertEqual(cp.kind, "collection")
+        self.assertEqual(cp.uses, ["base"])
+        self.assertEqual(cp.packages, ds.packages)
+        # a copy is independent: mutating it must not disturb the original
+        cp.own_packages["zzz"] = None
+        self.assertNotIn("zzz", ds.own_packages)
+
+    def test_resolved_packages_unchanged_for_repo_manifest(self):
+        """Regression over this repo's own ivpm.yaml: recording provenance must
+        not perturb the resolved set of any dep-set it declares."""
+        repo_root = os.path.dirname(os.path.dirname(
+            os.path.dirname(os.path.abspath(__file__))))
+        manifest = os.path.join(repo_root, "ivpm.yaml")
+        if not os.path.isfile(manifest):
+            self.skipTest("repo ivpm.yaml not present")
+        with open(manifest) as fp:
+            proj = IvpmYamlReader().read(fp, manifest)
+
+        self.assertTrue(proj.dep_set_m)
+        for name, ds in proj.dep_set_m.items():
+            # Every resolved name is accounted for: declared here, or supplied
+            # by a base. Nothing appears from nowhere, nothing goes missing.
+            accounted = set(ds.own_packages.keys()) | set(ds.inherited_from.keys())
+            self.assertEqual(set(ds.packages.keys()), accounted,
+                             "dep-set '%s'" % name)
+            for pkg_name in ds.overrides.keys():
+                self.assertIn(pkg_name, ds.own_packages)
+                self.assertNotIn(pkg_name, ds.inherited_from)
+
+
 class TestDepSetInheritanceIntegration(TestBase):
     """Integration tests: full ivpm_update() / ivpm_sync() with inheritance."""
 

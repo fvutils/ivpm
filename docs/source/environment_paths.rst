@@ -46,6 +46,25 @@ entry names a variable and exactly one action (see below):
 When ``env:`` directives (or packages that publish ``export.envrc``) are
 present, ``ivpm update`` writes ``packages/packages.envrc``.
 
+Each directive also accepts an optional ``description`` -- a one-line summary
+of what the variable is for and who consumes it.  These variables are the
+workspace's contract with everything that runs in it, so documenting them is
+worth the line:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+
+      with:
+        env:
+          - name: DESIGN_ROOT
+            description: Root of the RTL tree; consumed by the filelist generator.
+            value: "${{ ivpm_project_dir }}/rtl"
+
+``description`` is documentation only -- it never reaches the generated
+``packages.envrc``.  See :doc:`documenting`.
+
 .. deprecated:: 2.22
 
    A top-level ``env:`` (directly under ``package:``, not under ``with:``)
@@ -401,6 +420,20 @@ Paths are organized by:
 
 1. **Kind** - High-level category (e.g., ``rtl``, ``dv``, ``docs``)
 2. **Type** - Specific type within kind (e.g., ``vlog``, ``sv``, ``vhdl``)
+
+A path set also accepts a ``description``, which documents the set as a whole
+rather than naming a path type:
+
+.. code-block:: yaml
+
+    paths:
+      systemverilog:
+        description: Include directories published to downstream consumers.
+        incdirs:
+          - rtl/include
+
+``description`` is the one reserved key here; every *other* key under a path
+set is a path type whose value is a list of paths.  See :doc:`documenting`.
 
 Basic Structure
 ---------------

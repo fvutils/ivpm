@@ -65,16 +65,19 @@ $schema: https://fvutils.github.io/ivpm/ivpm.schema.json
 package:
   name: my-project
   version: "0.1.0"
+  description: One-line summary of the project.
   default-dep-set: default-dev
 
   dep-sets:
     - name: default
+      description: Runtime dependencies only.
       deps:
         # Runtime dependencies only
         - name: requests
           src: pypi
 
     - name: default-dev
+      description: Runtime plus development dependencies.
       deps:
         # Runtime + development dependencies
         - name: requests
@@ -82,6 +85,49 @@ package:
         - name: pytest
           src: pypi
 ```
+
+### Documentation keys
+
+Every level accepts prose. These keys are **inert**: they never affect
+resolution, fetching, caching, or `package-lock.json`. Write them — a manifest
+without them is harder to hand over, and nothing downstream can recover the
+reasoning once it is lost.
+
+| Key | Where | What |
+|---|---|---|
+| `description` | package, dep-set, dependency, `env` directive, path-set | One-line summary; fills a table cell |
+| `doc` | package, dep-set, dependency | Long-form body (block scalar); the *why* |
+| `license` | package | e.g. `Apache-2.0` |
+| `homepage` | package | Project home page |
+| `documentation` | package | Where the rendered docs live — consumers link here automatically |
+| `maintainers` | package | List of strings |
+
+```yaml
+package:
+  name: acme-flow
+  description: Acme's RTL-to-GDS flow environment.
+  license: Apache-2.0
+  documentation: https://docs.acme.example/flow
+
+  dep-sets:
+    - name: sim
+      description: Simulator plus the UVM base class library.
+      deps:
+        - name: somelib
+          description: Vendor DPI shim.
+          doc: |
+            Pinned to a commit rather than a tag because upstream retags.
+            The patch restores --std=c++17 compatibility; see ISSUE-4412.
+          url: https://github.com/foo/somelib.git
+          commit: a1b2c3d
+```
+
+`doc` is stored verbatim and never interpreted — the markup dialect belongs to
+whatever renders it. Use `description` for the one-liner and `doc` for
+reasoning that would otherwise only exist in a commit message.
+
+Read them back with `ivpm show deps <name>`, `ivpm show deps --json`, and
+`ivpm show bom`.
 
 ## Dependency Types
 
@@ -365,6 +411,23 @@ ivpm show deps --json | jq '[.[] | select(.specifier != "root") | .name]'
 ivpm show deps --json | jq '[.[] | select(.commit != null) | {name, commit}]'
 ```
 
+## Bill of Materials
+
+`ivpm show bom` reports one row per resolved package, joining what the manifest
+declared (source, prose, pin) with what the lock resolved (version, commit,
+`reproducible`, patch fingerprints) and what each package publishes (`license`,
+`homepage`, `documentation`). It resolves and fetches nothing.
+
+```bash
+ivpm show bom
+ivpm show bom --json -d ci -o bom.json
+```
+
+License/homepage/documentation come from the package's own `ivpm.yaml`, falling
+back to its `pyproject.toml` / `package.json` — the ivpm.yaml manifest always
+wins. Diffing two `--json` outputs between release tags is a supply-chain
+change report.
+
 ## All Commands
 
 | Command | Description |
@@ -379,6 +442,7 @@ ivpm show deps --json | jq '[.[] | select(.commit != null) | {name, commit}]'
 | `ivpm cache` | Manage package cache (`init`, `info`, `clean`) |
 | `ivpm show` | Introspect registered sources, types, and handlers |
 | `ivpm show deps` | View the resolved project dependency graph |
+| `ivpm show bom` | View the bill of materials (declared + resolved + licenses) |
 | `ivpm snapshot` | Create self-contained project copy |
 | `ivpm share` | Get IVPM share directory path |
 | `ivpm pkg-info` | Query package paths/libraries |

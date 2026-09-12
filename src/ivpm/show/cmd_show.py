@@ -43,6 +43,9 @@ class CmdShow:
         elif sub == "deps":
             from .show_deps import ShowDeps
             ShowDeps()(args)
+        elif sub == "bom":
+            from .show_bom import ShowBom
+            ShowBom()(args)
         elif sub in ("plugins", "plugin"):
             from .show_plugins import ShowPlugins
             ShowPlugins()(args)
@@ -162,18 +165,88 @@ def _emit_schema():
                 "properties": {
                     "name": {"type": "string"},
                     "version": {"type": "string"},
+                    "description": {
+                        "type": "string",
+                        "description": "One-line summary of this package.",
+                    },
+                    "doc": {
+                        "type": "string",
+                        "description":
+                            "Long-form documentation body. Opaque to ivpm; the "
+                            "markup dialect is the renderer's choice.",
+                    },
+                    "license": {
+                        "type": "string",
+                        "description": "License identifier (e.g. Apache-2.0).",
+                    },
+                    "homepage": {
+                        "type": "string",
+                        "format": "uri-reference",
+                        "description": "Project home page.",
+                    },
+                    "documentation": {
+                        "type": "string",
+                        "format": "uri-reference",
+                        "description":
+                            "Where this project's documentation lives. Consumers "
+                            "link generated pages here with no configuration of "
+                            "their own.",
+                    },
+                    "maintainers": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "Maintainers, one free-form string each.",
+                    },
                     "dep-sets": {
                         "type": "array",
                         "items": {
                             "type": "object",
                             "properties": {
                                 "name": {"type": "string"},
+                                "description": {
+                                    "type": "string",
+                                    "description": "One-line summary of this dep-set.",
+                                },
+                                "doc": {
+                                    "type": "string",
+                                    "description":
+                                        "Long-form documentation body for this "
+                                        "dep-set. Opaque to ivpm.",
+                                },
+                                "kind": {
+                                    "type": "string",
+                                    "enum": ["package", "collection"],
+                                    "description":
+                                        "Explicit classification; inferred when absent.",
+                                },
+                                "uses": {
+                                    "description":
+                                        "Base dep-set(s) this one inherits packages "
+                                        "from. Merged left-to-right; this dep-set's "
+                                        "own entries win.",
+                                    "oneOf": [
+                                        {"type": "string"},
+                                        {"type": "array", "items": {"type": "string"}},
+                                    ],
+                                },
                                 "deps": {
                                     "type": "array",
                                     "items": {
                                         "type": "object",
                                         "properties": {
                                             "name": {"type": "string"},
+                                            "description": {
+                                                "type": "string",
+                                                "description":
+                                                    "One-line summary of this dependency.",
+                                            },
+                                            "doc": {
+                                                "type": "string",
+                                                "description":
+                                                    "Long-form documentation body for "
+                                                    "this dependency (e.g. why it is "
+                                                    "pinned). Opaque to ivpm.",
+                                            },
                                             "src": {
                                                 "type": "string",
                                                 "enum": list(src_schemas.keys()),

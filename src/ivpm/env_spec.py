@@ -33,10 +33,15 @@ class EnvSpec(object):
     def __init__(self,
                  var : str,
                  val : Any,
-                 act : 'EnvSpec.Act'):
+                 act : 'EnvSpec.Act',
+                 description : str = None):
         self.var = var
         self.val = val
         self.act = act
+        # Optional one-line summary from the directive's 'description'.
+        # Documentation only: it never affects what is emitted to
+        # packages.envrc (see as_direnv).
+        self.description = description
 
     def as_direnv(self) -> str:
         """Render this spec as a single ``direnv``/bash directive for

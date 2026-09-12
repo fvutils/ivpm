@@ -541,6 +541,7 @@ the current project's resolved dependency graph.
     ivpm show site-config [--json] [--no-rich] [<name>]
     ivpm show config      [--json] [--no-rich] [<name>]   # alias for site-config
     ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [<name>]
+    ivpm show bom     [-p DIR] [-d DEP-SET] [--json] [--no-rich] [-o FILE]
 
 **Sub-commands:**
 
@@ -576,7 +577,15 @@ the current project's resolved dependency graph.
     (default) or tree (``--tree``). With *name*, shows full detail for a single
     package.  See :doc:`show_deps` for a detailed how-to guide.
 
-**Options (show deps):**
+``bom``
+    Show the bill of materials: one row per package in the resolved closure,
+    joining what the manifest declared (name, source, prose, pin) with what the
+    lock resolved (version, commit, reproducibility, patch fingerprints) and
+    what each package publishes (license, home page, documentation).  A pure
+    projection over existing data -- no resolution, no fetching.  See
+    :ref:`show-bom`.
+
+**Options (show deps / show bom):**
 
 ``-p DIR`` / ``--project-dir DIR``
     Project root to inspect (default: current working directory).
@@ -586,12 +595,16 @@ the current project's resolved dependency graph.
 
 ``--tree`` / ``-t``
     Show the full dependency hierarchy instead of the flat table.
+    (``show deps`` only.)
 
 ``--json``
     Emit machine-readable JSON.
 
 ``--no-rich``
     Plain text output without terminal colours or tables.
+
+``-o FILE`` / ``--output FILE``
+    Write the output to *FILE* instead of stdout.
 
 **Options (show / show source / type / handler / site-config):**
 

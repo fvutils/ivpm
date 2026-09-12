@@ -19,7 +19,8 @@ from ivpm.dep_mode import parse_deps_mode
 
 # Valid keys at the ``package:`` level in ivpm.yaml.
 _KNOWN_PACKAGE_KEYS = {
-    "name", "description", "version", "type", "provides", "with",
+    "name", "description", "doc", "version", "type", "provides", "with",
+    "license", "homepage", "documentation", "maintainers",
     "deps-dir", "deps-mode", "default-dep-set",
     "dep-sets", "setup-deps",
     "paths", "env",
@@ -95,7 +96,14 @@ def parse_env_directive(evar, out: List['EnvSpec']):
         fatal(
             "No variable-directive setting (value, path, path-append, path-prepend) specified",
             evar)
-    out.append(EnvSpec(evar["name"], val, act))
+    # Read 'description' explicitly rather than letting it fall through as an
+    # ignored key: an env directive's variables are the workspace's contract
+    # with everything that runs in it, and accepting the key by name keeps the
+    # door open to diagnosing a *misspelled* directive key later without
+    # 'description' becoming collateral damage.
+    desc = evar["description"] if "description" in evar.keys() else None
+    out.append(EnvSpec(evar["name"], val, act,
+                       description=None if desc is None else str(desc)))
 
 
 def parse_with_section(with_data: dict, name: str, scope: str = "package"):
@@ -358,10 +366,25 @@ class IvpmYamlReader(object):
         ret.derived_vars = derived_vars
         if "description" in pkg.keys():
             ret.description = pkg["description"]
+        if "doc" in pkg.keys():
+            # Opaque documentation body -- preserved verbatim, never parsed.
+            ret.doc = str(pkg["doc"])
         if "version" in pkg.keys():
             ret.version = pkg["version"]
         else:
             ret.version = None
+
+        # Project metadata. All documentation-only: nothing here influences
+        # resolution, fetching, caching or the lock file.
+        for key in ("license", "homepage", "documentation"):
+            if key in pkg.keys() and pkg[key] is not None:
+                setattr(ret, key, str(pkg[key]))
+        if "maintainers" in pkg.keys() and pkg["maintainers"] is not None:
+            raw = pkg["maintainers"]
+            if not isinstance(raw, (list, tuple)):
+                fatal("'maintainers' must be a list of strings, not %s (file %s)"
+                      % (type(raw).__name__, name), _keyloc(pkg, "maintainers", raw))
+            ret.maintainers = [str(m) for m in raw]
 
         if "type" in pkg.keys():
             ret.self_types = parse_type_field(pkg["type"])
@@ -689,6 +712,10 @@ class IvpmYamlReader(object):
             if "description" in ds_ent.keys():
                 ds.description = ds_ent["description"]
 
+            if "doc" in ds_ent.keys():
+                # Opaque documentation body -- preserved verbatim, never parsed.
+                ds.doc = str(ds_ent["doc"])
+
             if "kind" in ds_ent.keys():
                 # Optional explicit classification ("package" | "collection").
                 # Absent -> inferred downstream from dep count / name / 'uses'.
@@ -748,6 +775,11 @@ class IvpmYamlReader(object):
             if name in resolved:
                 return
             ds = dep_set_m[name]
+            # Capture what this dep-set literally declared BEFORE any merging.
+            # Done for every dep-set, including those with no 'uses:' -- so
+            # 'own_packages' means the same thing everywhere and consumers need
+            # no special case. This must precede the early return below.
+            ds.own_packages = dict(ds.packages)
             if not ds.uses:
                 resolved.add(name)
                 return
@@ -759,6 +791,10 @@ class IvpmYamlReader(object):
             merged_pkgs = {}
             merged_opts = {}
             merged_with = {}
+            # package name -> the base dep-set that last supplied it. Written
+            # per-key inside the loop rather than inferred afterwards, so the
+            # attribution can never disagree with which entry actually won.
+            base_attrib = {}
             for base_name in ds.uses:
                 if base_name not in dep_set_m:
                     fatal(
@@ -767,11 +803,32 @@ class IvpmYamlReader(object):
                 resolve(base_name, visiting)
                 base_ds = dep_set_m[base_name]
                 # Accumulate bases in declared order; later bases win.
-                merged_pkgs.update(base_ds.packages)
+                for pkg_name, pkg in base_ds.packages.items():
+                    merged_pkgs[pkg_name] = pkg
+                    base_attrib[pkg_name] = base_name
                 merged_opts.update(base_ds.options)
                 if base_ds.with_raw:
                     merged_with = merge_with(merged_with, base_ds.with_raw)
             visiting.discard(name)
+
+            # Attribution is to the DIRECT base, not to the original declarer:
+            # resolve() is depth-first, so 'base_ds.packages' is already
+            # flattened by the time we read it. With 'ci uses sim uses rtl', a
+            # package reaching 'ci' from 'rtl' is attributed to 'sim'. That is
+            # the intended answer -- the question is what this dep-set's own
+            # bases contribute -- and the full chain remains walkable via
+            # 'uses'.
+            for pkg_name in ds.own_packages.keys():
+                if pkg_name in merged_pkgs:
+                    ds.overrides[pkg_name] = (
+                        base_attrib[pkg_name], merged_pkgs[pkg_name])
+            ds.inherited_from = {n: b for n, b in base_attrib.items()
+                                 if n not in ds.own_packages}
+
+            # 'with_raw' is merged just as destructively below, and no
+            # equivalent provenance is recorded for it. Deliberate: a
+            # handler-config delta is a far smaller story than a package delta,
+            # and no consumer has asked for it. Revisit here if one does.
 
             # Finally, the current dep-set's own entries override the bases.
             merged_pkgs.update(ds.packages)
@@ -998,6 +1055,12 @@ class IvpmYamlReader(object):
         path_kind_s = info.paths[ps_kind]
 
         for p_kind in ps.keys():
+            if p_kind == "description":
+                # Not a path-kind. Without this guard the string would be
+                # iterated below one CHARACTER at a time, each becoming a
+                # "path" -- nonsense produced silently, with no error.
+                info.path_descriptions[ps_kind] = str(ps[p_kind])
+                continue
             if p_kind not in path_kind_s.keys():
                 path_kind_s[p_kind] = []
             for p in ps[p_kind]:

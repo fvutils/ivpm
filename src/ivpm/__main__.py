@@ -716,6 +716,20 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
              "without fetching dependencies. Accepts a manifest file, or a "
              "directory/URL containing ivpm.yaml (e.g. https://edapack.github.io)")
 
+    show_bom_cmd = show_subparser.add_parser("bom",
+        help="Show the bill of materials: what was declared, what it resolved "
+             "to, and what each package publishes (license/homepage/docs)")
+    show_bom_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output (diff two of these for a supply-chain report)")
+    show_bom_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+    show_bom_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Project root directory (default: cwd)")
+    show_bom_cmd.add_argument("-d", "--dep-set", dest="dep_set", default=None,
+        help="Dependency set to report on (default: project default)")
+    show_bom_cmd.add_argument("-o", "--output", dest="output", default=None,
+        help="Write output to FILE instead of stdout")
+
     show_plugins_cmd = show_subparser.add_parser("plugins",
         aliases=["plugin"],
         help="Show Agent Plugins provided by this project and its dependencies")

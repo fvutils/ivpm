@@ -96,6 +96,23 @@ class ProjInfo():
         self.version = None
         # Optional one-line summary from 'package.description'
         self.description = None
+        # Optional long-form documentation body from 'package.doc'. Opaque:
+        # ivpm stores it verbatim and never interprets the markup.
+        self.doc : Optional[str] = None
+        # Project metadata, all optional and documentation-only. Populated from
+        # the manifest; a source that carries upstream metadata (pyproject.toml,
+        # package.json) may fill a field the manifest left unset -- the manifest
+        # always wins.
+        self.license : Optional[str] = None
+        self.homepage : Optional[str] = None
+        # Where this project's documentation lives. Free-form (usually a URL);
+        # this is the cross-project doc-linking mechanism, so resolution and
+        # validation belong to the renderer, not here.
+        self.documentation : Optional[str] = None
+        self.maintainers : List[str] = []
+        # path-set kind (e.g. "systemverilog") -> its 'description'. Kept out of
+        # 'paths' because everything in there is a path-kind -> path list.
+        self.path_descriptions : Dict[str, str] = {}
         # This should be set to the dep-set specified by the 'dep' 
         # statement or on the command-line
         self.default_dep_set = None

@@ -46,6 +46,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    clone_providers
    git_worktrees
    show_deps
+   documenting
    integrations
    extending_ivpm
    diagnostics

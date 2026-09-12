@@ -182,6 +182,14 @@ class Package(object):
     # a `src: ivpm.yaml` dep-set factory (see package_ivpm_yaml.py).
     from_ivpm_source : Optional[str] = None
 
+    # One-line summary from the dependency entry's 'description'. Documentation
+    # only -- never consulted by resolution, fetching, caching or locking.
+    description : Optional[str] = None
+    # Long-form documentation body from the dependency entry's 'doc'. Stored as
+    # an opaque string: ivpm never interprets the markup (the renderer selects
+    # the dialect). Documentation only, like 'description'.
+    doc : Optional[str] = None
+
     # Virtual packages exist in memory (in all_pkgs) but have no packages-dir
     # representation -- they contribute deps without occupying a directory.
     # Overridden to True by factory sources (e.g. PackageIvpmYaml). Consumers
@@ -213,6 +221,8 @@ class Package(object):
         "deps",     # 'skip' to suppress dependency processing
         "deps-mode", # consumer override of how this dep's own deps are placed
         "patches",  # cache-aware dependency patching (patch-capable sources only)
+        "description", # documentation: one-line summary (inert)
+        "doc",         # documentation: long-form body (inert, opaque markup)
     })
 
     @classmethod
@@ -394,6 +404,17 @@ class Package(object):
     
     def process_options(self, opts, si):
         self.srcinfo = si
+
+        # Documentation-only keys. Read here -- the single choke point every
+        # source's process_options() chains through -- and never consulted
+        # again by resolution, fetching, caching or locking.
+        if "description" in opts.keys():
+            self.description = str(opts["description"])
+
+        if "doc" in opts.keys():
+            # Opaque: preserved verbatim, markup dialect is the renderer's
+            # business.
+            self.doc = str(opts["doc"])
 
         if "dep-set" in opts.keys():
             ds = opts["dep-set"]

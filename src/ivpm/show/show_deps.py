@@ -26,7 +26,7 @@ import warnings
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from .dep_info import DepGraph, DepNode
+from .dep_info import DepGraph, DepNode, DepSetInfo
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +42,9 @@ class CatalogDepSet:
     kind: str = "collection"                # "package" | "collection"
     contains: List[str] = field(default_factory=list)  # leaf package names
     uses: List[str] = field(default_factory=list)       # referenced base dep-sets
+    doc: Optional[str] = None
+    # Inheritance delta against the 'uses' bases; see DepSetInfo.
+    info: Optional[DepSetInfo] = None
 
 
 @dataclass
@@ -52,6 +55,7 @@ class ManifestCatalog:
     default_dep_set: Optional[str]
     dep_sets: List[CatalogDepSet]
     origin: str
+    doc: Optional[str] = None
 
 
 def _classify_kind(ds_name: str, info) -> str:
@@ -123,27 +127,63 @@ def _build_catalog(proj_info, origin: str) -> ManifestCatalog:
     if default is None and names:
         default = names[0]
 
+    from .dep_loader import mk_dep_set_info
+
     dep_sets = []
     for ds_name in names:
         info = proj_info.dep_set_m[ds_name]
         dep_sets.append(CatalogDepSet(
             name=ds_name,
             description=getattr(info, "description", None),
+            doc=getattr(info, "doc", None),
             is_default=(ds_name == default),
             kind=_classify_kind(ds_name, info),
             # 'uses' bases are merged into .packages during parsing, so this
             # captures the full leaf set whether declared inline or referenced.
+            # The declared-vs-inherited breakdown is available alongside it, in
+            # 'info' (own / inherited_from / overrides).
             contains=sorted(info.packages.keys()),
             uses=list(info.uses) if getattr(info, "uses", None) else [],
+            info=mk_dep_set_info(ds_name, info),
         ))
     return ManifestCatalog(
         name=proj_info.name,
         version=proj_info.version,
         description=proj_info.description,
+        doc=proj_info.doc,
         default_dep_set=default,
         dep_sets=dep_sets,
         origin=origin,
     )
+
+
+def _dep_set_delta_json(info: Optional[DepSetInfo]) -> dict:
+    """Serialise a dep-set's inheritance delta (empty dict when unavailable)."""
+    if info is None:
+        return {}
+    return {
+        "own": info.own,
+        "inherited_from": info.inherited_from,
+        "overrides": {
+            n: {"base": o.base, "spec": o.spec, "displaced": o.displaced}
+            for n, o in info.overrides.items()
+        },
+    }
+
+
+def _dep_set_info_json(info: Optional[DepSetInfo]):
+    """Serialise the selected dep-set's declared metadata + inheritance delta."""
+    if info is None:
+        return None
+    return {
+        "name": info.name,
+        "description": info.description,
+        "doc": info.doc,
+        "kind": info.kind,
+        "uses": info.uses,
+        "contains": info.contains,
+        **_dep_set_delta_json(info),
+    }
 
 
 def _catalog_json(cat: ManifestCatalog) -> str:
@@ -151,16 +191,19 @@ def _catalog_json(cat: ManifestCatalog) -> str:
         "name": cat.name,
         "version": cat.version,
         "description": cat.description,
+        "doc": cat.doc,
         "default_dep_set": cat.default_dep_set,
         "dep_sets": [
             {
                 "name": d.name,
                 "description": d.description,
+                "doc": d.doc,
                 "default": d.is_default,
                 "kind": d.kind,
                 "category_path": _category_path(d.name) if d.kind != "package" else [],
                 "contains": d.contains,
                 "uses": d.uses,
+                **_dep_set_delta_json(d.info),
             }
             for d in cat.dep_sets
         ],
@@ -299,7 +342,9 @@ def _tree_json(graph: DepGraph) -> str:
         "project": graph.project,
         "version": graph.version,
         "description": graph.description,
+        "doc": graph.doc,
         "dep_set": graph.dep_set,
+        "dep_set_info": _dep_set_info_json(graph.dep_set_info),
         "deps": [_node_dict(n) for n in graph.nodes],
     }
     return json.dumps(result, indent=2)
@@ -405,6 +450,7 @@ def _plain_detail(node: DepNode) -> None:
             print(f"{k:<20} {v}")
 
     print(f"Package:             {node.name}")
+    _kv("Description:", node.description)
     _kv("Source:", node.src)
     _kv("URL:", node.url)
     _kv("Branch:", node.branch)
@@ -417,6 +463,11 @@ def _plain_detail(node: DepNode) -> None:
     _kv("Declared by:", node.specifier)
     if node.also_requested_by:
         _kv("Also requested by:", ", ".join(node.also_requested_by))
+
+    if node.doc:
+        print("\nDocumentation:")
+        for line in node.doc.rstrip("\n").split("\n"):
+            print(f"  {line}")
 
     if node.deps:
         print("\nDeclared dependencies:")
@@ -521,6 +572,8 @@ def _rich_detail(node: DepNode) -> None:
     console = make_console()
     # node.src is escaped: "[pypi]" would otherwise parse as a Rich markup tag.
     console.print(f"\n[bold cyan]{node.name}[/]  [secondary]\\[{node.src}][/]\n")
+    if node.description:
+        console.print(f"[italic]{node.description}[/]\n")
 
     def _row(k, v):
         if v is not None and v != "" and v != []:
@@ -543,6 +596,13 @@ def _rich_detail(node: DepNode) -> None:
         _row("Also requested by", ", ".join(node.also_requested_by))
 
     console.print(table)
+
+    if node.doc:
+        console.print("[bold]Documentation:[/]")
+        # Printed verbatim, with markup disabled: 'doc' is opaque text whose
+        # dialect is the renderer's business, and a '[' in it is not Rich markup.
+        console.print(node.doc.rstrip("\n"), markup=False, highlight=False)
+        console.print()
 
     if node.deps:
         console.print("[bold]Declared dependencies:[/]")

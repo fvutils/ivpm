@@ -22,7 +22,68 @@ DepNode represents one resolved package entry.  DepGraph is the complete
 picture for a project.  Both are pure data — no I/O happens here.
 """
 import dataclasses as dc
-from typing import List, Optional
+from typing import Dict, List, Optional
+
+
+# Keys on a dependency entry that express *what was declared* (as opposed to
+# what was resolved). Rendered for the BOM's "declared spec" column and for the
+# spec of a dep-set entry that inheritance displaced.
+_SPEC_KEYS = ("branch", "tag", "commit", "version", "module", "modulefile")
+
+
+def declared_spec(pkg) -> Dict[str, str]:
+    """Return the declared-spec fields of a *Package* as a plain dict.
+
+    Only keys the entry actually declared appear, so an entry that pinned
+    nothing yields ``{}`` rather than a row of nulls.
+    """
+    spec = {}
+    url = getattr(pkg, "url", None)
+    if url:
+        spec["url"] = str(url)
+    for key in _SPEC_KEYS:
+        val = getattr(pkg, key, None)
+        if val:
+            spec[key] = str(val)
+    return spec
+
+
+def spec_label(pkg) -> str:
+    """Render a Package's declared spec as one short human-readable string."""
+    spec = declared_spec(pkg)
+    ref = next((f"{k}={spec[k]}" for k in _SPEC_KEYS if k in spec), "")
+    url = spec.get("url", "")
+    if url and ref:
+        return f"{url}@{ref}"
+    return url or ref
+
+
+@dc.dataclass
+class OverrideInfo:
+    """A dep-set entry that shadowed one inherited from a base dep-set."""
+    base: str                       # base dep-set whose entry was displaced
+    spec: str = ""                  # rendered spec of the DISPLACED entry
+    displaced: Dict[str, str] = dc.field(default_factory=dict)
+
+
+@dc.dataclass
+class DepSetInfo:
+    """Declared metadata for one dep-set, including its inheritance delta.
+
+    ``contains`` is the full resolved leaf set. ``own``/``inherited_from``/
+    ``overrides`` are the delta against the bases: which names this dep-set
+    declared itself, which base supplied each of the rest, and which of its own
+    declarations displaced a base's.
+    """
+    name: str
+    description: Optional[str] = None
+    doc: Optional[str] = None
+    kind: Optional[str] = None
+    uses: List[str] = dc.field(default_factory=list)
+    contains: List[str] = dc.field(default_factory=list)
+    own: List[str] = dc.field(default_factory=list)
+    inherited_from: Dict[str, str] = dc.field(default_factory=dict)
+    overrides: Dict[str, OverrideInfo] = dc.field(default_factory=dict)
 
 
 @dc.dataclass
@@ -43,6 +104,20 @@ class DepNode:
     version_resolved: Optional[str] = None
     cache: Optional[bool] = None
     dep_set: Optional[str] = None              # dep-set used for this pkg's sub-deps
+
+    # Prose from the DECLARING manifest's dependency entry -- never from the
+    # lock, which records what was resolved rather than what was declared.
+    description: Optional[str] = None
+    doc: Optional[str] = None
+    # What the manifest entry declared (url/branch/tag/commit/version/module),
+    # as opposed to what the lock resolved it to. See declared_spec().
+    declared: Dict[str, str] = dc.field(default_factory=dict)
+
+    # Resolved facts from the lock (None when no lock is available).
+    reproducible: Optional[bool] = None
+    patchset_id: Optional[str] = None
+    # Patch fingerprints as recorded in the lock: name / source / md5 / ...
+    patches: List[dict] = dc.field(default_factory=list)
 
     # Nested-dependency fields (nested-deps-design.md §7.5)
     scope: str = ""                            # scope path prefix; "" at the root
@@ -123,3 +198,7 @@ class DepGraph:
     nodes: List[DepNode]            # top-level dep nodes (flat unique list; tree inside)
     lock_available: bool = True     # False → resolved identity fields will be None
     description: Optional[str] = None  # root project 'description' (may be None)
+    doc: Optional[str] = None          # root project 'doc' (may be None)
+    # Declared metadata for the selected dep-set, including its inheritance
+    # delta. None when the manifest declares no such dep-set.
+    dep_set_info: Optional[DepSetInfo] = None
