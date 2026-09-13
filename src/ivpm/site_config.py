@@ -74,6 +74,14 @@ if TYPE_CHECKING:
 # prefers gh when available and otherwise falls back to ssh.
 DEFAULT_GIT_AUTH_ORDER = ["gh", "ssh"]
 
+# How much checking a cache HIT is subjected to before its bytes are handed to
+# a consumer.  See :func:`resolve_cache_verify_level`.
+#   'off'     -- trust the entry as found
+#   'shape'   -- one metadata-only walk; counts vs. the entry's sealed manifest
+#   'content' -- 'shape' plus a per-file hash compared to the sealed merkle root
+CACHE_VERIFY_LEVELS = ("off", "shape", "content")
+DEFAULT_CACHE_VERIFY_LEVEL = "shape"
+
 
 class SiteConfig:
     """Base class defining the site-configuration interface.
@@ -122,6 +130,20 @@ class SiteConfig:
         :meth:`get_cache_provider` consults this.
         """
         raise NotImplementedError
+
+    def get_default_cache_verify_level(self) -> str:
+        """How thoroughly a cache HIT is checked before it is trusted.
+
+        One of :data:`CACHE_VERIFY_LEVELS`.  ``shape`` (the default) is one
+        metadata-only walk of the entry -- ``O(inodes)``, no reads -- and
+        catches every corruption a truncated copy or an interrupted GC can
+        produce.  ``content`` additionally hashes every byte.  ``off`` trusts
+        whatever is on disk.
+
+        ``IVPM_CACHE_VERIFY`` and the ``cache-verify:`` config-file key take
+        priority over this value.
+        """
+        return DEFAULT_CACHE_VERIFY_LEVEL
 
     def get_ivpm_install_args(self) -> List[str]:
         """Return the pip install argument(s) used to install IVPM into a new venv.
@@ -224,6 +246,7 @@ def parse_git_auth_order(value) -> List[str]:
 #
 # Both files share the same schema; recognized keys today:
 #   site-config: acme                  # pin the active registered site config
+#   cache-verify: shape                # off | shape | content
 #   git-auth-order: [gh, ssh]          # default order for unmatched hosts
 #   git-auth:                          # host-glob -> order rules
 #     - host: "*.internal.corp"
@@ -329,6 +352,61 @@ def _file_site_config_name() -> Optional[str]:
         if name:
             return str(name).strip()
     return None
+
+
+def parse_cache_verify_level(value, origin: str = "") -> Optional[str]:
+    """Normalize a cache-verify level, or None when it is not recognized.
+
+    An unrecognized value is *ignored with a warning* rather than raising: a
+    typo in a site-wide config file must not make IVPM unusable for everyone
+    who reads it, and the fallback (the default level) is safe.
+    """
+    if value is None:
+        return None
+    level = str(value).strip().lower()
+    if level in CACHE_VERIFY_LEVELS:
+        return level
+    if level:
+        _logger.warning(
+            "ignoring unrecognized cache verify level %r%s (expected one of %s)",
+            value, (" from %s" % origin) if origin else "",
+            ", ".join(CACHE_VERIFY_LEVELS))
+    return None
+
+
+def _file_cache_verify_level() -> Optional[str]:
+    """First ``cache-verify`` level found across the config files (user first)."""
+    for path, data in _load_config_files():
+        level = parse_cache_verify_level(data.get("cache-verify"), path)
+        if level:
+            return level
+    return None
+
+
+def resolve_cache_verify_level(override=None) -> str:
+    """The active cache verification level.
+
+    Priority: an explicit *override* (the ``--verify`` CLI option), then
+    ``IVPM_CACHE_VERIFY``, then the ``cache-verify:`` key of the user and site
+    config files, then the Python site config's
+    :meth:`SiteConfig.get_default_cache_verify_level`.
+    """
+    explicit = parse_cache_verify_level(override, "--verify")
+    if explicit:
+        return explicit
+
+    env_level = parse_cache_verify_level(
+        os.environ.get("IVPM_CACHE_VERIFY"), "IVPM_CACHE_VERIFY")
+    if env_level:
+        return env_level
+
+    file_level = _file_cache_verify_level()
+    if file_level:
+        return file_level
+
+    return (parse_cache_verify_level(
+        get_site_config().get_default_cache_verify_level(), "site config")
+        or DEFAULT_CACHE_VERIFY_LEVEL)
 
 
 def resolve_git_auth_order(host: Optional[str] = None) -> List[str]:

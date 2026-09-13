@@ -45,6 +45,21 @@ wait for a worker slot is visible before its work. A legend maps the glyphs.
 Reveals serialization and phases that cannot overlap (e.g. the venv/pip phase
 cannot start until the fetch phase finishes).
 
+Cache verification cost
+=======================
+
+Every cache hit is checked against the entry's seal before it is trusted (see
+:doc:`caching`), and that check gets its own ``cache.verify`` span, tagged with
+the level and the number of problems found. Shape checking is **on by default**,
+so its cost is visible in the report rather than something you have to infer —
+if it turns out to be material on a particular filesystem, the data to justify
+lowering ``IVPM_CACHE_VERIFY`` is already in the record.
+
+Expect ``cache.verify`` to be a small fraction of the ``cache.lookup`` it sits
+inside, and both to be negligible against the ``git.clone`` a hit avoided. A
+``cache.verify`` that shows up in HOT SPOTS means either very large entries, a
+slow network filesystem, or ``content`` level left on by accident.
+
 Persisted records
 =================
 

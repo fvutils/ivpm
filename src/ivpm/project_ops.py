@@ -225,6 +225,7 @@ class ProjectOps(object):
             updater.update_info.project_dir     = self.root_dir
             updater.update_info.install_mode    = install_mode
             updater.update_info.disable_cache   = getattr(args, "no_cache", False)
+            updater.update_info.cache_verify    = getattr(args, "cache_verify", None)
             updater.update_info.perf            = perf
             # Construct the session cache provider eagerly, before parallel
             # package loads, so the memoized getter never races.

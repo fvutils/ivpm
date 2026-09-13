@@ -863,6 +863,14 @@ class IvpmYamlReader(object):
             if "name" not in d.keys():
                 fatal("Missing 'name' key in dependency", si)
 
+            # The name becomes a directory in deps/ and in the shared cache,
+            # and nothing checked it before it got there.  Names are resolved
+            # by this point, so a '${...}' spelling has already been expanded.
+            from .utils import package_name_problem
+            problem = package_name_problem(str(d["name"]))
+            if problem is not None:
+                fatal("Invalid package name: %s" % problem, si)
+
             if d["name"] in ret.keys():
                 pkg1 = ret[d["name"]]
                 fatal("Duplicate package %s @ %s ; previously speciifed @ %s" % (

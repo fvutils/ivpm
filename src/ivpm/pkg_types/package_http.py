@@ -24,6 +24,7 @@ import httpx
 import sys
 import urllib
 import dataclasses as dc
+from typing import Optional
 from .package_file import PackageFile
 from ..project_ops_info import ProjectUpdateInfo
 from ..proj_info import ProjInfo
@@ -145,6 +146,18 @@ class PackageHttp(PackageFile):
         patch-aware resolver, which owns the cache interaction."""
         from ..patch import PatchAwareResolver
         base_version = self._cache_version()
+        if base_version is None:
+            # No validator => no stable identity for the base bytes.  Patch in
+            # place instead of publishing a shared entry that could never be
+            # invalidated.  The synthesized id below is local bookkeeping for
+            # the patch manifest only; cacheable=False keeps it out of the cache.
+            import hashlib
+            note("Not caching patched %s: %s -- patching in place"
+                 % (self.name, self._no_version_reason()))
+            base_version = "nover_%s" % hashlib.sha256(
+                self.url.encode()).hexdigest()[:12]
+            return PatchAwareResolver().resolve(
+                update_info, self, base_version, cacheable=False)
         return PatchAwareResolver().resolve(update_info, self, base_version)
 
     def update(self, update_info : ProjectUpdateInfo):
@@ -197,14 +210,37 @@ class PackageHttp(PackageFile):
         # (e.g. unpack=False, where pkg_dir is the downloaded file).
         return ProjInfo.mkFromProj(pkg_dir)
     
-    def _get_url_version(self, url: str) -> str:
-        """Get version identifier for a URL using HEAD request.
-        
-        Uses Last-Modified header or ETag as version identifier.
-        Also stores resolved_etag / resolved_last_modified on self.
+    def _no_version_reason(self) -> str:
+        """Why :meth:`_get_url_version` returned None, in user terms.
+
+        The two cases need distinguishing: a server that never sends a
+        validator is a permanent property of that URL (nothing to do about it),
+        while a failed HEAD is transient and worth retrying.
+        """
+        err = getattr(self, "_last_head_err", None)
+        if err is not None:
+            return "the HEAD request for %s failed (%s)" % (self.url, err)
+        return ("the server provided neither a Last-Modified nor an ETag "
+                "header for %s" % self.url)
+
+    def _get_url_version(self, url: str) -> Optional[str]:
+        """Version identifier for a URL, from a HEAD request, or None.
+
+        Uses Last-Modified or ETag as the identifier, and stores
+        resolved_etag / resolved_last_modified on self.
+
+        Returns **None** when neither validator is available -- including when
+        the HEAD request itself fails.  There used to be a ``md5(url)[:16]``
+        fallback here, which is a *permanently immutable* key derived from a
+        URL rather than from its content: once stored, that entry could never
+        be invalidated no matter how the remote artifact changed, and a single
+        transient network error during the first fetch was enough to pin it.
+        Callers must treat None as "not cacheable" (see
+        :meth:`_no_version_reason`).
         """
         self.resolved_etag = None
         self.resolved_last_modified = None
+        self._last_head_err = None
         try:
             response = httpx.head(url, follow_redirects=True, timeout=30)
             
@@ -229,31 +265,36 @@ class PackageHttp(PackageFile):
                 etag = etag.strip('"').strip("'")
                 self.resolved_etag = etag
                 return etag
-            
-            # Last resort: use URL hash
-            import hashlib
-            return hashlib.md5(url.encode()).hexdigest()[:16]
-        except Exception:
-            import hashlib
-            return hashlib.md5(url.encode()).hexdigest()[:16]
-    
-    def _cache_version(self) -> str:
+
+            # No validator: the bytes have no identity we can key on.
+            return None
+        except Exception as e:
+            self._last_head_err = e
+            return None
+
+    def _cache_version(self) -> Optional[str]:
         """Cache version identifying the artifact this package resolves to.
 
         The URL's ETag / Last-Modified identifies the *bytes*, but the cache
         is keyed on (package name, version) -- and one package name can resolve
-        to a different URL per platform once its ``url:`` reads a platform
-        variable. Two platforms' artifacts would then contend for one key, and
-        a shared cache would serve the first writer's bytes to everyone.
+        to a different URL. Two artifacts would then contend for one key, and a
+        shared cache would serve the first writer's bytes to everyone.
 
-        So when the entry consumed a derived variable, fold a digest of the
-        resolved URL in. When it did not -- every manifest written before this
-        feature existed -- the string is byte-identical to what it always was,
-        which is what keeps existing cache entries valid.
+        This used to fold the URL digest in only when the ``url:`` consumed a
+        derived variable, on the theory that a fixed URL cannot vary. It can:
+        two projects that both call a dependency ``docs`` and both get a
+        ``Last-Modified``-only response from their respective servers collide on
+        one key, and an ETag says nothing about *which* URL produced the bytes.
+        So the digest is now unconditional -- the key names the source as well
+        as the version, and a collision becomes impossible rather than merely
+        detectable by verification.
+
+        The cost is a one-time re-fetch of every HTTP entry written before this
+        change; the old entries carry no reference and age out via ``clean``.
         """
         base_version = self._get_url_version(self.url)
-        if not getattr(self, "used_derived_vars", None):
-            return base_version
+        if base_version is None:
+            return None                      # no validator => not cacheable
         import hashlib
         digest = hashlib.sha256(self.url.encode()).hexdigest()[:12]
         return "%s_%s" % (base_version, digest)
@@ -262,9 +303,30 @@ class PackageHttp(PackageFile):
         """Update using the cache."""
         note("loading package %s with cache" % self.name)
 
+        # A cache entry is a *directory*: has_version(), link_to_deps() and the
+        # atomic-publish rename all assume it.  With unpack=false the package
+        # IS the downloaded file, so storing it produced an entry that no
+        # lookup could ever see and that materialize() rejected outright --
+        # i.e. unpack=false + cache=true failed every run.  Treat it as
+        # uncacheable, which is what it has always effectively been.
+        if not self.unpack:
+            note("Not caching %s: unpack=false packages are a single file, "
+                 "and cache entries are directories" % self.name)
+            update_info.report_cache_unconfigured()
+            return self._update_no_cache_readonly(update_info, pkg_dir)
+
         # Get version from URL metadata (plus the resolved-artifact digest
         # when this package's URL is platform-dependent)
         version = self._cache_version()
+
+        # No validator => no stable identity for these bytes.  Caching under a
+        # URL digest would pin mutable content forever, and one transient HEAD
+        # failure during the first fetch would do it silently.
+        if version is None:
+            note("Not caching %s: %s -- falling back to an uncached read-only "
+                 "download" % (self.name, self._no_version_reason()))
+            update_info.report_cache_unconfigured()
+            return self._update_no_cache_readonly(update_info, pkg_dir)
 
         provider = update_info.get_cache_provider()
         result = provider.lookup(self, version)
@@ -285,27 +347,31 @@ class PackageHttp(PackageFile):
         # Cache miss - download and unpack
         note("Cache miss for %s - downloading" % self.name)
         update_info.report_cache_miss()
-        
-        # Download to temp location
-        temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
-        if os.path.exists(temp_dir):
-            import shutil
-            shutil.rmtree(temp_dir)
-        
-        download_dir = os.path.join(update_info.deps_dir, ".download")
-        os.makedirs(download_dir, exist_ok=True)
-        
-        if self.unpack:
-            pkg_path = os.path.join(download_dir, os.path.basename(self.url))
-        else:
-            pkg_path = temp_dir
-        
-        self._download_file(self.url, pkg_path)
-        
-        if self.unpack:
+
+        import shutil
+        from ..cache_provider import acquire_staging, staging_scratch
+
+        # Unique staging on the cache filesystem: two packages whose URLs share
+        # a basename (two different 'main.zip') used to download to the same
+        # deps_dir/.download/<basename> from parallel worker threads, so one
+        # package could be unpacked from the other's bytes.  Both the staging
+        # tree and the download scratch are uuid-unique now.
+        temp_dir = acquire_staging(provider, self, update_info.deps_dir)
+        dl_dir = staging_scratch(temp_dir)
+        try:
+            os.makedirs(dl_dir)
+            pkg_path = os.path.join(dl_dir, os.path.basename(self.url))
+            self._download_file(self.url, pkg_path)
+            # Unpack into the staging tree itself -- the archive stays outside
+            # it, so it is never published and _install_zip's rmtree of the
+            # destination cannot delete the file it is reading.
             self._install(pkg_path, temp_dir)
-            os.unlink(pkg_path)
-        
+        except BaseException:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
+        finally:
+            shutil.rmtree(dl_dir, ignore_errors=True)
+
         # Store in cache and link
         provider.store(self, version, temp_dir)
         provider.materialize(self, version)

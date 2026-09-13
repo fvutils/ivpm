@@ -295,11 +295,18 @@ Download an archive file via HTTP or HTTPS.
     - name: my-tool
       url: https://example.com/tool.jar
       unpack: false
-    
+
     # Cached download
     - name: data-pack
       url: https://cdn.example.com/data.tar.gz
       cache: true
+
+.. note::
+
+   ``unpack: false`` and ``cache: true`` do not combine. A cache entry is a
+   directory, while an unpacked-false package is a single file, so such a
+   package is always downloaded directly into the dependencies directory
+   (read-only) and is reported as uncacheable in the update summary.
 
 File (``file``)
 ---------------

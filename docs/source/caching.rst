@@ -136,8 +136,25 @@ For **shared environments** where multiple users access the cache, use the
 
 This sets the setgid bit and group ownership on the cache *root* so new files
 inherit the cache's group. (IVPM also applies the setgid bit to every individual
-cache entry it creates, regardless of ``--shared``, so group members can clean up
-entries later; ``--shared`` is about the root's group ownership and inheritance.)
+cache entry it creates, regardless of ``--shared``; ``--shared`` is about the
+root's group ownership and inheritance.)
+
+Cleaning up an entry does **not** depend on being able to write inside it.
+Eviction is a rename of the entry out of the way, followed by deletion of the
+renamed copy, and a rename needs write permission on the enclosing
+``<cache>/<package>/`` directory only. Two consequences worth knowing:
+
+* A group member can evict an entry created by another user even when they
+  cannot modify the files inside it.
+* A reader never observes an entry being taken apart. Because the rename
+  removes the entry from view before any byte is deleted, a concurrent
+  ``ivpm update`` either resolves the complete entry or sees a clean miss and
+  re-fetches — it cannot resolve a half-deleted one.
+
+A ``.gc.<uuid>`` directory in a package's cache directory is an entry that has
+been evicted but whose bytes could not be deleted (usually cross-user
+permissions). It is inert — no lookup can see it — and IVPM retries the
+deletion on later runs.
 
 How Caching Is Resolved
 =======================
@@ -165,6 +182,303 @@ The user-visible resolution order is unchanged:
 
 A dependency with ``cache: true`` but no resolved cache directory falls back to
 a full editable clone and is reported in the update summary, exactly as before.
+
+Entry Layout
+============
+
+Everything IVPM writes under a package's cache directory falls into one of four
+categories. Knowing which is which is what lets an administrator look at a
+shared cache and tell content from residue::
+
+    <cache>/<package>/
+        <version>/                        the entry itself (read-only)
+            .ivpm-cache-entry.json        the entry's seal — see below
+            ...package content...
+        <version>.meta.json               mutable sidecar: stored / last_linked
+        <version>.staging.<uuid>/         a publish in flight, or crash residue
+        build.staging.<uuid>/             a fetch in flight, or crash residue
+        .gc.<uuid>/                       evicted, awaiting deletion
+
+Only ``<version>/`` directories are entries. The rest is transient and is
+skipped by every cache listing; stale staging directories are reclaimed after
+24 hours and tombstones after one hour.
+
+Both ``<package>`` and ``<version>`` are single path components, and IVPM
+enforces that. A package name must match ``[A-Za-z0-9._+-]+`` or the manifest
+is rejected at parse time. A version key is machine-made — an ETag, a commit
+hash, a release tag — so rather than refusing to cache the package, any
+character outside that set is percent-escaped: an ``ETag`` of ``W/"a/b"``
+becomes ``W%2F%22a%2Fb%22``. Keys that are already safe are stored unchanged,
+so no existing entry moves.
+
+The seal (``.ivpm-cache-entry.json``)
+-------------------------------------
+
+Every entry IVPM publishes contains a small read-only JSON file recording what
+the entry is:
+
+.. code-block:: json
+
+    {"schema": 1,
+     "package": "libX",
+     "version": "a1b2c3d4",
+     "created": 1757600000.0,
+     "creator": {"ivpm": "1.2.3", "host": "build07"},
+     "source": {"src_type": "git", "url": "https://github.com/o/r.git"},
+     "content": {"files": 8412, "dirs": 903, "bytes": 91240113, "merkle": null}}
+
+It is written into the entry *before* the entry becomes visible, so it does two
+things that nothing else can:
+
+* **It marks the entry as complete.** A directory being non-empty does not
+  distinguish a published entry from a half-finished copy; the presence of the
+  seal does. An entry without one is treated as unpublished.
+* **It records what the entry claims to be.** On a later cache hit, IVPM
+  compares the seal against the package asking for it. An entry whose seal
+  names a different package or version has been moved or hand-edited, and is
+  treated as a miss rather than served.
+
+The ``source`` block is compared too, but only for entries whose version key is
+*not* derived from the content. A git entry is keyed on its commit hash, so two
+different URLs resolving to it are mirrors of one repository and the entry is
+served normally. Elsewhere a differing source means two packages have collided
+on one key, and IVPM re-fetches instead of serving the wrong bytes. (For HTTP
+and GitHub Release entries the URL is folded into the key itself, so that
+collision cannot arise in the first place; the check remains as a backstop for
+entries written by an older IVPM.)
+
+.. note::
+
+   Because ``deps/<package>`` is a symlink to the entry, this file is visible
+   in the root of every cached package. It is read-only and safe to ignore.
+
+Entries created by earlier IVPM versions have no seal. They continue to be used
+as-is for one release, so upgrading does not invalidate an existing cache.
+
+Verifying Cache Entries
+=======================
+
+A cache HIT is a decision to hand a consumer bytes chosen by *key* alone. Before
+that happens, IVPM checks the entry against its seal. There are three levels:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 12 30 58
+
+   * - Level
+     - Work
+     - Catches
+   * - ``off``
+     - Read the seal only
+     - An entry that says it is something else (a moved entry, a key collision)
+   * - ``shape``
+     - One metadata-only walk
+     - Truncation, partial deletion, an interrupted copy — every corruption a
+       crashed fetch or a half-finished cleanup can produce
+   * - ``content``
+     - ``shape`` plus a hash of every byte
+     - Bit rot, tampering, wrong bytes under a right key
+
+The default is ``shape``. It reads no file contents, so it costs milliseconds
+against the multi-second re-fetch it protects, and it is exactly the level that
+catches the failure modes a shared cache actually produces. ``off`` remains
+available for a private cache on a slow filesystem; note that it still refuses
+an entry whose seal contradicts the key it was found under, because that check
+is one small file read and is the only defense against a key collision.
+
+Set the level with (highest priority first):
+
+.. code-block:: bash
+
+   ivpm update --verify content       # this run only
+   export IVPM_CACHE_VERIFY=content   # this shell
+
+.. code-block:: yaml
+
+   # ~/.config/ivpm/config.yaml or /etc/ivpm/config.yaml
+   cache-verify: content
+
+``content`` also changes what is *recorded*: a content hash is only written into
+the seal when an entry is published under ``content``, because hashing every
+byte at publish time is a real cost on every cache miss. Entries published
+earlier have no hash, and verifying them at ``content`` falls back to ``shape``
+rather than inventing a mismatch.
+
+What happens when verification fails
+------------------------------------
+
+Nothing fatal. The entry is evicted, the failure is reported, and the caller
+sees a miss — so the ordinary miss path rebuilds it. **An everyday
+``ivpm update`` is therefore the primary repair mechanism**, and the run
+summary says so::
+
+   ⚠ 1 cache entry failed verification and was rebuilt.
+     Run 'ivpm cache verify --repair' to check the rest of the cache.
+
+The eviction matters: without it, the "entry already exists" fast path would
+hand the bad entry straight back on the next lookup. Auto-repair is bounded to
+**once per entry per run** — an entry that fails again after being rebuilt is
+reported as an error and fetched without the cache, rather than becoming a
+refetch loop against a filesystem that is misbehaving.
+
+Failed verifications are counted separately from ordinary cache misses. Without
+that distinction, a systematically corrupt shared cache looks exactly like a
+cold one in every statistic IVPM reports.
+
+Verifying and Repairing a Cache
+===============================
+
+``ivpm cache verify`` inspects a whole cache. It has two modes, and the
+difference between them is a guarantee rather than a convenience:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 39 39
+
+   * -
+     - **check** (default)
+     - **repair**
+   * - Invocation
+     - ``ivpm cache verify``
+     - ``ivpm cache verify --repair`` (alias: ``ivpm cache repair``)
+   * - Mutates
+     - **Never**
+     - Yes: evict / reseal / remove / backfill
+   * - Produces
+     - A health report
+     - A per-pass repair log, then the health report
+   * - Safe on a cache you do not own
+     - Yes — read-only
+     - Only for entries you can write
+
+.. code-block:: bash
+
+   ivpm cache verify [-c CACHE_DIR] [-p PACKAGE] [--content] [--json] [-v]
+                     [--repair [--max-passes N] [-n] [--upgrade]]
+
+The health report
+-----------------
+
+.. code-block:: text
+
+   Cache health: DEGRADED       /shared/ivpm-cache
+     Inventory     812 entries across 96 packages, 41.2 GB
+                   784 sealed (manifest present) · 28 legacy (no manifest)
+     Verified      812 entries at level 'shape' (0.0 B hashed) in 3.1s
+
+     Problems      14 total · 11 auto-repairable · 3 need manual action
+                     6  shape-mismatch       evict      (2.1 GB)
+                     3  entry-writable       reseal
+                     2  staging-residue      remove     (840.0 MB)
+                     3  entry-perms          manual
+
+     Worst         libX         4 problem(s)
+
+     Reclaimable   2.9 GB from residue and failed entries
+
+     Action        11 problem(s) repairable: ivpm cache verify --repair
+                   3 problem(s) need manual action (owned by uid 1042)
+
+The status is a three-valued rollup, defined so it can gate CI:
+
+``HEALTHY``
+   Nothing wrong, or only pre-manifest entries during the migration window.
+
+``DEGRADED``
+   Problems exist and IVPM can fix all of them, and **no entry is serving wrong
+   content** — residue, permission drift.
+
+``BROKEN``
+   At least one entry can serve content that is not what its key promises, or a
+   problem needs a human.
+
+The distinction that matters: ``DEGRADED`` is untidy, ``BROKEN`` is *incorrect*.
+
+Exit codes are derived from the final status, identically in both modes, so one
+cron rule covers both:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 10 90
+
+   * - Code
+     - Meaning
+   * - ``0``
+     - ``HEALTHY``
+   * - ``1``
+     - ``DEGRADED`` — auto-repairable problems remain. *Run* ``--repair``.
+   * - ``2``
+     - Operational error (cache unreadable, bad arguments). Not a statement
+       about cache health.
+   * - ``3``
+     - ``BROKEN`` — entries can serve wrong content, or a human is needed.
+       *Wake somebody.*
+
+``--json`` emits the same information under a frozen ``schema: 1`` structure,
+with ``status`` always reflecting the **post-run** state so a monitor can alert
+on that one field.
+
+Repairing
+---------
+
+Repair iterates verify → repair → re-verify until the cache converges, then
+reports one of three outcomes:
+
+``CONVERGED``
+   A verification pass found nothing.
+
+``STALLED``
+   Progress stopped with problems remaining — all manual, or all already
+   attempted. The report names what is left and who has to act.
+
+``EXHAUSTED``
+   ``--max-passes`` was reached with problems outstanding. If this recurs across
+   runs, something is damaging the cache faster than it is being repaired —
+   which points at the filesystem or a broken writer, not at any one entry.
+
+The repair for each problem is a property of the problem, not a choice made at
+the command line:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 84
+
+   * - Action
+     - What it does
+   * - ``evict``
+     - Removes the entry whole. Its content is untrustworthy and rebuildable
+       from source.
+   * - ``reseal``
+     - Fixes permissions. The content is fine; only the lock drifted, and
+       evicting would discard good bytes over a permission bit.
+   * - ``remove``
+     - Deletes residue. Never touches an entry.
+   * - ``backfill``
+     - Writes a seal onto a pre-manifest entry (``--upgrade`` only). A
+       baseline, not a certificate — it records what the entry holds now and
+       claims nothing about its past.
+   * - ``manual``
+     - Reported, never attempted, with the owning uid.
+
+Three guarantees worth stating outright:
+
+- **Check mode never mutates.** It walks the filesystem itself and calls only
+  pure readers — it never sweeps residue, never refreshes an entry's
+  last-used timestamp, and never removes an empty directory it happens to
+  find.
+- **Repair never edits entry content in place.** Every action either removes
+  an entry whole or changes permissions, so a repair can never *create* a
+  corrupt entry.
+- **Both modes are safe against a cache with active updates.** Check is
+  read-only; every repair mutation is either an atomic rename or a ``chmod``.
+  An update that is mid-lookup on an entry being evicted sees a clean miss and
+  re-fetches — it never sees a tree being dismantled. A concurrent update that
+  republishes an entry this run evicted is the system working, and the repair
+  loop does not report it as a failure.
+
+``--dry-run`` reports exactly what ``--repair`` would do, changing nothing. It
+runs a single pass and says so, rather than implying a convergence it did not
+test — later passes' findings depend on repairs that were not applied.
 
 Customizing Caching (Site Config)
 =================================
@@ -226,6 +540,52 @@ unchanged — the default ``get_cache_provider()`` is built on top of it.
 
    Patched dependencies (a future feature) layer on this same provider seam, so
    no configuration changes will be required to benefit from it.
+
+Concurrency and Integrity
+=========================
+
+A shared cache normally has several writers: parallel worker threads inside one
+``ivpm update``, separate ``ivpm update`` processes over one workspace, and —
+on a shared ``IVPM_CACHE`` — separate users on separate machines. IVPM does not
+lock. It relies instead on the cache being *immutable* and *version-addressed*:
+two builders of the same key produce equivalent trees, so it does not matter
+which one wins.
+
+What that buys you, stated as guarantees:
+
+- **A consumer never sees a partly-built entry.** An entry is built in a
+  uniquely-named staging directory beside its destination and published with a
+  single atomic rename. It becomes visible complete or not at all.
+- **A consumer never sees an entry being taken apart.** Eviction renames the
+  entry out of view first and deletes the bytes afterwards, so a reader either
+  resolved the intact tree or sees a clean miss. A deletion that fails part-way
+  leaves inert marked residue, not a truncated entry that reads as a hit
+  forever.
+- **Two concurrent fetches of the same package never collide.** Staging names
+  carry a UUID, so no two builders — thread, process, host, or reused PID —
+  are ever handed the same path.
+- **A losing builder adopts the winner's entry** rather than failing or
+  overwriting. Its own staging tree is discarded.
+- **``ivpm cache clean`` and ``ivpm cache verify`` are safe to run while
+  updates are in flight.** Neither destroys a build in progress, and a fresh
+  staging directory is never mistaken for abandoned residue.
+- **A published entry cannot be changed from the inside.** Directories within
+  an entry are ``r-xr-sr-x`` (2555), not just its files. Clearing the files'
+  write bits alone would protect nothing — unlink and rename are governed by
+  the *parent* directory, so on a group-writable cache any member could delete
+  or replace any file inside a "read-only" entry, and the next reader would be
+  served the result as a hit. The package directory ``<cache>/<package>/``
+  stays group-writable, because both publishing and eviction rename through it.
+
+.. note::
+
+   Entries published by an earlier IVPM have group-writable directories.
+   ``ivpm cache verify`` reports this once as ``entry-perms`` and
+   ``ivpm cache repair`` re-seals them in place — no re-fetch is involved.
+
+The residual risk is not concurrency but *damage*: a filesystem that loses
+bytes, a process killed at the wrong moment in an older IVPM, a hand-edited
+entry. That is what the verification levels above are for.
 
 Writing a Race-Safe Cache Provider
 ==================================
@@ -318,7 +678,8 @@ Cache Organization
 The cache is organized by package name, with version-specific subdirectories:
 
 - For Git packages, the version is the commit hash
-- For HTTP packages, the version is derived from the Last-Modified header or ETag
+- For HTTP packages, the version is derived from the Last-Modified header or
+  ETag, plus a digest of the resolved URL
 - For GitHub Releases, the version is the release tag plus a digest of the
   selected asset URL
 
@@ -335,8 +696,8 @@ Example structure::
    │   ├── abc123def456.../           # Git commit hash
    │   └── 789xyz012abc.../           # Different commit
    ├── boost/
-   │   ├── Thu_01-Jan-2024_120000/   # HTTP Last-Modified timestamp
-   │   └── Fri_15-Mar-2024_093000/
+   │   ├── Thu_01-Jan-2024_120000_1c9d4e77b0a2/   # HTTP: validator + URL digest
+   │   └── Fri_15-Mar-2024_093000_1c9d4e77b0a2/
    └── uv/
        ├── 0.1.0_9f2c1ab34de0/       # GitHub Release: tag + asset digest
        └── 0.1.1_4b7e0c19aa52/
@@ -440,16 +801,24 @@ For cacheable HTTP URLs (e.g., ``.tar.gz`` files):
        url: https://cdn.example.com/vectors-v2.tar.gz
        cache: true
 
-**Cache key:** Last-Modified header (converted to safe filename) or ETag.
+**Cache key:** the Last-Modified header (converted to a safe filename) or ETag,
+followed by a short digest of the resolved URL: ``<etag>_<url-digest>``.
 
-When the dependency's ``url`` was built from a platform variable (see
-:doc:`variables`), a short digest of the resolved URL is appended:
-``<etag>_<url-digest>``. The cache is keyed on package *name* plus version, so
-without that digest one package name resolving to a different URL per platform
-would put two platforms' artifacts under one key -- and with a shared cache
-(NFS, a CI cache volume) the first writer's bytes would be served to everyone
-else. Dependencies that use no platform variable key exactly as they always
-have, so existing cache entries stay valid.
+The cache is keyed on package *name* plus version, and the validator alone does
+not say which URL produced the bytes. Two projects that both call a dependency
+``docs``, and both get a same-shaped ``Last-Modified`` from their respective
+servers, would otherwise share one entry -- and with a shared cache (NFS, a CI
+cache volume) the first writer's bytes would be served to the other. The same
+applies to a single package whose ``url`` is built from a platform variable
+(see :doc:`variables`), which resolves differently per platform. Folding the URL
+in makes the key name the source as well as the version.
+
+.. note::
+
+   Earlier releases appended this digest only when the ``url`` used a platform
+   variable. It is now unconditional, so HTTP entries written before that change
+   are keyed differently and are fetched once more. The stale entries carry no
+   references and age out with ``ivpm cache clean``.
 
 **Benefits:**
 

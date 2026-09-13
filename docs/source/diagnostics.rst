@@ -87,6 +87,18 @@ Missing required ``name`` on a dependency::
             - src: pypi
             ^
 
+A dependency name that cannot be a directory name::
+
+    ivpm.yaml:6:15: fatal: Invalid package name: '../../etc' contains characters
+     that are not allowed in a package name; use letters, digits, and '. _ + -'
+            - name: ../../etc
+              ^
+
+A dependency's name becomes a directory in the deps directory and in the shared
+cache, so it must match ``[A-Za-z0-9._+-]+``. ``.`` and ``..`` are rejected for
+the same reason even though they contain no unusual characters: they name a
+directory that already exists.
+
 A dependency with neither ``src`` nor ``url``::
 
     ivpm.yaml:6:11: fatal: no src specified for package orphan and no URL specified

@@ -563,20 +563,28 @@ class PackageGhRls(PackageHttp):
         note("Cache miss for %s - downloading" % self.name)
         update_info.report_cache_miss()
 
-        # Download to temp location
-        temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+        # Unique staging on the cache filesystem, plus a unique scratch dir for
+        # the asset itself: the download used to land at deps_dir/<asset name>,
+        # which two packages releasing an identically-named asset shared, in
+        # parallel, from one deps-dir.
+        from ..cache_provider import acquire_staging, staging_scratch
+        temp_dir = acquire_staging(provider, self, update_info.deps_dir)
+        dl_dir = staging_scratch(temp_dir)
 
         self._determine_src_type(file_url, forced_ext)
         filename = os.path.basename(file_url)
         if forced_ext is not None and not filename.endswith(forced_ext):
             filename = filename + forced_ext
-        download_dst = os.path.join(update_info.deps_dir, filename)
-        self._download_file(file_url, download_dst)
-
-        self._install(download_dst, temp_dir)
-        os.unlink(download_dst)
+        try:
+            os.makedirs(dl_dir)
+            download_dst = os.path.join(dl_dir, filename)
+            self._download_file(file_url, download_dst)
+            self._install(download_dst, temp_dir)
+        except BaseException:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+            raise
+        finally:
+            shutil.rmtree(dl_dir, ignore_errors=True)
 
         provider.store(self, version, temp_dir)
         provider.materialize(self, version)

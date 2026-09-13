@@ -830,6 +830,78 @@ Cache Permission Denied
        $ sudo chmod g+s /shared/ivpm-cache
        $ sudo chmod -R g+rw /shared/ivpm-cache
 
+A Package Re-fetches Every Run
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** A dependency with ``cache: true`` is never served from the cache,
+even though the cache is configured and other packages hit it.
+
+**Cause:** The entry exists but is being *rejected*. IVPM checks an entry
+against its seal before trusting it, and reports what it found:
+
+.. code-block:: text
+
+    warning: cache: libX/a1b2c3d4 (shape-mismatch)
+      at /shared/ivpm-cache/libX/a1b2c3d4
+      expected 8412 files / 214 dirs / 91240113 bytes, found 8390 files / ...
+      the entry was evicted and will be re-fetched; run
+      'ivpm cache verify --repair' to check the rest of the cache
+
+A rejection reported once has already healed itself — the entry was evicted and
+rebuilt. A package that re-fetches on *every* run means the rebuild keeps
+failing verification, which points at something outside the entry.
+
+**Solutions:**
+
+1. **Check the whole cache**, since one bad entry rarely arrives alone:
+
+   .. code-block:: bash
+
+       $ ivpm cache verify -v
+
+2. **Repair it:**
+
+   .. code-block:: bash
+
+       $ ivpm cache verify --repair
+
+3. **Look at the problem name.** ``source-mismatch`` is not damage — it means
+   two dependencies collided on one cache key, and the entry belongs to the
+   other one. The message names both sources. Rename one of the packages, or
+   check that they really are meant to be different things.
+
+4. **If it recurs after a repair**, the cache is being damaged faster than it
+   is repaired. Suspect the filesystem (a full or failing shared mount) rather
+   than any single entry. ``ivpm update --no-cache`` gets work moving again
+   while you investigate.
+
+Cache Verification Is Too Slow
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** Cache hits feel slower than they used to.
+
+**Cause:** By default IVPM walks each entry's metadata before trusting it. This
+reads no file contents and is normally milliseconds, but on a heavily loaded
+network filesystem the ``stat`` calls can add up for very large entries.
+
+**Solutions:**
+
+1. **Measure it first** — ``ivpm update --timing`` shows a ``cache.verify``
+   span so you can see the real cost rather than guessing.
+
+2. **Turn it down** for a cache only you write to:
+
+   .. code-block:: bash
+
+       $ export IVPM_CACHE_VERIFY=off
+
+   ``off`` still refuses an entry whose seal contradicts the key it was found
+   under, so it is not the same as trusting the cache blindly.
+
+3. **Do not use** ``content`` **routinely.** It hashes every byte of every
+   entry on every hit. It is a diagnostic for a suspected-corrupt cache, not a
+   default.
+
 Git Issues
 ----------
 

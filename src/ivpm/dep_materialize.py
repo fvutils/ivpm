@@ -36,6 +36,7 @@ import logging
 import os
 import shutil
 import stat
+import uuid
 
 _logger = logging.getLogger("ivpm.dep_materialize")
 
@@ -94,12 +95,22 @@ def promote_to_writable(pkg) -> bool:
     # prepared directory to inherit from. A site whose preparer assigns
     # per-package groups must re-apply after promotion; see pkg-prepare-design
     # §5.3. Recorded rather than silently wrong.
-    staging = path + ".ivpm-promote"
-    if os.path.lexists(staging):
-        shutil.rmtree(staging, ignore_errors=True)
+    # The staging name carries a uuid: a fixed ".ivpm-promote" is shared by
+    # every concurrent promoter of the same package -- worker threads in one
+    # run, or two runs over one workspace -- so one would copy into the tree
+    # another was mid-copy, and the pre-emptive rmtree above would delete a
+    # live copy outright.
+    staging = "%s.ivpm-promote.%s" % (path, uuid.uuid4().hex)
     try:
         shutil.copytree(target, staging, symlinks=True)
         _make_writable(staging)
+        # This swap cannot be made atomic, and it is worth saying why rather
+        # than leaving it looking like an oversight: ``rename`` of a directory
+        # onto a non-directory fails ``ENOTDIR``, and the thing being replaced
+        # here is a *symlink*. POSIX offers no directory-over-symlink swap, so
+        # the path is briefly absent. Keeping the copy out of the way until
+        # this point is what bounds that window to two syscalls instead of the
+        # whole copy.
         os.unlink(path)
         os.rename(staging, path)
     except Exception:

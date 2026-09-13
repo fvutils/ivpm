@@ -325,11 +325,15 @@ class TestArtifactCacheIdentity(unittest.TestCase):
         macos = self._http_pkg("https://ex.com/mac/wasm.tar.xz", {"p"})
         self.assertNotEqual(self._version(linux), self._version(macos))
 
-    def test_no_derived_vars_is_byte_identical_to_the_base_version(self):
-        # The guard against invalidating every existing cache entry: a
-        # package that uses no platform variable must key exactly as before.
+    def test_a_fixed_url_is_keyed_on_its_source_too(self):
+        # A fixed URL is not a guarantee of a unique source: two projects can
+        # both name a dependency "emsdk" and both get the same-shaped validator
+        # from different servers.  The digest is folded in unconditionally.
         pkg = self._http_pkg("https://ex.com/x.tar.gz")
-        self.assertEqual("etag-abc", self._version(pkg))
+        version = self._version(pkg)
+        self.assertTrue(version.startswith("etag-abc_"), version)
+        other = self._http_pkg("https://other.example/x.tar.gz")
+        self.assertNotEqual(version, self._version(other))
 
     def test_derived_version_extends_the_base_version(self):
         pkg = self._http_pkg("https://ex.com/linux/x.tar.xz", {"p"})

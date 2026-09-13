@@ -33,12 +33,111 @@ A disabled cache is still a real provider (:class:`NullCacheProvider`) whose
 every lookup reports DISABLED ("uncacheable"); callers never receive ``None``.
 """
 import os
+import uuid
+import threading
 import dataclasses as dc
 import enum
 from typing import TYPE_CHECKING, Optional
 
+from .msg import error, note, warning
+
 if TYPE_CHECKING:
     from .cache import DirectoryCacheStore
+
+
+def acquire_staging(provider, pkg, deps_dir: str) -> str:
+    """A unique, not-yet-created build directory, preferring the cache FS.
+
+    Every fetch path that ends in ``provider.store(...)`` must build its tree
+    here rather than at a fixed path.  Two properties matter, and both are
+    correctness properties rather than conveniences:
+
+    * **Uniqueness.**  A fixed name (the old ``.cache_temp_<pkg>``) is shared by
+      every concurrent fetch of the same package -- worker threads in one run,
+      and separate ``ivpm update`` processes over one deps-dir.  Whoever arrives
+      second used to ``rmtree`` the first one's half-built tree out from under
+      it, and could then publish a truncated entry.  A uuid4 suffix makes that
+      impossible regardless of thread, process, host, or reused PID.
+    * **Locality.**  Cache-side staging makes the subsequent ``store()`` a
+      same-directory ``rename`` instead of a cross-device copy of the whole
+      tree.
+
+    Falls back to a uniquely-named deps-dir path when the provider offers no
+    cache-side staging, or when the cache side is not writable (read-only
+    mount, foreign-owned package directory).  The fallback is still uuid-unique,
+    so it costs a tree copy but never correctness.
+    """
+    try:
+        staging = provider.new_staging(pkg)
+    except OSError as e:
+        note("Cache staging unavailable for %s (%s); staging under %s instead"
+             % (getattr(pkg, "name", "?"), e, deps_dir))
+        staging = None
+    if staging is None:
+        os.makedirs(deps_dir, exist_ok=True)
+        staging = os.path.join(
+            deps_dir,
+            ".ivpm-fetch.%s.%s" % (getattr(pkg, "name", "pkg"), uuid.uuid4().hex))
+    return staging
+
+
+#: Fields that identify *where an entry's bytes came from*.  Recorded in the
+#: entry manifest and compared on a later HIT.  Deliberately built from
+#: attributes every package type already resolves, rather than from a
+#: per-type hook, so no package type can silently opt out of provenance.
+_SOURCE_FIELDS = ("src_type", "url", "branch", "tag", "commit",
+                  "resolved_commit", "resolved_etag", "resolved_last_modified")
+
+
+def source_info(pkg) -> Optional[dict]:
+    """A JSON-able description of *pkg*'s resolved source, or None.
+
+    This is the only thing that makes a cache-key collision *visible*: two
+    packages that share a name and a version string are indistinguishable by
+    key, but their sources differ, so a HIT whose manifest names a different
+    source can be rejected instead of silently serving the wrong bytes.
+    """
+    info = {}
+    for field in _SOURCE_FIELDS:
+        value = getattr(pkg, field, None)
+        if value is not None and value != "":
+            info[field] = str(value)
+    return info or None
+
+
+#: The subset of :data:`_SOURCE_FIELDS` that identifies the *origin* rather
+#: than a label pointing into it.  ``branch``/``tag``/``commit`` legitimately
+#: differ between two references to the same content, so comparing them would
+#: manufacture collisions that do not exist.
+_IDENTITY_FIELDS = ("src_type", "url")
+
+
+def _content_addressed(pkg, version: str) -> bool:
+    """Is *version* a digest of the content itself (a git commit)?
+
+    When it is, two different URLs resolving to the same key necessarily hold
+    the same bytes -- that is what a commit hash means -- so a source
+    difference is a mirror, not a collision.  When it is not (an ETag, a
+    ``Last-Modified`` timestamp), nothing ties the key to the bytes across
+    sources, and a difference is exactly the K2 collision.
+    """
+    commit = (getattr(pkg, "resolved_commit", None)
+              or getattr(pkg, "commit", None))
+    return bool(commit) and version.startswith(str(commit))
+
+
+def staging_scratch(staging: str) -> str:
+    """A scratch path beside *staging* for bytes that must NOT be published.
+
+    A downloaded archive is an input to the entry, not part of it, so it cannot
+    live inside the staging tree -- ``_install_zip`` ``rmtree``s its destination
+    before extracting, which would delete the archive it is reading, and any
+    residue left behind would be published into the cache.  A sibling keeps the
+    two separate while inheriting staging's uniqueness, and (on the cache side)
+    its ``.staging.`` marker, so cache scans skip it and the stale-staging sweep
+    reclaims it if a run dies mid-download.
+    """
+    return staging + ".dl"
 
 
 class CacheState(enum.Enum):
@@ -88,6 +187,15 @@ class CacheProvider:
     Each loading-time method takes the dependency ``pkg`` so the single
     provider can make per-dependency decisions.
     """
+
+    #: The ``ProjectUpdateInfo`` this provider was created for, when there is
+    #: one.  Set by the session rather than passed to every method: cache
+    #: verification has to report findings and refresh counters, and threading
+    #: an update-info argument through ``lookup`` would push that concern into
+    #: every package type.  ``None`` when a provider is constructed directly
+    #: (tests, ``ivpm cache`` commands), in which case reporting degrades to
+    #: plain diagnostics with no counters.
+    session = None
 
     def __init__(self, context: CacheContext):
         self.context = context
@@ -198,9 +306,28 @@ class NullCacheProvider(CacheProvider):
 class DirectoryCacheProvider(CacheProvider):
     """Filesystem-backed provider, a context-scoped adapter over a store."""
 
-    def __init__(self, context: CacheContext, store: "DirectoryCacheStore"):
+    def __init__(self, context: CacheContext, store: "DirectoryCacheStore",
+                 verify_level: Optional[str] = None):
         super().__init__(context)
         self._store = store
+        self._verify_level = verify_level
+        # (package, version) pairs already invalidated this run.  The auto-repair
+        # bound: an entry that keeps failing verification for an environmental
+        # reason (a filesystem serving short reads, a clock-skewed NFS mount)
+        # must not turn into an evict/refetch loop that hammers the network.
+        self._invalidated = set()
+        # Non-blocking problem kinds already reported this run.  A cache with
+        # 500 legacy entries must produce one line, not 500.
+        self._reported_kinds = set()
+        self._verify_lock = threading.Lock()
+
+    @property
+    def verify_level(self) -> str:
+        """The active verification level, resolved once per provider."""
+        if self._verify_level is None:
+            from .site_config import resolve_cache_verify_level
+            self._verify_level = resolve_cache_verify_level()
+        return self._verify_level
 
     @property
     def cache_dir(self) -> Optional[str]:
@@ -216,15 +343,110 @@ class DirectoryCacheProvider(CacheProvider):
             return CacheLookupResult(CacheState.DISABLED)
         if self._store.has_version(pkg.name, version):
             path = self._store.get_version_cache_dir(pkg.name, version)
+            if not self._entry_is_trustworthy(pkg, version):
+                return CacheLookupResult(CacheState.MISS)
             return CacheLookupResult(CacheState.HIT, path)
         return CacheLookupResult(CacheState.MISS)
+
+    def _entry_is_trustworthy(self, pkg, version: str) -> bool:
+        """Verify a candidate HIT before its bytes are handed to a consumer.
+
+        A HIT is a decision to trust content chosen by *key* alone.  This is
+        the last point at which anything can contradict that choice -- past it
+        there is nothing left to check against -- so it is where verification
+        belongs.
+
+        Failure is not fatal.  A bad entry is evicted and reported, and the
+        caller sees a MISS, so the ordinary miss path rebuilds it: an everyday
+        ``ivpm update`` is the primary repair mechanism for the common case.
+        """
+        from .perf import span_or_null
+        from . import cache_verify as cv
+
+        level = self.verify_level
+        source = source_info(pkg)
+        if source is not None and _content_addressed(pkg, version):
+            # The key IS a digest of the content (a commit hash), so two URLs
+            # resolving to it hold identical bytes -- a mirror, not a
+            # collision.  Comparing sources here would make every mirror user
+            # re-fetch on every run and never converge, since the winning entry
+            # keeps whichever URL got there first.
+            source = None
+
+        with span_or_null(getattr(self.session, "perf", None), "cache.verify",
+                          package=pkg.name) as s:
+            result = cv.verify_entry(self._store, pkg.name, version, level,
+                                     source=source)
+            if s is not None:
+                s.meta["level"] = level
+                s.meta["problems"] = len(result.findings)
+
+        if not result.findings:
+            return True
+
+        blocking = [f for f in result.findings
+                    if f.problem in cv.SERVES_WRONG_CONTENT]
+        for f in result.findings:
+            if f not in blocking:
+                self._report_non_blocking(f)
+        if not blocking:
+            return True
+
+        self._invalidate(pkg, version, blocking[0])
+        return False
+
+    def _report_non_blocking(self, finding):
+        """Report a problem that does not stop the entry from being used.
+
+        Once per problem kind per run.  These are seal drift and legacy
+        entries: real, worth fixing, and potentially true of *every* entry in
+        a large cache -- so repeating them per entry would bury the run's
+        actual output under a wall of identical notes.
+        """
+        with self._verify_lock:
+            if finding.problem in self._reported_kinds:
+                return
+            self._reported_kinds.add(finding.problem)
+        note("%s\n  run 'ivpm cache verify' for the full picture"
+             % finding.message())
+
+    def _invalidate(self, pkg, version: str, finding):
+        """Reject and evict a bad entry, at most once per entry per run."""
+        key = (pkg.name, version)
+        with self._verify_lock:
+            repeat = key in self._invalidated
+            self._invalidated.add(key)
+
+        if repeat:
+            # Already evicted and rebuilt once this run, and the rebuild failed
+            # verification too.  Something other than a one-off bad publish is
+            # wrong; refetching again would only spin.
+            error("%s\n  this entry already failed verification once this run "
+                  "and was rebuilt; %s will be fetched without the cache"
+                  % (finding.message(), pkg.name))
+            return
+
+        from .cache_verify import REPAIR_EVICT
+        evicted = False
+        if finding.repair == REPAIR_EVICT:
+            evicted = self._store._evict(pkg.name, version)
+
+        warning("%s\n  the entry was %s and will be re-fetched; run "
+                "'ivpm cache verify --repair' to check the rest of the cache"
+                % (finding.message(),
+                   "evicted" if evicted else "rejected"))
+
+        session = self.session
+        if session is not None and hasattr(session, "report_cache_invalidated"):
+            session.report_cache_invalidated(finding)
 
     def new_staging(self, pkg) -> Optional[str]:
         # On the cache filesystem, so store() renames instead of copying.
         return self._store.new_staging(pkg.name)
 
     def store(self, pkg, version: str, source_path: str) -> str:
-        return self._store.store_version(pkg.name, version, source_path)
+        return self._store.store_version(
+            pkg.name, version, source_path, source=source_info(pkg))
 
     def materialize(self, pkg, version: str) -> str:
         return self._store.link_to_deps(pkg.name, version, self.context.deps_dir)

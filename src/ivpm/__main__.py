@@ -265,6 +265,35 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     cache_clean_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
         help="List entries that would be removed without deleting anything")
 
+    # 'verify' has two modes with different guarantees: without --repair it is
+    # non-mutating by construction and safe against a cache you do not own;
+    # with it, entries are evicted/resealed/removed. 'repair' is registered as
+    # an alias because "repair" is what a user searches for when a cache is
+    # broken.
+    for _name, _help in (
+            ("verify", "Check cache integrity (and optionally repair it)"),
+            ("repair", "Check and repair cache integrity "
+                       "(alias for 'verify --repair')")):
+        _p = cache_subparser.add_parser(_name, help=_help)
+        _p.add_argument("-c", "--cache-dir", dest="cache_dir",
+            help="Cache directory (default: $IVPM_CACHE)")
+        _p.add_argument("-p", "--package", dest="package",
+            help="Check only this package")
+        _p.add_argument("--content", dest="content", action="store_true",
+            help="Hash every byte, not just check shape (slow)")
+        _p.add_argument("--json", dest="json", action="store_true",
+            help="Emit the report as JSON (stable schema, for cron/CI)")
+        _p.add_argument("-v", "--verbose", dest="verbose", action="count", default=0,
+            help="List every finding, not just the summary")
+        _p.add_argument("--repair", dest="repair", action="store_true",
+            help="Repair what can be repaired, then re-verify")
+        _p.add_argument("--max-passes", dest="max_passes", type=int, default=3,
+            help="Maximum verify/repair passes (default: 3)")
+        _p.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
+            help="Report what --repair would do, changing nothing")
+        _p.add_argument("--upgrade", dest="upgrade", action="store_true",
+            help="Backfill manifests onto legacy (pre-manifest) entries")
+
     _finalize_subparser_help(cache_subparser)
 
     # 'perf' command — inspect persisted performance records
@@ -458,6 +487,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--no-cache", dest="no_cache",
         action="store_true", default=False,
         help="Disable the cache for this update; forces a null cache provider")
+    update_cmd.add_argument("--verify", dest="cache_verify",
+        choices=["off", "shape", "content"], default=None,
+        help="How thoroughly to check a cache hit before trusting it "
+             "(default: shape, or the cache-verify config setting)")
     update_cmd.add_argument("-v", "--verbose", action="count", default=0,
         help="Increase transcript output detail (-v: activity, -vv: subprocess lines)")
     update_cmd.add_argument("--timing", "--profile", dest="timing",

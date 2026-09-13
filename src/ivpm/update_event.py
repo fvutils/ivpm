@@ -65,6 +65,7 @@ class UpdateEvent:
     total_packages: int = 0
     cache_hits: int = 0
     cache_misses: int = 0
+    cache_invalidated: int = 0  # HITs rejected by verification and rebuilt
     cacheable_packages: int = 0
     editable_packages: int = 0
     cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set

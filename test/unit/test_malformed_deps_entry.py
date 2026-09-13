@@ -100,5 +100,71 @@ class TestMalformedDepsEntry(unittest.TestCase):
             "Diagnostic for a null 'deps' value must carry srcinfo")
 
 
+_BAD_NAME = """\
+package:
+  name: root
+  dep-sets:
+  - name: use
+    deps:
+    - name: ../../etc
+      url: https://example.com/x.tar.gz
+"""
+
+_DOTDOT_NAME = """\
+package:
+  name: root
+  dep-sets:
+  - name: use
+    deps:
+    - name: ".."
+      url: https://example.com/x.tar.gz
+"""
+
+_ORDINARY_NAME = """\
+package:
+  name: root
+  dep-sets:
+  - name: use
+    deps:
+    - name: my.pkg_v1+2-final
+      url: https://example.com/x.tar.gz
+"""
+
+
+class TestPackageNameValidation(unittest.TestCase):
+    """K3: a dependency name becomes a directory in deps/ and in the shared
+    cache, and nothing checked it on the way there."""
+
+    def setUp(self):
+        self._sink = CollectingSink()
+        self._prev = msg.set_reporter(DiagnosticReporter(self._sink))
+
+    def tearDown(self):
+        msg.set_reporter(self._prev)
+
+    def _fatals(self):
+        return [d for d in self._sink.records if d.severity == Severity.FATAL]
+
+    def test_a_traversing_name_is_rejected_with_a_location(self):
+        with self.assertRaises(SrcLoaderError):
+            _parse(_BAD_NAME, "bad_name.yaml")
+        diag = self._fatals()[0]
+        self.assertIn("Invalid package name", diag.message)
+        self.assertIsNotNone(diag.srcinfo)
+        self.assertEqual(diag.srcinfo.filename, "bad_name.yaml")
+
+    def test_dotdot_is_rejected(self):
+        # The quiet one: '..' names a directory that already exists, so every
+        # operation downstream succeeds against the wrong tree.
+        with self.assertRaises(SrcLoaderError):
+            _parse(_DOTDOT_NAME, "dotdot.yaml")
+        self.assertIn("Invalid package name", self._fatals()[0].message)
+
+    def test_an_ordinary_name_still_parses(self):
+        info = _parse(_ORDINARY_NAME, "ok.yaml")
+        self.assertIn("my.pkg_v1+2-final", info.get_dep_set("use").packages)
+        self.assertEqual(self._fatals(), [])
+
+
 if __name__ == "__main__":
     unittest.main()

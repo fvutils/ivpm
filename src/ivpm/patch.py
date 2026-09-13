@@ -42,6 +42,8 @@ import datetime
 import subprocess
 import dataclasses as dc
 from typing import List, Optional, Tuple
+from .cache_provider import CacheLookupResult, CacheState
+from .utils import sha256_file
 
 
 # Separator joining a base version and a patch-set id in an effective version.
@@ -424,12 +426,9 @@ def _copy_tree(src: str, dst: str) -> None:
     _make_writable(dst)
 
 
-def _sha256_file(path: str) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as fp:
-        for chunk in iter(lambda: fp.read(65536), b""):
-            h.update(chunk)
-    return h.hexdigest()
+#: Per-file content fingerprint.  Shared with cache content verification --
+#: see :func:`ivpm.utils.sha256_file`.
+_sha256_file = sha256_file
 
 
 def _walk_rel(root: str) -> set:
@@ -471,7 +470,16 @@ class PatchAwareResolver:
     non-empty; the resolver assumes non-empty.
     """
 
-    def resolve(self, update_info, pkg, base_version: str):
+    def resolve(self, update_info, pkg, base_version: str, cacheable: bool = True):
+        """Resolve one patched dependency.
+
+        ``cacheable=False`` forces the editable in-place path even when the
+        provider would accept this package.  A caller uses it when the base has
+        no *stable* identity (an HTTP artifact whose server sends no validator):
+        the patch machinery still needs a base id for its own manifest
+        bookkeeping, but that id must never become a shared cache key, or the
+        entry it produces could never be invalidated.
+        """
         from .proj_info import ProjInfo
         from .utils import note
 
@@ -481,7 +489,8 @@ class PatchAwareResolver:
         eff = effective_version(base_version, patchset)
 
         provider = update_info.get_cache_provider()
-        result = provider.lookup(pkg, eff)
+        result = (provider.lookup(pkg, eff) if cacheable
+                  else CacheLookupResult(CacheState.DISABLED))
 
         # DISABLED ("uncacheable"): editable in-place patching with reconciliation.
         if result.is_disabled:

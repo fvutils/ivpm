@@ -104,6 +104,12 @@ Manage the IVPM package cache.
 ``clean``
     Remove old cache entries
 
+``verify``
+    Check cache integrity (and optionally repair it)
+
+``repair``
+    Check and repair cache integrity (alias for ``verify --repair``)
+
 cache init
 ~~~~~~~~~~
 
@@ -187,6 +193,68 @@ Remove old cache entries.
     $ ivpm cache clean
     $ ivpm cache clean --days 30
     $ ivpm cache clean --cache-dir /shared/cache --days 14
+
+cache verify
+~~~~~~~~~~~~
+
+Check that cache entries hold what their keys promise, and optionally repair
+what does not. Without ``--repair`` the command **never mutates** the cache, so
+it is safe against a cache you do not own. ``ivpm cache repair`` is an alias for
+``ivpm cache verify --repair``.
+
+**Synopsis:**
+
+.. code-block:: text
+
+    ivpm cache verify [-c|--cache-dir <dir>] [-p|--package <name>] [--content]
+                      [--json] [-v|--verbose]
+                      [--repair [--max-passes <n>] [-n|--dry-run] [--upgrade]]
+
+**Options:**
+
+``-c, --cache-dir <dir>``
+    Cache directory (default: ``$IVPM_CACHE``)
+
+``-p, --package <name>``
+    Check only this package
+
+``--content``
+    Hash every byte instead of only checking shape (slow)
+
+``--json``
+    Emit the report as JSON under a frozen ``schema: 1`` structure
+
+``-v, --verbose``
+    List every finding, not just the summary
+
+``--repair``
+    Repair what can be repaired, then re-verify
+
+``--max-passes <n>``
+    Maximum verify/repair passes (default: 3)
+
+``-n, --dry-run``
+    Report what ``--repair`` would do, changing nothing
+
+``--upgrade``
+    Backfill seals onto pre-manifest (legacy) entries
+
+**Exit codes:**
+
+``0`` healthy · ``1`` degraded, run ``--repair`` · ``2`` operational error
+(cache unreadable, bad arguments) · ``3`` broken, a human is needed.
+
+**Examples:**
+
+.. code-block:: bash
+
+    $ ivpm cache verify
+    $ ivpm cache verify --content -p libX
+    $ ivpm cache verify --repair --upgrade
+    $ ivpm cache verify --json | jq .status
+
+See :doc:`caching` for the health report, the problem/repair model, and the
+guarantees each mode makes.
 
 .. _cmd-clone:
 
@@ -821,6 +889,15 @@ Fetch dependencies and initialize environment.
     Comma-separated git auth order to try (``gh,ssh,https``); overrides
     ``IVPM_GIT_AUTH_ORDER`` and the config files for this invocation.
 
+``--no-cache``
+    Disable the cache for this run; every dependency is fetched fresh. Does not
+    modify or remove any existing cache entry.
+
+``--verify <level>``
+    How thoroughly to check a cache hit before trusting it: ``off``, ``shape``
+    (default), or ``content``. Overrides ``IVPM_CACHE_VERIFY`` and the
+    ``cache-verify:`` config-file key for this invocation. See :doc:`caching`.
+
 ``--py-skip-install``
     Skip Python package installation
 
@@ -955,6 +1032,19 @@ Path to the package cache directory.
     export IVPM_CACHE=~/.cache/ivpm
 
 Used by caching system. See :doc:`caching`.
+
+IVPM_CACHE_VERIFY
+-----------------
+
+How thoroughly a cache hit is checked before it is trusted: ``off``, ``shape``
+(default), or ``content``.
+
+.. code-block:: bash
+
+    export IVPM_CACHE_VERIFY=content
+
+Overridden by ``ivpm update --verify <level>``; overrides the ``cache-verify:``
+key in the user and site config files. See :doc:`caching`.
 
 IVPM_PERF_KEEP
 --------------

@@ -11,6 +11,7 @@ Covers the correctness fixes H1-H5 across the four threat scenarios T1-T4:
 import errno
 import os
 import shutil
+import stat
 import tempfile
 import time
 import unittest
@@ -26,6 +27,13 @@ from ivpm.cache import DirectoryCacheStore, CacheStoreError
 
 
 # --- module-level workers for the multi-process races (fork-based) ----------
+
+def _content(entry_dir):
+    """An entry's payload, excluding the cache's own seal file."""
+    from ivpm.cache import DirectoryCacheStore
+    return sorted(n for n in os.listdir(entry_dir)
+                  if n != DirectoryCacheStore._ENTRY_MANIFEST)
+
 
 def _make_source(root, tag, content):
     """Build a distinct source tree with identical published content."""
@@ -189,7 +197,8 @@ class TestPublishRaceAndAdopt(_StoreBase):
         got = self.store.store_version("pkg", "v1", src)
 
         # The real entry is our content only — no nested staging junk.
-        self.assertEqual(sorted(os.listdir(got)), ["content.txt"])
+        # (.ivpm-cache-entry.json is the seal written by store_version.)
+        self.assertEqual(_content(got), ["content.txt"])
 
 
 # --- 3.2 Presence semantics -------------------------------------------------
@@ -209,6 +218,126 @@ class TestPresenceSemantics(_StoreBase):
             f.write("c")
         link = self.store.link_to_deps("pkg", "v1", self.deps_dir)
         self.assertTrue(os.path.islink(link))
+
+
+# --- C7: a sealed entry cannot be modified from inside ----------------------
+
+class TestEntryDirectoriesAreSealed(_StoreBase):
+    """Clearing the *files'* write bits protects nothing: unlink and rename are
+    governed by the parent directory. With 2775 entry directories, any group
+    member could delete or replace any file in a "read-only" entry, and the
+    next reader would be served the result as a cache hit."""
+
+    def _nested_source(self):
+        src = os.path.join(self.test_dir, "src")
+        os.makedirs(os.path.join(src, "inc"))
+        with open(os.path.join(src, "top.txt"), "w") as f:
+            f.write("top")
+        with open(os.path.join(src, "inc", "h.h"), "w") as f:
+            f.write("h")
+        return src
+
+    def test_entry_root_and_subdirs_are_unwritable(self):
+        entry = self.store.store_version("pkg", "v1", self._nested_source())
+        want = self.store._ENTRY_DIR_MODE & 0o777
+        for d in (entry, os.path.join(entry, "inc")):
+            self.assertEqual(stat.S_IMODE(os.stat(d).st_mode) & 0o777, want,
+                             "%s is not sealed" % d)
+        # ...and the package directory it lives in stays writable, because
+        # publishing and eviction both rename through it.
+        pkg_dir = self.store.get_package_cache_dir("pkg")
+        self.assertTrue(os.stat(pkg_dir).st_mode & stat.S_IWGRP)
+
+    @unittest.skipIf(os.geteuid() == 0, "root bypasses directory permissions")
+    def test_content_cannot_be_replaced_in_place(self):
+        entry = self.store.store_version("pkg", "v1", self._nested_source())
+        with self.assertRaises(PermissionError):
+            os.unlink(os.path.join(entry, "inc", "h.h"))
+        with self.assertRaises(PermissionError):
+            open(os.path.join(entry, "inc", "evil.h"), "w").close()
+        with self.assertRaises(PermissionError):
+            os.unlink(self.store.entry_manifest_path(entry))
+
+    def test_eviction_still_removes_a_sealed_entry(self):
+        # The seal must not make the cache un-garbage-collectable: eviction
+        # renames out of the (writable) package dir, then re-opens the tomb.
+        entry = self.store.store_version("pkg", "v1", self._nested_source())
+        self.assertTrue(self.store._evict("pkg", "v1"))
+        self.assertFalse(os.path.exists(entry))
+        self.assertFalse(self.store.has_version("pkg", "v1"))
+
+    def test_a_sealed_entry_can_be_republished_after_eviction(self):
+        self.store.store_version("pkg", "v1", self._nested_source())
+        self.store._evict("pkg", "v1")
+        entry = self.store.store_version("pkg", "v1", self._nested_source())
+        self.assertTrue(self.store.has_version("pkg", "v1"))
+        self.assertEqual(_content(entry), ["inc", "top.txt"])
+
+
+# --- C5: the deps symlink is never momentarily absent -----------------------
+
+class TestAtomicDepsLink(_StoreBase):
+    """Re-pointing deps/<pkg> used to be unlink-then-symlink, leaving the path
+    absent for two syscalls. A parallel build -- or a second ivpm run over the
+    same workspace -- could see the package simply not exist."""
+
+    def _entry(self, version, content):
+        version_dir = self.store.get_version_cache_dir("pkg", version)
+        os.makedirs(version_dir)
+        with open(os.path.join(version_dir, "f.txt"), "w") as f:
+            f.write(content)
+        return version_dir
+
+    def _residue(self):
+        return [n for n in os.listdir(self.deps_dir) if ".ivpm-link." in n]
+
+    def test_repointing_an_existing_link_never_unlinks_it(self):
+        self._entry("v1", "one")
+        v2 = self._entry("v2", "two")
+        link = self.store.link_to_deps("pkg", "v1", self.deps_dir)
+
+        real_unlink = os.unlink
+        unlinked = []
+
+        def watch(path, *a, **kw):
+            unlinked.append(path)
+            return real_unlink(path, *a, **kw)
+
+        with patch("ivpm.cache.os.unlink", side_effect=watch):
+            self.store.link_to_deps("pkg", "v2", self.deps_dir)
+
+        self.assertNotIn(link, unlinked,
+                         "deps/<pkg> was removed instead of renamed over")
+        self.assertEqual(os.path.realpath(link), os.path.realpath(v2))
+        self.assertEqual(self._residue(), [])
+
+    def test_a_materialized_directory_is_still_replaced(self):
+        # The one case that cannot be a rename: a real directory left by an
+        # earlier no-symlink run.
+        v1 = self._entry("v1", "one")
+        stale = os.path.join(self.deps_dir, "pkg")
+        os.makedirs(stale)
+        with open(os.path.join(stale, "old.txt"), "w") as f:
+            f.write("old")
+
+        link = self.store.link_to_deps("pkg", "v1", self.deps_dir)
+        self.assertTrue(os.path.islink(link))
+        self.assertEqual(os.path.realpath(link), os.path.realpath(v1))
+        self.assertEqual(self._residue(), [])
+
+    def test_a_failed_swap_leaves_no_residue_and_keeps_the_old_link(self):
+        v1 = self._entry("v1", "one")
+        self._entry("v2", "two")
+        link = self.store.link_to_deps("pkg", "v1", self.deps_dir)
+
+        with patch("ivpm.cache.os.replace", side_effect=OSError("EXDEV")):
+            with self.assertRaises(OSError):
+                self.store.link_to_deps("pkg", "v2", self.deps_dir)
+
+        self.assertEqual(self._residue(), [],
+                         "a crashed swap left .ivpm-link.* behind")
+        self.assertEqual(os.path.realpath(link), os.path.realpath(v1),
+                         "the previous link should survive a failed swap")
 
 
 # --- 3.3 Real multi-process races -------------------------------------------
@@ -249,7 +378,7 @@ class TestMultiProcessRaces(_StoreBase):
         # in the cache and no .patch_stage residue in deps_dir.
         self.assertTrue(self.store.has_version("pkg", eff))
         got = self.store.get_version_cache_dir("pkg", eff)
-        self.assertEqual(sorted(os.listdir(got)), ["content.txt", "patched.txt"])
+        self.assertEqual(_content(got), ["content.txt", "patched.txt"])
         self.assertTrue(self.store.has_version("pkg", "base1"))
         self.assertEqual(self._staging_residue(), [])
         self.assertEqual(

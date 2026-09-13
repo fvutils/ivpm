@@ -125,6 +125,12 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     skip_venv : bool = False
     cache_hits: int = 0
     cache_misses: int = 0
+    # A HIT that failed verification and was rejected. Deliberately NOT folded
+    # into cache_misses: without its own counter, a systematically corrupt
+    # shared cache is indistinguishable from a cold one in every statistic IVPM
+    # reports -- the hit rate below would read "cache not warmed yet" when the
+    # real story is "the cache is producing bad entries".
+    cache_invalidated: int = 0
     total_packages: int = 0
     cacheable_packages: int = 0
     cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set
@@ -157,6 +163,10 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     # intermediate hops are frequently packages that carry no language content
     # of their own.
     all_pkgs_by_key: dict = dc.field(default_factory=dict)
+    # Cache verification findings raised during this run, kept so the end-of-run
+    # summary can aggregate them. A cache with 500 legacy entries must produce
+    # one summary line, not 500 messages.
+    cache_findings: List = dc.field(default_factory=list)
     lock_data: Optional[dict] = None  # Parsed package-lock.json for change detection
     pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
     pending_plugin_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, plugin_root) pushed by handlers
@@ -165,6 +175,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     _cache_provider: Optional['CacheProvider'] = None  # session cache provider (memoized)
     _load_planner: Optional['LoadPlanner'] = None  # session load planner (memoized)
     disable_cache: bool = False  # When True, force a null cache provider (--no-cache)
+    # --verify=<level>: overrides the configured cache verification level for
+    # this run (off/shape/content). None means "use the resolved setting".
+    cache_verify: Optional[str] = None
     # --refresh-all: re-materialize every resident package, not just the ones
     # whose spec drifted. Read by get_load_planner() when it builds the planner.
     refresh_all: bool = False
@@ -244,6 +257,15 @@ class ProjectUpdateInfo(ProjectOpsInfo):
             else:
                 from .site_config import get_site_config
                 self._cache_provider = get_site_config().get_cache_provider(ctx)
+            # Give the provider a way back to the session, so a cache entry
+            # that fails verification can be counted and reported through the
+            # same pipeline as everything else in the run.
+            self._cache_provider.session = self
+            if self.cache_verify:
+                # --verify wins over the config/env-resolved level, and is
+                # applied here rather than inside the provider so a custom
+                # site provider honors it too.
+                self._cache_provider._verify_level = self.cache_verify
         return self._cache_provider
 
     def get_load_planner(self):
@@ -335,6 +357,18 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     def report_cache_miss(self):
         self.cache_misses += 1
         self._annotate_pkg_span("cache_hit", False)
+
+    def report_cache_invalidated(self, finding=None):
+        """Record that a cache HIT was rejected because the entry was bad.
+
+        The subsequent re-fetch reports its own miss, so the two counters
+        together read as "N of the M misses this run were entries we threw
+        away", which is the sentence a user needs.
+        """
+        self.cache_invalidated += 1
+        self._annotate_pkg_span("cache_invalidated", True)
+        if finding is not None:
+            self.cache_findings.append(finding)
 
     def _annotate_pkg_span(self, key, value):
         """Set a meta field on the calling thread's current package span, if any.
@@ -447,6 +481,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 total_packages=self.total_packages,
                 cache_hits=self.cache_hits,
                 cache_misses=self.cache_misses,
+                cache_invalidated=self.cache_invalidated,
                 cacheable_packages=self.cacheable_packages,
                 editable_packages=self.editable_packages,
                 cache_unconfigured_packages=self.cache_unconfigured_packages,
@@ -471,6 +506,33 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 _logger.info("  Cache misses: %d", self.cache_misses)
                 hit_rate = (self.cache_hits / self.cacheable_packages * 100) if self.cacheable_packages > 0 else 0
                 _logger.info("  Hit rate: %.1f%%", hit_rate)
+                if self.cache_invalidated:
+                    _logger.info("  Failed verification: %d", self.cache_invalidated)
+
+    def cache_health_summary(self) -> Optional[str]:
+        """One line describing cache problems seen this run, or None.
+
+        Aggregated on purpose: the per-entry detail was already reported when
+        each finding was raised, so this is the "and here is the shape of it"
+        line, plus the one action the user can take.
+        """
+        if not self.cache_findings:
+            return None
+        counts = {}
+        for f in self.cache_findings:
+            name = getattr(getattr(f, "problem", None), "value", "unknown")
+            counts[name] = counts.get(name, 0) + 1
+        detail = ", ".join("%d %s" % (n, k) for k, n in sorted(counts.items()))
+        if self.cache_invalidated:
+            return ("%d cache %s failed verification and %s rebuilt (%s); run "
+                    "'ivpm cache verify --repair' to check the rest of the cache"
+                    % (self.cache_invalidated,
+                       "entry" if self.cache_invalidated == 1 else "entries",
+                       "was" if self.cache_invalidated == 1 else "were",
+                       detail))
+        return ("cache checks reported %d problem(s) (%s); run "
+                "'ivpm cache verify' for details"
+                % (len(self.cache_findings), detail))
 
 
 class _ScopedUpdateInfo(object):

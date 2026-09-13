@@ -90,6 +90,7 @@ class RichUpdateTUI(UpdateEventListener):
         self.total_packages = 0
         self.cache_hits = 0
         self.cache_misses = 0
+        self.cache_invalidated = 0
         self.cacheable_packages = 0
         self.editable_packages = 0
         self.cache_unconfigured_packages = 0
@@ -327,6 +328,7 @@ class RichUpdateTUI(UpdateEventListener):
             self.total_packages = event.total_packages
             self.cache_hits = event.cache_hits
             self.cache_misses = event.cache_misses
+            self.cache_invalidated = event.cache_invalidated
             self.cacheable_packages = event.cacheable_packages
             self.editable_packages = event.editable_packages
             self.cache_unconfigured_packages = event.cache_unconfigured_packages
@@ -396,7 +398,19 @@ class RichUpdateTUI(UpdateEventListener):
             lines.append(f"Cache misses: {self.cache_misses}")
             hit_rate = (self.cache_hits / self.cacheable_packages * 100) if self.cacheable_packages > 0 else 0
             lines.append(f"Hit rate: {hit_rate:.1f}%")
-        
+
+        if self.cache_invalidated > 0:
+            n = self.cache_invalidated
+            lines.append("")
+            lines.append(Text(
+                f"⚠ {n} cache {'entry' if n == 1 else 'entries'} failed verification "
+                f"and {'was' if n == 1 else 'were'} rebuilt.",
+                style="yellow"))
+            lines.append(Text(
+                "  Run 'ivpm cache verify --repair' to check the rest of the cache.",
+                style="yellow"))
+
+
         if self.deps_source_hits or self.deps_source_misses:
             lines.append(f"Deps-source hits: {self.deps_source_hits}")
             lines.append(f"Deps-source misses: {self.deps_source_misses}")
@@ -515,6 +529,13 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 print(f"  Cache misses: {event.cache_misses}")
                 hit_rate = (event.cache_hits / event.cacheable_packages * 100) if event.cacheable_packages > 0 else 0
                 print(f"  Hit rate: {hit_rate:.1f}%")
+
+            if event.cache_invalidated > 0:
+                n = event.cache_invalidated
+                print("")
+                print(f"  ⚠ {n} cache {'entry' if n == 1 else 'entries'} failed "
+                      f"verification and {'was' if n == 1 else 'were'} rebuilt.")
+                print("    Run 'ivpm cache verify --repair' to check the rest of the cache.")
             
             if event.deps_source_hits or event.deps_source_misses:
                 print(f"  Deps-source hits: {event.deps_source_hits}")

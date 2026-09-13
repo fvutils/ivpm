@@ -511,15 +511,16 @@ class PackageGit(PackageURL):
         note("Cache miss for %s - cloning" % self.name)
         update_info.report_cache_miss()
 
-        # Clone to a temporary location first
+        # Clone into a unique staging directory on the cache filesystem, so the
+        # store below is a same-FS rename and so two concurrent fetches of this
+        # package can never share (and clobber) one build path.
         import shutil
-        temp_dir = os.path.join(update_info.deps_dir, f".cache_temp_{self.name}")
-        if os.path.exists(temp_dir):
-            shutil.rmtree(temp_dir)
+        from ..cache_provider import acquire_staging
+        temp_dir = acquire_staging(provider, self, update_info.deps_dir)
 
-        # A failed fetch/checkout must not leave a partial .cache_temp_* tree
-        # behind: the next run would then find (and delete) foreign state, and
-        # the stale directory confuses anyone looking at deps_dir.
+        # A failed fetch/checkout must not leave a partial staging tree behind:
+        # the stale directory confuses anyone looking at the cache or deps_dir,
+        # and only ages out via the sweep.
         try:
             self._clone_to_dir(update_info, temp_dir, depth=1)
         except BaseException:
