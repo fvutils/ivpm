@@ -121,15 +121,47 @@ jobs:
         # unauthenticated requests.
         GITHUB_TOKEN: ${{ secrets.GH_API_TOKEN }}
       run: |
-        export PYTHONPATH=$(pwd)/src:$(pwd)/test
+        # --- Why this step drops to a non-root user -----------------------
+        # The job container runs as uid 0, and root ignores the permission
+        # bits that a whole class of this suite's assertions is about. Run as
+        # root, `os.access(<0444 file>, W_OK)` returns True, a write into a
+        # 0555 directory succeeds, and an unlink inside a sealed 2555 cache
+        # entry succeeds -- so tests that assert the cache's read-only seal
+        # either fail outright or, worse, are skipped by an
+        # `if os.geteuid() == 0` guard and report green while verifying
+        # nothing. Measured in this exact image: 3 failed and 1 skipped as
+        # root, 71 passed and 0 skipped as a normal user.
+        #
+        # Nothing here is about hardening the runner -- the container is
+        # already disposable. It is about the suite testing the permission
+        # model that real users actually run under.
+        useradd -m ivpmtest
+        # git may later run as root in a tree owned by someone else.
+        git config --global --add safe.directory "$(pwd)"
+        # Everything the suite touches must be writable by the test user: the
+        # venv it runs, the in-tree test/rundir scratch area, and build/ for
+        # the coverage artifacts.
+        mkdir -p build
+        chown -R ivpmtest:ivpmtest .
+        #
+        # runuser, not su: it preserves the environment (GITHUB_TOKEN above)
+        # without a PAM password prompt. HOME is set explicitly rather than
+        # inherited -- pointing it at /root would let a stray root-owned
+        # ~/.config/ivpm/config.yaml change what the cache and clone tests
+        # exercise, which is the same hazard the "no git-url-map" note at the
+        # top of this file is about.
+        #
         # Coverage rides along on the gating test run rather than a second pass:
         # the suite takes ~3 minutes, and running it twice to measure it would
         # double that for no extra signal. Test failures still fail this step;
         # everything downstream of coverage is non-gating.
-        ./packages/python/bin/python -m pytest test/unit -q \
-          --cov --cov-report=term \
-          --cov-report=xml:build/coverage.xml \
-          --cov-report=html:build/coverage
+        runuser -u ivpmtest -- env \
+          HOME=/home/ivpmtest \
+          PYTHONPATH="$(pwd)/src:$(pwd)/test" \
+          ./packages/python/bin/python -m pytest test/unit -q \
+            --cov --cov-report=term \
+            --cov-report=xml:build/coverage.xml \
+            --cov-report=html:build/coverage
 
     - name: Coverage report
       # NON-GATING BY DESIGN. Coverage here is a review aid, not a merge
