@@ -32,8 +32,23 @@ from .handler_phases import HandlerPhase
 
 
 class HandlerFatalError(Exception):
-    """Raised by a leaf handler to signal a fatal error that should abort the update."""
-    pass
+    """Raised by a handler to signal a fatal error that should abort the update.
+
+    Valid from both leaf and root callbacks. The dispatch sites convert it into
+    a reported failure rather than letting it reach the interpreter, so a
+    handler reporting an *expected* condition never costs the user a traceback.
+
+    ``reported`` mirrors ``SrcLoaderError.diagnostics``: it is True once the
+    message has already been rendered -- which is the case whenever the raise
+    happened inside a ``task_context()``, since that dispatches
+    HANDLER_TASK_ERROR carrying the message on its way out. The top-level
+    handler in ``__main__`` prints only what nothing else has printed, so
+    neither a duplicated line nor a silent exit is possible.
+    """
+
+    def __init__(self, *args, reported: bool = False):
+        super().__init__(*args)
+        self.reported = reported
 
 
 class ToolchainSupport(enum.Enum):
@@ -98,6 +113,11 @@ class TaskHandle:
                     task_message=str(e),
                     duration=time.monotonic() - child._start,
                 ))
+                # Rendered now, so the top-level handler must not print it again.
+                # Inside the `if dispatcher` guard deliberately: with no
+                # dispatcher nothing was shown and it still has to be printed.
+                if isinstance(e, HandlerFatalError):
+                    e.reported = True
             raise
         else:
             if dispatcher:
@@ -256,6 +276,10 @@ class PackageHandler(object):
                     task_message=str(e),
                     duration=time.monotonic() - handle._start,
                 ))
+                # See TaskHandle.task_context: mark as already-rendered so the
+                # top-level handler prints only what nothing else has printed.
+                if isinstance(e, HandlerFatalError):
+                    e.reported = True
             raise
         else:
             if dispatcher:

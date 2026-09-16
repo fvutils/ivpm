@@ -13,6 +13,7 @@ from typing import Dict, List, Tuple
 from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
 from ivpm.msg import flush_deferred_errors, setup_logging, SrcLoaderError
+from ivpm.handlers.package_handler import HandlerFatalError
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
 from .cmds.cmd_perf import CmdPerf
@@ -868,10 +869,7 @@ def main(project_dir=None):
         return
 
     # First things first: load any extensions
-    if sys.version_info < (3, 10):
-        from importlib_metadata import entry_points
-    else:
-        from importlib.metadata import entry_points
+    from ._compat import entry_points
 
     discovered_plugins = entry_points(group='ivpm.ext')
     parser_ext = []
@@ -1003,6 +1001,20 @@ def main(project_dir=None):
         # silent exit.
         flush_deferred_errors()
         if not e.diagnostics:
+            print(str(e), file=sys.stderr)
+        sys.exit(1)
+    except HandlerFatalError as e:
+        # A handler raising this is reporting an *expected* failure, so the
+        # user gets the message and nothing else -- a traceback here reads as
+        # an ivpm crash and buries the diagnostic the handler just rendered.
+        # The dispatch sites convert what they can (project_ops._dispatch_root,
+        # package_updater's leaf guard); this is the backstop for the paths
+        # they don't cover. Keep the stack on the developer channel, the way
+        # package failures do.
+        logging.getLogger("ivpm").debug("Handler fatal error", exc_info=True)
+        flush_deferred_errors()
+        if not getattr(e, "reported", False):
+            # Raised outside a task_context, so nothing has been said yet.
             print(str(e), file=sys.stderr)
         sys.exit(1)
     finally:

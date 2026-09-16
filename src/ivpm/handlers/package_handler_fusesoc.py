@@ -18,11 +18,11 @@
 #****************************************************************************
 import configparser
 import dataclasses as dc
-import glob as _glob
 import logging
 import os
 from typing import Dict, List, Optional
 
+from .._compat import glob_rel
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
@@ -352,7 +352,7 @@ class PackageHandlerFuseSoC(PackageHandler):
         seen_dirs = set()
 
         for pattern in patterns:
-            matches = sorted(_glob.glob(pattern, root_dir=root_dir, recursive=True))
+            matches = sorted(glob_rel(pattern, root_dir, recursive=True))
             if not matches:
                 _logger.warning(
                     "Package %s: fusesoc cores pattern '%s' matched no files",

@@ -917,13 +917,23 @@ class PackageHandlerPython(PackageHandler):
         # Queries both 'agent.skills' (current) and 'ivpm.skill' (deprecated),
         # deduplicating by (group-prioritized) entry-point name so dual-publishing
         # packages don't produce duplicates.
+        # The script runs under the MANAGED VENV's interpreter, not ours, so it
+        # cannot import ivpm._compat and cannot assume our Python version: a
+        # project may pin 3.9, where entry_points() takes no arguments and
+        # returns a group -> list dict. Select by group by hand.
         script = textwrap.dedent("""\
             import importlib.metadata, json, sys
+            if sys.version_info >= (3, 10):
+                def _eps(group):
+                    return importlib.metadata.entry_points(group=group)
+            else:
+                def _eps(group):
+                    return importlib.metadata.entry_points().get(group, [])
             result = []
             seen_names = set()
             for group, kind in (('agent.skills', 'skills'), ('ivpm.skill', 'skills'),
                                 ('agent.plugins', 'plugins')):
-                for ep in importlib.metadata.entry_points(group=group):
+                for ep in _eps(group):
                     if (kind, ep.name) in seen_names:
                         continue
                     try:

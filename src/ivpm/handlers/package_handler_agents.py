@@ -17,7 +17,6 @@
 #*
 #****************************************************************************
 import dataclasses as dc
-import glob as _glob
 import json
 import logging
 import os
@@ -25,6 +24,7 @@ import re
 import shutil
 from typing import Dict, List, Optional, Tuple
 
+from .._compat import glob_rel
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler, ToolchainSupport
@@ -667,7 +667,7 @@ class PackageHandlerAgents(PackageHandler):
         seen = set()
 
         for pattern in patterns:
-            matches = sorted(_glob.glob(pattern, root_dir=root_dir, recursive=True))
+            matches = sorted(glob_rel(pattern, root_dir, recursive=True))
             if not matches:
                 _logger.warning(
                     "Package %s: skill pattern '%s' matched no files", owner_name, pattern)
@@ -857,7 +857,7 @@ class PackageHandlerAgents(PackageHandler):
         # skills/ sub-directory
         skills_dir = os.path.join(root_dir, "skills")
         if os.path.isdir(skills_dir):
-            for rel_md in sorted(_glob.glob("**/SKILL.md", root_dir=skills_dir, recursive=True)):
+            for rel_md in sorted(glob_rel("**/SKILL.md", skills_dir, recursive=True)):
                 abs_md = os.path.join(skills_dir, rel_md)
                 skill_dir = os.path.normpath(os.path.dirname(abs_md))
                 if skill_dir in seen:

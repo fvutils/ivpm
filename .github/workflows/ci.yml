@@ -53,6 +53,61 @@ jobs:
           echo "release authority for $GITHUB_REPOSITORY: $auth"
           echo "authority=$auth" >> "$GITHUB_OUTPUT"
 
+  # ---------------------------------------------------------------------- #
+  # THE SUPPORTED-PYTHON MATRIX. `requires-python = ">=3.9"` in pyproject.toml
+  # is a promise, and this job is the only thing that keeps it true.
+  #
+  # IVPM is normally run by whatever interpreter the PROJECT pins, not by the
+  # developer's shell python, so a 3.10-only stdlib call is not a theoretical
+  # hazard: glob.glob(root_dir=) and entry_points(group=) both shipped in 3.10
+  # and both reached production, where they broke cp39 consumers at runtime.
+  # See src/ivpm/_compat.py.
+  #
+  # This job runs only on GitHub. It needs actions/setup-python, which resolves
+  # against github.com and so cannot run under Forgejo Actions (same constraint
+  # documented at the top of .forgejo/workflows/ci.yml); the Forgejo pipeline
+  # tests the one interpreter its container provides.
+  #
+  # Deliberately NOT a matrix over ci-linux: that job also builds, stamps a
+  # version and publishes, and none of that should happen six times.
+  # ---------------------------------------------------------------------- #
+  python-matrix:
+    name: Python ${{ matrix.python-version }}
+    if: github.server_url == 'https://github.com'
+    runs-on: ubuntu-latest
+    strategy:
+      # One version failing must not cancel the others: when a floor breaks,
+      # WHICH versions break is the whole diagnostic.
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Bootstrap the ivpm environment
+      env:
+        # bootstrap.sh builds packages/python from ${IVPM_PYTHON}, defaulting to
+        # `python3`. Pointing it at the matrix interpreter is what makes the row
+        # test that version rather than the runner's system python -- and it
+        # also exercises `ivpm update -a` under that version, which is the most
+        # direct smoke test available that ivpm itself runs there.
+        IVPM_PYTHON: python
+      run: |
+        ./bootstrap.sh
+        ./packages/python/bin/python -m pip install --upgrade setuptools build
+        # egg-info, so entry points are discoverable via PYTHONPATH=src.
+        ./packages/python/bin/python -m build --no-isolation .
+    - name: Run tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # No coverage here: ci-linux measures it once, and six more measurements
+        # of the same source would add nothing.
+        PYTHONPATH="$(pwd)/src:$(pwd)/test" \
+          ./packages/python/bin/python -m pytest test/unit -q
+
   ci-linux:
     needs: gate
     # GitHub-only. pypa/gh-action-pypi-publish and JamesIves/github-pages-deploy-action
@@ -126,11 +181,29 @@ jobs:
         if-no-files-found: warn
 
     - name: Build Package
+      # The stamp is CONDITIONAL, matching .forgejo/workflows/ci.yml: a tag build
+      # keeps the clean BASE version, everything else gets a .<run-id> dev suffix
+      # so an ordinary push can never produce a wheel whose version could collide
+      # with a release. Unconditional stamping (what this was) meant a `v2.34.0`
+      # tag built and published 2.34.0.<run-id> -- a version nobody asked for and,
+      # PyPI being append-only, one that cannot be taken back.
       run: |
         rm -rf dist/
-        sed -i -e "s/^SUFFIX = \"\"$/SUFFIX = \".${GITHUB_RUN_ID}\"/" src/ivpm/__version__.py
+        case "$GITHUB_REF" in
+          refs/tags/*) echo "tag build -- leaving version clean" ;;
+          *) sed -i 's/^SUFFIX = ""$/SUFFIX = ".'"$GITHUB_RUN_ID"'"/' src/ivpm/__version__.py ;;
+        esac
         grep "^SUFFIX = " src/ivpm/__version__.py
         ./packages/python/bin/python3 -m build .
+
+    - name: Upload distributions
+      # Handed to the publish-pypi job below, which is a SEPARATE job so that it
+      # can wait on the full Python matrix without this job waiting too.
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-ivpm
+        path: dist/*
+        if-no-files-found: error
 
     - name: Build Docs
       run: |
@@ -139,32 +212,6 @@ jobs:
         cp src/ivpm/share/ivpm.json build/html/
         cp src/ivpm/share/ivpm.json build/html/ivpm.schema.json
         touch build/html/.nojekyll
-
-    - name: Publish to PyPi
-      # GATED 2026-08-31 (wave 3b). Two clauses, and both are load-bearing:
-      #
-      #   refs/tags/v*   this repo is mirrored to Forgejo and back on a five-minute
-      #                  cron, and git-sync moves the DEFAULT BRANCH. The condition
-      #                  replaced here was `refs/heads/master` (or main), which a sync
-      #                  cycle satisfies by construction -- so mirroring was a release
-      #                  trigger. A tag is a deliberate act; a cycle never creates one.
-      #
-      #   authority      the release-authority master switch at
-      #                  dvkit.org/.well-known/release-authority.json, so that which
-      #                  forge may publish is one decision in one place rather than
-      #                  fourteen workflow files.
-      #
-      # WHAT THIS COSTS. The per-push `.<run-id>` dev wheel is gone: a push to the
-      # default branch no longer publishes anything to PyPI. That is the same trade
-      # already made for the eight mballance-utils repos, and it is the one
-      # sync-policy.toml describes as outstanding for exactly this shape.
-      if: >-
-        needs.gate.outputs.authority == 'github' &&
-        startsWith(github.ref, 'refs/tags/v')
-      uses: pypa/gh-action-pypi-publish@release/v1
-      with:
-        user: __token__
-        password: ${{ secrets.PYPI_API_TOKEN }}
 
     # The GitHub Pages deploy step WAS HERE and is deliberately gone (2026-08-31).
     #
@@ -180,6 +227,57 @@ jobs:
     #
     # THE DOCS BUILD ABOVE STAYS, as a CI check. A broken cross-reference should fail
     # here, not render as a dead link on dvkit.org.
+
+  # ---------------------------------------------------------------------- #
+  # PUBLISHING. Its own job for one reason: `needs` is the only thing in
+  # Actions that can make a release WAIT for another job, and a `needs` on
+  # ci-linux itself would make the ordinary per-push build sit idle behind six
+  # matrix rows for no benefit.
+  #
+  # needs: [gate, ci-linux, python-matrix] -- a red row in ANY supported Python
+  # version blocks the upload, which is the point: `requires-python = ">=3.9"`
+  # is a promise made to installers who cannot check it for themselves.
+  #
+  # A SKIPPED dependency also blocks this job, which is the behaviour we want in
+  # both places it can happen: under Forgejo Actions (where ci-linux and
+  # python-matrix are skipped by their server_url guard, and .forgejo/workflows
+  # owns publishing anyway), and if someone disables the matrix. Failing closed
+  # on a release is this repo's standing preference -- see the gate job.
+  # ---------------------------------------------------------------------- #
+  publish-pypi:
+    needs: [gate, ci-linux, python-matrix]
+    runs-on: ubuntu-latest
+    # GATED 2026-08-31 (wave 3b). Two clauses, and both are load-bearing:
+    #
+    #   refs/tags/v*   this repo is mirrored to Forgejo and back on a five-minute
+    #                  cron, and git-sync moves the DEFAULT BRANCH. The condition
+    #                  replaced here was `refs/heads/master` (or main), which a sync
+    #                  cycle satisfies by construction -- so mirroring was a release
+    #                  trigger. A tag is a deliberate act; a cycle never creates one.
+    #
+    #   authority      the release-authority master switch at
+    #                  dvkit.org/.well-known/release-authority.json, so that which
+    #                  forge may publish is one decision in one place rather than
+    #                  fourteen workflow files.
+    #
+    # WHAT THIS COSTS. The per-push `.<run-id>` dev wheel is gone: a push to the
+    # default branch no longer publishes anything to PyPI. That is the same trade
+    # already made for the eight mballance-utils repos, and it is the one
+    # sync-policy.toml describes as outstanding for exactly this shape.
+    if: >-
+      needs.gate.outputs.authority == 'github' &&
+      startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - name: Download distributions
+      uses: actions/download-artifact@v4
+      with:
+        name: dist-ivpm
+        path: dist
+    - name: Publish to PyPi
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }}
 
 
 

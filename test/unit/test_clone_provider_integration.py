@@ -45,8 +45,11 @@ def _patch_entry_points(eps):
     """Patch the entry_points symbol _load_plugins imports."""
     def fake_entry_points(group=None):
         return eps if group == "ivpm.clone_providers" else []
-    # _load_plugins imports from importlib.metadata (py>=3.10) at call time.
-    return mock.patch("importlib.metadata.entry_points", fake_entry_points)
+    # _load_plugins does `from .._compat import entry_points` at call time, so
+    # the compat shim -- not importlib.metadata -- is the seam. Patching
+    # importlib.metadata instead would miss the 3.9 path, which reaches the
+    # same entry points by walking distributions().
+    return mock.patch("ivpm._compat.entry_points", fake_entry_points)
 
 
 class TestEntryPointDiscovery(unittest.TestCase):

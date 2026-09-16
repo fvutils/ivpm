@@ -171,6 +171,34 @@ Tests run automatically on:
 
 See `.github/workflows/ci.yml` for the complete CI configuration.
 
+## Supported Python Versions
+
+**IVPM supports Python 3.9 and later** (`requires-python = ">=3.9"`), and the
+`python-matrix` job in both `.github/workflows/ci.yml` and
+`.forgejo/workflows/ci.yml` runs the full suite on 3.9 through 3.14. **Releases
+are gated on it**: `publish-pypi` declares `needs: [... python-matrix]` on both
+forges, so a red row in any supported version blocks the PyPI upload.
+
+This floor is easy to break without noticing, because IVPM is usually run by the
+*project's* pinned interpreter rather than by the developer's shell python: a
+3.10-only stdlib call works perfectly on your machine and on most of CI, then
+fails at runtime inside someone else's cp39 build. It has happened twice
+already, with `glob.glob(..., root_dir=)` and
+`importlib.metadata.entry_points(group=)`.
+
+When you need an API newer than 3.9:
+
+- Add a shim to `src/ivpm/_compat.py` and call that, rather than version-testing
+  at the use site. Factor the old-version implementation into its own
+  `_..._fallback` function so `test/unit/test_compat.py` can exercise it on any
+  interpreter -- otherwise the 3.9 code path is covered only by the 3.9 CI row.
+- Code pushed into a managed venv (a `python -c` script run by a handler) cannot
+  import `ivpm._compat`, and runs under a version IVPM does not choose. Those
+  carry an inline `sys.version_info` guard instead.
+- `test/unit/test_python_floor.py` fails the build on a direct use of either
+  known-bad API, and asserts that the declared floor is actually in the CI
+  matrix. It is a source-level guard, not a substitute for the matrix.
+
 ## Package Types and Caching
 
 Understanding package behavior is important for testing:

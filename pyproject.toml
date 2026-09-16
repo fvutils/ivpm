@@ -6,6 +6,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ivpm"
 dynamic = ["version"]
+# IVPM is routinely run by whatever interpreter a project already pins, which
+# is often older than the developer's shell python. Declaring the floor is what
+# makes pip refuse the install instead of installing happily and failing at the
+# first 3.10-only stdlib call; see src/ivpm/_compat.py for the shims that keep
+# this floor honest, and the CI version matrix that tests it.
+requires-python = ">=3.9"
 dependencies = [
     "httpx>=0.28.1,<1.0",
     "pyyaml",
@@ -19,6 +25,14 @@ authors = [
 ]
 description = "IVPM (Integrated View Package Manager) is a project-local polyglot package manager."
 license = {file = "LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 
 [tool.setuptools.dynamic]
 version = {attr = "ivpm.__version__._pkg_version"}

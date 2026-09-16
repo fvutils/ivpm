@@ -31,10 +31,10 @@ an auto-probe finding an unrelated ``plugin.json`` is entirely normal and stays
 quiet.
 """
 import dataclasses as dc
-import glob as _glob
 import os
 from typing import List, Optional, Sequence, Tuple
 
+from .._compat import glob_rel
 from .manifest import (
     Diagnostic, PluginManifest, iter_skill_dirs, load_plugin,
     normalize_plugin_path, within,
@@ -90,7 +90,7 @@ def discover(owner_name: str,
     seen = set()
 
     for pattern in pattern_list:
-        matches = sorted(_glob.glob(pattern, root_dir=root_dir, recursive=True))
+        matches = sorted(glob_rel(pattern, root_dir, recursive=True))
         if not matches and explicit:
             diags.append(Diagnostic(
                 "warning", "plugins.no-match",

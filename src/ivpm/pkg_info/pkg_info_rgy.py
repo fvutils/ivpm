@@ -33,10 +33,7 @@ class PkgInfoRgy(object):
         pass
 
     def load(self):
-        if sys.version_info < (3,10):
-            from importlib_metadata import entry_points
-        else:
-            from importlib.metadata import entry_points
+        from .._compat import entry_points
 
         plugins = entry_points(group='ivpm.pkginfo')
 

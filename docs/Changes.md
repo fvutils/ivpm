@@ -1,4 +1,31 @@
 
+# 2.34.0
+- **A `HandlerFatalError` from a root callback no longer surfaces as a
+  traceback.** `HandlerFatalError` is how a handler reports an *expected*
+  failure, and the leaf path has always converted it into a proper diagnostic.
+  The root path (`on_root_pre_load`, `on_root_post_load`, `build`) did not, so
+  a handler that rendered a clean, actionable message got a Python traceback
+  dumped on top of it -- reading as an ivpm crash and burying the diagnostic.
+  Root dispatch now routes it through the reporter the way the leaf path does,
+  and `main()` backstops any path that misses. The message is printed exactly
+  once: an error raised inside a `task_context()` has already been rendered, so
+  it is marked `reported` and not echoed; one raised outside a task (a
+  pre-flight tool check, say) is printed, since nothing else would have said
+  anything. Exit status is 1 either way, and `--log-level DEBUG` still shows
+  the originating stack. No in-tree handler raises from a root callback today,
+  so this closes a hole in the public handler API for out-of-tree handlers
+  rather than changing existing behaviour.
+- **Restore Python 3.9 compatibility, and declare the supported range.**
+  2.33.0 used two 3.10-only stdlib APIs -- `glob.glob(..., root_dir=)` and
+  `importlib.metadata.entry_points(group=)` -- with no `requires-python`, so pip
+  installed it happily under 3.9 and it then failed at runtime, inside the
+  consuming build. Both now go through `ivpm._compat`, `requires-python =
+  ">=3.9"` is declared, and CI runs the test suite on 3.9 through 3.14 so the
+  floor is tested rather than asserted. **A release is now gated on every
+  supported version passing** -- `publish-pypi` waits on the matrix on both
+  forges. GitHub tag builds also stop stamping a `.<run-id>` dev suffix onto
+  the release version, matching the Forgejo pipeline.
+
 # 2.31.0
 - Update 'modules' source to support full-path specification (modulefile)
 

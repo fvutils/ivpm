@@ -24,7 +24,6 @@ tier, more than one claimant is an ambiguity error.
 """
 import logging
 import re
-import sys
 from typing import Dict, List, Optional
 
 from .clone_provider import CloneProvider, ClaimStrength
@@ -229,10 +228,7 @@ class CloneProviderRgy(object):
         self._load_plugins()
 
     def _load_plugins(self):
-        if sys.version_info < (3, 10):
-            from importlib_metadata import entry_points
-        else:
-            from importlib.metadata import entry_points
+        from .._compat import entry_points
         from ..show.info_types import ep_registration_kwargs
 
         for ep in entry_points(group="ivpm.clone_providers"):

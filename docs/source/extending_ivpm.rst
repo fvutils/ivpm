@@ -278,8 +278,8 @@ If no TUI is active (e.g. in non-interactive mode), ``task_context()`` and
 Fatal Errors
 ============
 
-To abort an entire update run from inside a leaf callback, raise
-``HandlerFatalError``:
+To abort an entire update run, raise ``HandlerFatalError``.  It is valid from
+both leaf and root callbacks:
 
 .. code-block:: python
 
@@ -289,8 +289,25 @@ To abort an entire update run from inside a leaf callback, raise
         if not self._check(pkg):
             raise HandlerFatalError(f"Required file missing in {pkg.name}")
 
-Non-fatal exceptions logged inside a leaf callback are caught and reported as
-warnings; the run continues with remaining packages.
+IVPM treats it as a report of an *expected* failure, so the user sees the
+message and nothing else -- never a traceback.  How the message reaches them
+depends on where the raise happened:
+
+* **Inside a** ``task_context()`` -- the task's error event carries the message
+  and the TUI has already rendered it.  IVPM marks the exception ``reported``
+  and stays quiet, so nothing is printed twice.
+* **Outside one** -- e.g. a pre-flight check for a required tool on ``PATH``,
+  which runs before any task opens.  Nothing has been shown yet, so IVPM
+  prints the message itself.
+
+Either way the exit status is 1.  Run with ``ivpm --log-level DEBUG`` to see
+the originating traceback.
+
+Non-fatal exceptions raised inside a *leaf* callback are caught and reported as
+warnings; the run continues with the remaining packages.  Root callbacks have
+no such policy -- a root handler that fails halfway through is not something
+the run can meaningfully skip -- so any exception from a root callback ends the
+run.
 
 
 Registering a Handler via Entry Points

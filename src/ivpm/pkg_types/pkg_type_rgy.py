@@ -114,11 +114,7 @@ class PkgTypeRgy(object):
 
     def _load_plugins(self):
         import logging
-        import sys
-        if sys.version_info < (3, 10):
-            from importlib_metadata import entry_points
-        else:
-            from importlib.metadata import entry_points
+        from .._compat import entry_points
         from ..show.info_types import ep_registration_kwargs
         _logger = logging.getLogger("ivpm.pkg_types.pkg_type_rgy")
 

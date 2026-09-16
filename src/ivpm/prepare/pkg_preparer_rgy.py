@@ -28,7 +28,6 @@ Mirrors ``PackageHandlerRgy``, with two deliberate differences:
   proceeds to write content anyway.
 """
 import logging
-import sys
 
 from .preparer_list import PreparerList
 
@@ -87,10 +86,7 @@ class PackagePreparerRgy(object):
         self._load_plugins()
 
     def _load_plugins(self):
-        if sys.version_info < (3, 10):
-            from importlib_metadata import entry_points
-        else:
-            from importlib.metadata import entry_points
+        from .._compat import entry_points
         from ..show.info_types import ep_registration_kwargs
 
         seen = set()

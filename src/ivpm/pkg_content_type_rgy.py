@@ -84,7 +84,7 @@ class PkgContentTypeRgy:
 
         # Scan entry_points(group='ivpm.content_types') for plugin-provided types
         try:
-            from importlib.metadata import entry_points
+            from ._compat import entry_points
             from .show.info_types import ep_registration_kwargs
             eps = entry_points(group="ivpm.content_types")
             for ep in eps:

@@ -338,16 +338,18 @@ class TestRegistry(unittest.TestCase):
         def _fake_entry_points(group=None):
             return [_BadEP()]
 
-        # _load_plugins imports entry_points inside the function, so patching
-        # the module attribute here takes effect for the call below.
-        import importlib.metadata as md
-        saved = md.entry_points
-        md.entry_points = _fake_entry_points
+        # _load_plugins imports entry_points from ivpm._compat inside the
+        # function, so patching the module attribute here takes effect for the
+        # call below -- and stays version-independent, which patching
+        # importlib.metadata directly would not be.
+        import ivpm._compat as compat
+        saved = compat.entry_points
+        compat.entry_points = _fake_entry_points
         try:
             with self.assertRaises(PreparerLoadError) as ctx:
                 rgy._load_plugins()
         finally:
-            md.entry_points = saved
+            compat.entry_points = saved
 
         self.assertIn("bad", str(ctx.exception))
 

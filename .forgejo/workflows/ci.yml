@@ -80,6 +80,12 @@ jobs:
   build-linux:
     # ubuntu-latest maps to catthehacker/ubuntu:act-22.04 on this runner:
     # Python 3.10, git and node, which is everything a pure-Python build needs.
+    #
+    # ONE interpreter, by design. The supported-Python matrix (3.9 .. 3.14, the
+    # range `requires-python` in pyproject.toml promises) lives in
+    # .github/workflows/ci.yml, because it needs actions/setup-python and a
+    # bare `uses:` here resolves against code.forgejo.org -- see item 1 above.
+    # This job gates the release; that job gates the floor.
     runs-on: ubuntu-latest
 
     steps:
@@ -221,6 +227,65 @@ jobs:
         path: dist/*
         if-no-files-found: error
 
+  # ---------------------------------------------------------------------- #
+  # THE SUPPORTED-PYTHON MATRIX. `requires-python = ">=3.9"` in pyproject.toml
+  # is a promise, and this job is what keeps it true on the forge that may hold
+  # release authority. publish-pypi needs it, so a red row blocks the upload.
+  #
+  # Interpreters come from `uv`, NOT actions/setup-python: a bare `uses:` here
+  # resolves against code.forgejo.org (item 1 at the top of this file), and the
+  # job container ships exactly one Python. uv is installed from PyPI inside the
+  # job and fetches standalone builds -- one more network dependency on the
+  # release path, which is the price of testing the floor where it is published.
+  # ---------------------------------------------------------------------- #
+  python-matrix:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      # One version failing must not cancel the others: when a floor breaks,
+      # WHICH versions break is the whole diagnostic.
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Test on Python ${{ matrix.python-version }}
+      env:
+        # Same reasoning as the build-linux test step: NOT secrets.GITHUB_TOKEN.
+        GITHUB_TOKEN: ${{ secrets.GH_API_TOKEN }}
+        PYVER: ${{ matrix.python-version }}
+      run: |
+        # Everything runs as a non-root user, for the reason spelled out at
+        # length in build-linux's test step: as uid 0 the permission-model
+        # assertions (read-only cache seals, 0555 directories) either fail or
+        # self-skip and report green. That applies here too -- a matrix row that
+        # silently skips those tests is worse than no row at all.
+        useradd -m ivpmtest
+        git config --global --add safe.directory "$(pwd)"
+        chown -R ivpmtest:ivpmtest .
+        # uv and its interpreters install under the TEST USER's HOME, so the
+        # venv that bootstrap.sh builds from them stays readable to the process
+        # that runs the suite.
+        runuser -u ivpmtest -- env HOME=/home/ivpmtest PYVER="$PYVER" \
+            GITHUB_TOKEN="$GITHUB_TOKEN" bash -eu -c '
+          export PATH="$HOME/.local/bin:$PATH"
+          python3 -m pip install --user --quiet uv
+          uv python install "$PYVER"
+          IVPM_PYTHON=$(uv python find "$PYVER")
+          export IVPM_PYTHON
+          "$IVPM_PYTHON" --version
+          # bootstrap.sh builds packages/python from ${IVPM_PYTHON}, so the row
+          # also exercises `ivpm update -a` under that interpreter -- the most
+          # direct check available that ivpm itself runs there.
+          ./bootstrap.sh
+          ./packages/python/bin/python -m pip install --upgrade setuptools build
+          ./packages/python/bin/python -m build --no-isolation .
+          PYTHONPATH="$(pwd)/src:$(pwd)/test" \
+            ./packages/python/bin/python -m pytest test/unit -q
+        '
+
   docs:
     # Runs against the built wheel rather than the source tree: conf.py loads
     # sphinxarg.ext, which imports ivpm's argument parser, so the package and
@@ -295,7 +360,12 @@ jobs:
     if: >-
       needs.gate.outputs.authority == 'forgejo' &&
       startsWith(github.ref, 'refs/tags/v')
-    needs: [gate, build-linux, docs]
+    # python-matrix is in this list deliberately: a release must not go out
+    # unless the suite passed on EVERY supported interpreter, not just the one
+    # the build container happens to ship. `requires-python = ">=3.9"` is a
+    # promise made to installers who cannot check it for themselves, and 2.33.0
+    # shipped broken on 3.9 precisely because nothing here tested it.
+    needs: [gate, build-linux, docs, python-matrix]
     runs-on: ubuntu-latest
 
     steps:

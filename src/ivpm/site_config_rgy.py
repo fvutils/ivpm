@@ -207,7 +207,7 @@ class SiteConfigRgy:
 
         # 3. Plugin entry points
         try:
-            from importlib.metadata import entry_points
+            from ._compat import entry_points
             from .show.info_types import ep_registration_kwargs
             eps = entry_points(group=SITE_CONFIG_GROUP)
             for ep in eps:

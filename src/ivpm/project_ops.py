@@ -36,6 +36,34 @@ from .package_lock import write_lock, _entry_name
 _logger = logging.getLogger("ivpm.project_ops")
 
 
+def _dispatch_root(callback, *args):
+    """Run a root-phase handler callback, converting a fatal error into a report.
+
+    The leaf path already does this: ``package_updater`` lets HandlerFatalError
+    out of ``on_leaf_post_load()``, and the batch driver turns it into a
+    ``fatal()`` naming the dependency that failed.  Without the same conversion
+    here, a root-phase raise propagated all the way to the interpreter and the
+    user saw a traceback for a condition the handler was reporting
+    deliberately.
+
+    An error that was raised inside a ``task_context()`` has already been
+    rendered, so it is re-raised untouched -- ``__main__`` recognises it and
+    exits quietly.  Anything else has been reported nowhere, and ``fatal()``
+    is what puts it on screen (as a ``SrcLoaderError`` carrying diagnostics,
+    the shape ``main()`` has always handled).  No ``loc``: a root-phase failure
+    belongs to the project, not to any one dependency entry.
+    """
+    from .handlers.package_handler import HandlerFatalError
+    try:
+        callback(*args)
+    except HandlerFatalError as e:
+        _logger.debug("Root-phase handler error in %s",
+                      getattr(callback, "__name__", callback), exc_info=True)
+        if getattr(e, "reported", False):
+            raise
+        fatal(str(e))
+
+
 # Lock fields worth naming in the drift report, in the order a reader wants
 # them. 'commit_requested' is the one the original bug report was about: a
 # changed pin has to say what it changed *from*, or the note is unactionable.
@@ -322,7 +350,7 @@ class ProjectOps(object):
 
             # Root pre-load: let handlers initialise before any packages are fetched
             with perf.span("handler.pre_load"):
-                pkg_handler.on_root_pre_load(handler_update_info)
+                _dispatch_root(pkg_handler.on_root_pre_load, handler_update_info)
 
             # Prevent an attempt to load the top-level project as a depedency
             updater.exclude_root_project(proj_info.name)
@@ -353,7 +381,7 @@ class ProjectOps(object):
 
             # Root post-load: handlers do their main work (venv, pip install, envrc, etc.)
             with perf.span("handler.post_load"):
-                pkg_handler.on_root_post_load(handler_update_info)
+                _dispatch_root(pkg_handler.on_root_post_load, handler_update_info)
 
             # Signal update complete
             updater.update_info.update_complete()
@@ -498,7 +526,7 @@ class ProjectOps(object):
         # Now, run the actual build operation
         build_info = ProjectBuildInfo(args, deps_dir, debug=debug)
 
-        pkg_handler.build(build_info)
+        _dispatch_root(pkg_handler.build, build_info)
 
         pass
 

@@ -5,6 +5,10 @@ Getting Started with IVPM
 Installing IVPM
 ===============
 
+IVPM requires **Python 3.9 or later**, and is tested on 3.9 through 3.14. Note
+that this is the version of the interpreter that runs IVPM itself; the Python
+version a project's own packages are built against is independent of it.
+
 IVPM must be installed before it can be used to work with a project. Typically,
 the easiest approach is to install IVPM as a user-installed package:
 

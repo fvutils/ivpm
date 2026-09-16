@@ -19,7 +19,6 @@
 #*     Author: 
 #*
 #****************************************************************************
-import sys
 import logging
 from .package_handler_list import PackageHandlerList
 
@@ -108,10 +107,7 @@ class PackageHandlerRgy(object):
 
     def _load_plugins(self):
         # Discover plugin-provided handlers via entry points.
-        if sys.version_info < (3, 10):
-            from importlib_metadata import entry_points
-        else:
-            from importlib.metadata import entry_points
+        from .._compat import entry_points
         from ..show.info_types import ep_registration_kwargs
 
         seen = set()
