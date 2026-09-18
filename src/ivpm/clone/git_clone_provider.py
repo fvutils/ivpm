@@ -28,7 +28,8 @@ import subprocess
 import time
 
 from ..msg import note
-from ..utils import resolve_clone_url, url_host
+from .. import git_auth
+from ..utils import url_host
 from ..site_config import resolve_git_auth_order, loaded_config_paths
 from ..update_event import UpdateEvent, UpdateEventType
 from .clone_provider import (
@@ -153,13 +154,22 @@ class GitCloneProvider(CloneProvider):
         # Explicit --ssh / --anonymous force a transport; otherwise the
         # configured git auth order decides.
         ssh_pref = None
+        ssh_pref_source = None
         if ssh:
-            ssh_pref = True
+            ssh_pref, ssh_pref_source = True, "cli:--ssh"
         elif anonymous:
-            ssh_pref = False
-        url = resolve_clone_url(src, ssh_pref, auth_order)
+            ssh_pref, ssh_pref_source = False, "cli:--anonymous"
+        # Only the first candidate is used here: a root clone is interactive
+        # and creates a workspace directory, so a silent transport retry would
+        # be harder to reason about than the reported failure plus the probe's
+        # verdict. The dependency-fetch path (PackageGit._clone_to_dir) does
+        # walk the remaining candidates.
+        _candidates, decision = git_auth.clone_url_candidates_ex(
+            src, ssh_pref, auth_order, ssh_pref_source=ssh_pref_source)
+        url = decision.effective_url
+        self._decision = decision
 
-        self._log_auth_debug(src, url, ssh_pref, auth_order)
+        self._log_auth_debug(decision)
 
         clone_start_time = time.time()
         event_dispatcher.dispatch(UpdateEvent(
@@ -178,12 +188,14 @@ class GitCloneProvider(CloneProvider):
                     package_name="[clone]",
                     error_message="Git clone failed (git exit %d)" % rc))
                 return CloneResult(ok=False, message=self._clone_error_message(
-                    src, url, target_dir, rc, err, ssh_pref, auth_order))
+                    src, url, target_dir, rc, err, ssh_pref, auth_order,
+                    args=req.args))
 
             branch = req.branch
             if branch is not None:
                 rc, err = self._select_branch(branch, target_dir,
-                                              event_dispatcher, suppress_output)
+                                              event_dispatcher, suppress_output,
+                                              url=url)
                 if rc != 0:
                     return CloneResult(ok=False, message=self._branch_error_message(
                         branch, src, url, rc, err, ssh_pref))
@@ -205,7 +217,7 @@ class GitCloneProvider(CloneProvider):
     # Error reporting
     # ------------------------------------------------------------------ #
     def _clone_error_message(self, src, url, target_dir, rc, err,
-                             ssh_pref=None, auth_order=None):
+                             ssh_pref=None, auth_order=None, args=None):
         """Explain a failed clone: what IVPM asked git to do, how the locator
         was interpreted, how the failure was detected, git's own output, and
         an offline diagnosis (see ivpm.git_diagnose)."""
@@ -223,7 +235,7 @@ class GitCloneProvider(CloneProvider):
         lines.extend(self._context_lines(ctx))
 
         lines.extend(self._git_output_lines(err))
-        lines.extend(self._hint_lines(src, url, err, ssh_pref))
+        lines.extend(self._hint_lines(src, url, err, ssh_pref, args, auth_order))
         return "\n".join(lines)
 
     def _branch_error_message(self, branch, src, url, rc, err, ssh_pref=None):
@@ -250,11 +262,26 @@ class GitCloneProvider(CloneProvider):
             return ["git produced no diagnostic output"]
         return ["git reported:"] + ["  " + ln for ln in tail[-8:]]
 
-    def _hint_lines(self, src, url, err, ssh_pref):
+    def _hint_lines(self, src, url, err, ssh_pref, args=None, auth_order=None):
         from ..git_diagnose import diagnose_git_failure
         hints = list(diagnose_git_failure(url, err, ssh_pref))
         hints.extend(self._locator_hints(src, url, err))
-        return ["hint: " + h for h in hints]
+        lines = ["hint: " + h for h in hints]
+        lines.extend(self._probe_lines(url, err, ssh_pref, args, auth_order))
+        return lines
+
+    def _probe_lines(self, url, err, ssh_pref, args=None, auth_order=None):
+        """Verdict + remedies from an active probe of an auth-shaped failure.
+
+        Runs only on the failure path, and only when the classification is one
+        a probe can speak to -- never for a bad ref or an unresolvable host."""
+        from ..git_probe import probe_worthwhile, probe_git_auth, format_verdict
+        if not probe_worthwhile(url, err, args):
+            return []
+        result = probe_git_auth(url, err, ssh_pref, auth_order)
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug("%s", result.format_checks())
+        return format_verdict(result)
 
     def _locator_hints(self, src, url, err):
         """Hints about how the *locator itself* was read -- the case git's own
@@ -347,17 +374,20 @@ class GitCloneProvider(CloneProvider):
             auth_order = getattr(args, "git_auth_order", None)
         return ssh, anonymous, auth_order
 
-    def _select_branch(self, branch, target_dir, event_dispatcher, suppress_output):
+    def _select_branch(self, branch, target_dir, event_dispatcher, suppress_output,
+                       url=None):
         """Check out an existing origin/<branch> or create a new local branch.
 
         Returns ``(exit_code, stderr_text)``."""
         # Fetch to ensure remotes are up to date.
-        self._run_capture(["git", "fetch", "--all"], cwd=target_dir)
+        self._run_capture(self._git_cmd(["git", "fetch", "--all"], url),
+                          cwd=target_dir)
 
         have_remote = False
         try:
             out = subprocess.check_output(
-                ["git", "ls-remote", "--heads", "origin", branch], cwd=target_dir)
+                self._git_cmd(["git", "ls-remote", "--heads", "origin", branch], url),
+                cwd=target_dir)
             have_remote = (len(out.decode().strip()) > 0)
         except Exception:
             have_remote = False
@@ -413,6 +443,19 @@ class GitCloneProvider(CloneProvider):
             return "local" if self._git_reads_as_path(url) else "ssh"
         return "other"
 
+    def _git_cmd(self, base, url):
+        """*base* with gh's credential helper injected when *url* calls for it.
+
+        Honors the method this clone's auth decision selected, so an explicit
+        ``--anonymous``/``https`` choice is not quietly upgraded with gh's
+        token.  See :mod:`ivpm.git_auth`."""
+        if url is None:
+            return list(base)
+        dec = getattr(self, "_decision", None)
+        method = dec.chosen_method if (
+            dec is not None and dec.effective_url == url) else None
+        return git_auth.git_cmd(base, url, method)
+
     def _run(self, cmd, timeout=15):
         """Run a diagnostic command, returning (ok, combined_output)."""
         try:
@@ -424,65 +467,21 @@ class GitCloneProvider(CloneProvider):
         except Exception as e:
             return False, "%s: %s" % (cmd[0], e)
 
-    def _log_auth_debug(self, src, url, ssh_pref=None, auth_order=None):
-        """Log authentication diagnostics for the clone at DEBUG level."""
+    def _log_auth_debug(self, decision):
+        """Log the transport/credential decision for this clone at DEBUG.
+
+        The credential checks that used to live here (SSH agent/keys, gh auth
+        status, the credential helper) now live in :mod:`ivpm.git_probe`, so
+        there is one implementation shared with the dependency-fetch path and
+        with ``ivpm diagnose git``.  This method reports only the decision --
+        which is what a *successful* clone can say without running anything.
+        """
         if not _logger.isEnabledFor(logging.DEBUG):
             return
-
-        transport = self._transport(url)
-        lines = ["clone auth debug:",
-                 "  requested src : %s" % src,
-                 "  effective url : %s" % url,
-                 "  transport     : %s" % transport]
-        if ssh_pref is True:
-            lines.append("  selection     : forced SSH (--ssh)")
-        elif ssh_pref is False:
-            lines.append("  selection     : forced HTTPS (--anonymous)")
-        else:
-            # The auth order is resolved per-host against the *remapped* URL
-            # (that is the host git is actually asked to talk to), so report it
-            # for that host rather than the one the source was spelled with.
-            from ..site_config import apply_git_url_map
-            order = auth_order or resolve_git_auth_order(
-                url_host(apply_git_url_map(src)))
-            lines.append("  auth order    : %s" % ", ".join(order))
-            configs = loaded_config_paths()
-            if configs:
-                lines.append("  config files  : %s" % ", ".join(configs))
-
-        if transport == "ssh":
-            lines.append("  SSH_AUTH_SOCK : %s" % os.environ.get("SSH_AUTH_SOCK", "(not set)"))
-            ok, out = self._run(["ssh-add", "-l"], timeout=10)
-            if ok:
-                lines.append("  ssh-agent keys:")
-                lines.extend("    %s" % ln for ln in out.splitlines())
-            else:
-                lines.append("  ssh-agent keys: none / agent unavailable (%s)" % out)
-            sshdir = os.path.expanduser("~/.ssh")
-            found = []
-            if os.path.isdir(sshdir):
-                for n in ("id_ed25519", "id_rsa", "id_ecdsa", "id_dsa"):
-                    if os.path.isfile(os.path.join(sshdir, n)):
-                        found.append(n)
-            lines.append("  ~/.ssh keys   : %s" % (", ".join(found) if found else "(none found)"))
-            host = url[4:].split(":", 1)[0] if url.startswith("git@") else None
-            if host in ("github.com", "gitlab.com"):
-                _, out = self._run(["ssh", "-o", "BatchMode=yes",
-                                    "-o", "StrictHostKeyChecking=accept-new",
-                                    "-T", "git@%s" % host], timeout=15)
-                lines.append("  ssh -T %s:" % host)
-                lines.extend("    %s" % ln for ln in out.splitlines())
-        elif transport == "https":
-            _, out = self._run(["gh", "auth", "status"], timeout=15)
-            lines.append("  gh auth status:")
-            lines.extend("    %s" % ln for ln in (out.splitlines() or ["(no output)"]))
-            _, helpers = self._run(["git", "config", "--get-all", "credential.helper"], timeout=10)
-            lines.append("  credential.helper: %s" % (helpers.replace("\n", ", ") if helpers else "(none configured)"))
-            if not helpers:
-                lines.append("    hint: run 'gh auth setup-git' to use your gh token for https clones")
-        else:
-            lines.append("  (no auth required for %s transport)" % transport)
-
+        lines = [decision.format("clone auth decision")]
+        configs = loaded_config_paths()
+        if configs:
+            lines.append("  config files  : %s" % ", ".join(configs))
         _logger.debug("\n".join(lines))
 
     def _run_git(self, cmd, event_dispatcher, suppress_output, progress=False, cwd=None):
@@ -595,7 +594,7 @@ class GitCloneProvider(CloneProvider):
 
         scratch = tempfile.mkdtemp(prefix="ivpm-clone-")
         try:
-            rc, err = self._run_git(["git", "clone", src, target_dir],
+            rc, err = self._run_git(self._git_cmd(["git", "clone", src, target_dir], url),
                                     event_dispatcher, suppress_output,
                                     progress=True, cwd=scratch)
             if rc == 0 and self._is_self_clone(scratch, target_dir):
@@ -635,7 +634,8 @@ class GitCloneProvider(CloneProvider):
         rc, err = self._run_capture(["git", "remote", "add", "origin", url], cwd=target_dir)
         if rc != 0:
             return rc, err
-        rc, err = self._run_git(["git", "fetch", "origin"], event_dispatcher,
+        rc, err = self._run_git(self._git_cmd(["git", "fetch", "origin"], url),
+                                event_dispatcher,
                                 suppress_output, progress=True, cwd=target_dir)
         if rc != 0:
             return rc, err

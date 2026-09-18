@@ -13,7 +13,7 @@ import shutil
 import subprocess
 from typing import List, Optional
 from ivpm.msg import info, note, fatal, warning
-from ivpm.site_config import apply_git_url_map, get_site_config, resolve_git_auth_order
+from ivpm.site_config import get_site_config
 from pathlib import Path
 
 _logger = logging.getLogger("ivpm.utils")
@@ -175,31 +175,17 @@ def resolve_clone_url(url, ssh_pref, auth_order=None):
     wins; ``ssh``/``https`` always apply.  If the order yields nothing, fall
     back to the SSH rewrite (the historical default).
 
-    Any ``git-url-map`` rewrite is applied first, so ssh/auth resolution below
+    Any ``git-url-map`` rewrite is applied first, so ssh/auth resolution
     operates on the remapped URL (and its host).
+
+    This is the *first* candidate of
+    :func:`ivpm.git_auth.clone_url_candidates`, which is the single
+    implementation of the selection logic.  Callers that can fall back to
+    another transport on an auth failure should use that instead.
     """
-    url = apply_git_url_map(url)
-
-    if ssh_pref is True:
-        return https_to_ssh_url(url)
-    if ssh_pref is False:
-        return url
-
-    host = url_host(url)
-    if auth_order is None:
-        auth_order = resolve_git_auth_order(host)
-
-    for method in auth_order:
-        m = method.strip().lower()
-        if m == "gh":
-            if gh_auth_available(host):
-                return url
-        elif m == "ssh":
-            return https_to_ssh_url(url)
-        elif m in ("https", "anonymous"):
-            return url
-        # unknown tokens are ignored
-    return https_to_ssh_url(url)
+    # Imported lazily: git_auth consults the URL helpers in this module.
+    from .git_auth import clone_url_candidates
+    return clone_url_candidates(url, ssh_pref, auth_order)[0][0]
 
 
 def get_venv_bindir(python_dir):

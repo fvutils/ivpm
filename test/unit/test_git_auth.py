@@ -24,6 +24,10 @@ from ivpm.site_config import (
     loaded_config_paths, reset_site_config,
 )
 import ivpm.pkg_types.package_git as pg
+import ivpm.git_auth as git_auth
+from ivpm.git_auth import (
+    clone_url_candidates, gh_credential_args, git_cmd, auth_method_for,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -304,6 +308,159 @@ class TestPackageGitPref(unittest.TestCase):
     def test_auto_default(self):
         self.assertEqual(self._eff(order=["gh", "ssh"], gh_ok=True), self.URL)
         self.assertEqual(self._eff(order=["gh", "ssh"], gh_ok=False), self.SSH)
+
+
+# ---------------------------------------------------------------------------
+# Credential injection (gh's helper)
+# ---------------------------------------------------------------------------
+
+class TestGhCredentialArgs(unittest.TestCase):
+
+    URL = "https://github.com/o/r.git"
+
+    def setUp(self):
+        utils.gh_auth_available.cache_clear()
+        self.addCleanup(utils.gh_auth_available.cache_clear)
+
+    def _args(self, url, gh_ok=True, gh="/usr/bin/gh"):
+        with patch.object(utils, "gh_auth_available", lambda h: gh_ok), \
+             patch.object(git_auth.shutil, "which", lambda n: gh):
+            return gh_credential_args(url)
+
+    def test_authenticated_https_host_gets_reset_then_helper(self):
+        args = self._args(self.URL)
+        self.assertEqual(args, [
+            "-c", "credential.helper=",
+            "-c", "credential.helper=!/usr/bin/gh auth git-credential"])
+
+    def test_gh_path_is_absolute(self):
+        # The helper runs via /bin/sh, whose PATH may differ from IVPM's.
+        args = self._args(self.URL, gh="/opt/tools/gh-2.69.0/bin/gh")
+        self.assertIn("!/opt/tools/gh-2.69.0/bin/gh auth git-credential",
+                      args[-1])
+
+    def test_no_args_when_gh_absent(self):
+        self.assertEqual(self._args(self.URL, gh=None), [])
+
+    def test_no_args_when_host_not_authenticated(self):
+        self.assertEqual(self._args(self.URL, gh_ok=False), [])
+
+    def test_no_args_for_non_http_urls(self):
+        for url in ("git@github.com:o/r.git", "ssh://git@github.com/o/r.git",
+                    "file:///tmp/mirror/r", "git://host.example/o/r.git",
+                    "/local/path", "../sibling"):
+            self.assertEqual(self._args(url), [], url)
+
+    def test_gh_path_is_quoted(self):
+        args = self._args(self.URL, gh="/opt/my tools/gh")
+        self.assertIn("'/opt/my tools/gh'", args[-1])
+
+
+class TestGitCmd(unittest.TestCase):
+
+    URL = "https://github.com/o/r.git"
+
+    def setUp(self):
+        utils.gh_auth_available.cache_clear()
+        self.addCleanup(utils.gh_auth_available.cache_clear)
+
+    def _cmd(self, base, url=None, method=None, gh_ok=True, gh="/usr/bin/gh"):
+        with patch.object(utils, "gh_auth_available", lambda h: gh_ok), \
+             patch.object(git_auth.shutil, "which", lambda n: gh):
+            return git_cmd(base, url if url is not None else self.URL, method)
+
+    def test_args_land_immediately_after_git(self):
+        cmd = self._cmd(["git", "clone", "--depth", "1", "-b", "main",
+                         self.URL, "/dst"])
+        self.assertEqual(cmd[0], "git")
+        self.assertEqual(cmd[1:3], ["-c", "credential.helper="])
+        # The subcommand and all of its flags survive, in order.
+        self.assertEqual(cmd[5:], ["clone", "--depth", "1", "-b", "main",
+                                   self.URL, "/dst"])
+
+    def test_unchanged_when_no_injection_applies(self):
+        base = ["git", "ls-remote", "git@github.com:o/r.git", "HEAD"]
+        self.assertEqual(self._cmd(base, url="git@github.com:o/r.git"), base)
+
+    def test_explicit_https_method_is_not_upgraded(self):
+        base = ["git", "clone", self.URL, "/dst"]
+        self.assertEqual(self._cmd(base, method="https"), base)
+
+    def test_gh_method_injects(self):
+        cmd = self._cmd(["git", "fetch", "origin"], method="gh")
+        self.assertIn("credential.helper=!/usr/bin/gh auth git-credential", cmd)
+
+    def test_does_not_mutate_the_input(self):
+        base = ["git", "clone", self.URL]
+        self._cmd(base)
+        self.assertEqual(base, ["git", "clone", self.URL])
+
+
+class TestAuthMethodFor(unittest.TestCase):
+
+    URL = "https://github.com/o/r.git"
+
+    def _method(self, order, gh_ok=True):
+        with patch.object(utils, "gh_auth_available", lambda h: gh_ok):
+            return auth_method_for(self.URL, order)
+
+    def test_gh_when_authenticated(self):
+        self.assertEqual(self._method(["gh", "ssh"]), "gh")
+
+    def test_falls_through_to_ssh(self):
+        self.assertEqual(self._method(["gh", "ssh"], gh_ok=False), "ssh")
+
+    def test_none_when_nothing_applies(self):
+        self.assertIsNone(self._method(["gh"], gh_ok=False))
+        self.assertIsNone(self._method([]))
+
+
+# ---------------------------------------------------------------------------
+# clone_url_candidates -- the retry chain
+# ---------------------------------------------------------------------------
+
+class TestCloneUrlCandidates(unittest.TestCase):
+
+    URL = "https://github.com/o/r"
+    SSH = "git@github.com:o/r"
+
+    def setUp(self):
+        utils.gh_auth_available.cache_clear()
+        self.addCleanup(utils.gh_auth_available.cache_clear)
+
+    def _cands(self, ssh_pref=None, order=None, gh_ok=True, url=None):
+        with patch.object(utils, "gh_auth_available", lambda h: gh_ok):
+            return clone_url_candidates(url or self.URL, ssh_pref, order)
+
+    def test_gh_then_ssh(self):
+        self.assertEqual(self._cands(order=["gh", "ssh"]),
+                         [(self.URL, "gh"), (self.SSH, "ssh")])
+
+    def test_ssh_only(self):
+        self.assertEqual(self._cands(order=["ssh"]), [(self.SSH, "ssh")])
+
+    def test_https_then_ssh_stops_at_https(self):
+        # 'https' is terminal: nothing after it can ever be reached.
+        self.assertEqual(self._cands(order=["https", "ssh"]),
+                         [(self.URL, "https")])
+
+    def test_dedup_when_two_methods_yield_the_same_url(self):
+        cands = self._cands(order=["gh", "https"])
+        self.assertEqual(cands, [(self.URL, "gh")])
+
+    def test_ssh_pref_short_circuits(self):
+        self.assertEqual(self._cands(ssh_pref=True, order=["gh", "ssh"]),
+                         [(self.SSH, "ssh")])
+        self.assertEqual(self._cands(ssh_pref=False, order=["gh", "ssh"]),
+                         [(self.URL, "https")])
+
+    def test_unknown_order_falls_back_to_ssh(self):
+        self.assertEqual(self._cands(order=["bogus"]), [(self.SSH, "ssh")])
+
+    def test_resolve_clone_url_is_the_first_candidate(self):
+        with patch.object(utils, "gh_auth_available", lambda h: True):
+            self.assertEqual(resolve_clone_url(self.URL, None, ["gh", "ssh"]),
+                             self._cands(order=["gh", "ssh"])[0][0])
 
 
 if __name__ == "__main__":

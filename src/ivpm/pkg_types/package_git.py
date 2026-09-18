@@ -28,7 +28,8 @@ from typing import Optional
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
-from ..utils import note, fatal, resolve_clone_url
+from ..utils import note, fatal
+from .. import git_auth
 from ..cache import is_github_url, parse_github_url
 from ..git_progress import run_git_with_progress
 from ..update_event import UpdateEvent, UpdateEventType
@@ -53,6 +54,12 @@ class PackageGit(PackageURL):
     # Deliberately unannotated: an annotated attribute would become a dataclass
     # field and show up in the package's serialized form.
     _src_resolved_emitted = False
+
+    # Same idea for the DEBUG auth-decision trace (see _emit_auth_decision),
+    # plus the decision itself, retained so a later failure message can report
+    # how the transport and credentials were chosen without re-deriving them.
+    _auth_decision_emitted = False
+    _auth_decision = None
 
     def patch_capability(self):
         # Editable patchable: cache-mode plus in-place rollback via the git
@@ -394,45 +401,42 @@ class PackageGit(PackageURL):
     def _ls_remote(self, url: str, ref: str) -> str:
         """Run git ls-remote against a single URL/ref. Returns hash or None.
 
-        The stderr of the last (failed) attempt is retained in
-        ``self._last_git_err`` so callers can build a diagnostic message."""
-        try:
-            # Use git ls-remote to get the hash
-            result = subprocess.run(
-                ["git", "ls-remote", url, ref],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            if result.returncode != 0 and result.stderr.strip():
-                self._last_git_err = result.stderr.strip()
+        Every attempt carries gh's credential helper when the URL calls for it
+        (``git_auth``): cache-enabled packages resolve their commit here
+        *before* any clone, so without injection an auth failure surfaces
+        earlier and far more obscurely than a failed clone does.
+
+        The stderr of the **last** failing attempt is retained in
+        ``self._last_git_err`` so callers can build a diagnostic message --
+        the first attempt's error describes the ref spelling the caller did
+        not ask for, and an exception (git missing, timeout) is recorded there
+        too rather than vanishing.
+        """
+        refspecs = [ref]
+        if not ref.startswith("refs/"):
+            # Try the branch and tag namespaces explicitly: a bare name is
+            # ambiguous and some servers answer only the qualified form.
+            refspecs += ["refs/heads/%s" % ref, "refs/tags/%s" % ref]
+
+        for spec in refspecs:
+            try:
+                result = subprocess.run(
+                    self._git_cmd(["git", "ls-remote", url, spec], url),
+                    capture_output=True,
+                    text=True,
+                    timeout=30
+                )
+            except Exception as e:
+                from ..utils import describe_exception
+                self._last_git_err = "git ls-remote %s %s: %s" % (
+                    url, spec, describe_exception(e))
+                return None
             if result.returncode == 0 and result.stdout.strip():
                 # Output format: "hash\tref"
                 return result.stdout.strip().split()[0]
-            
-            # Try refs/heads/ prefix for branches
-            if not ref.startswith("refs/"):
-                result = subprocess.run(
-                    ["git", "ls-remote", url, f"refs/heads/{ref}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    return result.stdout.strip().split()[0]
-                
-                # Try refs/tags/ prefix for tags
-                result = subprocess.run(
-                    ["git", "ls-remote", url, f"refs/tags/{ref}"],
-                    capture_output=True,
-                    text=True,
-                    timeout=30
-                )
-                if result.returncode == 0 and result.stdout.strip():
-                    return result.stdout.strip().split()[0]
-        except Exception:
-            pass
-        
+            if result.returncode != 0 and (result.stderr or "").strip():
+                self._last_git_err = result.stderr.strip()
+
         return None
 
     def _resolve_commit_for_deps_source(self, update_info: ProjectUpdateInfo):
@@ -481,9 +485,7 @@ class PackageGit(PackageURL):
                 commit_hash = self._get_commit_hash_ls_remote(ref, update_info)
 
         if commit_hash is None:
-            fatal(self._augment_git_error(
-                "Failed to resolve commit for %s (ref: %s)" % (self.url, ref),
-                self.url, getattr(self, "_last_git_err", ""), update_info=update_info))
+            fatal(self._resolve_failure_message(ref, update_info))
 
         self.resolved_commit = commit_hash
 
@@ -544,9 +546,7 @@ class PackageGit(PackageURL):
         else:
             h = self._get_commit_hash_ls_remote(ref, update_info)
         if h is None:
-            fatal(self._augment_git_error(
-                "Failed to resolve commit for %s (ref: %s)" % (self.url, ref),
-                self.url, getattr(self, "_last_git_err", ""), update_info=update_info))
+            fatal(self._resolve_failure_message(ref, update_info))
         return h
 
     def fetch_pristine(self, update_info, dest_dir: str, base_version: str) -> None:
@@ -597,6 +597,26 @@ class PackageGit(PackageURL):
             pass
 
 
+    def _ssh_pref_ex(self, update_info: ProjectUpdateInfo = None):
+        """``(pref, source)`` -- the explicit SSH override and where it came from.
+
+        *source* is one of ``package:ssh``, ``package:anonymous``,
+        ``cli:--ssh``, ``cli:--anonymous``, or ``None`` when there is no
+        override.  See :meth:`_ssh_pref` for the resolution order.
+        """
+        if self.ssh is not None:
+            return self.ssh, "package:ssh"
+        if self.anonymous is True:
+            return False, "package:anonymous"
+        # self.anonymous is False/None -> defer to CLI flags / auth order
+        args = update_info.args if update_info is not None else None
+        if args is not None:
+            if getattr(args, "ssh", False):
+                return True, "cli:--ssh"
+            if getattr(args, "anonymous", False):
+                return False, "cli:--anonymous"
+        return None, None
+
     def _ssh_pref(self, update_info: ProjectUpdateInfo = None):
         """Explicit SSH override as a tri-state (``True``/``False``/``None``).
 
@@ -609,18 +629,7 @@ class PackageGit(PackageURL):
           force SSH).
         * ``--ssh`` / ``--anonymous`` CLI flags.
         """
-        if self.ssh is not None:
-            return self.ssh
-        if self.anonymous is True:
-            return False
-        # self.anonymous is False/None -> defer to CLI flags / auth order
-        args = update_info.args if update_info is not None else None
-        if args is not None:
-            if getattr(args, "ssh", False):
-                return True
-            if getattr(args, "anonymous", False):
-                return False
-        return None
+        return self._ssh_pref_ex(update_info)[0]
 
     def _mapped_url(self) -> str:
         """The declared URL after any ``git-url-map`` rewrite, before auth/ssh
@@ -635,6 +644,37 @@ class PackageGit(PackageURL):
         from ..site_config import apply_git_url_map
         return apply_git_url_map(self.url)
 
+    def _clone_candidates(self, update_info: ProjectUpdateInfo = None):
+        """``[(url, method), ...]`` to try for this package, best first.
+
+        More than one entry means a failed *auth* attempt can be retried over
+        the next transport in the auth order (see :meth:`_clone_to_dir`); an
+        explicit ``ssh:``/``--ssh`` override always yields exactly one.
+        """
+        auth_order = None
+        if update_info is not None and update_info.args is not None:
+            auth_order = getattr(update_info.args, "git_auth_order", None)
+        ssh_pref, ssh_pref_source = self._ssh_pref_ex(update_info)
+        candidates, decision = git_auth.clone_url_candidates_ex(
+            self.url, ssh_pref, auth_order, ssh_pref_source=ssh_pref_source)
+        self._auth_decision = decision
+        self._emit_auth_decision(decision)
+        if decision.effective_url != self.url:
+            self._emit_src_resolved(update_info, decision.effective_url)
+        return candidates
+
+    def _emit_auth_decision(self, decision):
+        """Log the selection trace at DEBUG, once per package.
+
+        ``_get_effective_url`` runs more than once per package (ls-remote,
+        then clone), so the flag keeps one decision from being reported
+        repeatedly.
+        """
+        if self._auth_decision_emitted or not _logger.isEnabledFor(logging.DEBUG):
+            return
+        self._auth_decision_emitted = True
+        _logger.debug("%s", decision.format("git auth decision: %s" % self.name))
+
     def _get_effective_url(self, update_info: ProjectUpdateInfo = None) -> str:
         """Return the clone/ls-remote URL.
 
@@ -643,13 +683,21 @@ class PackageGit(PackageURL):
         https URL as-is or rewrite it to git@host:path form.  ``file://`` and
         non-URL local paths are never converted.
         """
-        auth_order = None
-        if update_info is not None and update_info.args is not None:
-            auth_order = getattr(update_info.args, "git_auth_order", None)
-        url = resolve_clone_url(self.url, self._ssh_pref(update_info), auth_order)
-        if url != self.url:
-            self._emit_src_resolved(update_info, url)
-        return url
+        return self._clone_candidates(update_info)[0][0]
+
+    def _git_cmd(self, base, url):
+        """*base* with credential args injected for *url* (see
+        :mod:`ivpm.git_auth`).
+
+        The method recorded in this package's auth decision is honored, so an
+        explicit ``https``/``anonymous`` choice is not quietly upgraded with
+        gh's token.  When the URL is not the decision's effective URL (the
+        ls-remote fallback to the mapped URL), the URL alone decides.
+        """
+        dec = getattr(self, "_auth_decision", None)
+        method = dec.chosen_method if (
+            dec is not None and dec.effective_url == url) else None
+        return git_auth.git_cmd(base, url, method)
 
     def _emit_src_resolved(self, update_info: ProjectUpdateInfo, url: str):
         """Report a rewritten fetch URL to this package's TUI row.
@@ -716,9 +764,18 @@ class PackageGit(PackageURL):
     def _clone_to_dir(self, update_info: ProjectUpdateInfo, target_dir: str, depth=None):
         """Clone the repo to the specified directory.
 
+        Walks the candidate transports from the auth order (see
+        :meth:`_clone_candidates`): the first is what the order selected, and
+        an **auth-shaped** failure falls through to the next -- a user's SSH
+        key may be authorized where their token is not.  Any other failure
+        (repo not found, ref not found, DNS) fails fast, because retrying
+        another transport would only bury the real error.
+
         Uses subprocess cwd= rather than os.chdir() so that parallel fetches
         do not corrupt one another's working directory (chdir is process-global).
         """
+        from ..git_diagnose import should_retry_other_transport
+
         parent_dir = os.path.dirname(target_dir)
 
         if not os.path.isdir(parent_dir):
@@ -726,15 +783,56 @@ class PackageGit(PackageURL):
 
         sys.stdout.flush()
 
+        candidates = self._clone_candidates(update_info)
+        attempts = []
+
+        for idx, (url, method) in enumerate(candidates):
+            rc, err, base_msg = self._clone_attempt(
+                update_info, target_dir, depth, url)
+            if rc == 0:
+                self._update_submodules(update_info, target_dir, url)
+                return
+            attempts.append((url, method, base_msg, err))
+
+            nxt = candidates[idx + 1] if idx + 1 < len(candidates) else None
+            if nxt is not None and should_retry_other_transport(err):
+                note("%s: %s over '%s' failed authentication; retrying over "
+                     "'%s'" % (self.name, url, method, nxt[1]))
+                # A partial clone would make the next attempt fail on a
+                # non-empty destination rather than on anything real.
+                import shutil
+                shutil.rmtree(target_dir, ignore_errors=True)
+                continue
+            break
+
+        fatal(self._clone_failure_message(attempts, update_info))
+
+    def _clone_attempt(self, update_info: ProjectUpdateInfo, target_dir: str,
+                       depth, url: str):
+        """One clone of *url* into *target_dir*: ``(rc, stderr, base_msg)``.
+
+        ``rc == 0`` means the tree is populated and checked out (submodules
+        excluded -- the caller does those once).  *base_msg* names which step
+        failed, so a message built from several attempts still says whether
+        each died in the clone or in the pinned checkout.
+        """
+        from ..git_diagnose import should_retry_other_transport
+
         # Shallow + commit-pinned: `clone --depth N` fetches only the tip of the
         # ref it clones (the default branch when no branch/tag is declared), so
         # the pinned commit is usually absent from the resulting history and the
         # checkout below fails with "unable to read tree". Fetch the pinned
         # object itself instead, keeping the shallow intent of this path.
         if depth is not None and self.commit is not None:
-            if self._fetch_pinned_commit(update_info, target_dir, depth):
-                self._update_submodules(update_info, target_dir)
-                return
+            ok, err = self._fetch_pinned_commit(update_info, target_dir, depth, url)
+            if ok:
+                return 0, "", ""
+            if should_retry_other_transport(err):
+                # Auth, not an unadvertised-object refusal: a full clone over
+                # the same transport would fail identically, so report it and
+                # let the caller try the next transport.
+                return 1, err, ("Failed to fetch commit %s from %s"
+                                % (self.commit, url))
             # The server refused the unadvertised-object request (no
             # uploadpack.allowReachableSHA1InWant -- the default for plain
             # local/self-hosted repos). Fall back to a clone with full history,
@@ -760,7 +858,6 @@ class PackageGit(PackageURL):
         if ref is not None:
             git_cmd.extend(["-b", str(ref)])
 
-        url = self._get_effective_url(update_info)
         _logger.debug("Clone URL: %s", url)
         git_cmd.append(url)
 
@@ -768,6 +865,7 @@ class PackageGit(PackageURL):
         # destination (and any missing leading dirs) for us.
         git_cmd.append(target_dir)
 
+        git_cmd = self._git_cmd(git_cmd, url)
         _logger.debug("git_cmd: %s", str(git_cmd))
 
         # Stream fetch progress to the TUI when output is suppressed
@@ -776,9 +874,7 @@ class PackageGit(PackageURL):
             rc, err = self._run_git(git_cmd, update_info, progress=True)
 
         if rc != 0:
-            fatal(self._augment_git_error(
-                "Failed to clone %s (git exit %d)" % (url, rc), url, err,
-                update_info=update_info))
+            return rc, err, "Failed to clone %s (git exit %d)" % (url, rc)
 
         # Checkout a specific commit.
         #
@@ -797,23 +893,48 @@ class PackageGit(PackageURL):
                 rc, err = self._run_git(git_cmd, update_info, cwd=target_dir)
 
             if rc != 0:
-                fatal(self._augment_git_error(
-                    "Failed to check out commit %s of %s (git exit %d)"
-                    % (self.commit, url, rc), url, err, update_info=update_info))
+                return rc, err, ("Failed to check out commit %s of %s "
+                                 "(git exit %d)" % (self.commit, url, rc))
 
+        return 0, "", ""
 
-        self._update_submodules(update_info, target_dir)
+    def _clone_failure_message(self, attempts, update_info) -> str:
+        """Report **every** attempt, so a fallback never hides the first
+        failure.
+
+        A single attempt keeps the original one-failure shape; several are
+        listed in order with their transports named, and only the last one's
+        output is diagnosed (the earlier ones are named above it).
+        """
+        if len(attempts) == 1:
+            url, _method, base_msg, err = attempts[0]
+            return self._augment_git_error(base_msg, url, err,
+                                           update_info=update_info)
+
+        url, method, base_msg, err = attempts[-1]
+        parts = ["Failed to fetch %s: all %d configured transports failed"
+                 % (self.name, len(attempts))]
+        for i, (a_url, a_method, a_msg, a_err) in enumerate(attempts, start=1):
+            parts.append("  attempt %d (%s): %s" % (i, a_method, a_msg))
+            tail = [ln for ln in (a_err or "").splitlines() if ln.strip()]
+            parts.extend("      " + ln for ln in tail[-4:])
+        parts.append(self._augment_git_error(
+            "last failure (%s):" % method, url, err, update_info=update_info,
+            include_git_output=False))
+        return "\n".join(parts)
 
     def _fetch_pinned_commit(self, update_info: ProjectUpdateInfo,
-                             target_dir: str, depth) -> bool:
+                             target_dir: str, depth, url: str = None):
         """Shallow-fetch exactly ``self.commit`` into a fresh repo at
         *target_dir* and detach HEAD onto it.
 
-        Returns False (leaving *target_dir* for the caller to clean up) if any
-        step fails -- most commonly because the remote does not serve
-        unadvertised objects -- so the caller can fall back to a full clone.
+        Returns ``(ok, stderr)``.  On failure *target_dir* is left for the
+        caller to clean up, and the stderr is returned so the caller can tell
+        an unadvertised-object refusal (fall back to a full clone) from an
+        auth failure (try the next transport).
         """
-        url = self._get_effective_url(update_info)
+        if url is None:
+            url = self._get_effective_url(update_info)
         _logger.debug("Fetch URL: %s (pinned commit %s)", url, self.commit)
 
         os.makedirs(target_dir, exist_ok=True)
@@ -828,34 +949,49 @@ class PackageGit(PackageURL):
         with span_or_null(getattr(update_info, "perf", None), "git.fetch_commit",
                           package=self.name, depth=depth):
             for git_cmd in steps:
+                git_cmd = self._git_cmd(git_cmd, url)
                 _logger.debug("git_cmd: %s", str(git_cmd))
                 rc, err = self._run_git(
                     git_cmd, update_info, cwd=target_dir,
-                    progress=(git_cmd[1] == "fetch"))
+                    progress=("fetch" in git_cmd))
                 if rc != 0:
                     self._last_git_err = err
-                    return False
-        return True
+                    return False, err
+        return True, ""
 
-    def _update_submodules(self, update_info: ProjectUpdateInfo, target_dir: str):
+    def _update_submodules(self, update_info: ProjectUpdateInfo, target_dir: str,
+                           url: str = None):
         # TODO: Existence of .gitmodules should trigger this
         if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
             sys.stdout.flush()
             self._emit_progress(update_info, "updating submodules")
             git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
+            # Submodules are fetched by this one command, so the credentials
+            # have to travel with it: -c config propagates into the submodule
+            # operations git spawns.
+            if url is None:
+                url = self._get_effective_url(update_info)
+            git_cmd = self._git_cmd(git_cmd, url)
             _logger.debug("git_cmd: %s", str(git_cmd))
             with span_or_null(getattr(update_info, "perf", None), "git.submodule", package=self.name):
                 rc, err = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
 
-    def _augment_git_error(self, base_msg, url, stderr_text, update_info=None):
-        """Build a fatal message from *base_msg* plus git's captured stderr and
-        an offline diagnosis hint.  The result is multi-line: the summary, the
-        tail of git's own output, then any 'hint:' lines."""
+    def _augment_git_error(self, base_msg, url, stderr_text, update_info=None,
+                           include_git_output=True, probe=True):
+        """Build a fatal message from *base_msg* plus git's captured stderr, an
+        offline diagnosis hint, and (on an auth-shaped failure) the verdict of
+        an active probe.
+
+        The result is multi-line: the summary, the tail of git's own output,
+        any 'hint:' lines, then the probe's verdict and remedies.  Pass
+        ``probe=False`` from any path where running commands to investigate is
+        inappropriate; ``--no-probe`` / ``IVPM_GIT_NO_PROBE=1`` disable it
+        globally."""
         from ..git_diagnose import diagnose_git_failure
         parts = [base_msg]
 
         tail = [ln for ln in (stderr_text or "").splitlines() if ln.strip()]
-        if tail:
+        if tail and include_git_output:
             parts.append("git reported:")
             parts.extend("  " + ln for ln in tail[-8:])
 
@@ -863,7 +999,37 @@ class PackageGit(PackageURL):
         for hint in diagnose_git_failure(url, stderr_text, ssh_pref):
             parts.append("hint: " + hint)
 
+        if probe:
+            parts.extend(self._probe_lines(url, stderr_text, ssh_pref, update_info))
+
         return "\n".join(parts)
+
+    def _resolve_failure_message(self, ref, update_info) -> str:
+        """Diagnose a failed commit resolution the same way a failed clone is.
+
+        The message names the declared URL (what the manifest says) but the
+        diagnosis and probe run against the *effective* URL -- the one
+        ls-remote was actually pointed at, which is what a credential or SSO
+        problem attaches to."""
+        eff = self._get_effective_url(update_info)
+        return self._augment_git_error(
+            "Failed to resolve commit for %s (ref: %s)" % (self.url, ref),
+            eff, getattr(self, "_last_git_err", ""), update_info=update_info)
+
+    def _probe_lines(self, url, stderr_text, ssh_pref, update_info):
+        """Verdict + remedies from an active probe, or ``[]``.
+
+        Runs only for failures where a probe can actually say something
+        (auth-shaped ones), and never on the success path."""
+        from ..git_probe import probe_worthwhile, probe_git_auth, format_verdict
+        args = getattr(update_info, "args", None) if update_info is not None else None
+        if not probe_worthwhile(url, stderr_text, args):
+            return []
+        auth_order = getattr(args, "git_auth_order", None) if args is not None else None
+        result = probe_git_auth(url, stderr_text, ssh_pref, auth_order)
+        if _logger.isEnabledFor(logging.DEBUG):
+            _logger.debug("%s", result.format_checks())
+        return format_verdict(result)
 
     def status(self, status_info: ProjectStatusInfo):
         from ..pkg_status import PkgVcsStatus, git_working_tree_status

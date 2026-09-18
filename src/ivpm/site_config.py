@@ -318,9 +318,19 @@ def loaded_config_paths() -> List[str]:
     return [path for path, _ in _load_config_files()]
 
 
-def _file_git_auth_rules() -> List[Tuple[str, List[str]]]:
-    """Host-glob rules from the config files, user file first."""
-    rules: List[Tuple[str, List[str]]] = []
+def _config_file_kind(path: str) -> str:
+    """``user-config`` or ``site-config-file`` for a loaded config path.
+
+    Used only for provenance reporting (``ivpm diagnose git`` and the DEBUG
+    auth trace): "a rule from a config file" is not actionable, "a rule from
+    *this* file" is.
+    """
+    return "user-config" if path == user_config_path() else "site-config-file"
+
+
+def _file_git_auth_rules_ex() -> List[Tuple[str, List[str], str]]:
+    """Host-glob rules from the config files with their source path."""
+    rules: List[Tuple[str, List[str], str]] = []
     for path, data in _load_config_files():
         for rule in (data.get("git-auth") or []):
             if not isinstance(rule, dict):
@@ -328,17 +338,28 @@ def _file_git_auth_rules() -> List[Tuple[str, List[str]]]:
             host = rule.get("host")
             order = rule.get("order")
             if host and order:
-                rules.append((str(host), parse_git_auth_order(order)))
+                rules.append((str(host), parse_git_auth_order(order), path))
     return rules
+
+
+def _file_git_auth_rules() -> List[Tuple[str, List[str]]]:
+    """Host-glob rules from the config files, user file first."""
+    return [(host, order) for host, order, _ in _file_git_auth_rules_ex()]
+
+
+def _file_default_order_ex() -> Optional[Tuple[List[str], str]]:
+    """First ``git-auth-order`` default found, with the file it came from."""
+    for path, data in _load_config_files():
+        order = data.get("git-auth-order")
+        if order:
+            return parse_git_auth_order(order), path
+    return None
 
 
 def _file_default_order() -> Optional[List[str]]:
     """First ``git-auth-order`` default found across the config files (user first)."""
-    for path, data in _load_config_files():
-        order = data.get("git-auth-order")
-        if order:
-            return parse_git_auth_order(order)
-    return None
+    found = _file_default_order_ex()
+    return found[0] if found is not None else None
 
 
 def _file_site_config_name() -> Optional[str]:
@@ -409,6 +430,51 @@ def resolve_cache_verify_level(override=None) -> str:
         or DEFAULT_CACHE_VERIFY_LEVEL)
 
 
+def resolve_git_auth_order_ex(host: Optional[str] = None) -> Tuple[List[str], str]:
+    """``(order, source)`` -- the active git auth order for *host* and where
+    it came from.
+
+    Resolution is genuinely layered (host rules from the user file, the site
+    file, then the Python site config; then ``IVPM_GIT_AUTH_ORDER``, the file
+    default, and the site-config default), and nothing in the logs used to be
+    able to answer "why https?".  *source* names the exact layer, using the
+    vocabulary::
+
+        env:IVPM_GIT_AUTH_ORDER
+        host-rule:<glob> (user-config:<path>)
+        host-rule:<glob> (site-config-file:<path>)
+        host-rule:<glob> (site-config:<ClassName>)
+        user-config:<path>
+        site-config-file:<path>
+        site-config-default:<ClassName>
+
+    (The ``--git-auth-order`` CLI option, when given, is applied by the caller
+    and bypasses this resolution entirely.)
+    """
+    cfg = get_site_config()
+    if host:
+        rules = [(glob, order, "%s:%s" % (_config_file_kind(path), path))
+                 for glob, order, path in _file_git_auth_rules_ex()]
+        rules += [(glob, order, "site-config:%s" % type(cfg).__name__)
+                  for glob, order in cfg.get_git_auth_rules()]
+        for glob, order, origin in rules:
+            if fnmatch.fnmatch(host, glob):
+                return (parse_git_auth_order(order),
+                        "host-rule:%s (%s)" % (glob, origin))
+
+    env_val = os.environ.get("IVPM_GIT_AUTH_ORDER")
+    if env_val is not None and env_val.strip() != "":
+        return parse_git_auth_order(env_val), "env:IVPM_GIT_AUTH_ORDER"
+
+    file_default = _file_default_order_ex()
+    if file_default is not None:
+        order, path = file_default
+        return order, "%s:%s" % (_config_file_kind(path), path)
+
+    return (parse_git_auth_order(cfg.get_default_git_auth_order()),
+            "site-config-default:%s" % type(cfg).__name__)
+
+
 def resolve_git_auth_order(host: Optional[str] = None) -> List[str]:
     """Resolve the active git auth order for *host*.
 
@@ -418,24 +484,9 @@ def resolve_git_auth_order(host: Optional[str] = None) -> List[str]:
     default order is the first available of: ``IVPM_GIT_AUTH_ORDER``, the user
     config file, the site config file, then the Python site-config default.
 
-    (The ``--git-auth-order`` CLI option, when given, is applied by the caller
-    and bypasses this resolution entirely.)
+    See :func:`resolve_git_auth_order_ex` for the same answer plus its source.
     """
-    cfg = get_site_config()
-    if host:
-        for glob, order in _file_git_auth_rules() + list(cfg.get_git_auth_rules()):
-            if fnmatch.fnmatch(host, glob):
-                return parse_git_auth_order(order)
-
-    env_val = os.environ.get("IVPM_GIT_AUTH_ORDER")
-    if env_val is not None and env_val.strip() != "":
-        return parse_git_auth_order(env_val)
-
-    file_default = _file_default_order()
-    if file_default:
-        return file_default
-
-    return parse_git_auth_order(cfg.get_default_git_auth_order())
+    return resolve_git_auth_order_ex(host)[0]
 
 
 # --------------------------------------------------------------------------
@@ -528,6 +579,34 @@ def _file_git_url_map() -> List[Tuple[str, str]]:
     return rules
 
 
+def apply_git_url_map_ex(url: str) -> Tuple[str, Optional[str]]:
+    """``(result, matched_rule)`` -- the rewrite plus which rule produced it.
+
+    *matched_rule* is the winning rule's ``from`` pattern (and its ``to``),
+    or ``None`` when no rule matched.  The plain
+    :func:`apply_git_url_map` logs the rewrite but not the rule, which is the
+    piece a user needs when an unexpected remote shows up.
+    """
+    best = None  # (specificity key, match end, capture groups, replacement, from)
+    for idx, (frm, to) in enumerate(_env_git_url_map() + _file_git_url_map()):
+        rx, segs, lit, wc = _compile_git_url_pattern(frm)
+        m = rx.match(url)
+        if not m:
+            continue
+        key = (segs, lit, -wc, -idx)   # depth, literal, wildcards, declaration order
+        if best is None or key > best[0]:
+            best = (key, m.end(), m.groups(), to, frm)
+    if best is None:
+        return url, None
+    _, end, groups, to, frm = best
+    for n, g in enumerate(groups, start=1):
+        to = to.replace("\\%d" % n, g or "")
+    result = to + url[end:]
+    if result != url:
+        _logger.debug("git-url-map: %s -> %s", url, result)
+    return result, "%s -> %s" % (frm, to)
+
+
 def apply_git_url_map(url: str) -> str:
     """Rewrite *url* by the most-specific matching git-url-map rule.
 
@@ -536,24 +615,7 @@ def apply_git_url_map(url: str) -> str:
     rule that redirects an https URL to a ``file://`` mirror or an internal
     host is honored and then re-evaluated for auth against the new host.
     """
-    best = None  # (specificity key, match end, capture groups, replacement)
-    for idx, (frm, to) in enumerate(_env_git_url_map() + _file_git_url_map()):
-        rx, segs, lit, wc = _compile_git_url_pattern(frm)
-        m = rx.match(url)
-        if not m:
-            continue
-        key = (segs, lit, -wc, -idx)   # depth, literal, wildcards, declaration order
-        if best is None or key > best[0]:
-            best = (key, m.end(), m.groups(), to)
-    if best is None:
-        return url
-    _, end, groups, to = best
-    for n, g in enumerate(groups, start=1):
-        to = to.replace("\\%d" % n, g or "")
-    result = to + url[end:]
-    if result != url:
-        _logger.debug("git-url-map: %s -> %s", url, result)
-    return result
+    return apply_git_url_map_ex(url)[0]
 
 
 def reset_site_config() -> None:

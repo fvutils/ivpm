@@ -29,6 +29,7 @@ from .cmds.cmd_snapshot import CmdSnapshot
 from .cmds.cmd_status import CmdStatus
 from .cmds.cmd_sync import CmdSync
 from .cmds.cmd_destroy import CmdDestroy
+from .cmds.cmd_diagnose import CmdDiagnose
 from .show.cmd_show import CmdShow
 from .site_config import parse_git_auth_order
 
@@ -375,6 +376,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     clone_cmd.add_argument("--git-auth-order", dest="git_auth_order",
         type=parse_git_auth_order, default=None,
         help="(git provider) Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
+    clone_cmd.add_argument("--no-probe", dest="no_probe", action="store_true",
+        default=False,
+        help="Do not run credential checks (gh/ssh/helper probes) when a git "
+             "fetch fails; report only git's own output and the offline hints")
     clone_cmd.add_argument("-b", "--branch", dest="branch",
         help="Target branch; checks out existing or creates new")
     clone_cmd.add_argument("workspace_dir", nargs="?",
@@ -426,6 +431,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     update_cmd.add_argument("--git-auth-order", dest="git_auth_order",
         type=parse_git_auth_order, default=None,
         help="Comma-separated git auth order to try (gh,ssh,https); overrides IVPM_GIT_AUTH_ORDER and site config")
+    update_cmd.add_argument("--no-probe", dest="no_probe", action="store_true",
+        default=False,
+        help="Do not run credential checks (gh/ssh/helper probes) when a git "
+             "fetch fails; report only git's own output and the offline hints")
     # '--py-' is the canonical prefix for Python-specific options. The
     # '--<verb>-py-install' spellings are retained as back-compat aliases.
     # dest is explicit because the old spelling came first historically, so
@@ -551,6 +560,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     install_cmd.add_argument("--git-auth-order", dest="git_auth_order",
         type=parse_git_auth_order, default=None,
         help="Comma-separated git auth order to try (gh,ssh,https)")
+    install_cmd.add_argument("--no-probe", dest="no_probe", action="store_true",
+        default=False,
+        help="Do not run credential checks (gh/ssh/helper probes) when a git "
+             "fetch fails; report only git's own output and the offline hints")
     install_cmd.add_argument("--strict", dest="strict", action="store_true",
         help="Treat content-detection notes as errors: a package with an "
              "ivpm.yaml but no 'provides:', or one whose manifest is valid "
@@ -652,6 +665,37 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Increase per-package detail (-v: list the blocking files/commits)")
     destroy_cmd.set_defaults(func=CmdDestroy())
     subcommands["destroy"] = destroy_cmd
+
+    diagnose_cmd = subparser.add_parser("diagnose",
+        help="Investigate how IVPM would fetch a package, and why it fails")
+    diagnose_subparser = diagnose_cmd.add_subparsers(dest="diagnose_cmd")
+    diagnose_subparser.required = True
+    diagnose_git_cmd = diagnose_subparser.add_parser("git",
+        help="Report the git transport/credential decision for a URL or package, "
+             "then probe why authentication fails")
+    diagnose_git_cmd.add_argument("target",
+        help="A git URL, or the name of a git package declared in this project")
+    diagnose_git_cmd.add_argument("-p", "--project-dir", dest="project_dir",
+        default=None,
+        help="Project directory to resolve a package name against (default: cwd)")
+    diagnose_git_cmd.add_argument("--ssh", action="store_true", default=False,
+        help="Diagnose as if --ssh had been passed (force the git@host:path form)")
+    diagnose_git_cmd.add_argument("-a", "--anonymous", action="store_true",
+        default=False,
+        help="Diagnose as if --anonymous had been passed (use the URL as written)")
+    diagnose_git_cmd.add_argument("--git-auth-order", dest="git_auth_order",
+        metavar="ORDER",
+        help="Comma-separated git auth order to diagnose (gh,ssh,https)")
+    diagnose_git_cmd.add_argument("--ls-remote", dest="ls_remote",
+        action="store_true", default=False,
+        help="Also attempt 'git ls-remote' against each candidate transport")
+    diagnose_git_cmd.add_argument("--no-probe", dest="no_probe",
+        action="store_true", default=False,
+        help="Report the decision only; run no credential checks")
+    diagnose_git_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON instead of text")
+    diagnose_cmd.set_defaults(func=CmdDiagnose())
+    subcommands["diagnose"] = diagnose_cmd
 
     status_cmd = subparser.add_parser("status",
         help="Checks the status of sub-dependencies such as git repositories")

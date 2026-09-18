@@ -34,16 +34,16 @@ An auth order is a list of methods, tried left to right; the first applicable
 one wins:
 
 ``gh``
-    Clone the ``https://`` URL **as written** *if* ``gh`` is installed and
-    authenticated for that host (its credential helper does the auth).
-    Skipped when ``gh`` is absent or not logged in.
+    Clone the ``https://`` URL **as written**, authenticating with ``gh``'s
+    token, *if* ``gh`` is installed and authenticated for that host.  Skipped
+    when ``gh`` is absent or not logged in.
 
 ``ssh``
     Rewrite the URL to ``git@host:path``.  Always applicable (terminal).
 
 ``https``
-    Clone the ``https://`` URL exactly as written.  Always applicable
-    (terminal).
+    Clone the ``https://`` URL exactly as written, using whatever credentials
+    your own git config provides.  Always applicable (terminal).
 
 The default order is ``gh, ssh``: prefer ``gh`` when it can authenticate the
 host, otherwise fall back to SSH (the historical behavior).  A machine without
@@ -52,6 +52,43 @@ paths are never rewritten.
 
 The ``gh auth status`` probe is cached per host, so an update fetching many
 dependencies from one host only runs ``gh`` once.
+
+How ``gh`` authenticates
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+``gh``'s token store and git's credential store share nothing: ``gh auth
+status`` succeeding says nothing about whether ``git clone`` can authenticate.
+The bridge between them is the credential helper ``!gh auth git-credential``.
+
+When the ``gh`` method wins, IVPM hands git that bridge explicitly, adding
+
+.. code-block:: bash
+
+    git -c credential.helper= -c 'credential.helper=!/path/to/gh auth git-credential' ...
+
+to every git network operation for that URL -- ``clone``, ``ls-remote``,
+``fetch``, and ``submodule update`` (``-c`` config propagates into the
+submodule operations git spawns).  The empty first entry resets any inherited
+helper, so ``gh``'s is the only one consulted.
+
+This means an https clone of a private repository works whether or not you
+have run ``gh auth setup-git``.  Nothing is injected when ``gh`` is not on
+``PATH``, when ``gh`` is not authenticated for the host, for non-http(s) URLs,
+or when the ``https``/``anonymous`` method was chosen -- that method means
+"exactly as my git config would do it", and IVPM does not override it.
+
+Falling back to the next method
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The auth order is also a retry chain.  If a fetch fails for an
+**authentication** reason, IVPM cleans up the partial checkout and retries
+over the next method in the order -- an SSH key may be authorized where a
+token is not, and vice versa.  Every attempt is named in the final error, so
+a fallback never hides the first failure.
+
+Only auth-shaped failures are retried.  A missing repository, an unknown
+branch, or a DNS failure fails immediately, because retrying another transport
+would only bury the real error.
 
 Forcing a transport
 -------------------
@@ -220,10 +257,38 @@ with ``IVPM_SITE_CONFIG_NAME`` or a ``site-config: <name>`` config-file key.
 Diagnostics
 ~~~~~~~~~~~
 
-Run a clone with ``--log-level DEBUG`` to see how the transport was chosen --
-the effective URL, the resolved auth order, the loaded config files, and the
-relevant credentials (SSH agent/keys for ``git@``; ``gh auth status`` and the
-git credential helper for ``https``):
+``ivpm diagnose git`` answers "how would IVPM fetch this, and why does it
+fail?" without having to trigger a failing update.  It takes a URL or the name
+of a git package declared in the current project:
+
+.. code-block:: bash
+
+    $ ivpm diagnose git https://github.com/org/project.git
+    $ ivpm diagnose git lib1 --ls-remote
+
+It prints the **decision** -- the declared URL, any ``git-url-map`` rule that
+matched, the host, the resolved auth order *and which layer supplied it*, each
+method with why it was accepted or rejected, the effective URL, and the
+credential source -- followed by a **probe**: is ``gh`` installed and
+authenticated, which credential helper does git actually resolve for this URL
+(via ``--get-urlmatch``, so host-scoped keys are seen), does ``~/.netrc``
+name this host, and -- for GitHub -- does ``gh api repos/<owner>/<repo>``
+have access.  That last check is the decisive one: it separates "your token is
+not authorized for the organization" from "your token is fine but git was
+never given a way to present it".
+
+The probe ends with a one-line verdict and concrete remedies.  It reports
+*presence and provenance only* -- helper names, account logins, host names --
+and never a credential value.  Add ``--json`` for machine consumption, or
+``--no-probe`` to print just the decision.
+
+The same verdict is appended to the error message when a fetch actually fails,
+so an ordinary ``ivpm update`` explains itself.  Disable that with
+``--no-probe`` or ``IVPM_GIT_NO_PROBE=1`` (useful in CI and airgapped
+environments).
+
+Run any command with ``--log-level DEBUG`` to see the decision for every
+package as it is fetched, plus the probe's full check table:
 
 .. code-block:: bash
 

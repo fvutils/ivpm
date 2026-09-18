@@ -432,6 +432,67 @@ the imports (the inverse of ``update``). Gated against losing local work. See
 3. Removes each import via its source provider (unlinking cache/symlink deps),
    then the venv, lock/state, and — in full mode — the deps directory and root
 
+diagnose
+--------
+
+Investigate how IVPM would fetch a package, and why it fails.  See
+:doc:`git_integration` for what each reported field means.
+
+**Synopsis:**
+
+.. code-block:: text
+
+    ivpm diagnose git [options] <url-or-package-name>
+
+**Arguments:**
+
+``target``
+    A git URL, or the name of a git package declared in this project (resolved
+    to its declared URL the way an update would).
+
+**Options:**
+
+``-p, --project-dir <dir>``
+    Project directory to resolve a package name against (default: current
+    directory).
+
+``--ssh`` / ``-a, --anonymous``
+    Diagnose as if that flag had been passed to ``update``/``clone``.
+
+``--git-auth-order <order>``
+    Comma-separated auth order to diagnose (``gh,ssh,https``).
+
+``--ls-remote``
+    Also attempt ``git ls-remote`` against each candidate transport and report
+    the per-candidate result.
+
+``--no-probe``
+    Report the decision only; run no credential checks.
+
+``--json``
+    Emit JSON instead of text.
+
+**Examples:**
+
+.. code-block:: bash
+
+    # Why is this dependency cloned over https, and can it authenticate?
+    $ ivpm diagnose git https://github.com/org/project.git
+
+    # A package from the current project, with a reachability test per transport
+    $ ivpm diagnose git lib1 --ls-remote
+
+**Behavior:**
+
+1. Resolves the URL exactly as an update would (``git-url-map`` → auth order →
+   effective URL) and prints the decision, including which config layer
+   supplied the auth order
+2. Runs read-only credential checks (``gh`` login/identity, the credential
+   helper git resolves for the URL, ``~/.netrc`` host presence, and for GitHub
+   a ``gh api repos/<owner>/<repo>`` access check), then prints a verdict and
+   remedies
+3. Reports presence and provenance only — never a credential value
+
 init
 ----
 

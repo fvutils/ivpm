@@ -67,7 +67,20 @@
     "openroad",
     "yamlsrc",
     "nosuch",
-    "unsup"
+    "unsup",
+    "netrc",
+    "urlmatch",
+    "askpass",
+    "keyring",
+    "libcurl",
+    "scp",
+    "ssh-add",
+    "ed25519",
+    "ecdsa",
+    "refspec",
+    "refspecs",
+    "shlex",
+    "lru"
   ],
   "ignorePaths": [
     "packages/**",

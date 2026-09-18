@@ -1,5 +1,81 @@
 
 # 2.34.0
+- **The `gh` auth method now actually authenticates.** `gh` used to mean only
+  "clone the https URL as-is and hope a credential helper is configured", and
+  IVPM never checked that one was. `gh`'s token store and git's credential
+  store share nothing, so `gh auth status` succeeding says nothing about
+  whether `git clone` can authenticate -- on a host with no helper wired up,
+  the `gh` vote won and the clone then failed with a bare 403. When the `gh`
+  method wins, IVPM now passes git `-c credential.helper= -c
+  'credential.helper=!<gh> auth git-credential'`, on **every** network
+  operation for that URL: `clone`, `ls-remote`, `fetch`, and `submodule
+  update` (`-c` propagates into the submodule operations git spawns). `gh` is
+  named by absolute path because the helper runs via `/bin/sh`. Nothing is
+  injected when `gh` is absent or not authenticated for the host, for
+  non-http(s) URLs, or when the `https`/`anonymous` method was chosen -- that
+  method means "exactly as my git config would do it". An already-working
+  helper is replaced by an equivalent one, so a working setup keeps working.
+- **The auth order is now a retry chain, not just a selection.** `ssh` sitting
+  second in the default `gh, ssh` looked like a fallback and never behaved as
+  one: the first applicable method won and a failure was fatal. An
+  **auth-shaped** failure now removes the partial checkout and retries over the
+  next method (an SSH key may be authorized where a token is not). Every
+  attempt is named in the final error, so a fallback never hides the first
+  failure. Everything else -- repository not found, unknown ref, DNS -- still
+  fails immediately, because retrying another transport would only bury the
+  real error.
+- **SAML SSO, "invalid username or token", and under-scoped tokens are now
+  classified.** GitHub's SSO 403 matched none of the old needles, so the user
+  got *no* hint at all for the one failure whose remedy is a single URL. The
+  SSO hint now extracts and echoes the organization's `authorization_request`
+  URL from the remote's own message. `Invalid username or token` is classified
+  separately from SSO: the two look nearly identical and have opposite fixes
+  (one means "your credential is fine, authorize it", the other "no credential
+  ever reached git"). `classify_git_failure()` and
+  `should_retry_other_transport()` are the new shared classifiers.
+- **A failed git fetch now says *why*, having actually checked.** A new probe
+  layer (`ivpm.git_probe`) runs read-only checks on an auth failure and appends
+  a one-line verdict plus concrete remedies: is `gh` installed and
+  authenticated, which identity is active, which credential helper git
+  *actually* resolves for this URL, whether `~/.netrc` shadows it, which
+  `GH_TOKEN`-family variables are set, and -- for GitHub -- whether `gh api
+  repos/<owner>/<repo>` has access. That last check is decisive: it separates
+  "not authorized for the organization" from "the token is fine but git was
+  never given a way to present it". The probe reports presence and provenance
+  only: it never reads `gh`'s config store, `~/.netrc` contents, or
+  `~/.git-credentials`, never passes `--show-token`, and never emits a
+  credential value. Disable it with `--no-probe` or `IVPM_GIT_NO_PROBE=1`.
+  `ivpm.git_diagnose` remains strictly offline.
+- **New command: `ivpm diagnose git <url-or-package-name>`.** Answers "how
+  would IVPM fetch this, and why does it fail?" without having to trigger a
+  failing update, and gives support one command's output to ask for. Prints the
+  transport/credential decision -- including the auth order *and which config
+  layer supplied it* -- then the probe's checks, verdict, and remedies.
+  `--ls-remote` tests each candidate transport for reachability; `--json`
+  emits it all for machine consumption; `--no-probe` prints the decision only.
+- **`--log-level DEBUG` now explains every transport choice.** The selection
+  inputs used to discard their provenance, so "why https?" could not be
+  answered from any log. A per-package decision trace now reports the declared
+  URL, the matched `git-url-map` rule, the ssh override and where it came from,
+  the auth order with its exact source (`env:IVPM_GIT_AUTH_ORDER`,
+  `host-rule:<glob> (user-config:<path>)`, `site-config-default:<ClassName>`,
+  …), each method with why it was accepted or rejected, whether `gh` was
+  actually probed or served from the per-host cache, the effective URL, and the
+  credential source. An unrecognized method (a typo'd `gh, shh`) is now
+  reported rather than silently ignored. The overlapping credential checks in
+  `GitCloneProvider._log_auth_debug` were retired in favor of the shared probe,
+  which also fixes a diagnostic that queried `git config --get-all
+  credential.helper` -- blind to the host-scoped key `gh auth setup-git`
+  writes, so it told a correctly-configured user to re-run a command they had
+  already run.
+- **`_ls_remote` no longer swallows its errors.** It kept only the *first*
+  attempt's stderr (describing a ref spelling the caller never asked for) and
+  discarded exceptions entirely, so an auth failure during commit resolution
+  surfaced as a bare "Failed to resolve commit". The last failing attempt's
+  stderr is retained, exceptions are recorded, and the failure is diagnosed and
+  probed through the same path as a failed clone. This matters most for
+  cache-enabled packages, which resolve their commit via `ls-remote` *before*
+  any clone.
 - **A manifest that declares no dep-sets is a valid, empty manifest.** An
   `ivpm.yaml` that exists only to carry `with:` clauses declares no dep-sets,
   so every dep-set name is absent from it -- and all three places that select

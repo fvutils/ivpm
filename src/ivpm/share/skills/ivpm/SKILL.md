@@ -442,6 +442,7 @@ change report.
 | `ivpm cache` | Manage package cache (`init`, `info`, `clean`) |
 | `ivpm show` | Introspect registered sources, types, and handlers |
 | `ivpm show deps` | View the resolved project dependency graph |
+| `ivpm diagnose git` | Explain how a git package is fetched, and why it fails to authenticate |
 | `ivpm show bom` | View the bill of materials (declared + resolved + licenses) |
 | `ivpm snapshot` | Create self-contained project copy |
 | `ivpm share` | Get IVPM share directory path |

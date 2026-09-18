@@ -198,6 +198,61 @@ Python Version Mismatch
 Update Issues
 -------------
 
+Start Here: ``ivpm diagnose git``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For any authentication or transport failure on a git dependency, run:
+
+.. code-block:: bash
+
+    $ ivpm diagnose git <url-or-package-name>
+
+It reports how IVPM chose the transport (and which config layer decided it),
+then actively checks the credential path -- ``gh``'s login and identity, the
+credential helper git resolves for that URL, whether ``~/.netrc`` shadows it,
+and whether your token actually has access to the repository -- and ends with
+a verdict and concrete remedies.  The same verdict is appended to a failed
+fetch's error message.
+
+See :doc:`git_integration` for what each field means.
+
+Private Repository: 403 / SAML SSO
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** an https clone of a private repository fails with
+``The requested URL returned error: 403`` and a message about an organization
+having "enabled or enforced SAML SSO".
+
+**Cause:** your credential is recognized, but it is not *authorized* for the
+organization that owns the repository.  This is not a missing credential, and
+logging in again does not fix it.
+
+**Solution:** visit the authorization URL the remote puts in its own message
+(IVPM extracts it and prints it as a hint), then retry.  Or mint an authorized
+token with ``gh auth refresh -h github.com -s repo``.
+
+Private Repository: ``Invalid username or token``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** an https clone fails with ``Invalid username or token`` or
+``Password authentication is not supported``.
+
+**Cause:** the opposite of the SSO case -- no usable credential reached git at
+all.  ``gh auth status`` succeeding does not imply git can authenticate:
+``gh``'s token store and git's credential store are separate.
+
+**Solutions:**
+
+1. IVPM authenticates the ``gh`` method by injecting ``gh``'s credential
+   helper, so this should not happen on a current IVPM with ``gh`` logged in
+   for the host.  Confirm with ``ivpm diagnose git <url>``, which reports the
+   credential source it would use.
+2. Wire ``gh`` into plain git as well: ``gh auth setup-git``.
+3. Check ``~/.netrc``.  With no credential helper configured, git's https
+   transport consults it, so a stale entry there is presented *instead of*
+   ``gh``'s token -- and the remote then reports an identity problem rather
+   than a missing credential.  The probe flags this.
+
 SSH Authentication Failed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
