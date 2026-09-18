@@ -225,19 +225,28 @@ def select_dep_set(proj_info, dep_set, origin=None):
     -d option). The name is frequently *not* something the user typed on this
     command line, so a bare "dep-set X is not present" leaves them with nothing
     to act on -- say which manifest was searched, what it does offer, and who
-    asked for X.
+    asked for X. A manifest that declares no dep-sets at all is not a failure:
+    any name resolves to an empty dep-set (see below).
     """
+    # A manifest that declares no dep-sets at all (eg one that exists only to
+    # carry 'with:' clauses) has nothing to install. That is valid: hand back
+    # an empty dep-set -- registered, so a later get_dep_set() for the same
+    # name sees it too -- rather than failing on a name nobody could satisfy.
+    if not proj_info.dep_set_m:
+        from .packages_info import PackagesInfo
+        name = dep_set if dep_set is not None else (
+            proj_info.default_dep_set or "default")
+        proj_info.set_dep_set(name, PackagesInfo(name))
+        return name, proj_info.dep_set_m[name]
+
     if dep_set is None:
         # Priority: 1) default-dep-set setting, 2) first dep-set in file
         if proj_info.default_dep_set is not None:
             dep_set = proj_info.default_dep_set
             if origin is None:
                 origin = "the 'default-dep-set' setting in this manifest"
-        elif len(proj_info.dep_set_m.keys()) > 0:
-            dep_set = list(proj_info.dep_set_m.keys())[0]
         else:
-            fatal("No dependency sets defined in package %s" %
-                  describe_manifest(proj_info))
+            dep_set = list(proj_info.dep_set_m.keys())[0]
 
     if dep_set not in proj_info.dep_set_m.keys():
         avail = sorted(proj_info.dep_set_m.keys())

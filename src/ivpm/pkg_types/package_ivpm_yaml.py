@@ -34,6 +34,9 @@ later-listed dep-set overrides an earlier one (matching the ``uses:``
 inheritance semantics).  Each contributed leaf still records the *specific*
 dep-set it came from via ``from_ivpm_source``.
 
+A referenced manifest that declares no dep-sets at all (eg one that exists only
+to carry ``with:`` clauses) is a valid, empty factory: it contributes nothing.
+
 The factory node therefore has **no packages-dir representation** — it is a
 *virtual* node (``virtual = True``).  It is recorded in ``package-lock.json``
 under a top-level ``ivpm_sources`` map (url -> fingerprint + dep-set) rather
@@ -131,14 +134,21 @@ class PackageIvpmYaml(PackageURL):
         with open(local_yaml) as fp:
             proj = IvpmYamlReader().read(fp, local_yaml)
 
+        # A manifest that declares no dep-sets at all (eg one that exists only
+        # to carry 'with:' clauses) contributes no dependencies. That is a
+        # valid, if empty, factory: synthesize the requested dep-set(s) as
+        # empty so the fold below is a no-op, rather than reporting the
+        # requested name as missing.
+        if not proj.dep_set_m:
+            for dsname in dep_set_names:
+                proj.set_dep_set(dsname, PackagesInfo(dsname))
+
         # All requested dep-sets must exist in the referenced manifest.
         missing = [d for d in dep_set_names if not proj.has_dep_set(d)]
         if missing:
+            # Non-empty: a manifest with no dep-sets was handled above.
             available = sorted(proj.dep_set_m.keys())
-            if available:
-                avail_msg = "available dep-set(s): %s" % ", ".join(available)
-            else:
-                avail_msg = "the referenced ivpm.yaml defines no dep-sets"
+            avail_msg = "available dep-set(s): %s" % ", ".join(available)
 
             # Offer a "did you mean" suggestion for each missing name.
             import difflib

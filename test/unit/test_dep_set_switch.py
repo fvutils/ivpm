@@ -140,6 +140,49 @@ class TestMissingDepSetDiagnostic(TestBase):
         self.assertIn("--dep-set", msg)
 
 
+class TestDepSetLessManifest(TestBase):
+    """A manifest that declares no dep-sets at all -- eg one that exists only
+    to carry 'with:' clauses -- is valid and installs nothing. Selecting a
+    dep-set out of it must yield an empty set rather than "not present": no
+    name could ever satisfy such a manifest, so there is nothing to act on.
+    """
+
+    _WITH_ONLY = (
+        "package:\n"
+        "  name: t\n"
+        "  with:\n"
+        "    env:\n"
+        "      - name: FOO\n"
+        "        value: bar\n")
+
+    def _mkws(self):
+        os.makedirs(os.path.join(self.testdir, "packages"), exist_ok=True)
+        with open(os.path.join(self.testdir, "ivpm.yaml"), "w") as fp:
+            fp.write(self._WITH_ONLY)
+
+    def _proj_info(self):
+        self._mkws()
+        proj_info, _, _, _ = ProjectOps(self.testdir)._init()
+        return proj_info
+
+    def test_default_selection_is_empty(self):
+        from ivpm.proj_info import select_dep_set
+        name, ds = select_dep_set(self._proj_info(), None)
+        self.assertEqual("default", name)
+        self.assertEqual({}, ds.packages)
+
+    def test_named_selection_is_empty(self):
+        """The name is honoured, not reported missing: an empty manifest has
+        no dep-set the request could have meant instead."""
+        from ivpm.proj_info import select_dep_set
+        proj_info = self._proj_info()
+        name, ds = select_dep_set(proj_info, "dev")
+        self.assertEqual("dev", name)
+        self.assertEqual({}, ds.packages)
+        # Registered, so a later lookup of the same name resolves.
+        self.assertTrue(proj_info.has_dep_set("dev"))
+
+
 class TestDepSetFromLock(TestBase):
     """The lock is the fallback when ivpm.json is missing or has no dep-set.
 

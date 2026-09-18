@@ -268,6 +268,13 @@ class PackageUpdater(object):
                             self.all_pkgs.setup_deps[pkg.name].add(sd)
 
                         if proj_info.process_deps:
+                            if not proj_info.dep_set_m:
+                                # The package's manifest declares no dep-sets
+                                # at all (eg it exists only to carry 'with:'
+                                # clauses). It contributes no dependencies --
+                                # which is not the same as failing to declare
+                                # the one that was asked for.
+                                continue
                             if not proj_info.has_dep_set(pkg.dep_set):
                                 fatal(self._mk_missing_dep_set_msg(pkg, proj_info))
                                 continue

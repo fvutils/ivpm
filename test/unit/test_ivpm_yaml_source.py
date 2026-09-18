@@ -308,6 +308,29 @@ class TestFactoryErrors(_FactoryTestBase):
         with self.assertRaises(SrcLoaderError):
             self._run_update(ds)
 
+    def test_dep_set_less_factory_is_a_null_import(self):
+        """A referenced manifest with no dep-sets at all (here: only a 'with:'
+        block) contributes nothing -- the requested dep-set is not 'missing'."""
+        factory = self._write("tools.yaml",
+            "package:\n"
+            "  name: tools-factory\n"
+            "  with:\n"
+            "    env:\n"
+            "      - name: FOO\n"
+            "        value: bar\n")
+        consumer = self._write("ivpm.yaml",
+            "package:\n"
+            "  name: consumer\n"
+            "  dep-sets:\n"
+            "    - name: default\n"
+            "      deps:\n"
+            "        - name: core-tools\n"
+            "          src: ivpm.yaml\n"
+            "          url: %s\n" % factory)
+        ds = self._read_dep_set(consumer)
+        _, all_pkgs = self._run_update(ds)
+        self.assertEqual(["core-tools"], list(all_pkgs.keys()))
+
     def test_cycle_is_fatal(self):
         """Case 7: a factory that references itself -> fatal."""
         # a.yaml's 'default' dep-set contains a factory dep that points back at

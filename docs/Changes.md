@@ -1,5 +1,19 @@
 
 # 2.34.0
+- **A manifest that declares no dep-sets is a valid, empty manifest.** An
+  `ivpm.yaml` that exists only to carry `with:` clauses declares no dep-sets,
+  so every dep-set name is absent from it -- and all three places that select
+  one reported the requested name as "not present": the `src: ivpm.yaml`
+  importer, the dependency-recursion step that folds a resolved package's own
+  deps, and the top-level selection. That diagnostic is only actionable when
+  the manifest offers *some other* name; against an empty manifest it named a
+  problem the user could not fix, for a manifest whose contribution is simply
+  nothing -- and the name is often inherited rather than typed. All three now
+  resolve to an empty dep-set: importing such a manifest is a null import,
+  depending on such a package contributes no further deps, and running against
+  one installs nothing. A name missing from a manifest that *does* declare
+  dep-sets is still an error, with the same "available dep-set(s)" /
+  "did you mean" diagnostics as before.
 - **A `HandlerFatalError` from a root callback no longer surfaces as a
   traceback.** `HandlerFatalError` is how a handler reports an *expected*
   failure, and the leaf path has always converted it into a proper diagnostic.
