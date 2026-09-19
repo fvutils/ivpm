@@ -54,14 +54,15 @@ def _finalize_subparser_help(subparser, hidden_commands=()):
 # Common `clone` option strings (do not extract these as provider args).
 _COMMON_CLONE_OPT_STRINGS = {
     "--provider", "--ssh", "-a", "--anonymous", "--git-auth-order",
-    "-b", "--branch", "--here", "-d", "--dep-set", "--py-uv", "--py-pip",
+    "-b", "--branch", "-t", "--tag", "-r", "--revision",
+    "--here", "-d", "--dep-set", "--py-uv", "--py-pip",
     "--py-system-site-packages", "--no-cache", "-D", "-h", "--help",
 }
 # Common `clone` options that consume a following value (used by the light
 # argv scan that locates the src token before argparse runs).
 _COMMON_CLONE_VALUE_OPTS = {
     "--provider", "--git-auth-order", "-d", "--dep-set", "-b", "--branch",
-    "-D", "--log-level",
+    "-t", "--tag", "-r", "--revision", "-D", "--log-level",
 }
 
 
@@ -380,8 +381,16 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         default=False,
         help="Do not run credential checks (gh/ssh/helper probes) when a git "
              "fetch fails; report only git's own output and the offline hints")
-    clone_cmd.add_argument("-b", "--branch", dest="branch",
-        help="Target branch; checks out existing or creates new")
+    # -b/-t/-r select what to check out; at most one may be given.
+    clone_ref_grp = clone_cmd.add_mutually_exclusive_group()
+    clone_ref_grp.add_argument("-b", "--branch", dest="branch",
+        help="Target branch; checks out the existing branch, or the tag of that "
+             "name (detached) when no such branch exists, or else creates a new branch")
+    clone_ref_grp.add_argument("-t", "--tag", dest="tag",
+        help="Check out the named tag (detached HEAD); fails if no such tag exists")
+    clone_ref_grp.add_argument("-r", "--revision", dest="revision",
+        help="Check out the specified revision -- a commit hash or other "
+             "commit-ish (detached HEAD)")
     clone_cmd.add_argument("workspace_dir", nargs="?",
         help="Target workspace directory; defaults to basename of src")
     clone_cmd.add_argument("--here", dest="here", action="store_true", default=False,

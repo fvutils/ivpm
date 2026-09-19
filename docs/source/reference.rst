@@ -313,8 +313,23 @@ window and are also listed by ``ivpm show clone-providers git``.
     ``IVPM_GIT_AUTH_ORDER`` and the config files for this invocation.
     See :doc:`git_integration` for how the transport is selected.
 
+The next three options select *what* to check out after the clone.  They are
+mutually exclusive -- passing more than one is an error.
+
 ``-b, --branch <name>``
-    Checkout branch; create if doesn't exist
+    Check out a branch.  ``origin/<name>`` is checked out (tracking the remote)
+    when it exists; failing that, an existing local branch of that name is
+    checked out; failing that, a **tag** named ``<name>`` is checked out with a
+    detached HEAD; and if none of those exist, a new branch is created.
+
+``-t, --tag <name>``
+    Check out the named tag, leaving HEAD detached.  Unlike ``--branch``,
+    nothing is created: it is an error if the repository has no such tag.
+
+``-r, --revision <rev>``
+    Check out ``<rev>`` -- a commit hash or any other commit-ish -- leaving HEAD
+    detached.  A commit that is not reachable from the refs fetched by the clone
+    is fetched explicitly by hash where the server permits it.
 
 ``-d, --dep-set <name>``
     Dependency set for ``ivpm update``
@@ -347,7 +362,13 @@ window and are also listed by ``ivpm show clone-providers git``.
 
     # Specific branch
     $ ivpm clone -b develop https://github.com/org/project.git
-    
+
+    # Specific tag (detached HEAD)
+    $ ivpm clone -t v1.2.3 https://github.com/org/project.git
+
+    # Specific commit (detached HEAD)
+    $ ivpm clone -r 9f2c1ab https://github.com/org/project.git
+
     # Force HTTPS (as-written) clone with dep-set
     $ ivpm clone -a -d default https://github.com/org/project.git
     

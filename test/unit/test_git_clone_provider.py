@@ -87,11 +87,35 @@ class TestGitClone(TestBase):
         subprocess.check_call(["git", "add", "-A"], cwd=path, env=ENV)
         subprocess.check_call(["git", "commit", "-m", "init"], cwd=path, env=ENV)
 
-    def _req(self, src, target, branch=None):
+    def _req(self, src, target, branch=None, tag=None, revision=None):
         return CloneRequest(
             src=src, target_dir=target, branch=branch, provider_args=None,
             event_dispatcher=UpdateEventDispatcher(), suppress_output=False,
-            args=_Args())
+            args=_Args(), tag=tag, revision=revision)
+
+    def _tag(self, path, name, message=None):
+        cmd = ["git", "tag"]
+        if message is not None:
+            cmd += ["-a", "-m", message]
+        subprocess.check_call(cmd + [name], cwd=path, env=ENV)
+
+    def _commit(self, path, fname, content):
+        with open(os.path.join(path, fname), 'w') as f:
+            f.write(content)
+        subprocess.check_call(["git", "add", "-A"], cwd=path, env=ENV)
+        subprocess.check_call(["git", "commit", "-m", content], cwd=path, env=ENV)
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=path, env=ENV).decode().strip()
+
+    @staticmethod
+    def _head_sha(path):
+        return subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=path).decode().strip()
+
+    @staticmethod
+    def _is_detached(path):
+        return subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=path).decode().strip() == ""
 
     def test_clone_empty_target(self):
         src = os.path.join(self.testdir, 'gcp_src')
@@ -232,6 +256,123 @@ class TestGitClone(TestBase):
         cur = subprocess.check_output(
             ["git", "branch", "--show-current"], cwd=target).decode().strip()
         self.assertEqual(cur, "feature/x")
+
+    def test_clone_branch_checks_out_existing_remote_branch(self):
+        src = os.path.join(self.testdir, 'gcp_src_rb')
+        self._init_git_repo(src)
+        subprocess.check_call(["git", "checkout", "-q", "-b", "dev"], cwd=src, env=ENV)
+        dev_sha = self._commit(src, "dev.txt", "on dev")
+        subprocess.check_call(["git", "checkout", "-q", "main"], cwd=src, env=ENV)
+
+        target = os.path.join(self.testdir, 'gcp_ws_rb')
+        res = GitCloneProvider().clone(self._req(src, target, branch="dev"))
+        self.assertTrue(res.ok, res.message)
+        cur = subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=target).decode().strip()
+        self.assertEqual(cur, "dev")
+        self.assertEqual(self._head_sha(target), dev_sha)
+
+    def test_clone_tag(self):
+        src = os.path.join(self.testdir, 'gcp_src_tag')
+        self._init_git_repo(src)
+        v1_sha = self._commit(src, "a.txt", "v1 content")
+        self._tag(src, "v1.0")
+        self._commit(src, "a.txt", "later content")
+
+        target = os.path.join(self.testdir, 'gcp_ws_tag')
+        res = GitCloneProvider().clone(self._req(src, target, tag="v1.0"))
+        self.assertTrue(res.ok, res.message)
+        self.assertEqual(self._head_sha(target), v1_sha)
+        self.assertTrue(self._is_detached(target))
+        self.assertEqual(res.resolved_revision, v1_sha)
+
+    def test_clone_annotated_tag(self):
+        src = os.path.join(self.testdir, 'gcp_src_atag')
+        self._init_git_repo(src)
+        v2_sha = self._commit(src, "a.txt", "v2 content")
+        self._tag(src, "v2.0", message="release 2.0")
+        self._commit(src, "a.txt", "later content")
+
+        target = os.path.join(self.testdir, 'gcp_ws_atag')
+        res = GitCloneProvider().clone(self._req(src, target, tag="v2.0"))
+        self.assertTrue(res.ok, res.message)
+        self.assertEqual(self._head_sha(target), v2_sha)
+        self.assertTrue(self._is_detached(target))
+
+    def test_clone_unknown_tag_fails(self):
+        src = os.path.join(self.testdir, 'gcp_src_notag')
+        self._init_git_repo(src)
+        target = os.path.join(self.testdir, 'gcp_ws_notag')
+        res = GitCloneProvider().clone(self._req(src, target, tag="v9.9"))
+        self.assertFalse(res.ok)
+        self.assertIn("v9.9", res.message)
+        self.assertIn("tag", res.message)
+
+    def test_clone_revision(self):
+        src = os.path.join(self.testdir, 'gcp_src_rev')
+        self._init_git_repo(src)
+        first = self._commit(src, "a.txt", "first")
+        self._commit(src, "a.txt", "second")
+
+        target = os.path.join(self.testdir, 'gcp_ws_rev')
+        res = GitCloneProvider().clone(self._req(src, target, revision=first))
+        self.assertTrue(res.ok, res.message)
+        self.assertEqual(self._head_sha(target), first)
+        self.assertTrue(self._is_detached(target))
+
+    def test_clone_unknown_revision_fails(self):
+        src = os.path.join(self.testdir, 'gcp_src_norev')
+        self._init_git_repo(src)
+        target = os.path.join(self.testdir, 'gcp_ws_norev')
+        res = GitCloneProvider().clone(
+            self._req(src, target, revision="0" * 40))
+        self.assertFalse(res.ok)
+        self.assertIn("revision", res.message)
+
+    def test_clone_branch_falls_back_to_tag(self):
+        """-b naming a tag (not a branch) checks the tag out, detached."""
+        src = os.path.join(self.testdir, 'gcp_src_btag')
+        self._init_git_repo(src)
+        v1_sha = self._commit(src, "a.txt", "v1 content")
+        self._tag(src, "v1.0")
+        self._commit(src, "a.txt", "later content")
+
+        target = os.path.join(self.testdir, 'gcp_ws_btag')
+        res = GitCloneProvider().clone(self._req(src, target, branch="v1.0"))
+        self.assertTrue(res.ok, res.message)
+        self.assertEqual(self._head_sha(target), v1_sha)
+        self.assertTrue(self._is_detached(target))
+
+    def test_clone_branch_prefers_branch_over_same_named_tag(self):
+        src = os.path.join(self.testdir, 'gcp_src_bt')
+        self._init_git_repo(src)
+        self._tag(src, "dup")                      # tag on the initial commit
+        subprocess.check_call(["git", "checkout", "-q", "-b", "dup"], cwd=src, env=ENV)
+        branch_sha = self._commit(src, "b.txt", "branch content")
+        subprocess.check_call(["git", "checkout", "-q", "main"], cwd=src, env=ENV)
+
+        target = os.path.join(self.testdir, 'gcp_ws_bt')
+        res = GitCloneProvider().clone(self._req(src, target, branch="dup"))
+        self.assertTrue(res.ok, res.message)
+        cur = subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=target).decode().strip()
+        self.assertEqual(cur, "dup")
+        self.assertEqual(self._head_sha(target), branch_sha)
+
+    def test_clone_branch_reuses_existing_local_branch(self):
+        """Re-cloning into an existing workspace whose branch is already local."""
+        src = os.path.join(self.testdir, 'gcp_src_lb')
+        self._init_git_repo(src)
+        target = os.path.join(self.testdir, 'gcp_ws_lb')
+        res = GitCloneProvider().clone(self._req(src, target, branch="local/only"))
+        self.assertTrue(res.ok, res.message)
+        subprocess.check_call(["git", "checkout", "-q", "main"], cwd=target, env=ENV)
+
+        res = GitCloneProvider().clone(self._req(src, target, branch="local/only"))
+        self.assertTrue(res.ok, res.message)
+        cur = subprocess.check_output(
+            ["git", "branch", "--show-current"], cwd=target).decode().strip()
+        self.assertEqual(cur, "local/only")
 
 
 if __name__ == "__main__":

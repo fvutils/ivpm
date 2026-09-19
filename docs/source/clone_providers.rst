@@ -87,8 +87,11 @@ free to use its own naming conventions (including single-dash long options like
    belong to the **git** provider (see :doc:`git_integration`).  They remain
    accepted directly on ``ivpm clone`` for backward compatibility, but their
    documented home is ``ivpm clone --provider git --help`` /
-   ``ivpm show clone-providers git``.  ``--branch`` is a *common* option (most
-   version-control providers understand "check out this branch/ref").
+   ``ivpm show clone-providers git``.  ``--branch``, ``--tag`` and
+   ``--revision`` are *common* options (most version-control providers
+   understand "check out this branch/tag/revision"); they are mutually
+   exclusive and reach a provider as ``req.branch`` / ``req.tag`` /
+   ``req.revision``.
 
 .. _config-forwarding:
 
@@ -184,7 +187,8 @@ A clone provider is a class that extends
 ``clone(req)``
     Materialize the working tree at ``req.target_dir`` and return a
     ``CloneResult``.  ``req`` (a ``CloneRequest``) carries the parsed
-    ``provider_args``, the common ``branch``, and an ``event_dispatcher`` for
+    ``provider_args``, the common ref selectors (``branch``, ``tag``,
+    ``revision`` -- at most one is set), and an ``event_dispatcher`` for
     progress reporting.  Do **not** run ``ivpm update`` -- ``ivpm clone`` does
     that after ``clone()`` returns.
 

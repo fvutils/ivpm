@@ -61,6 +61,13 @@ class CloneRequest:
     # for a password) can surface the prompt.
     # None when running non-interactively.  Built by CmdClone from its TUI.
     prompt_callback: Optional[Callable] = None
+    # Alternatives to ``branch``, at most one of which is set (CmdClone's parser
+    # makes them mutually exclusive).  ``tag`` names a tag to check out detached;
+    # ``revision`` is any other concrete commit-ish (sha, ref) checked out
+    # detached.  A provider whose source has no such notion may ignore them,
+    # but SHOULD fail rather than silently producing a different tree.
+    tag: Optional[str] = None
+    revision: Optional[str] = None
 
 
 @dc.dataclass

@@ -14,7 +14,10 @@ is used. It is an error for this path to exist.
 
 Options:
 - -a/--anonymous -- controls whether Git repositories are cloned anonymously or using a key
-- -b/--branch -- controls the target branch. Checks out the branch if it exists, otherwise creates it
+- -b/--branch -- controls the target branch. Checks out the branch if it exists; checks out
+  the tag of that name (detached) if no such branch exists; otherwise creates the branch
+- -t/--tag -- checks out the named tag (detached HEAD). Errors if no such tag exists
+- -r/--revision -- checks out the given commit hash / commit-ish (detached HEAD)
 - -d/--dep-set -- Specifies the dependency set for ivpm to fetch
 - --py-pip, --py-uv -- Specifies whether to use `pip` or `uv` to create the virtual environment
 
@@ -28,9 +31,13 @@ source type. Lifecycle methods are:
 
 
 ## Git implementation
-Add a built-in git implementation of the clone extension mechanism. Implement branching by:
+Add a built-in git implementation of the clone extension mechanism. Implement ref selection by:
 - cloning the default branch
-- Check if the branch already exists and fetch if it does
-- If the branch doesn't exist, create a new branch
+- Check if the branch already exists (remotely, then locally) and check it out if it does
+- If no such branch exists but a tag of that name does, check out the tag with a detached HEAD
+- If neither exists, create a new branch
+
+`--tag` and `--revision` always produce a detached HEAD and never create anything: an
+unknown tag or an unresolvable revision is reported as an error.
 
 

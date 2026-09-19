@@ -75,7 +75,19 @@ Clone Command Options
 
 ``-b, --branch <name>``
     Checkout the specified branch. If ``origin/<name>`` exists, it
-    will be checked out tracking the remote; otherwise, a new local branch is created.
+    will be checked out tracking the remote. If no such branch exists but a
+    **tag** of that name does, the tag is checked out (detached HEAD).
+    Otherwise, a new local branch is created.
+
+``-t, --tag <name>``
+    Checkout the named tag, leaving HEAD detached. It is an error if the
+    repository has no such tag -- unlike ``--branch``, nothing is created.
+
+``-r, --revision <rev>``
+    Checkout the specified revision -- a commit hash or any other commit-ish --
+    leaving HEAD detached.
+
+``-b``, ``-t`` and ``-r`` are mutually exclusive.
 
 ``-d, --dep-set <name>``
     Specify the dependency set for ``ivpm update`` (e.g., ``default-dev``).
@@ -98,6 +110,12 @@ Clone Command Options
 
     # Clone into specific directory with new branch
     $ ivpm clone https://github.com/org/project my-workspace -b feature/new
+
+    # Clone a released version (detached HEAD)
+    $ ivpm clone https://github.com/org/project -t v1.2.3
+
+    # Clone a specific commit (detached HEAD)
+    $ ivpm clone https://github.com/org/project -r 9f2c1ab
 
     # Set up the workspace in the current directory
     $ ivpm clone --here https://github.com/org/project

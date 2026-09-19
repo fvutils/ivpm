@@ -93,6 +93,8 @@ class CmdClone(object):
             src=src,
             target_dir=target_dir,
             branch=getattr(args, 'branch', None),
+            tag=getattr(args, 'tag', None),
+            revision=getattr(args, 'revision', None),
             provider_args=provider_args,
             event_dispatcher=event_dispatcher,
             suppress_output=suppress_output,

@@ -43,6 +43,11 @@ _logger = logging.getLogger("ivpm.clone.git_clone_provider")
 # git exited 0 after cloning the destination into itself (see _run_clone).
 _SELF_CLONE_ERR = "<ivpm: clone resolved to the destination directory itself>"
 
+# Prefix marking an error text IVPM produced itself (git was never run, or ran
+# successfully and we rejected the result).  Such text is reported as the
+# "detected by" explanation rather than quoted as git's own output.
+_IVPM_ERR = "<ivpm> "
+
 
 class GitCloneProvider(CloneProvider):
     """Clone a git/GitHub repository.  Default provider; also the fallback for
@@ -191,14 +196,14 @@ class GitCloneProvider(CloneProvider):
                     src, url, target_dir, rc, err, ssh_pref, auth_order,
                     args=req.args))
 
-            branch = req.branch
-            if branch is not None:
-                rc, err = self._select_branch(branch, target_dir,
-                                              event_dispatcher, suppress_output,
-                                              url=url)
+            kind, ref = self._requested_ref(req)
+            if ref is not None:
+                rc, err = self._select_ref(kind, ref, target_dir,
+                                           event_dispatcher, suppress_output,
+                                           url=url)
                 if rc != 0:
-                    return CloneResult(ok=False, message=self._branch_error_message(
-                        branch, src, url, rc, err, ssh_pref))
+                    return CloneResult(ok=False, message=self._ref_error_message(
+                        kind, ref, src, url, rc, err, ssh_pref))
 
             event_dispatcher.dispatch(UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_COMPLETE,
@@ -238,12 +243,17 @@ class GitCloneProvider(CloneProvider):
         lines.extend(self._hint_lines(src, url, err, ssh_pref, args, auth_order))
         return "\n".join(lines)
 
-    def _branch_error_message(self, branch, src, url, rc, err, ssh_pref=None):
-        lines = ["cloned '%s', but could not check out branch '%s' (git exit %d)"
-                 % (src, branch, rc)]
+    def _ref_error_message(self, kind, ref, src, url, rc, err, ssh_pref=None):
+        ours = (err or "").startswith(_IVPM_ERR)
+        head = "cloned '%s', but could not check out %s '%s'" % (src, kind, ref)
+        if not ours:
+            head += " (git exit %d)" % rc
+        lines = [head]
         lines.extend(self._context_lines([
-            ("detected by", "'git checkout' exited non-zero (%d)" % rc)]))
-        lines.extend(self._git_output_lines(err))
+            ("detected by", err[len(_IVPM_ERR):] if ours else
+             "'git checkout' exited non-zero (%d)" % rc)]))
+        if not ours:
+            lines.extend(self._git_output_lines(err))
         lines.extend(self._hint_lines(src, url, err, ssh_pref))
         return "\n".join(lines)
 
@@ -374,37 +384,129 @@ class GitCloneProvider(CloneProvider):
             auth_order = getattr(args, "git_auth_order", None)
         return ssh, anonymous, auth_order
 
-    def _select_branch(self, branch, target_dir, event_dispatcher, suppress_output,
-                       url=None):
-        """Check out an existing origin/<branch> or create a new local branch.
+    @staticmethod
+    def _requested_ref(req: CloneRequest):
+        """The (kind, ref) the caller asked for, or ``(None, None)``.
 
-        Returns ``(exit_code, stderr_text)``."""
-        # Fetch to ensure remotes are up to date.
-        self._run_capture(self._git_cmd(["git", "fetch", "--all"], url),
+        At most one of --branch/--tag/--revision is accepted by the parser; if
+        a caller builds a request by hand, the more specific selector wins."""
+        if getattr(req, "revision", None):
+            return "revision", req.revision
+        if getattr(req, "tag", None):
+            return "tag", req.tag
+        if req.branch:
+            return "branch", req.branch
+        return None, None
+
+    def _select_ref(self, kind, ref, target_dir, event_dispatcher,
+                    suppress_output, url=None):
+        """Check out the requested branch/tag/revision.  Returns
+        ``(exit_code, stderr_text)``."""
+        # Fetch so remote branches and tags created since the clone are visible.
+        # (A shallow/partial clone or a local reuse may otherwise lack them.)
+        self._run_capture(self._git_cmd(["git", "fetch", "--all", "--tags"], url),
                           cwd=target_dir)
 
-        have_remote = False
-        try:
-            out = subprocess.check_output(
-                self._git_cmd(["git", "ls-remote", "--heads", "origin", branch], url),
-                cwd=target_dir)
-            have_remote = (len(out.decode().strip()) > 0)
-        except Exception:
-            have_remote = False
-
-        if have_remote:
-            cmd = ["git", "checkout", "-B", branch, "origin/%s" % branch]
+        if kind == "tag":
+            rc, err = self._checkout_tag(ref, target_dir, url)
+        elif kind == "revision":
+            rc, err = self._checkout_revision(ref, target_dir, url)
         else:
-            cmd = ["git", "checkout", "-b", branch]
-
-        rc, err = self._run_capture(cmd, cwd=target_dir)
+            rc, err = self._checkout_branch(ref, target_dir, url)
 
         if rc != 0:
             event_dispatcher.dispatch(UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_ERROR,
                 package_name="[clone]",
-                error_message="Failed to checkout branch %s" % branch))
+                error_message="Failed to checkout %s %s" % (kind, ref)))
         return rc, err
+
+    def _checkout_branch(self, branch, target_dir, url):
+        """--branch: prefer a branch of that name, fall back to a tag of that
+        name (detached), and create a new branch when neither exists."""
+        if self._have_remote_branch(branch, target_dir, url):
+            return self._run_capture(
+                ["git", "checkout", "-B", branch, "origin/%s" % branch],
+                cwd=target_dir)
+
+        if self._rev_exists("refs/heads/%s" % branch, target_dir):
+            # Already present locally (e.g. an existing clone being reused).
+            return self._run_capture(["git", "checkout", branch], cwd=target_dir)
+
+        if self._have_tag(branch, target_dir, url):
+            # No such branch, but the name does exist as a tag: honor it as the
+            # user clearly meant that version, and leave HEAD detached on it.
+            note("'%s' is a tag, not a branch; checking it out (detached HEAD)"
+                 % branch)
+            return self._checkout_tag(branch, target_dir, url)
+
+        return self._run_capture(["git", "checkout", "-b", branch], cwd=target_dir)
+
+    def _checkout_tag(self, tag, target_dir, url):
+        """--tag: check out refs/tags/<tag> with a detached HEAD."""
+        if not self._have_tag(tag, target_dir, url):
+            return 1, (_IVPM_ERR + "no tag '%s' exists in the repository "
+                       "(checked the local clone and "
+                       "'git ls-remote --tags origin')" % tag)
+        return self._run_capture(
+            ["git", "checkout", "--detach", "refs/tags/%s" % tag], cwd=target_dir)
+
+    def _checkout_revision(self, rev, target_dir, url):
+        """--revision: check out any commit-ish with a detached HEAD.
+
+        A commit that is not reachable from any fetched ref (a clone of a single
+        branch, say) is fetched explicitly first; servers that refuse a by-sha
+        fetch simply leave the original 'unknown revision' failure in place."""
+        if not self._rev_exists("%s^{commit}" % rev, target_dir):
+            frc, _ = self._run_capture(
+                self._git_cmd(["git", "fetch", "origin", rev], url), cwd=target_dir)
+            if frc == 0 and self._rev_exists("FETCH_HEAD^{commit}", target_dir):
+                return self._run_capture(["git", "checkout", "--detach", "FETCH_HEAD"],
+                                         cwd=target_dir)
+            # Report this ourselves: 'git checkout --detach <unknown>' blames a
+            # "path argument", which says nothing about the real problem.
+            return 1, (_IVPM_ERR + "revision '%s' does not name a commit in the "
+                       "repository, and 'git fetch origin %s' could not "
+                       "retrieve it" % (rev, rev))
+        return self._run_capture(["git", "checkout", "--detach", rev], cwd=target_dir)
+
+    def _have_remote_branch(self, branch, target_dir, url):
+        try:
+            out = subprocess.check_output(
+                self._git_cmd(["git", "ls-remote", "--heads", "origin", branch], url),
+                cwd=target_dir)
+            return len(out.decode().strip()) > 0
+        except Exception:
+            return False
+
+    def _have_tag(self, tag, target_dir, url):
+        """True when <tag> exists as a tag locally or on origin.
+
+        The local check comes first: it is offline, and 'git clone' brings tags
+        along, so it answers for the common case without touching the network."""
+        if self._rev_exists("refs/tags/%s" % tag, target_dir):
+            return True
+        try:
+            out = subprocess.check_output(
+                self._git_cmd(["git", "ls-remote", "--tags", "origin", tag], url),
+                cwd=target_dir)
+        except Exception:
+            return False
+        # ls-remote pattern-matches on the last path component, so ask for the
+        # exact ref (and its peeled '^{}' form) rather than trusting any hit.
+        want = ("refs/tags/%s" % tag, "refs/tags/%s^{}" % tag)
+        for ln in out.decode().splitlines():
+            parts = ln.split("\t")
+            if len(parts) == 2 and parts[1].strip() in want:
+                return True
+        return False
+
+    @staticmethod
+    def _rev_exists(rev, target_dir):
+        r = subprocess.run(["git", "rev-parse", "--verify", "--quiet", rev],
+                           cwd=target_dir, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+        return r.returncode == 0
 
     @staticmethod
     def _run_capture(cmd, cwd=None):
