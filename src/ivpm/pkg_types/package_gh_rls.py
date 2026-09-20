@@ -816,17 +816,38 @@ class PackageGhRls(PackageHttp):
             return (distro, version, arch)
         return None
 
+    # Arch tokens recognized anywhere in the part of an asset name that follows
+    # `linux`. Longest-first within each family so `aarch_64` wins over a
+    # prefix match, and bounded by non-alphanumerics so `x64` does not match
+    # inside a longer word.
+    _LINUX_ARCH_TOKEN_RE = re.compile(
+        r"(?<![a-z0-9])"
+        r"(x86_64|amd64|x64|aarch_64|aarch64|arm64|armv7l|armv7)"
+        r"(?![a-z0-9])"
+    )
+
     def _parse_linux_generic(self, name):
         """
         Parse generic Linux naming pattern (e.g., protobuf style: protoc-33.2-linux-x86_64.zip).
         Returns arch or None if not a Linux binary.
+
+        The arch is not necessarily the token immediately after `linux`: a
+        `linux-<flavor>-<arch>` name such as Verible's
+        `verible-v0.0-4294-gc1d8f5e8-linux-static-x86_64.tar.gz` puts a build
+        flavor in between. Scan the whole tail for a known arch token and only
+        fall back to "first token wins" for an arch we have no alias for
+        (ppc64le, riscv64, ...), which is the historical behavior.
         """
         n = (name or "").lower()
-        # Match patterns like: linux-x86_64, linux-aarch64, linux_x86_64, etc.
-        m = re.search(r"linux[_-]([a-z0-9_]+)", n)
-        if m:
-            arch = m.group(1)
-            # Normalize arch names
+        # Match patterns like: linux-x86_64, linux-aarch64, linux_x86_64,
+        # linux-static-x86_64, linux-musl-arm64, etc.
+        m = re.search(r"linux[_-]([a-z0-9_.-]+)", n)
+        if m is None:
+            return None
+        tail = m.group(1)
+        am = self._LINUX_ARCH_TOKEN_RE.search(tail)
+        if am is not None:
+            arch = am.group(1)
             if arch in ("x86_64", "amd64", "x64"):
                 return "x86_64"
             elif arch in ("aarch_64", "aarch64", "arm64"):
@@ -834,7 +855,8 @@ class PackageGhRls(PackageHttp):
             elif arch.startswith("armv7"):
                 return "armv7l"
             return arch
-        return None
+        first = re.match(r"[a-z0-9_]+", tail)
+        return first.group(0) if first else None
 
     def _select_linux_asset(self, assets, arch, glibc):
         # First, check if there are OS-specific assets
