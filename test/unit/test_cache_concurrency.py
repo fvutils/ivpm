@@ -390,10 +390,15 @@ class TestMultiProcessRaces(_StoreBase):
 class TestCacheSideStaging(_StoreBase):
     def test_new_staging_is_on_cache_fs(self):
         staging = self.store.new_staging("pkg")
+        private = os.path.dirname(staging)
         # Sibling of the package's version dirs, not yet created, marked.
-        self.assertEqual(os.path.dirname(staging), self._pkg_dir("pkg"))
+        # Same filesystem as the entry (so store publishes by rename), but one
+        # level down inside a private parent, so an in-flight fetch is not
+        # readable by other cache users.
+        self.assertEqual(os.path.dirname(private), self._pkg_dir("pkg"))
         self.assertFalse(os.path.exists(staging))
-        self.assertIn(".staging.", os.path.basename(staging))
+        self.assertIn(".staging.", os.path.basename(private))
+        self.assertEqual(stat.S_IMODE(os.stat(private).st_mode) & 0o077, 0)
 
     def test_store_from_new_staging_publishes(self):
         staging = self.store.new_staging("pkg")

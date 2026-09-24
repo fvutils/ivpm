@@ -98,13 +98,33 @@ class _Pkg:
 
 class TestAcquireStaging(_Base):
     def test_staging_is_on_cache_fs(self):
-        """A provider-backed staging path is a sibling of the entry, so the
-        subsequent store() is a same-directory rename, not a tree copy."""
+        """A provider-backed staging path is inside the package's cache
+        directory, so the subsequent store() is a same-filesystem rename, not
+        a tree copy.
+
+        One level down from the entry, not beside it: the tree is built inside
+        a private parent so an in-flight fetch is not readable by other cache
+        users.  What has to stay true is same-filesystem and not-yet-existing.
+        """
         pkg = _Pkg("libX")
         staging = acquire_staging(self._provider(), pkg, self.deps_dir)
-        self.assertEqual(os.path.dirname(staging),
+        private = os.path.dirname(staging)
+        self.assertEqual(os.path.dirname(private),
                          self.store.get_package_cache_dir("libX"))
         self.assertFalse(os.path.exists(staging))
+
+    def test_staging_parent_is_private(self):
+        """An in-flight fetch is readable by nobody but its owner.
+
+        Content lands with whatever modes the fetch created (umask), and is
+        only brought under the entry's protection by the seal -- so until then
+        it must not be reachable at all.
+        """
+        staging = acquire_staging(self._provider(), _Pkg("libX"), self.deps_dir)
+        mode = stat.S_IMODE(os.stat(os.path.dirname(staging)).st_mode)
+        self.assertEqual(mode & 0o077, 0,
+                         "staging parent is 0o%o; group/other can reach it"
+                         % mode)
 
     def test_staging_is_unique_per_call(self):
         """The C1 property: no two concurrent fetches of one package can ever
@@ -122,14 +142,17 @@ class TestAcquireStaging(_Base):
             staging = acquire_staging(self._provider(), pkg, self.deps_dir)
         finally:
             os.chmod(self.cache_dir, 0o755)
-        self.assertEqual(os.path.dirname(staging), self.deps_dir)
-        self.assertIn(".ivpm-fetch.libX.", os.path.basename(staging))
+        private = os.path.dirname(staging)
+        self.assertEqual(os.path.dirname(private), self.deps_dir)
+        self.assertIn(".ivpm-fetch.libX.", os.path.basename(private))
         self.assertFalse(os.path.exists(staging))
+        self.assertEqual(stat.S_IMODE(os.stat(private).st_mode) & 0o077, 0)
 
     def test_staging_falls_back_for_provider_without_staging(self):
         staging = acquire_staging(NullCacheProvider(None), _Pkg("libX"),
                                   self.deps_dir)
-        self.assertEqual(os.path.dirname(staging), self.deps_dir)
+        self.assertEqual(os.path.dirname(os.path.dirname(staging)),
+                         self.deps_dir)
 
     def test_scratch_is_outside_staging_and_marked_transient(self):
         """The download scratch must not be inside the tree that gets published,
@@ -284,18 +307,19 @@ class TestPublishGuards(_Base):
         os.makedirs(src)
         _tree(src, {"a.txt": "a"})
 
-        real_move = shutil.move
+        real_transfer = DirectoryCacheStore._transfer
         state = {"n": 0}
 
-        def vanishing_move(s, d, *a, **kw):
+        def vanishing_transfer(store, s, d, policy):
             state["n"] += 1
             if state["n"] == 1:
                 shutil.rmtree(self.store.get_package_cache_dir("libX"),
                               ignore_errors=True)
                 raise OSError(errno.ENOENT, "no such file or directory")
-            return real_move(s, d, *a, **kw)
+            return real_transfer(store, s, d, policy)
 
-        with patch("ivpm.cache.shutil.move", side_effect=vanishing_move):
+        with patch.object(DirectoryCacheStore, "_transfer",
+                          autospec=True, side_effect=vanishing_transfer):
             self.store.store_version("libX", "v1", src)
 
         self.assertEqual(state["n"], 2)
@@ -305,8 +329,8 @@ class TestPublishGuards(_Base):
         src = os.path.join(self.test_dir, "src")
         os.makedirs(src)
         _tree(src, {"a.txt": "a"})
-        with patch("ivpm.cache.shutil.move",
-                   side_effect=OSError(errno.ENOENT, "gone")) as mv:
+        with patch.object(DirectoryCacheStore, "_transfer",
+                          side_effect=OSError(errno.ENOENT, "gone")) as mv:
             with self.assertRaises(CacheStoreError):
                 self.store.store_version("libX", "v1", src)
         self.assertEqual(mv.call_count, 2)

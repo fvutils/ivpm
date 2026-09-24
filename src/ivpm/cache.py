@@ -26,6 +26,10 @@ import shutil
 from typing import Optional
 from .msg import note
 from .site_config import get_site_config
+from .protection import (
+    PARTITION_PREFIX, ProtectionError, ProtectionPolicy,
+    apply_to_dir, dir_seal_mode, file_seal_mode, verify_dir,
+)
 
 
 def _ivpm_version() -> str:
@@ -101,7 +105,24 @@ class DirectoryCacheStore:
             raise ValueError("invalid package name for the cache: %s" % problem)
         return os.path.join(self.cache_dir, package_name)
 
-    def get_version_cache_dir(self, package_name: str, version: str) -> str:
+    def get_partition_dir(self, package_name: str,
+                          policy: Optional[ProtectionPolicy]) -> str:
+        """The directory a *policy*'s entries for this package live under.
+
+        With no policy this is the package directory itself, so a site with no
+        registered preparer keeps the historical two-level layout byte for byte
+        and needs no migration.  With a policy, a ``p.<digest>`` level is
+        inserted: two workspaces wanting the same package under different
+        protection then get separate entries instead of evicting each other's
+        on every run (see cache-protection-policy-design.md §2).
+        """
+        pkg_dir = self.get_package_cache_dir(package_name)
+        if policy is None:
+            return pkg_dir
+        return os.path.join(pkg_dir, policy.partition_key())
+
+    def get_version_cache_dir(self, package_name: str, version: str,
+                              policy: Optional[ProtectionPolicy] = None) -> str:
         """Get the cache directory for a specific package version.
 
         The version key is *escaped* rather than rejected: it is machine-made
@@ -110,12 +131,143 @@ class DirectoryCacheStore:
         would be a worse answer than storing it under an escaped name. Keys
         that are already safe pass through byte-identical, so no existing entry
         moves. Every caller reaches the cache through here, so publishing,
-        lookup and eviction cannot disagree about where an entry lives.
+        lookup and eviction cannot disagree about where an entry lives --
+        including about which protection partition an entry belongs to.
         """
         from .utils import safe_version_key
-        return os.path.join(self.get_package_cache_dir(package_name),
+        return os.path.join(self.get_partition_dir(package_name, policy),
                             safe_version_key(version))
-    
+
+    _POLICY_FILE = "policy.json"
+
+    def ensure_partition_dir(self, package_name: str,
+                             policy: Optional[ProtectionPolicy]) -> str:
+        """The partition directory, created under *policy* if it is not there.
+
+        Created **private then promoted** -- ``mkdir`` at 0700, set the group,
+        then the real mode -- because the package directory above it is setgid
+        to the *cache's* group.  Creating it at its final mode would leave a
+        window in which it is group-writable while still carrying the cache's
+        group, which is the whole bug in miniature.
+
+        Setgid on this one directory is what makes the policy free: everything
+        a fetch creates inside it inherits the group as it is written, so there
+        is no O(files) ``chgrp`` pass anywhere, and it works identically for a
+        same-filesystem publish and a cross-filesystem copy.
+
+        An existing directory is *verified*, never trusted: another worker may
+        have created it, and a partition with the right name and the wrong
+        protection is undetectable afterwards -- every entry inside inherits
+        the wrong group and looks perfectly self-consistent.
+        """
+        self.ensure_cache_dir(package_name)
+        if policy is None:
+            return self.get_package_cache_dir(package_name)
+
+        path = self.get_partition_dir(package_name, policy)
+        try:
+            os.mkdir(path, 0o700)
+        except FileExistsError:
+            # Another worker created it -- possibly microseconds ago, and
+            # possibly still between its own mkdir and its chown/chmod.  That
+            # intermediate state is 0700 with the cache's group, which is
+            # exactly what a *mis*-protected partition looks like, so verifying
+            # immediately would fail a partition that is about to be correct.
+            # Creating it private-then-promoted is what makes the window
+            # visible; waiting it out is what makes it harmless.
+            self._await_partition(path, policy)
+            return path
+        except OSError as e:
+            raise ProtectionError(
+                "could not create protection partition %s: %s" % (path, e))
+
+        # We created it, so we are the one that must make it correct.
+        apply_to_dir(path, policy)
+        self._write_policy_file(path, policy)
+        verify_dir(path, policy)
+        return path
+
+    #: How long to let another worker finish promoting a partition it created.
+    #: Three chown/chmod syscalls, so this is orders of magnitude of slack; it
+    #: only has to outlast a descheduled thread, never a slow operation.
+    _PARTITION_SETTLE_S = 2.0
+
+    def _await_partition(self, path: str, policy: ProtectionPolicy):
+        """Verify a partition someone else created, finishing it if they did not.
+
+        Two failures look identical from here and must be handled differently:
+
+        * **Still in flight.**  The creator is between its ``mkdir`` and its
+          ``chown``/``chmod``.  Waiting is correct -- promoting it ourselves
+          would race the creator doing the same thing.
+        * **Abandoned.**  The creator was killed in that window and is never
+          coming back.  Waiting is then useless, and *only* waiting turns a
+          millisecond-wide race into a permanently wedged partition: the
+          directory exists, so nobody ever retries the create, and every fetch
+          of this package forever after waits the full settle and fails.  That
+          is worse than the race it was meant to fix.
+
+        So: wait out the window, and if it is still wrong afterwards, finish
+        the job ourselves when we are allowed to.  The path is a digest of this
+        exact policy, so a directory there is unambiguously *supposed* to carry
+        it -- adopting and completing it is not a guess.  If we do not own it,
+        we cannot repair it and the original error stands, which is the honest
+        outcome for a directory some other user left misconfigured.
+        """
+        deadline = time.time() + self._PARTITION_SETTLE_S
+        delay = 0.005
+        while True:
+            try:
+                verify_dir(path, policy)
+                return
+            except ProtectionError:
+                if time.time() >= deadline:
+                    break
+            time.sleep(delay)
+            delay = min(delay * 2, 0.1)
+
+        try:
+            owned = os.lstat(path).st_uid == os.getuid()
+        except OSError:
+            owned = False
+        if not owned:
+            verify_dir(path, policy)     # re-raise with the real reason
+        note("Completing an abandoned protection partition at %s" % path)
+        apply_to_dir(path, policy)
+        self._write_policy_file(path, policy)
+        verify_dir(path, policy)
+
+    def _write_policy_file(self, partition_dir: str,
+                           policy: ProtectionPolicy) -> None:
+        """Record what ``p.<digest>`` means, beside the entries it governs.
+
+        A digest is unexplainable from a directory listing alone; this makes
+        ``ls`` plus one ``cat`` enough to audit a shared cache.  Best-effort:
+        an unwritable policy file does not make the partition wrong.
+        """
+        path = os.path.join(partition_dir, self._POLICY_FILE)
+        if os.path.exists(path):
+            return
+        # tmp + rename, like the sidecar: two workers racing here would
+        # otherwise both open("w") and interleave into one truncated file, and
+        # the thing that explains what a partition means would be the one file
+        # in it that cannot be read.
+        tmp = path + ".tmp." + uuid.uuid4().hex
+        try:
+            with open(tmp, "w") as fp:
+                json.dump(policy.describe(), fp, sort_keys=True, indent=2)
+            # The policy's own file mode, not a flat 0444: this file is the
+            # one thing in the partition that describes the partition, and it
+            # would be odd for it to be the one thing that ignores it.
+            os.chmod(tmp, file_seal_mode(0o444, policy))
+            os.rename(tmp, path)
+        except OSError:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+
+
     def _is_populated(self, version_dir: str) -> bool:
         """Is there a *complete* entry at ``version_dir``?
 
@@ -139,6 +291,13 @@ class DirectoryCacheStore:
         try:
             if os.path.islink(version_dir):
                 return False
+            # A protection partition is machinery, not content.  It has to be
+            # rejected by NAME rather than by inspecting what is inside it:
+            # a partition holds version directories, so it is a non-empty
+            # manifest-less directory, and ``_legacy_entries_ok`` would
+            # therefore serve the partition itself as a cache hit.
+            if os.path.basename(version_dir).startswith(PARTITION_PREFIX):
+                return False
             if not os.path.isdir(version_dir):
                 return False
             if not os.listdir(version_dir):
@@ -149,9 +308,10 @@ class DirectoryCacheStore:
         except OSError:
             return False
 
-    def has_version(self, package_name: str, version: str) -> bool:
+    def has_version(self, package_name: str, version: str,
+                    policy: Optional[ProtectionPolicy] = None) -> bool:
         """Check if a specific version is cached (present and non-empty)."""
-        version_dir = self.get_version_cache_dir(package_name, version)
+        version_dir = self.get_version_cache_dir(package_name, version, policy)
         return self._is_populated(version_dir)
     
     def ensure_cache_dir(self, package_name: str) -> str:
@@ -189,7 +349,8 @@ class DirectoryCacheStore:
         """
         return self._STAGING_MARKER in name or self._TOMB_MARKER in name
 
-    def _evict(self, package_name: str, version: str) -> bool:
+    def _evict(self, package_name: str, version: str,
+               policy: Optional[ProtectionPolicy] = None) -> bool:
         """Atomically remove an entry from view, then delete its bytes.
 
         **The rename is the eviction.**  After it, no lookup can see the entry,
@@ -209,14 +370,18 @@ class DirectoryCacheStore:
         Returns True iff this caller performed the eviction, so two concurrent
         GCs cannot both count the same entry.
         """
-        version_dir = self.get_version_cache_dir(package_name, version)
-        pkg_dir = self.get_package_cache_dir(package_name)
-        tomb = os.path.join(pkg_dir, self._TOMB_MARKER + uuid.uuid4().hex)
+        version_dir = self.get_version_cache_dir(package_name, version, policy)
+        # The tombstone is a sibling of the entry -- inside the partition when
+        # there is one -- so the rename stays on one filesystem and the
+        # awaiting-delete bytes keep the partition's protection rather than
+        # being exposed at the package level on their way out.
+        tomb = os.path.join(os.path.dirname(version_dir),
+                            self._TOMB_MARKER + uuid.uuid4().hex)
         try:
             os.rename(version_dir, tomb)
         except OSError:
             return False           # already gone, or another evictor won
-        self._delete_meta(package_name, version)
+        self._delete_meta(package_name, version, policy)
         self._discard(tomb)
         return True
 
@@ -274,22 +439,81 @@ class DirectoryCacheStore:
                 continue
             self._discard(path)
     
-    def new_staging(self, package_name: str) -> str:
+    def new_staging(self, package_name: str,
+                    policy: Optional[ProtectionPolicy] = None) -> str:
         """A unique, not-yet-created staging path on the CACHE filesystem.
 
-        Returned as a *sibling* of the package's version directories, so a
-        tree built here and handed to :meth:`store_version` publishes with a
-        same-filesystem ``rename`` instead of a cross-device copy.  The caller
-        populates the path (it does not exist yet) and passes it to
-        :meth:`store_version`.  The ``.staging.`` marker keeps it out of cache
-        scans (:meth:`get_cache_info`, :meth:`clean_older_than`) and makes it
+        Returned from *inside* the package's protection partition, so a tree
+        built here and handed to :meth:`store_version` publishes with a
+        same-filesystem ``rename`` instead of a cross-device copy, **and**
+        inherits the partition's group as every file is written.  Group
+        ownership is therefore correct by construction on the ordinary fetch
+        path -- which is exactly where it used to be wrong, because staging
+        sat directly under a package directory that is setgid to the cache's
+        own group.
+
+        The returned path does not exist, but its *parent* does and is 0700:
+        content is unreadable by other cache users while it is being fetched
+        and sealed.  Callers cannot simply be handed a pre-created directory --
+        ``git clone``, ``copytree`` and the zip extractor each want to create
+        the target themselves -- so privacy is provided one level up.
+
+        The ``.staging.`` marker on that parent keeps it out of cache scans
+        (:meth:`get_cache_info`, :meth:`clean_older_than`) and makes it
         eligible for the stale-staging sweep if a build crashes.
         """
-        pkg_cache_dir = self.ensure_cache_dir(package_name)
-        return os.path.join(pkg_cache_dir, "build.staging." + uuid.uuid4().hex)
+        partition = self.ensure_partition_dir(package_name, policy)
+        private = os.path.join(partition, "build.staging." + uuid.uuid4().hex)
+        self._mk_private(private, policy)
+        return os.path.join(private, "tree")
+
+    def _mk_private(self, path: str, policy: Optional[ProtectionPolicy]):
+        """Create a staging parent nothing else can look inside.
+
+        0700 regardless of policy -- an in-progress tree has no business being
+        readable even by the group that will own the finished entry, since
+        until the seal runs its modes are whatever the fetch happened to
+        create.  The group is still set so that content created inside
+        inherits it via setgid.
+        """
+        os.mkdir(path, 0o700)
+        if policy is not None:
+            from .protection import chgrp
+            chgrp(path, policy.gid)
+        os.chmod(path, 0o2700)
+
+    def _reap_staging_parent(self, source_path: str):
+        """Remove the private parent of a consumed staging tree.
+
+        ``rmdir``, never ``rmtree``: it succeeds only when the directory is
+        empty, so a parent that still holds something (a download scratch a
+        caller forgot, a tree that was not actually consumed) is left for the
+        stale-staging sweep rather than deleted on a guess.
+        """
+        parent = os.path.dirname(os.path.abspath(source_path))
+        if not self._is_transient(os.path.basename(parent)):
+            return
+        try:
+            os.rmdir(parent)
+        except OSError:
+            pass
+
+    def _consume_source(self, source_path: str):
+        """Finish with a source tree, however this store call ended.
+
+        Every exit from :meth:`store_version` reaches here -- published,
+        already-cached, lost race, hard failure -- because every one of them
+        leaves the caller's staging tree behind otherwise.  The lost-race path
+        is the one that matters in practice: with N workers racing, N-1 take it
+        on every single miss, so a leak there is not an edge case but the
+        common case.
+        """
+        self._discard(source_path)
+        self._reap_staging_parent(source_path)
 
     def store_version(self, package_name: str, version: str, source_path: str,
-                      source: Optional[dict] = None) -> str:
+                      source: Optional[dict] = None,
+                      policy: Optional[ProtectionPolicy] = None) -> str:
         """Store a package version in the cache.
 
         Args:
@@ -306,7 +530,7 @@ class DirectoryCacheStore:
         Returns:
             Path to the cached version directory
         """
-        version_dir = self.get_version_cache_dir(package_name, version)
+        version_dir = self.get_version_cache_dir(package_name, version, policy)
 
         # A cache entry is a DIRECTORY -- _is_populated, link_to_deps and the
         # publish rename all depend on it.  Storing a plain file produced an
@@ -326,44 +550,69 @@ class DirectoryCacheStore:
         if self._is_populated(version_dir):
             # Already cached — clean up the source that is no longer needed
             if os.path.exists(source_path):
-                self._discard(source_path)
+                self._consume_source(source_path)
             # Re-storing an extant entry still counts as using it.
-            self._touch_last_linked(package_name, version)
+            self._touch_last_linked(package_name, version, policy)
             return version_dir
 
-        self.ensure_cache_dir(package_name)
+        try:
+            self.ensure_partition_dir(package_name, policy)
+        except ProtectionError as e:
+            # Fail closed.  The alternative -- publishing into the package
+            # directory because the partition could not be protected -- is the
+            # exact outcome the policy exists to prevent.
+            self._consume_source(source_path)
+            raise CacheStoreError(package_name, version, e) from e
 
         # --- Atomic publish (the mutual-exclusion primitive) --------------
         # Build under a unique staging name, then publish with a single
         # ``os.rename``.  Two invariants make this race-safe WITHOUT a lock:
         #
-        #  * INVARIANT (H1): staging is a SIBLING of version_dir (same
-        #    directory => same filesystem), so ``os.rename`` is atomic and its
-        #    ``ENOTEMPTY`` failure when version_dir already exists IS the
-        #    serialization point.  Do not relocate staging off this filesystem.
+        #  * INVARIANT (H1): staging is on the SAME FILESYSTEM as version_dir,
+        #    guaranteed by placing it inside the same partition directory, so
+        #    ``os.rename`` is atomic and its ``ENOTEMPTY`` failure when
+        #    version_dir already exists IS the serialization point.  Do not
+        #    relocate staging off this filesystem.
         #  * The staging name is uuid4-unique (H2), so concurrent worker
         #    threads (which share a PID), separate processes, and reused PIDs
-        #    from a prior crashed run can never collide — ``shutil.move`` can
+        #    from a prior crashed run can never collide — the transfer can
         #    never nest ``source_path`` inside a stale staging dir.
-        # NOTE (group ownership): on the same filesystem ``shutil.move`` is a
-        # rename, which *preserves* group ownership -- so a tree prepared with a
-        # per-package group (see pkg-prepare-design.md) keeps that group when it
-        # is published into the cache, and the symlink back into the deps-dir is
-        # therefore correct by construction. Across filesystems ``move`` falls
-        # back to a copy, and the copied files are *created* under
-        # ``<cache>/<pkg>/`` -- which is setgid to the cache's own group -- so the
-        # group silently changes. The assertion below constrains staging relative
-        # to version_dir only; it says nothing about where source_path lives.
-        # Not corrected here: doing so means an O(files) chgrp walk on the cache
-        # path, and the group a shared entry should carry is a deployment
-        # question (see design §5.4). Recorded so it is not mistaken for
-        # working.
+        #
+        # GROUP OWNERSHIP is handled by construction, not by correction.  The
+        # staging tree is created inside the partition directory, which is
+        # setgid to the policy's group, so content carries the right group as
+        # it is written.  A cross-filesystem transfer cannot rely on that (the
+        # bytes are created by a copy, not inherited), so it applies the policy
+        # per node and verifies -- see ``_transfer``.  Either way the tree is
+        # correct *before* the seal runs, which is the only ordering that
+        # works: a sealed entry is unwritable, so nothing can be corrected
+        # afterwards.
+        #
+        # Publish staging is a plain SIBLING of the entry, not a private
+        # subdirectory.  It has to be: renaming a directory into a *different*
+        # parent requires write permission on the directory being moved (the
+        # kernel updates its ``..`` entry), and the seal has just removed every
+        # write bit -- so a sealed tree can only ever be renamed within the
+        # directory it already sits in.
+        #
+        # Nothing is lost by that.  Privacy during the slow, unsealed part --
+        # the clone or download -- is provided by ``new_staging``'s 0700
+        # parent.  What sits here is already sealed and already carries the
+        # policy's group, inside a partition directory that is 2770, so the
+        # only people who can see it are the ones entitled to read the entry it
+        # is about to become.
         staging_dir = version_dir + ".staging." + uuid.uuid4().hex
         self._check_sibling(package_name, version, staging_dir, version_dir)
         try:
-            self._move_and_publish(package_name, source_path, staging_dir,
-                                   version_dir, seal=lambda staging: self._seal(
-                                       staging, package_name, version, source))
+            self._move_and_publish(
+                package_name, source_path, staging_dir, version_dir,
+                policy=policy,
+                seal=lambda staging: self._seal(
+                    staging, package_name, version, source, policy))
+        except ProtectionError as e:
+            self._discard(staging_dir)
+            self._consume_source(source_path)
+            raise CacheStoreError(package_name, version, e) from e
         except OSError as e:
             # ``_discard``, not a bare rmtree: by the time the publish rename
             # can fail, the staging tree has already been *sealed* -- its
@@ -375,10 +624,12 @@ class DirectoryCacheStore:
             # any other errno (ENOSPC/EACCES/EROFS/...) is a genuine failure.
             if e.errno in (errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR) \
                     and self._is_populated(version_dir):
-                self._discard(source_path)
+                self._consume_source(source_path)
                 return version_dir
-            self._discard(source_path)
+            self._consume_source(source_path)
             raise CacheStoreError(package_name, version, e) from e
+
+        self._reap_staging_parent(source_path)
 
         # NOTE: the entry is sealed (read-only + manifest) *inside*
         # _move_and_publish, before the rename -- so it is complete and
@@ -393,22 +644,27 @@ class DirectoryCacheStore:
             "schema": self._META_SCHEMA,
             "stored": now,
             "last_linked": now,
-        })
+        }, policy)
 
         note(f"Cached {package_name} version {version}")
         return version_dir
 
     @staticmethod
     def _check_sibling(package_name: str, version: str,
-                       staging_dir: str, version_dir: str):
+                           staging_dir: str, version_dir: str):
         """Enforce INVARIANT H1: staging is a sibling of the entry.
 
-        Same directory => same filesystem => ``os.rename`` is atomic, and its
-        ``ENOTEMPTY`` failure is the serialization point that makes the whole
-        store lock-free.  Checked unconditionally rather than with an
-        ``assert``, which disappears under ``python -O`` -- exactly the
-        configuration in which a silent non-atomic publish would do the most
-        damage.
+        Two things follow from "same directory", and the publish needs both.
+        Same directory means same filesystem, so ``os.rename`` is atomic and
+        its ``ENOTEMPTY`` failure is the serialization point that keeps the
+        whole store lock-free.  And same directory means the rename does not
+        rewrite the moved directory's ``..`` entry, so it works on a tree that
+        has already been sealed unwritable -- which a cross-parent rename does
+        not.
+
+        Checked unconditionally rather than with an ``assert``, which
+        disappears under ``python -O`` -- exactly the configuration in which a
+        silent non-atomic publish would do the most damage.
         """
         if os.path.dirname(staging_dir) != os.path.dirname(version_dir):
             raise CacheStoreError(
@@ -417,7 +673,8 @@ class DirectoryCacheStore:
                 "publish is not possible" % (staging_dir, version_dir))
 
     def _move_and_publish(self, package_name: str, source_path: str,
-                          staging_dir: str, version_dir: str, seal=None):
+                          staging_dir: str, version_dir: str, seal=None,
+                          policy: Optional[ProtectionPolicy] = None):
         """``move`` the built tree into staging, seal it, then publish by rename.
 
         ``seal`` runs on the staging tree *between* the move and the rename, so
@@ -435,7 +692,7 @@ class DirectoryCacheStore:
         """
         for attempt in (0, 1):
             try:
-                shutil.move(source_path, staging_dir)
+                self._transfer(source_path, staging_dir, policy)
                 if seal is not None:
                     seal(staging_dir)
                 os.rename(staging_dir, version_dir)
@@ -445,7 +702,44 @@ class DirectoryCacheStore:
                     raise
                 if not os.path.exists(source_path):
                     raise            # the source is gone; retrying cannot help
-                self.ensure_cache_dir(package_name)
+                self.ensure_partition_dir(package_name, policy)
+
+    def _transfer(self, source_path: str, staging_dir: str,
+                  policy: Optional[ProtectionPolicy]):
+        """Move the built tree into staging without changing who can read it.
+
+        ``shutil.move`` was the wrong primitive.  On one filesystem it renames,
+        which is perfect; across filesystems it silently degrades to
+        ``copytree`` + ``copy2``, which preserves mode and xattrs but **not
+        ownership** -- so every file was re-grouped to whatever the destination
+        inherited.  That is one of the two mechanisms behind wrong-group cache
+        entries, and it is invisible afterwards because the result looks
+        entirely self-consistent.
+
+        So the two cases are made explicit: rename when we can, and when we
+        cannot, copy with a function that reproduces ownership and protection
+        and *verifies* each node it writes.
+        """
+        try:
+            os.rename(source_path, staging_dir)
+            if policy is not None:
+                # A rename carries the source's group, which is right when the
+                # source was built inside this partition and wrong when it was
+                # not (the deps-dir staging fallback).  Cheap to confirm; a
+                # mismatch is corrected by the seal walk, which is already
+                # about to touch every node.
+                self._retag_root(staging_dir, policy)
+            return
+        except OSError as e:
+            if e.errno != errno.EXDEV:
+                raise
+        from .fscopy import copy_tree
+        copy_tree(source_path, staging_dir, policy)
+        self._discard(source_path)
+
+    def _retag_root(self, path: str, policy: ProtectionPolicy):
+        from .protection import chgrp
+        chgrp(path, policy.gid)
 
     # --- entry manifest ----------------------------------------------------
     #
@@ -491,7 +785,8 @@ class DirectoryCacheStore:
         return data if isinstance(data, dict) else None
 
     def _seal(self, staging_dir: str, package_name: str, version: str,
-              source: Optional[dict] = None):
+              source: Optional[dict] = None,
+              policy: Optional[ProtectionPolicy] = None):
         """Lock a staging tree and describe it, in that order.
 
         Ordering matters and is easy to get backwards:
@@ -502,20 +797,79 @@ class DirectoryCacheStore:
            the base's manifest, read-only, describing the wrong version.  It
            has to go before anything else, both so the write below is not
            blocked by its ``0444`` mode and so it is not counted as content.
-        2. **Walk once**, making the tree read-only and measuring it in the
-           same pass; the manifest does not exist yet, so it cannot count
-           itself.
+        2. **Walk once**, applying protection, making the tree read-only and
+           measuring it in the same pass; the manifest does not exist yet, so
+           it cannot count itself.  This is also the last moment anything can
+           be changed -- a sealed entry is unwritable -- so the policy's group
+           and modes have to land here, not afterwards.
         3. **Write the manifest** into the still-writable entry root, then seal
-           the root itself.  The root goes last precisely because a 2555 root
+           the root itself.  The root goes last precisely because a sealed root
            has no write bit for anyone -- including us -- so creating the
            manifest in it afterwards would fail.
+        4. **Verify.**  Confirm the tree really carries the protection it was
+           supposed to get before it becomes visible.  A wrong-group entry is
+           indistinguishable from a correct one once published, so the check
+           has to happen while refusing to publish is still an option.
         """
-        self._drop_inherited_manifest(staging_dir)
-        counts = self._make_readonly_and_measure(staging_dir, seal_root=False)
+        root_mode = stat.S_IMODE(os.lstat(staging_dir).st_mode)
+        self._drop_inherited_manifest(staging_dir, root_mode)
+        counts = self._make_readonly_and_measure(staging_dir, seal_root=False,
+                                                 policy=policy)
         counts["merkle"] = self._entry_merkle(staging_dir)
         self._write_entry_manifest(staging_dir, package_name, version,
-                                   source, counts)
-        self._seal_entry_root(staging_dir)
+                                   source, counts, policy)
+        self._seal_entry_root(staging_dir, policy, root_mode)
+        if policy is not None:
+            self._verify_sealed(staging_dir, policy)
+
+    def _verify_sealed(self, path: str, policy: ProtectionPolicy):
+        """Confirm every node carries *policy*, or raise before publishing.
+
+        Only runs when a policy is in force -- without one there is nothing to
+        assert beyond "we did not add write bits", which the seal guarantees
+        structurally by only ever masking them off.
+
+        Symlinks are checked by ``lstat`` and never followed: their own mode is
+        meaningless on Linux, and the group that matters is the link's, not its
+        target's.
+        """
+        bad = []
+        for node, st in self._walk_nodes(path):
+            if st.st_gid != policy.gid:
+                bad.append((node, "group %d" % st.st_gid))
+            elif not stat.S_ISLNK(st.st_mode):
+                want = (dir_seal_mode(st.st_mode, policy)
+                        if stat.S_ISDIR(st.st_mode)
+                        else file_seal_mode(st.st_mode, policy))
+                if stat.S_IMODE(st.st_mode) != want:
+                    bad.append((node, "mode 0o%o, wanted 0o%o"
+                                % (stat.S_IMODE(st.st_mode), want)))
+            if len(bad) >= 3:
+                break
+        if bad:
+            raise ProtectionError(
+                "cache entry does not carry its protection policy (%s); "
+                "refusing to publish it.  Offending nodes: %s"
+                % (policy, "; ".join("%s has %s" % (os.path.relpath(n, path), w)
+                                     for n, w in bad)))
+
+    def _walk_nodes(self, path: str):
+        """Every node in the tree, root included, as ``(path, lstat)``.
+
+        ``lstat`` throughout: a symlink is a node in its own right here, never
+        a door into whatever it points at.
+        """
+        try:
+            yield path, os.lstat(path)
+        except OSError:
+            return
+        for root, dirnames, filenames in os.walk(path):
+            for name in dirnames + filenames:
+                p = os.path.join(root, name)
+                try:
+                    yield p, os.lstat(p)
+                except OSError:
+                    continue
 
     def _entry_merkle(self, staging_dir: str) -> Optional[str]:
         """A content hash of the tree, or None when the site does not want one.
@@ -536,7 +890,7 @@ class DirectoryCacheStore:
         except (OSError, ImportError):
             return None
 
-    def _drop_inherited_manifest(self, staging_dir: str):
+    def _drop_inherited_manifest(self, staging_dir: str, root_mode: int):
         path = self.entry_manifest_path(staging_dir)
         if not os.path.lexists(path):
             return
@@ -545,21 +899,30 @@ class DirectoryCacheStore:
         except OSError:
             pass
         # Unlinking is governed by the *directory*, not the file, and a staging
-        # tree copied out of a sealed entry inherits its 2555 root.  Callers do
-        # re-open the copy for writing, but if one ever forgets, failing here
-        # would leave the base's manifest in place and make every lookup of the
-        # derived entry a miss -- forever, and silently.
+        # tree copied out of a sealed entry inherits its unwritable root.
+        # Callers do re-open the copy for writing, but if one ever forgets,
+        # failing here would leave the base's manifest in place and make every
+        # lookup of the derived entry a miss -- forever, and silently.
+        #
+        # Owner-write is added, not _PKG_DIR_MODE: that mode is 2775, so using
+        # it here would hand group-write and world-read to a tree whose whole
+        # purpose may be to be readable by one group only.  The original mode
+        # is restored immediately, and the seal overwrites it regardless.
         try:
-            os.chmod(staging_dir, self._PKG_DIR_MODE)
+            os.chmod(staging_dir, root_mode | stat.S_IRWXU)
         except OSError:
             pass
         try:
             os.remove(path)
         except OSError:
             pass
+        try:
+            os.chmod(staging_dir, root_mode)
+        except OSError:
+            pass
 
     def _write_entry_manifest(self, staging_dir, package_name, version,
-                              source, counts):
+                              source, counts, policy=None):
         # The *escaped* key, so the identity check works from either side: a
         # lookup arrives with the raw version, a cache scan reads the version
         # off the directory name.  Recording the raw one would make every
@@ -581,11 +944,27 @@ class DirectoryCacheStore:
         }
         if source:
             manifest["source"] = source
+        if policy is not None:
+            # Recorded for diagnosis, not for identity -- identity is the
+            # partition the entry lives in.  It answers "what was this entry
+            # supposed to be protected as?" for an auditor holding only the
+            # entry, which is the question a wrong-group investigation starts
+            # from.
+            manifest["protection"] = policy.describe()
         path = self.entry_manifest_path(staging_dir)
         try:
             with open(path, "w") as fp:
                 json.dump(manifest, fp, sort_keys=True)
-            os.chmod(path, 0o444)
+            if policy is not None:
+                # The manifest is created *after* the seal walk, so it is the
+                # one file in the entry the walk cannot have protected.  It
+                # inherits the entry root's group only if that root is setgid,
+                # which it is not when the root arrived here by rename from
+                # outside the partition -- so set it explicitly rather than
+                # rely on inheritance that holds on some paths and not others.
+                from .protection import chgrp
+                chgrp(path, policy.gid)
+            os.chmod(path, file_seal_mode(0o644, policy))
         except OSError as e:
             # A cache that cannot take a manifest still gets a usable entry --
             # it is simply treated as legacy by later readers.  Failing the
@@ -596,51 +975,113 @@ class DirectoryCacheStore:
                  "the entry is usable but unsealed" % (package_name, version, e))
 
     def _make_readonly_and_measure(self, path: str,
-                                   seal_root: bool = True) -> dict:
-        """:meth:`_make_readonly`, plus the content counts, in ONE walk.
+                                   seal_root: bool = True,
+                                   policy: Optional[ProtectionPolicy] = None
+                                   ) -> dict:
+        """Apply protection, lock the tree, and census it -- in ONE walk.
 
-        The manifest needs a file/dir/byte census and the seal needs a chmod of
-        every node; doing them separately would double the cost of every cache
-        miss on a large tree for no reason.  The manifest file itself does not
-        exist yet at this point, so it is naturally excluded from its own
-        counts.
+        Three jobs share a walk because the tree is large and the walk is the
+        expensive part: the manifest needs a file/dir/byte census, the seal
+        needs a chmod of every node, and a policy (when there is one) needs the
+        group applied to any node that did not inherit it.  The manifest file
+        itself does not exist yet at this point, so it is naturally excluded
+        from its own counts.
 
-        *seal_root* exists because the entry root is now sealed unwritable
-        (2555) like every directory inside it, and :meth:`_seal` still has to
-        create the manifest in it.  Publishing defers the root by one step;
-        every other caller seals the whole tree in one go.
+        **Directories are sealed by masking off write, not by forcing a fixed
+        mode.**  Forcing ``_ENTRY_DIR_MODE`` (2555) published a ``0750`` source
+        tree world-traversable -- it made every entry *more* accessible than
+        its source, which is the opposite of what sealing is for.  Files were
+        already handled this way; directories now match.
+
+        **Symlinks are never followed.**  ``os.walk`` classifies a
+        symlink-to-directory into ``dirnames``, and ``chmod``/``chown`` follow
+        symlinks, so the old code modified whatever the link pointed at --
+        demonstrably including directories outside the cache entirely.  A
+        symlink's own mode is meaningless on Linux; only its group is set, via
+        ``lchown``.
+
+        *seal_root* exists because the entry root is sealed unwritable like
+        every directory inside it, and :meth:`_seal` still has to create the
+        manifest in it.  Publishing defers the root by one step; every other
+        caller seals the whole tree in one go.
         """
+        from .protection import chgrp
         files = dirs = 0
         total = 0
         for root, dirnames, filenames in os.walk(path):
             for d in dirnames:
                 dirs += 1
-                try:
-                    os.chmod(os.path.join(root, d), self._ENTRY_DIR_MODE)
-                except OSError:
-                    pass
+                self._seal_node(os.path.join(root, d), policy, is_dir=True)
             for f in filenames:
                 files += 1
                 fp = os.path.join(root, f)
-                try:
-                    st = os.lstat(fp)
-                    if stat.S_ISREG(st.st_mode):
-                        total += st.st_size
-                        os.chmod(fp, st.st_mode & ~stat.S_IWUSR
-                                 & ~stat.S_IWGRP & ~stat.S_IWOTH)
-                except OSError:
-                    pass
+                st = self._seal_node(fp, policy, is_dir=False)
+                if st is not None and stat.S_ISREG(st.st_mode):
+                    total += st.st_size
         if seal_root:
-            self._seal_entry_root(path)
+            self._seal_entry_root(path, policy)
         return {"files": files, "dirs": dirs, "bytes": total}
 
-    def _seal_entry_root(self, path: str):
+    def _seal_node(self, node: str, policy: Optional[ProtectionPolicy],
+                   *, is_dir: bool):
+        """Protect and lock one node; return its ``lstat`` (None if unreadable).
+
+        A ``chmod`` failure stays best-effort -- a shared cache legitimately
+        contains entries owned by other users, and refusing to publish because
+        one of them could not be re-sealed would be worse than the drift, which
+        ``cache verify`` reports.  A *policy* failure does not: it propagates,
+        because publishing content the wrong group can read is the failure this
+        whole mechanism exists to prevent.
+        """
+        from .protection import chgrp
         try:
-            os.chmod(path, self._ENTRY_DIR_MODE)
+            st = os.lstat(node)
+        except OSError:
+            return None
+        if policy is not None and st.st_gid != policy.gid:
+            # Guarded on the stat we already have: content fetched inside the
+            # partition inherited the group via setgid, so on the common path
+            # every node is already correct and this walk does no chown at all.
+            # It fires for a tree that arrived from elsewhere -- the deps-dir
+            # staging fallback -- where inheritance could not apply.
+            #
+            # Propagates ProtectionError deliberately.  Uses lchown for links.
+            chgrp(node, policy.gid, follow_symlinks=False)
+        if stat.S_ISLNK(st.st_mode):
+            return st                 # no mode of its own worth setting
+        want = (dir_seal_mode(st.st_mode, policy) if is_dir
+                else file_seal_mode(st.st_mode, policy))
+        try:
+            os.chmod(node, want)
+        except OSError:
+            pass
+        return st
+
+    def _seal_entry_root(self, path: str,
+                         policy: Optional[ProtectionPolicy] = None,
+                         root_mode: Optional[int] = None):
+        """Seal the entry root, preserving its restrictions.
+
+        *root_mode* is the mode the root had *before* anything in the seal
+        touched it, which matters because :meth:`_drop_inherited_manifest` has
+        to make it writable in between.  Sealing the post-drop mode instead
+        would publish the widened one.
+        """
+        try:
+            current = root_mode if root_mode is not None \
+                else stat.S_IMODE(os.lstat(path).st_mode)
+        except OSError:
+            return
+        if policy is not None:
+            from .protection import chgrp
+            chgrp(path, policy.gid)
+        try:
+            os.chmod(path, dir_seal_mode(current, policy))
         except OSError:
             pass
 
-    def link_to_deps(self, package_name: str, version: str, deps_dir: str) -> str:
+    def link_to_deps(self, package_name: str, version: str, deps_dir: str,
+                     policy: Optional[ProtectionPolicy] = None) -> str:
         """Create a symlink from the deps directory to the cached version.
         
         Args:
@@ -651,7 +1092,7 @@ class DirectoryCacheStore:
         Returns:
             Path to the symlink in deps_dir
         """
-        version_dir = self.get_version_cache_dir(package_name, version)
+        version_dir = self.get_version_cache_dir(package_name, version, policy)
         # Defensive backstop: materialize is only called after a HIT or a
         # successful store (both guarantee populated), but a concurrent GC
         # removing the entry between lookup and here would otherwise symlink a
@@ -690,7 +1131,7 @@ class DirectoryCacheStore:
         # Linking is the single choke point for "this entry was referenced
         # into a workspace" — refresh last_linked here (covers both the cache
         # HIT path and the MISS→store→materialize path).
-        self._touch_last_linked(package_name, version)
+        self._touch_last_linked(package_name, version, policy)
         note(f"Linked {package_name} from cache")
         return link_path
 
@@ -708,29 +1149,39 @@ class DirectoryCacheStore:
         stat.S_IRUSR | stat.S_IWUSR | stat.S_IRGRP | stat.S_IWGRP | stat.S_IROTH
     )  # 0o664 — group-writable so any member of a shared cache can refresh it
 
-    def _meta_path(self, package_name: str, version: str) -> str:
+    def _meta_path(self, package_name: str, version: str,
+                   policy: Optional[ProtectionPolicy] = None) -> str:
         # Built from the entry's own path, so the sidecar is always the entry's
         # sibling -- name validation and version escaping applied identically,
         # rather than a second hand-rolled join that could drift from it.
-        return (self.get_version_cache_dir(package_name, version)
+        return (self.get_version_cache_dir(package_name, version, policy)
                 + self._META_SUFFIX)
 
-    def _read_meta(self, package_name: str, version: str) -> Optional[dict]:
+    def _read_meta(self, package_name: str, version: str,
+                   policy: Optional[ProtectionPolicy] = None) -> Optional[dict]:
         """Return the entry's sidecar dict, or None if absent/unreadable."""
+        return self._read_meta_at(
+            self._meta_path(package_name, version, policy))
+
+    @staticmethod
+    def _read_meta_at(path: str) -> Optional[dict]:
         try:
-            with open(self._meta_path(package_name, version)) as fp:
+            with open(path) as fp:
                 data = json.load(fp)
         except (OSError, ValueError):
             return None
         return data if isinstance(data, dict) else None
 
-    def _write_meta(self, package_name: str, version: str, meta: dict):
+    def _write_meta(self, package_name: str, version: str, meta: dict,
+                    policy: Optional[ProtectionPolicy] = None):
         """Atomically write the sidecar (tmp + rename), group-writable.
 
         Best-effort: a failure (e.g. an entry owned by another user in a
         shared cache) is non-fatal and just degrades that entry to dir-mtime.
         """
-        path = self._meta_path(package_name, version)
+        self._write_meta_at(self._meta_path(package_name, version, policy), meta)
+
+    def _write_meta_at(self, path: str, meta: dict):
         # uuid4, not the PID: worker threads share a PID, and PID namespaces
         # make two containers on one NFS cache collide routinely.  Two writers
         # sharing a temp name interleave their JSON into one file, and the
@@ -752,13 +1203,15 @@ class DirectoryCacheStore:
                 except OSError:
                     pass
 
-    def _delete_meta(self, package_name: str, version: str):
+    def _delete_meta(self, package_name: str, version: str,
+                     policy: Optional[ProtectionPolicy] = None):
         try:
-            os.remove(self._meta_path(package_name, version))
+            os.remove(self._meta_path(package_name, version, policy))
         except OSError:
             pass
 
-    def _touch_last_linked(self, package_name: str, version: str):
+    def _touch_last_linked(self, package_name: str, version: str,
+                           policy: Optional[ProtectionPolicy] = None):
         """Refresh ``last_linked`` to now, preserving ``stored``.
 
         Lazily creates the sidecar for a pre-existing (sidecar-less) entry,
@@ -774,26 +1227,27 @@ class DirectoryCacheStore:
         rather than one shared document.
         """
         now = time.time()
-        meta = self._read_meta(package_name, version)
+        meta = self._read_meta(package_name, version, policy)
         if meta is None:
             try:
                 stored = os.path.getmtime(
-                    self.get_version_cache_dir(package_name, version))
+                    self.get_version_cache_dir(package_name, version, policy))
             except OSError:
                 stored = now
             meta = {"schema": self._META_SCHEMA, "stored": stored}
         meta.setdefault("schema", self._META_SCHEMA)
         meta["last_linked"] = now
-        self._write_meta(package_name, version, meta)
+        self._write_meta(package_name, version, meta, policy)
 
-    def touch_linked(self, package_name: str, version: str) -> bool:
+    def touch_linked(self, package_name: str, version: str,
+                     policy: Optional[ProtectionPolicy] = None) -> bool:
         """Refresh last_linked for an already-materialized entry (fast path).
 
         Returns True when the named entry exists and was touched.
         """
-        if not self.has_version(package_name, version):
+        if not self.has_version(package_name, version, policy):
             return False
-        self._touch_last_linked(package_name, version)
+        self._touch_last_linked(package_name, version, policy)
         return True
 
     def touch_linked_target(self, target_path: str) -> bool:
@@ -810,10 +1264,41 @@ class DirectoryCacheStore:
         real_cache = os.path.realpath(self.cache_dir)
         rel = os.path.relpath(os.path.realpath(target_path), real_cache)
         parts = rel.split(os.sep)
-        if rel.startswith("..") or len(parts) != 2:
+        if rel.startswith(".."):
             return False
-        package_name, version = parts
-        return self.touch_linked(package_name, version)
+        # Two shapes now: <pkg>/<version> when no policy is in force, and
+        # <pkg>/p.<digest>/<version> when one is.  The caller has a symlink and
+        # no policy object, so the partition is read back off the path rather
+        # than recomputed -- which is also the only way this works for a link
+        # created by a *different* workspace's policy.
+        if len(parts) == 2:
+            package_name, partition, version = parts[0], None, parts[1]
+        elif len(parts) == 3 and parts[1].startswith(PARTITION_PREFIX):
+            package_name, partition, version = parts
+        else:
+            return False
+        return self._touch_resolved(package_name, partition, version)
+
+    def _touch_resolved(self, package_name: str, partition: Optional[str],
+                        version: str) -> bool:
+        """Touch an entry identified by its *path*, not by a policy object."""
+        version_dir = os.path.join(self.get_package_cache_dir(package_name),
+                                   *(p for p in (partition, version) if p))
+        if not self._is_populated(version_dir):
+            return False
+        meta_path = version_dir + self._META_SUFFIX
+        now = time.time()
+        meta = self._read_meta_at(meta_path)
+        if meta is None:
+            try:
+                stored = os.path.getmtime(version_dir)
+            except OSError:
+                stored = now
+            meta = {"schema": self._META_SCHEMA, "stored": stored}
+        meta.setdefault("schema", self._META_SCHEMA)
+        meta["last_linked"] = now
+        self._write_meta_at(meta_path, meta)
+        return True
 
     # Permission bits for shared-cache directories.  There are *two* modes,
     # and the difference is the whole point:
@@ -869,17 +1354,26 @@ class DirectoryCacheStore:
         - total_size: total size of cache in bytes
 
         Each version entry carries ``mtime`` plus the sidecar timestamps
-        ``stored`` and ``last_linked`` (None when the entry has no sidecar).
+        ``stored`` and ``last_linked`` (None when the entry has no sidecar),
+        and ``partition`` — the protection partition it lives in, or None for
+        an unpartitioned entry.
+
+        ``unreadable`` lists partitions this caller cannot look inside.  A
+        protected partition is 2770, so a cache holding several groups' content
+        is *expected* to be partly invisible to any one user; reporting that as
+        an empty cache would be a lie, and raising would make ``cache info``
+        unusable on exactly the shared caches it is most needed for.
         """
         result = {
             "packages": [],
-            "total_size": 0
+            "total_size": 0,
+            "unreadable": [],
         }
 
         if not os.path.isdir(self.cache_dir):
             return result
 
-        for pkg_name in os.listdir(self.cache_dir):
+        for pkg_name in sorted(self._listdir(self.cache_dir, result)):
             pkg_dir = os.path.join(self.cache_dir, pkg_name)
             if not os.path.isdir(pkg_dir):
                 continue
@@ -890,19 +1384,19 @@ class DirectoryCacheStore:
                 "total_size": 0
             }
 
-            for version in os.listdir(pkg_dir):
-                version_dir = os.path.join(pkg_dir, version)
-                if not os.path.isdir(version_dir):
-                    continue  # skip *.meta.json sidecars and other non-dirs
-                if self._is_transient(version):
-                    continue  # in-flight/stale staging, or an awaiting-delete tomb
-
+            for partition, version, version_dir in self._iter_entries(pkg_dir,
+                                                                      result):
                 size = self._get_dir_size(version_dir)
-                mtime = os.path.getmtime(version_dir)
-                meta = self._read_meta(pkg_name, version) or {}
+                try:
+                    mtime = os.path.getmtime(version_dir)
+                except OSError:
+                    continue
+                meta = self._read_meta_at(
+                    version_dir + self._META_SUFFIX) or {}
 
                 pkg_info["versions"].append({
                     "version": version,
+                    "partition": partition,
                     "size": size,
                     "mtime": mtime,
                     "stored": meta.get("stored"),
@@ -914,18 +1408,68 @@ class DirectoryCacheStore:
             result["total_size"] += pkg_info["total_size"]
 
         return result
-    
+
+    @staticmethod
+    def _listdir(path: str, report: Optional[dict] = None) -> list:
+        """``os.listdir`` that records what it could not read instead of raising.
+
+        Every scan in this class now has to cross directories the caller may
+        have no permission to enter, because that is what protection
+        partitioning means.
+        """
+        try:
+            return os.listdir(path)
+        except OSError:
+            if report is not None:
+                report.setdefault("unreadable", []).append(path)
+            return []
+
+    def _iter_entries(self, pkg_dir: str, report: Optional[dict] = None):
+        """Yield ``(partition, version, path)`` for every entry of a package.
+
+        Flattens the two possible layouts -- ``<pkg>/<version>`` and
+        ``<pkg>/p.<digest>/<version>`` -- so that scanning code (info, GC,
+        verification) has exactly one shape to handle and cannot accidentally
+        treat a partition directory as an entry.
+        """
+        for name in sorted(self._listdir(pkg_dir, report)):
+            path = os.path.join(pkg_dir, name)
+            if not os.path.isdir(path) or os.path.islink(path):
+                continue          # sidecars and other non-dir siblings
+            if self._is_transient(name):
+                continue          # staging residue, or an awaiting-delete tomb
+            if name.startswith(PARTITION_PREFIX):
+                for sub in sorted(self._listdir(path, report)):
+                    spath = os.path.join(path, sub)
+                    if not os.path.isdir(spath) or os.path.islink(spath):
+                        continue
+                    if self._is_transient(sub):
+                        continue
+                    yield name, sub, spath
+            else:
+                yield None, name, path
+
     def _get_dir_size(self, path: str) -> int:
-        """Get total size of a directory in bytes."""
+        """Total size of a directory in bytes.
+
+        ``lstat``, and regular files only: a symlink contributes its own (tiny)
+        size, never its target's.  Following them double-counted every
+        internally-symlinked file and could count bytes from outside the cache
+        entirely.
+        """
         total = 0
         for root, dirs, files in os.walk(path):
             for f in files:
-                fp = os.path.join(root, f)
-                if os.path.isfile(fp):
-                    total += os.path.getsize(fp)
+                try:
+                    st = os.lstat(os.path.join(root, f))
+                except OSError:
+                    continue
+                if stat.S_ISREG(st.st_mode):
+                    total += st.st_size
         return total
     
-    def entry_last_used(self, package_name: str, version: str) -> float:
+    def entry_last_used(self, package_name: str, version: str,
+                        policy: Optional[ProtectionPolicy] = None) -> float:
         """Most-recent "use" timestamp for a cached entry.
 
         ``max(dir-mtime, stored, last_linked)``, where ``last_linked`` is
@@ -934,10 +1478,10 @@ class DirectoryCacheStore:
         or a hand-managed cache) this collapses to the directory mtime, so GC
         degrades safely rather than treating the entry as brand-new or ancient.
         """
-        version_dir = self.get_version_cache_dir(package_name, version)
+        version_dir = self.get_version_cache_dir(package_name, version, policy)
         base = os.path.getmtime(version_dir)
         ts = base
-        meta = self._read_meta(package_name, version)
+        meta = self._read_meta(package_name, version, policy)
         if meta:
             ts = max(ts, meta.get("stored", base), meta.get("last_linked", base))
         return ts
@@ -962,6 +1506,45 @@ class DirectoryCacheStore:
                 except OSError:
                     pass
 
+    def _partition_dirs(self, pkg_dir: str) -> list:
+        return [os.path.join(pkg_dir, n)
+                for n in sorted(self._listdir(pkg_dir))
+                if n.startswith(PARTITION_PREFIX)
+                and os.path.isdir(os.path.join(pkg_dir, n))]
+
+    def _last_used_at(self, version_dir: str) -> float:
+        """:meth:`entry_last_used` for an entry identified by path.
+
+        The scanning callers read entries off the filesystem and have no policy
+        object to rebuild a path from -- and must not need one, since a GC run
+        legitimately sees partitions belonging to policies it knows nothing
+        about.
+        """
+        try:
+            base = os.path.getmtime(version_dir)
+        except OSError:
+            return 0.0
+        ts = base
+        meta = self._read_meta_at(version_dir + self._META_SUFFIX)
+        if meta:
+            ts = max(ts, meta.get("stored", base), meta.get("last_linked", base))
+        return ts
+
+    def _evict_at(self, version_dir: str) -> bool:
+        """:meth:`_evict` for an entry identified by path."""
+        tomb = os.path.join(os.path.dirname(version_dir),
+                            self._TOMB_MARKER + uuid.uuid4().hex)
+        try:
+            os.rename(version_dir, tomb)
+        except OSError:
+            return False
+        try:
+            os.remove(version_dir + self._META_SUFFIX)
+        except OSError:
+            pass
+        self._discard(tomb)
+        return True
+
     def clean_older_than(self, days: int, dry_run: bool = False) -> int:
         """Remove cache entries whose *last-used* age exceeds ``days``.
 
@@ -979,17 +1562,14 @@ class DirectoryCacheStore:
         if not os.path.isdir(self.cache_dir):
             return removed
 
-        for pkg_name in os.listdir(self.cache_dir):
+        for pkg_name in sorted(self._listdir(self.cache_dir)):
             pkg_dir = os.path.join(self.cache_dir, pkg_name)
             if not os.path.isdir(pkg_dir):
                 continue
 
-            for version in list(os.listdir(pkg_dir)):
-                version_dir = os.path.join(pkg_dir, version)
-                if not os.path.isdir(version_dir):
-                    continue  # skip sidecars and other non-dir siblings
-                if self._is_transient(version):
-                    continue  # staging/tombstone residue — swept below
+            for partition, version, version_dir in list(
+                    self._iter_entries(pkg_dir)):
+                meta_path = version_dir + self._META_SUFFIX
 
                 # An empty version dir is a crash leftover, not a real entry;
                 # drop it regardless of age so it never poses as a HIT.
@@ -1001,31 +1581,36 @@ class DirectoryCacheStore:
                     if not dry_run:
                         try:
                             os.rmdir(version_dir)
-                            self._delete_meta(pkg_name, version)
+                            os.remove(meta_path)
                         except OSError:
                             pass
                     continue
 
                 # Re-read last-used immediately before evicting, not earlier,
                 # to shrink the window against a concurrent touch_linked().
-                if self.entry_last_used(pkg_name, version) < cutoff:
+                if self._last_used_at(version_dir) < cutoff:
                     if dry_run:
                         removed += 1
-                    elif self._evict(pkg_name, version):
+                    elif self._evict_at(version_dir):
                         removed += 1
                     else:
                         continue     # lost to another evictor — don't count it
                     note("%s cached %s/%s" % (
                         "Would remove" if dry_run else "Removed",
-                        pkg_name, version))
+                        pkg_name,
+                        version if partition is None
+                        else "%s/%s" % (partition, version)))
 
             if dry_run:
                 continue
 
-            # Sweep orphaned sidecars, stale staging and undeleted tombstones.
-            self._sweep_orphan_meta(pkg_dir)
-            self._sweep_stale_staging(pkg_dir)
-            self._sweep_stale_tombs(pkg_dir)
+            # Sweep orphaned sidecars, stale staging and undeleted tombstones,
+            # in the package directory and in every partition under it -- a
+            # partition is where staging and tombstones now live.
+            for d in [pkg_dir] + self._partition_dirs(pkg_dir):
+                self._sweep_orphan_meta(d)
+                self._sweep_stale_staging(d)
+                self._sweep_stale_tombs(d)
             # Deliberately NOT removing a now-empty <cache>/<pkg>/: it races a
             # concurrent builder that has just called ensure_cache_dir() into a
             # spurious CacheStoreError, and saves nothing but an empty inode.
@@ -1033,32 +1618,44 @@ class DirectoryCacheStore:
         return removed
     
     def _make_writable(self, path: str):
-        """Restore write permission before ``shutil.rmtree``.
+        """Restore *owner* write permission before ``shutil.rmtree``.
 
-        A sealed entry's directories are 2555, so ``rmtree`` cannot unlink
-        anything inside them until the write bit comes back -- directories
+        A sealed entry's directories have no write bit at all, so ``rmtree``
+        cannot unlink anything inside them until one comes back -- directories
         matter here at least as much as files.  Skips entries that cannot be
         modified (owned by another user in a shared cache); the caller is
         ``_evict``, which has already renamed the entry out of view, so what
         survives is inert residue that ``cache verify`` reports rather than a
         half-dismantled tree that still reads as a HIT.
+
+        Two things this must not do, both of which it used to:
+
+        * **Widen.**  It set directories to ``_PKG_DIR_MODE`` (2775), handing
+          group-write and world-read to a tree on its way to deletion -- which
+          on a shared cache is a real window, since a failed ``rmtree`` leaves
+          it at that mode indefinitely.  Only ``S_IRWXU`` is added now: the
+          minimum that lets the owner unlink, visible to nobody new.
+        * **Follow symlinks.**  ``os.walk`` puts a symlink-to-directory in
+          ``dirs`` and ``os.stat``/``os.chmod`` follow it, so evicting a
+          package that contained one modified the *target* -- demonstrably
+          turning an external ``0700`` directory into ``2775`` and an external
+          read-only file writable.  ``rmtree`` itself never follows links, so
+          there was never a reason to.
         """
         for root, dirs, files in os.walk(path, topdown=False):
-            for f in files:
-                try:
-                    fp = os.path.join(root, f)
-                    mode = os.stat(fp).st_mode
-                    os.chmod(fp, mode | stat.S_IWUSR)
-                except OSError:
-                    pass
-            for d in dirs:
-                try:
-                    dp = os.path.join(root, d)
-                    os.chmod(dp, self._PKG_DIR_MODE)
-                except OSError:
-                    pass
+            for name in files + dirs:
+                self._reopen(os.path.join(root, name))
+        self._reopen(path)
+
+    @staticmethod
+    def _reopen(p: str):
+        """Give the owner back the minimum needed to unlink through *p*."""
         try:
-            os.chmod(path, self._PKG_DIR_MODE)
+            st = os.lstat(p)
+            if stat.S_ISLNK(st.st_mode):
+                return                # unlinked via its parent; has no mode
+            add = stat.S_IRWXU if stat.S_ISDIR(st.st_mode) else stat.S_IWUSR
+            os.chmod(p, stat.S_IMODE(st.st_mode) | add)
         except OSError:
             pass
 

@@ -405,13 +405,22 @@ def _rmtree_if_exists(path: str) -> None:
 
 def _make_writable(path: str) -> None:
     """Add owner-write to every entry in a tree (cached bases are read-only, so
-    a copy of one must be re-opened for writing before patches can apply)."""
+    a copy of one must be re-opened for writing before patches can apply).
+
+    ``lstat`` and skip symlinks: ``os.stat``/``os.chmod`` follow them, so an
+    absolute link inside a package made this modify a file outside the tree,
+    and a dangling one made it raise.  Neither mattered while ``_copy_tree``
+    was dereferencing links (there were none left to trip over); both do now
+    that links are preserved."""
     import stat
     for root, dirs, files in os.walk(path):
         for name in dirs + files:
             p = os.path.join(root, name)
             try:
-                os.chmod(p, os.stat(p).st_mode | stat.S_IWUSR)
+                st = os.lstat(p)
+                if stat.S_ISLNK(st.st_mode):
+                    continue
+                os.chmod(p, stat.S_IMODE(st.st_mode) | stat.S_IWUSR)
             except OSError:
                 pass
     try:
@@ -420,9 +429,18 @@ def _make_writable(path: str) -> None:
         pass
 
 
-def _copy_tree(src: str, dst: str) -> None:
-    """Copy a (possibly read-only) cached base into a writable staging dir."""
-    shutil.copytree(src, dst)
+def _copy_tree(src: str, dst: str, policy=None) -> None:
+    """Copy a (possibly read-only) cached base into a writable staging dir.
+
+    ``shutil.copytree``'s default ``symlinks=False`` was wrong twice over: it
+    replaced every symlink with a copy of its target, so a patched variant was
+    published without the links its source had, and it raised outright on a
+    *dangling* link -- meaning a package carrying one could not be patch-cached
+    at all.  It also never reproduced ownership, so a cross-filesystem copy
+    silently re-grouped the result.
+    """
+    from .fscopy import copy_tree
+    copy_tree(src, dst, policy)
     _make_writable(dst)
 
 
@@ -481,6 +499,7 @@ class PatchAwareResolver:
         entry it produces could never be invalidated.
         """
         from .proj_info import ProjInfo
+        from .protection import policy_for
         from .utils import note
 
         patchset = pkg.patchset
@@ -514,15 +533,17 @@ class PatchAwareResolver:
         staging = provider.new_staging(pkg) or os.path.join(
             deps_dir, ".patch_stage_%s.%s" % (pkg.name, uuid.uuid4().hex))
         _rmtree_if_exists(staging)
+        policy = policy_for(pkg)
         try:
-            _copy_tree(base_path, staging)
+            _copy_tree(base_path, staging, policy)
             apply_patchset(staging, patchset, base_version, pkg)
             write_manifest(
                 staging, base_version, getattr(pkg, "src_type", None), patchset,
                 base_ref={"kind": "cache", "version": base_version},
                 result=_diff_tree(base_path, staging))
         except BaseException:
-            _rmtree_if_exists(staging)   # never store a partial variant
+            from .cache_provider import discard_staging
+            discard_staging(staging)     # never store a partial variant
             raise
         provider.store(pkg, eff, staging)     # atomic; race-safe; consumes staging
         provider.materialize(pkg, eff)

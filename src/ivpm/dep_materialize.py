@@ -102,7 +102,17 @@ def promote_to_writable(pkg) -> bool:
     # live copy outright.
     staging = "%s.ivpm-promote.%s" % (path, uuid.uuid4().hex)
     try:
-        shutil.copytree(target, staging, symlinks=True)
+        # The policy the package was fetched under, re-applied to the copy.
+        # Without it the promoted tree inherits the *deps-dir's* group (design
+        # §5.3 leak 2): the boundary being replaced is a symlink, which carries
+        # no group of its own, so there is nothing here to inherit from and the
+        # protection has to be restated. A nested boundary is a real directory
+        # a build writes into, so this is the one place content legitimately
+        # leaves the cache and stays writable -- and therefore the one place
+        # that would otherwise silently drop the protection.
+        from .protection import policy_for
+        from .fscopy import copy_tree
+        copy_tree(target, staging, policy_for(pkg))
         _make_writable(staging)
         # This swap cannot be made atomic, and it is worth saying why rather
         # than leaving it looking like an oversight: ``rename`` of a directory

@@ -40,6 +40,7 @@ import enum
 from typing import TYPE_CHECKING, Optional
 
 from .msg import error, note, warning
+from .protection import policy_for
 
 if TYPE_CHECKING:
     from .cache import DirectoryCacheStore
@@ -70,15 +71,52 @@ def acquire_staging(provider, pkg, deps_dir: str) -> str:
     try:
         staging = provider.new_staging(pkg)
     except OSError as e:
+        # OSError only, and deliberately NOT ProtectionError.  A cache side
+        # that is merely unavailable (read-only mount, foreign-owned package
+        # directory, no space) is a locality problem: staging elsewhere costs a
+        # tree copy and nothing else.  A protection policy that cannot be
+        # applied is not -- falling back would fetch the whole package and then
+        # fail at publish anyway, and a reader skimming this would reasonably
+        # mistake the fallback for a safe degradation when it is the opposite.
+        # Let it propagate; it already carries a message naming the group.
         note("Cache staging unavailable for %s (%s); staging under %s instead"
              % (getattr(pkg, "name", "?"), e, deps_dir))
         staging = None
     if staging is None:
         os.makedirs(deps_dir, exist_ok=True)
-        staging = os.path.join(
+        # Same private-parent shape as cache-side staging: the tree being
+        # fetched is not readable by anyone else while it is incomplete, and
+        # the caller still receives a path that does not exist yet (git clone,
+        # copytree and the zip extractor all insist on creating it).
+        private = os.path.join(
             deps_dir,
             ".ivpm-fetch.%s.%s" % (getattr(pkg, "name", "pkg"), uuid.uuid4().hex))
+        os.mkdir(private, 0o700)
+        policy = policy_for(pkg)
+        if policy is not None:
+            from .protection import chgrp
+            chgrp(private, policy.gid)
+            os.chmod(private, 0o2700)
+        staging = os.path.join(private, "tree")
     return staging
+
+
+def discard_staging(staging: str) -> None:
+    """Remove a staging tree *and* the private parent it lives in.
+
+    Every fetch path has an error branch that throws away a half-built tree.
+    Removing only the tree leaves an empty private directory behind -- in the
+    deps-dir, where nothing sweeps it, so it accumulates one per failed fetch.
+    """
+    import shutil
+    shutil.rmtree(staging, ignore_errors=True)
+    parent = os.path.dirname(os.path.abspath(staging))
+    base = os.path.basename(parent)
+    if ".staging." in base or base.startswith(".ivpm-fetch."):
+        try:
+            os.rmdir(parent)       # empty-only: never guesses at what is left
+        except OSError:
+            pass
 
 
 #: Fields that identify *where an entry's bytes came from*.  Recorded in the
@@ -137,7 +175,11 @@ def staging_scratch(staging: str) -> str:
     its ``.staging.`` marker, so cache scans skip it and the stale-staging sweep
     reclaims it if a run dies mid-download.
     """
-    return staging + ".dl"
+    # Named with the ``.staging.`` marker in its own right rather than derived
+    # from the tree's name: containment in a marked parent would be enough
+    # today, but a scan that learns about staging trees and not about this
+    # would read an in-flight download as cache content.
+    return os.path.join(os.path.dirname(staging), "download.staging.dl")
 
 
 class CacheState(enum.Enum):
@@ -341,8 +383,9 @@ class DirectoryCacheProvider(CacheProvider):
     def lookup(self, pkg, version: str) -> CacheLookupResult:
         if not self.is_cacheable(pkg):
             return CacheLookupResult(CacheState.DISABLED)
-        if self._store.has_version(pkg.name, version):
-            path = self._store.get_version_cache_dir(pkg.name, version)
+        policy = policy_for(pkg)
+        if self._store.has_version(pkg.name, version, policy):
+            path = self._store.get_version_cache_dir(pkg.name, version, policy)
             if not self._entry_is_trustworthy(pkg, version):
                 return CacheLookupResult(CacheState.MISS)
             return CacheLookupResult(CacheState.HIT, path)
@@ -429,7 +472,7 @@ class DirectoryCacheProvider(CacheProvider):
         from .cache_verify import REPAIR_EVICT
         evicted = False
         if finding.repair == REPAIR_EVICT:
-            evicted = self._store._evict(pkg.name, version)
+            evicted = self._store._evict(pkg.name, version, policy_for(pkg))
 
         warning("%s\n  the entry was %s and will be re-fetched; run "
                 "'ivpm cache verify --repair' to check the rest of the cache"
@@ -441,15 +484,18 @@ class DirectoryCacheProvider(CacheProvider):
             session.report_cache_invalidated(finding)
 
     def new_staging(self, pkg) -> Optional[str]:
-        # On the cache filesystem, so store() renames instead of copying.
-        return self._store.new_staging(pkg.name)
+        # Inside the package's protection partition, so store() renames instead
+        # of copying AND the fetch inherits the policy's group as it writes.
+        return self._store.new_staging(pkg.name, policy_for(pkg))
 
     def store(self, pkg, version: str, source_path: str) -> str:
         return self._store.store_version(
-            pkg.name, version, source_path, source=source_info(pkg))
+            pkg.name, version, source_path, source=source_info(pkg),
+            policy=policy_for(pkg))
 
     def materialize(self, pkg, version: str) -> str:
-        return self._store.link_to_deps(pkg.name, version, self.context.deps_dir)
+        return self._store.link_to_deps(pkg.name, version,
+                                        self.context.deps_dir, policy_for(pkg))
 
     def note_reference(self, pkg) -> None:
         # The fast path has the existing deps/<pkg> symlink but not the version

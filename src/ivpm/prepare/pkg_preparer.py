@@ -77,14 +77,25 @@ class PrepareResult:
     outcome: PrepareOutcome
     message: str = ""
     hint: str = ""       # what the user should do about it
+    #: The access protection this package's content must carry, if the
+    #: preparer enforces one.
+    #:
+    #: Returning it as a *value* rather than only chmod-ing ``target_dir`` is
+    #: what lets the cache honor it.  A cached package is fetched straight into
+    #: the cache and symlinked back, so it never touches the prepared directory
+    #: -- a policy that exists only as filesystem state there reaches the
+    #: deps-dir and nothing else.  As a value it can be applied where content
+    #: is actually created, and it becomes part of the cache entry's identity
+    #: so two policies cannot fight over one entry.
+    policy: Optional['ProtectionPolicy'] = None
 
     @classmethod
-    def ok(cls) -> 'PrepareResult':
-        return cls(PrepareOutcome.OK)
+    def ok(cls, policy=None) -> 'PrepareResult':
+        return cls(PrepareOutcome.OK, policy=policy)
 
     @classmethod
-    def warn(cls, message: str, hint: str = "") -> 'PrepareResult':
-        return cls(PrepareOutcome.WARN, message, hint)
+    def warn(cls, message: str, hint: str = "", policy=None) -> 'PrepareResult':
+        return cls(PrepareOutcome.WARN, message, hint, policy)
 
     @classmethod
     def deny(cls, message: str, hint: str = "") -> 'PrepareResult':

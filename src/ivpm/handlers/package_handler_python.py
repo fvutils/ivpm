@@ -501,8 +501,17 @@ class PackageHandlerPython(PackageHandler):
     def _harvest_pyproject_toml(self, pkg, update_info=None) -> list:
         """Read a ``pyproject.toml`` and return a list of ``PackagePyPi`` entries.
 
-        Entries whose normalised name already exists in ``self.pypi_pkg_s``
-        (explicit ``src: pypi`` entries) are skipped — explicit wins.
+        An entry is skipped when the workspace already provides that
+        distribution -- as an explicit ``src: pypi`` entry, or as a *source*
+        package (git, dir, ...). Explicit wins, and a source checkout always
+        beats a PyPI copy of the same project. Names are compared after PEP 503
+        normalisation.
+
+        The source-package half used to be missing. A project listing its own
+        ``pyproject.toml`` (``src: pyproject.toml``) whose ``dependencies`` name
+        packages the workspace also fetches from git got the PyPI release
+        installed *instead of* the editable checkout, so edits to the checkout
+        silently had no effect.
         """
         try:
             import tomllib
@@ -554,6 +563,7 @@ class PackageHandlerPython(PackageHandler):
                 for g in data.get("dependency-groups", {}).keys()
             ]
 
+        provided = self._provided_dist_names()
         result = []
         seen_names = set()  # dedup within this file
 
@@ -569,11 +579,10 @@ class PackageHandlerPython(PackageHandler):
                 name, _ = _pep508_split(spec)
                 if not name:
                     continue
-                if name in self.pypi_pkg_s:
+                if name in provided:
                     _logger.debug(
-                        "Skipping '%s' from pyproject.toml — explicit entry wins",
-                        name,
-                    )
+                        "Skipping '%s' from pyproject.toml — the workspace "
+                        "already provides it (%s)", name, provided[name])
                     continue
                 if name in seen_names:
                     continue
@@ -585,6 +594,25 @@ class PackageHandlerPython(PackageHandler):
                 result.append(p)
 
         return result
+
+    def _provided_dist_names(self) -> dict:
+        """Normalised distribution name -> how the workspace already provides it.
+
+        Covers explicit ``src: pypi`` entries and every source package enrolled
+        as Python. A source package is known by its ivpm name and, when its
+        project metadata declares one, by its distribution name: when the
+        two differ, matching on the ivpm name alone would let the PyPI copy
+        back in.
+        """
+        norm = lambda n: _pep508_split(n)[0]
+        out = {norm(n): "explicit src: pypi" for n in self.pypi_pkg_s}
+        for n in self.src_pkg_s:
+            out.setdefault(norm(n), "source package")
+            pkg = self.pkgs_info.get(n)
+            dist = _project_name_at(getattr(pkg, "path", None)) if pkg is not None else None
+            if dist:
+                out.setdefault(dist, "source package %s" % n)
+        return out
 
     def _resolve_venv_mode(self, update_info: ProjectUpdateInfo):
         """Determine effective VenvMode from CLI flags, skip_venv, and yaml config.
@@ -639,7 +667,10 @@ class PackageHandlerPython(PackageHandler):
         # pyproject.toml entry still triggers venv creation.
         for vp in self._pyproject_toml_pkgs:
             for p in self._harvest_pyproject_toml(vp, update_info):
-                if p.name not in self.pypi_pkg_s:
+                # Never replace an entry already recorded: the harvest has
+                # filtered what the workspace provides, and this guard keeps
+                # a source package's record even if a name slips past it.
+                if p.name not in self.pypi_pkg_s and p.name not in self.pkgs_info:
                     self.pypi_pkg_s.add(p.name)
                     self.pkgs_info[p.name] = p
 

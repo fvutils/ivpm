@@ -82,6 +82,8 @@ class PreparerList(object):
             return
 
         refusals = []
+        policy = None
+        policy_from = None
         for p in self.ordered():
             if not self._applies(p, req):
                 continue
@@ -90,6 +92,19 @@ class PreparerList(object):
             # (cheap, mostly-reference) fields; pkg/update_info stay identical.
             result = self._invoke(
                 p, dc.replace(req, config=self._config_for(p, req)))
+            if result is not None and result.policy is not None:
+                # Two preparers claiming different protection for one package
+                # is unresolvable -- picking either silently would publish
+                # content under a policy somebody explicitly did not ask for.
+                if policy is not None and result.policy != policy:
+                    refusals.append(PrepareRefusal(self._name(p), PrepareResult.deny(
+                        "conflicting protection policies: %s requires %s, "
+                        "%s requires %s"
+                        % (policy_from, policy, self._name(p), result.policy),
+                        "only one preparer may set a protection policy for a "
+                        "package")))
+                else:
+                    policy, policy_from = result.policy, self._name(p)
             if result is None or result.outcome is PrepareOutcome.OK:
                 continue
             if result.outcome is PrepareOutcome.WARN:
@@ -101,6 +116,12 @@ class PreparerList(object):
 
         if refusals:
             raise PrepareDenied(getattr(req.pkg, "name", "<unknown>"), refusals)
+
+        # Attached even when None, so a re-prepared package cannot keep a
+        # policy a preparer has since stopped returning.
+        from ..protection import set_policy
+        set_policy(req.pkg, policy)
+        return policy
 
     @staticmethod
     def _applies(preparer, req) -> bool:

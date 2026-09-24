@@ -43,6 +43,7 @@ import dataclasses as dc
 from typing import Dict, List, Optional
 
 from .diagnostics import Severity
+from .protection import PARTITION_PREFIX
 from .site_config import (CACHE_VERIFY_LEVELS, DEFAULT_CACHE_VERIFY_LEVEL,
                           resolve_cache_verify_level)
 from .utils import sha256_file
@@ -338,9 +339,36 @@ class TreeMeasurement:
     unreadable: List[str] = dc.field(default_factory=list)
 
 
+def _check_dir(m: 'TreeMeasurement', dp: str):
+    """Flag a directory that a reader could still write into.
+
+    The test is *"has no write bit"*, not *"equals a fixed mode"*.  Comparing
+    against a constant (the old ``_ENTRY_DIR_MODE``) forced every entry to the
+    same permissions, which meant a site protecting content to one group had
+    its restrictions reported as drift and "repaired" by widening them back to
+    world-readable.  Sealing only ever removes write permission, so that is the
+    only thing worth asserting.
+
+    Symlinks are skipped.  ``os.walk`` classifies a symlink-to-directory into
+    ``dirnames``, and its own mode is ``0777`` on Linux and meaningless -- so
+    an entry containing a ``lib -> lib64`` link reported permanent drift that
+    ``--repair`` could never fix, because the reseal chmod'd the *target* while
+    the check ``lstat``-ed the link.
+    """
+    try:
+        st = os.lstat(dp)
+    except OSError:
+        m.unreadable.append(dp)
+        return
+    if stat.S_ISLNK(st.st_mode):
+        return
+    if stat.S_IMODE(st.st_mode) & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH):
+        m.bad_dirs.append(dp)
+
+
 def measure_tree(path: str, *, skip_name: Optional[str] = None,
                  hash_content: bool = False,
-                 dir_mode: Optional[int] = None) -> TreeMeasurement:
+                 check_dir_seal: bool = False) -> TreeMeasurement:
     """Census one entry tree, by exactly the rule the seal used.
 
     This function and ``DirectoryCacheStore._make_readonly_and_measure`` must
@@ -361,28 +389,17 @@ def measure_tree(path: str, *, skip_name: Optional[str] = None,
     """
     m = TreeMeasurement()
     lines = []
-    if dir_mode is not None:
+    if check_dir_seal:
         # The entry root is sealed too, and is the *only* directory in an entry
         # with no subdirectories -- so skipping it would make permission drift
         # undetectable for exactly the flat entries most packages produce.
-        try:
-            if stat.S_IMODE(os.lstat(path).st_mode) & 0o777 != dir_mode & 0o777:
-                m.bad_dirs.append(path)
-        except OSError:
-            m.unreadable.append(path)
+        _check_dir(m, path)
     for root, dirnames, filenames in os.walk(path):
         for d in sorted(dirnames):
             m.dirs += 1
             dp = os.path.join(root, d)
-            if dir_mode is not None:
-                try:
-                    # Compare the permission bits only: a filesystem that does
-                    # not retain setgid would otherwise make every directory in
-                    # every entry report drift.
-                    if stat.S_IMODE(os.lstat(dp).st_mode) & 0o777 != dir_mode & 0o777:
-                        m.bad_dirs.append(dp)
-                except OSError:
-                    m.unreadable.append(dp)
+            if check_dir_seal:
+                _check_dir(m, dp)
         for f in sorted(filenames):
             if skip_name is not None and root == path and f == skip_name:
                 continue
@@ -535,7 +552,7 @@ def _verify_one(store, result: VerifyResult, package_name: str, version: str,
                  and manifest.get("content", {}).get("merkle"))
     m = measure_tree(path, skip_name=store._ENTRY_MANIFEST,
                      hash_content=bool(want_hash),
-                     dir_mode=store._ENTRY_DIR_MODE)
+                     check_dir_seal=True)
     result.bytes_hashed += m.bytes_hashed
 
     if manifest is not None:
@@ -573,9 +590,9 @@ def _verify_one(store, result: VerifyResult, package_name: str, version: str,
     if m.bad_dirs:
         add(make_finding(
             Problem.ENTRY_PERMS, package_name, version, path,
-            "%d director(ies) do not have the cache's entry mode (%o), starting "
-            "with %s"
-            % (len(m.bad_dirs), store._ENTRY_DIR_MODE & 0o777,
+            "%d director(ies) in this read-only entry are writable, starting "
+            "with %s; content can be unlinked or replaced through them"
+            % (len(m.bad_dirs),
                os.path.relpath(m.bad_dirs[0], path) if m.bad_dirs[0] != path else "."),
             uid=_uid(m.bad_dirs[0])))
 
@@ -610,7 +627,14 @@ def verify_cache(store, level: Optional[str] = None,
         if not os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):
             continue
         result.packages += 1
+        # A package directory now holds either entries directly (no policy) or
+        # protection partitions, each holding its own entries.  Both shapes are
+        # verified with the same code -- a partition IS just a package
+        # directory that happens to be protected -- so nothing below has to
+        # know which layout it is looking at.
         _verify_package(store, result, pkg_name, pkg_dir, level)
+        for part in store._partition_dirs(pkg_dir):
+            _verify_package(store, result, pkg_name, part, level)
 
     result.elapsed_s = time.time() - started
     return result
@@ -631,6 +655,12 @@ def _verify_package(store, result: VerifyResult, pkg_name: str, pkg_dir: str,
         if store._is_transient(name):
             _check_residue(store, result, pkg_name, name, path)
             continue
+
+        if name.startswith(PARTITION_PREFIX):
+            continue          # a protection partition; verified in its own pass
+
+        if name == store._POLICY_FILE:
+            continue          # the partition's own description, not content
 
         if not os.path.isdir(path) and not os.path.islink(path):
             continue                       # a stray file, not our business
@@ -674,7 +704,7 @@ def _verify_package(store, result: VerifyResult, pkg_name: str, pkg_dir: str,
                 "the sidecar has no entry beside it; %s was removed "
                 "out-of-band" % version,
                 reclaimable=_file_size(path)))
-        elif store._read_meta(pkg_name, version) is None:
+        elif store._read_meta_at(path) is None:
             add(make_finding(
                 Problem.SIDECAR_UNPARSEABLE, pkg_name, version, path,
                 "the sidecar is not readable JSON; this entry's age falls back "
@@ -885,7 +915,7 @@ def _apply_one(store, f: Finding) -> bool:
         # is known good and only its modes are wrong.
         store._make_readonly(f.path)
         m = measure_tree(f.path, skip_name=store._ENTRY_MANIFEST,
-                         dir_mode=store._ENTRY_DIR_MODE)
+                         check_dir_seal=True)
         return not m.writable and not m.bad_dirs
 
     if f.repair == REPAIR_REMOVE:
@@ -908,14 +938,18 @@ def _apply_one(store, f: Finding) -> bool:
         # manifest into the still-writable root, then seal the root.  A sealed
         # root (2555) has no write bit for anyone, so doing it the other way
         # round leaves the entry exactly as unsealed as it was found.
+        # Owner-write only, and the original mode restored by the reseal:
+        # using _PKG_DIR_MODE here published a restricted legacy entry
+        # world-readable as a side effect of backfilling its manifest.
         try:
-            os.chmod(f.path, store._PKG_DIR_MODE)
+            root_mode = stat.S_IMODE(os.lstat(f.path).st_mode)
+            os.chmod(f.path, root_mode | stat.S_IRWXU)
         except OSError:
-            pass
+            root_mode = None
         counts = store._make_readonly_and_measure(f.path, seal_root=False)
         counts["merkle"] = store._entry_merkle(f.path)
         store._write_entry_manifest(f.path, f.package, f.version, None, counts)
-        store._seal_entry_root(f.path)
+        store._seal_entry_root(f.path, None, root_mode)
         return os.path.isfile(store.entry_manifest_path(f.path))
 
     return False

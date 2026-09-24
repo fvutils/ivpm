@@ -567,7 +567,8 @@ class PackageGhRls(PackageHttp):
         # the asset itself: the download used to land at deps_dir/<asset name>,
         # which two packages releasing an identically-named asset shared, in
         # parallel, from one deps-dir.
-        from ..cache_provider import acquire_staging, staging_scratch
+        from ..cache_provider import (acquire_staging, discard_staging,
+                                      staging_scratch)
         temp_dir = acquire_staging(provider, self, update_info.deps_dir)
         dl_dir = staging_scratch(temp_dir)
 
@@ -581,7 +582,8 @@ class PackageGhRls(PackageHttp):
             self._download_file(file_url, download_dst)
             self._install(download_dst, temp_dir)
         except BaseException:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            shutil.rmtree(dl_dir, ignore_errors=True)
+            discard_staging(temp_dir)
             raise
         finally:
             shutil.rmtree(dl_dir, ignore_errors=True)

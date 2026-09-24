@@ -477,3 +477,61 @@ class TestPT15MinimalForm(TestBase):
         handler = _make_handler()
         result = handler._harvest_pyproject_toml(pkg, _make_update_info(self.testdir))
         self.assertIn("requests", {p.name for p in result})
+
+
+# ---------------------------------------------------------------------------
+# PT16 — a source package beats a harvested PyPI requirement of the same name
+# ---------------------------------------------------------------------------
+
+class TestPT16SourcePackageWins(TestBase):
+    """A workspace that fetches a package from source must install that checkout,
+    even when a harvested pyproject.toml also lists the package as a dependency.
+    Before this, the PyPI release won and replaced the editable source install."""
+
+    def _src_pkg(self, handler, name, dist_name=None):
+        pkg = MagicMock()
+        pkg.name = name
+        pkg.src_type = "git"
+        pkg.path = os.path.join(self.testdir, "src_" + name)
+        os.makedirs(pkg.path, exist_ok=True)
+        if dist_name is not None:
+            with open(os.path.join(pkg.path, "pyproject.toml"), "w") as fp:
+                fp.write('[project]\nname = "%s"\nversion = "0.1"\n' % dist_name)
+        handler.src_pkg_s.add(name)
+        handler.pkgs_info[name] = pkg
+        return pkg
+
+    def test_PT16a_same_name_source_package_is_not_harvested(self):
+        handler = _make_handler()
+        self._src_pkg(handler, "requests")
+        result = handler._harvest_pyproject_toml(
+            _make_pkg(_leaf1_path(self.data_dir), include=["dependencies"]))
+        self.assertNotIn("requests", [p.name for p in result])
+        self.assertIn("click", [p.name for p in result])
+
+    def test_PT16b_names_compare_after_pep503_normalisation(self):
+        handler = _make_handler()
+        self._src_pkg(handler, "Click")
+        result = handler._harvest_pyproject_toml(
+            _make_pkg(_leaf1_path(self.data_dir), include=["dependencies"]))
+        self.assertNotIn("click", [p.name for p in result])
+
+    def test_PT16c_source_distribution_name_is_matched(self):
+        # The ivpm package name differs from the distribution it builds.
+        handler = _make_handler()
+        self._src_pkg(handler, "requests-src", dist_name="requests")
+        result = handler._harvest_pyproject_toml(
+            _make_pkg(_leaf1_path(self.data_dir), include=["dependencies"]))
+        self.assertNotIn("requests", [p.name for p in result])
+
+    def test_PT16d_root_post_load_keeps_the_source_record(self):
+        handler = _make_handler()
+        src = self._src_pkg(handler, "requests")
+        handler._pyproject_toml_pkgs.append(
+            _make_pkg(_leaf1_path(self.data_dir), include=["dependencies"]))
+        with patch.object(handler, "_install_requirements"):
+            with patch("ivpm.handlers.package_handler_python.setup_venv"):
+                handler.on_root_post_load(_make_update_info(self.testdir))
+        self.assertIs(handler.pkgs_info["requests"], src)
+        self.assertNotIn("requests", handler.pypi_pkg_s)
+        self.assertIn("click", handler.pypi_pkg_s)

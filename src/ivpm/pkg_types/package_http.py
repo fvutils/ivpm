@@ -349,7 +349,8 @@ class PackageHttp(PackageFile):
         update_info.report_cache_miss()
 
         import shutil
-        from ..cache_provider import acquire_staging, staging_scratch
+        from ..cache_provider import (acquire_staging, discard_staging,
+                                      staging_scratch)
 
         # Unique staging on the cache filesystem: two packages whose URLs share
         # a basename (two different 'main.zip') used to download to the same
@@ -367,7 +368,8 @@ class PackageHttp(PackageFile):
             # destination cannot delete the file it is reading.
             self._install(pkg_path, temp_dir)
         except BaseException:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            shutil.rmtree(dl_dir, ignore_errors=True)
+            discard_staging(temp_dir)
             raise
         finally:
             shutil.rmtree(dl_dir, ignore_errors=True)
@@ -412,19 +414,31 @@ class PackageHttp(PackageFile):
             pass
     
     def _make_readonly(self, path: str):
-        """Make all files in a directory tree read-only."""
+        """Make every node in a directory tree read-only.
+
+        ``lstat``, never ``stat``: a symlink has no mode worth clearing on
+        Linux, and following one meant chmod-ing whatever it pointed at --
+        which for an absolute link is a file outside this package entirely.
+        A *dangling* link made ``os.stat`` raise ``FileNotFoundError``, so a
+        package containing one failed the whole update here.
+        """
         import stat
         for root, dirs, files in os.walk(path):
-            for d in dirs:
-                dir_path = os.path.join(root, d)
-                mode = os.stat(dir_path).st_mode
-                os.chmod(dir_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
-            for f in files:
-                file_path = os.path.join(root, f)
-                mode = os.stat(file_path).st_mode
-                os.chmod(file_path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
-        mode = os.stat(path).st_mode
-        os.chmod(path, mode & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+            for name in dirs + files:
+                self._clear_write(os.path.join(root, name))
+        self._clear_write(path)
+
+    @staticmethod
+    def _clear_write(node: str):
+        import stat
+        try:
+            st = os.lstat(node)
+            if stat.S_ISLNK(st.st_mode):
+                return
+            os.chmod(node, stat.S_IMODE(st.st_mode)
+                     & ~stat.S_IWUSR & ~stat.S_IWGRP & ~stat.S_IWOTH)
+        except OSError:
+            pass
 
     def _download_file(self, url, dest):
         r = httpx.get(url, follow_redirects=True)

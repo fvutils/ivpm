@@ -540,6 +540,7 @@ class PackageUpdater(object):
             return
 
         from .prepare import PrepareRequest
+        from .protection import ProtectionError
 
         cache_dir = None
         try:
@@ -564,7 +565,17 @@ class PackageUpdater(object):
 
         perf = getattr(update_info, "perf", None)
         with span_or_null(perf, "prepare.pkg", package=pkg.name):
-            self.preparers.prepare(req)
+            try:
+                policy = self.preparers.prepare(req)
+            except ProtectionError as e:
+                # A policy that cannot be resolved is not a warning.  Carrying
+                # on would fetch the package with no protection at all, which
+                # is the outcome the preparer exists to prevent.
+                from .prepare import PrepareDenied, PrepareRefusal, PrepareResult
+                raise PrepareDenied(pkg.name, [PrepareRefusal(
+                    "protection", PrepareResult.deny(str(e)))])
+        if policy is not None:
+            _logger.debug("%s will be protected as %s", pkg.name, policy)
 
     def _refresh_pkg(self, pkg, decision, update_info) -> None:
         """Clear a stale tree so the provider's fetch path can re-materialize it.

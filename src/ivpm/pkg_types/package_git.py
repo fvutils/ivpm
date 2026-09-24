@@ -516,8 +516,7 @@ class PackageGit(PackageURL):
         # Clone into a unique staging directory on the cache filesystem, so the
         # store below is a same-FS rename and so two concurrent fetches of this
         # package can never share (and clobber) one build path.
-        import shutil
-        from ..cache_provider import acquire_staging
+        from ..cache_provider import acquire_staging, discard_staging
         temp_dir = acquire_staging(provider, self, update_info.deps_dir)
 
         # A failed fetch/checkout must not leave a partial staging tree behind:
@@ -526,7 +525,7 @@ class PackageGit(PackageURL):
         try:
             self._clone_to_dir(update_info, temp_dir, depth=1)
         except BaseException:
-            shutil.rmtree(temp_dir, ignore_errors=True)
+            discard_staging(temp_dir)
             raise
 
         # Store in cache and link

@@ -3,3 +3,4 @@ from .pkg_preparer import (
     PrepareRequest, PrepareResult)
 from .preparer_list import PreparerList
 from .pkg_preparer_rgy import PackagePreparerRgy, PreparerLoadError
+from ..protection import ProtectionError, ProtectionPolicy
