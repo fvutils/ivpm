@@ -5,6 +5,7 @@ import os
 import shutil
 import tempfile
 import unittest
+from unittest import mock
 
 from ivpm.agent_skills import frontmatter, install, naming, select, state
 from ivpm.agent_skills.model import SkillEntry
@@ -83,9 +84,9 @@ class TestNaming(EngineTestBase):
     def test_tree_root_skill_is_not_held_to_dir_name_rule(self):
         root = self.skill("my_repo", "my-skill")
         entry = SkillEntry("dependency", "my_repo", root, root)
-        logger = logging.getLogger("ivpm.agent_skills.naming")
-        with self.assertNoLogs(logger, logging.WARNING):
-            self.assertEqual("my-skill", naming.name_candidates(entry)[0])
+        log = mock.Mock(spec=logging.Logger)
+        self.assertEqual("my-skill", naming.name_candidates(entry, log)[0])
+        log.warning.assert_not_called()
 
     def test_unsafe_frontmatter_name_falls_back_to_route(self):
         d = self.skill("pkg/skills/alpha", "../evil")
