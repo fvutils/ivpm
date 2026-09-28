@@ -219,6 +219,8 @@ Running ``ivpm update -d everything`` installs ``simulator`` and
 ``waveform-viewer``.  A package shared by ``sim`` and ``gui`` is installed once;
 if their definitions differ, the later base in the list (``gui``) wins.
 
+.. _dep-set-with:
+
 Per-Dep-Set Handler Configuration with ``with``
 ------------------------------------------------
 
@@ -341,6 +343,30 @@ Selecting a Set
 If ``default-dep-set`` is specified, that set is used when no ``-d`` option 
 is given to ``ivpm update``. If ``default-dep-set`` is not specified, the 
 first dep-set listed in the file is used as the default.
+
+.. _selecting-several-dep-sets:
+
+Selecting Several Sets
+----------------------
+
+``update``, ``clone`` and ``install`` (per ``--from`` source) accept several
+dep-sets at once.  ``-d`` is repeatable, and each value may be a
+comma-separated list, so these are equivalent:
+
+.. code-block:: bash
+
+    ivpm update -d default -d gui-tools
+    ivpm update -d default,gui-tools
+    ivpm clone  -d default,gui-tools https://github.com/org/project.git
+
+The sets merge left-to-right: a package named by more than one set is installed
+once, and on a name collision the later set's definition wins.  Their
+``with:`` blocks merge the same way (see :ref:`dep-set-with`).  Duplicate names
+are dropped, keeping the first occurrence.
+
+The selection is recorded in the deps-dir.  A later bare ``ivpm update`` reuses
+it, ``ivpm build`` builds every recorded set, and ``status``/``sync`` cover
+everything installed.  Changing it requires ``ivpm update -d <names> --force``.
 
 Complete Examples
 -----------------

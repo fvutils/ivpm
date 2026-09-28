@@ -20,12 +20,10 @@
 #*
 #****************************************************************************
 import dataclasses as dc
-import json
 import logging
 import platform
 import re
 import subprocess
-import textwrap
 import toposort
 import os
 import shutil
@@ -933,7 +931,9 @@ class PackageHandlerPython(PackageHandler):
         Two groups are queried in one subprocess: 'agent.skills' (with the
         legacy 'ivpm.skill' alias), whose results are pushed to
         ``pending_skill_dirs``, and 'agent.plugins', whose results are pushed to
-        ``pending_plugin_dirs``.  The agents handler consumes both.
+        ``pending_plugin_dirs``.  Skills under the venv's
+        ``share/agent-skills/`` are pushed to ``pending_skill_dirs`` too.  The
+        agents handler consumes both.
 
         An 'agent.plugins' entry-point may return either a plugin root or a path
         to its ``plugin.json``; normalization happens on the IVPM side so the
@@ -943,77 +943,33 @@ class PackageHandlerPython(PackageHandler):
         if not os.path.isfile(venv_python):
             return
 
-        # Note: result is wrapped in sentinel markers so we can recover the JSON
-        # even when imported modules print noise to stdout at import time.
-        # Queries both 'agent.skills' (current) and 'ivpm.skill' (deprecated),
-        # deduplicating by (group-prioritized) entry-point name so dual-publishing
-        # packages don't produce duplicates.
-        # The script runs under the MANAGED VENV's interpreter, not ours, so it
-        # cannot import ivpm._compat and cannot assume our Python version: a
-        # project may pin 3.9, where entry_points() takes no arguments and
-        # returns a group -> list dict. Select by group by hand.
-        script = textwrap.dedent("""\
-            import importlib.metadata, json, sys
-            if sys.version_info >= (3, 10):
-                def _eps(group):
-                    return importlib.metadata.entry_points(group=group)
-            else:
-                def _eps(group):
-                    return importlib.metadata.entry_points().get(group, [])
-            result = []
-            seen_names = set()
-            for group, kind in (('agent.skills', 'skills'), ('ivpm.skill', 'skills'),
-                                ('agent.plugins', 'plugins')):
-                for ep in _eps(group):
-                    if (kind, ep.name) in seen_names:
-                        continue
-                    try:
-                        fn = ep.load()
-                        dirs = fn() if callable(fn) else str(fn)
-                        if isinstance(dirs, (str, bytes)):
-                            dirs = [str(dirs)]
-                        result.append({'name': ep.name, 'kind': kind, 'dirs': list(dirs)})
-                        seen_names.add((kind, ep.name))
-                    except Exception as exc:
-                        sys.stderr.write('ivpm: entrypoint %s (%s) error: %s\\n' % (ep.name, group, exc))
-            sys.stdout.write('<<IVPM_SKILLS_JSON>>' + json.dumps(result) + '<</IVPM_SKILLS_JSON>>\\n')
-        """)
-
+        from ..agent_skills import query as _query
         try:
-            r = subprocess.run(
-                [venv_python, "-c", script],
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if r.returncode != 0:
-                print("ivpm: warning: agent entrypoint query failed:\n%s"
-                      % r.stderr.strip(), file=sys.stderr)
-                return
-            if r.stderr.strip():
-                print("ivpm: warning: agent entrypoint errors "
-                      "(affected skills/plugins will not be linked):\n%s"
-                      % r.stderr.strip(), file=sys.stderr)
-            m = re.search(r'<<IVPM_SKILLS_JSON>>(.*?)<</IVPM_SKILLS_JSON>>', r.stdout, re.DOTALL)
-            if not m:
-                print("ivpm: warning: agent entrypoint query produced no parseable "
-                      "output (stdout pollution?)", file=sys.stderr)
-                return
-            data = json.loads(m.group(1))
-        except Exception as exc:
-            print("ivpm: warning: failed to query agent.skills/agent.plugins entrypoints: %s"
-                  % exc, file=sys.stderr)
+            result = _query.query_env(venv_python)
+        except _query.QueryError as exc:
+            print("ivpm: warning: agent entrypoint query failed: %s" % exc,
+                  file=sys.stderr)
             return
 
-        for item in data:
-            ep_name = item["name"]
-            # Older in-venv payloads carry no 'kind'; they were always skills.
-            kind = item.get("kind", "skills")
-            for path in item.get("dirs", []):
-                if kind == "plugins":
-                    update_info.pending_plugin_dirs.append((ep_name, os.path.normpath(path)))
+        if result.errors:
+            print("ivpm: warning: agent entrypoint errors "
+                  "(affected skills/plugins will not be linked):\n%s"
+                  % "\n".join("  %s" % e for e in result.errors), file=sys.stderr)
+
+        # Skills are pushed as (owner, dir, meta); meta carries provenance the
+        # agents handler uses for naming and 'with.agents.entrypoints'.
+        for item in result.entries:
+            for path in item.dirs:
+                if item.kind == "plugins":
+                    update_info.pending_plugin_dirs.append((item.name, os.path.normpath(path)))
                 else:
-                    update_info.pending_skill_dirs.append((ep_name, os.path.normpath(path)))
+                    update_info.pending_skill_dirs.append(
+                        (item.name, os.path.normpath(path),
+                         {"source": "entrypoint", "dist": item.dist}))
+        for sh in result.share:
+            update_info.pending_skill_dirs.append(
+                (sh.dist or "share", os.path.normpath(sh.dir),
+                 {"source": "share", "dist": sh.dist}))
 
     def get_lock_entries(self, deps_dir: str) -> dict:
         """Return pip-resolved package versions from the managed venv.

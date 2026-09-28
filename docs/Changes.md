@@ -1,4 +1,63 @@
 
+# 2.37.0
+- **New `ivpm skills` command: install agent skills from Python packages, a la
+  carte, in any directory.** No `ivpm.yaml` needed. `uvx ivpm skills install
+  --with pssparser --all` has uv build a throwaway environment and copies its
+  skills into `.agents/skills/`, `.claude/skills/` and `.cursor/skills/`;
+  `list`, `status`, `uninstall` and `sync` complete the set. Selections are
+  recorded without paths in `.agents/ivpm-skills.json`, so committing that file
+  lets a teammate re-create the install with `ivpm skills sync`. Skills are
+  linked from an existing environment (`--python`, the IVPM project venv,
+  `$VIRTUAL_ENV`, `./.venv`) and copied when they live in uv's cache, where a
+  link would dangle after `uv cache prune`. `ivpm update` and `ivpm skills`
+  never remove or replace each other's entries.
+- **Skills are named after their SKILL.md frontmatter `name`, by every
+  route.** The Agent Skills specification requires a skill's directory to match
+  its name. Dependency-tree skills used to be linked as `<package>-<dir>` and
+  entry-point skills as the entry-point name, so the same skill had different
+  names depending on whether its package came from git or PyPI, and a single
+  entry point returning several skills produced `name`, `name-2`, `name-3`.
+  **This renames installed skills** on the next `ivpm update`; the old links
+  are removed automatically. Only two different skills with the same name fall
+  back to `<owner>-<name>`, with a warning.
+- **Skill names and descriptions are checked against the specification**
+  (lowercase `a-z`, `0-9`, single inner hyphens, 1-64 characters; description
+  at most 1024 characters). Violations warn; the skill is still linked.
+- **`with.agents.export`**: a package lists the skills it offers the projects
+  that depend on it, separately from the `with.agents.skills` it uses as a
+  project, so a contributors-only skill stays in its repository.
+- **`with.agents.entrypoints`**: `true` (default), `false`, or a list of
+  selectors choosing which venv skills `ivpm update` links.
+- **`<venv>/share/agent-skills/<name>/` is discovered** alongside
+  `agent.skills` entry points -- the layout pixi-skills and conda skill
+  packages use.
+- **Copy mode copies the whole skill directory** (minus `__pycache__/`,
+  `*.pyc`, `.git`), not just `SKILL.md`, `scripts/`, `references/` and
+  `assets/`.
+- **Entry-point discovery is more robust**: each entry point is loaded with its
+  output captured, and a bad return value, an exception or a `sys.exit()`
+  affects only that entry point, reported with its distribution.
+- **`import ivpm` is now import-light.** Its public names (`PkgInfoRgy`,
+  `Package`, `ProjectUpdateInfo`, ...) are loaded on first use (PEP 562), so
+  IVPM's own `agent.skills` entry point no longer pulls in PyYAML and the
+  package model, and IVPM's skill is found even in an environment without its
+  dependencies. `from ivpm import X` works as before.
+- New docs pages: *Installing Skills: `ivpm skills`* and *Shipping Agent
+  Skills in Python Packages* (the `agent.skills` contract).
+- **`ivpm clone -d` selects several dep-sets**, repeated or comma-separated
+  (`-d default,gui-tools`), exactly like `update -d` and `install -d`. It used
+  to keep only the last `-d`, and `-d a,b` failed as an unknown dep-set.
+- **`ivpm clone` refuses a directory that already holds an IVPM install** (a
+  deps-dir with `package-lock.json` or `ivpm.json`), including with `--here`.
+  The recorded dep-sets would conflict with clone's `-d`, and clone has no
+  `--force`. Reusing a plain git checkout, or cloning into a non-empty
+  directory in place, still works. Use `ivpm update` in an existing workspace.
+- **`ivpm build` builds every installed dep-set.** After `update -d a -d b` it
+  used to build only `a`. It now works only from the dep-set(s) recorded by
+  `ivpm update`, and fails if none are recorded instead of falling back to
+  the manifest default. **`build -d` is deprecated**: accepted with a warning
+  when it names the installed dep-sets, an error otherwise.
+
 # 2.34.0
 - **The `gh` auth method now actually authenticates.** `gh` used to mean only
   "clone the https URL as-is and hope a credential helper is configured", and

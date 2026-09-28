@@ -75,7 +75,9 @@ either **global** or **per-source**, and the rule is positional:
   ``--on-collision``, ``--on-project-ref``, ``--root-var``, and the usual
   ``--py-skip-install`` family.
 * ``-d``/``--dep-set``, ``-D``/``--define`` and ``--as`` are **per-source**:
-  they apply to the ``--from`` they follow, and only to it.
+  they apply to the ``--from`` they follow, and only to it.  As with
+  ``update``, ``-d`` is repeatable and comma-separated (``-d sim,formal`` is
+  ``-d sim -d formal``); see :ref:`selecting-several-dep-sets`.
 
 .. code-block:: bash
 

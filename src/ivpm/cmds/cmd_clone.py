@@ -139,27 +139,59 @@ class CmdClone(object):
         if here:
             if wsdir is not None and os.path.abspath(wsdir) != os.getcwd():
                 fatal("--here cannot be combined with an explicit workspace directory ('%s')" % wsdir)
-            return os.getcwd()
+            target_dir = os.getcwd()
+        else:
+            if wsdir is None:
+                wsdir = provider.default_workspace_name(src)
+                if not wsdir:
+                    # Fall back to the basename heuristic.
+                    base = os.path.basename(src.rstrip("/"))
+                    if base.endswith('.git'):
+                        base = base[:-4]
+                    wsdir = base
 
-        if wsdir is None:
-            wsdir = provider.default_workspace_name(src)
-            if not wsdir:
-                # Fall back to the basename heuristic.
-                base = os.path.basename(src.rstrip("/"))
-                if base.endswith('.git'):
-                    base = base[:-4]
-                wsdir = base
+            target_dir = wsdir if os.path.isabs(wsdir) else os.path.abspath(wsdir)
 
-        target_dir = wsdir if os.path.isabs(wsdir) else os.path.abspath(wsdir)
+            if os.path.exists(target_dir) and os.listdir(target_dir):
+                # Non-empty existing dir is allowed only for providers that clone
+                # in place (git handles this); leave the check to the provider by
+                # not failing here would change behavior, so preserve the guard for
+                # the common case where the dir must be new/empty.
+                if not self._provider_allows_nonempty(provider, target_dir):
+                    fatal("Workspace directory '%s' already exists and is not empty" % target_dir)
 
-        if os.path.exists(target_dir) and os.listdir(target_dir):
-            # Non-empty existing dir is allowed only for providers that clone
-            # in place (git handles this); leave the check to the provider by
-            # not failing here would change behavior, so preserve the guard for
-            # the common case where the dir must be new/empty.
-            if not self._provider_allows_nonempty(provider, target_dir):
-                fatal("Workspace directory '%s' already exists and is not empty" % target_dir)
+        # Reusing a git checkout is fine; reusing an IVPM *install* is not. Its
+        # recorded dep-set(s) would override (or conflict with) this clone's
+        # -d, and clone has no --force to resolve that. Checked before the
+        # provider runs so a refusal leaves the tree untouched.
+        existing = self._existing_ivpm_state(target_dir)
+        if existing is not None:
+            fatal("'%s' is already an IVPM workspace (found %s). "
+                  "'ivpm clone' needs a fresh workspace: run 'ivpm update' "
+                  "there (add '-d <set> --force' to change dep-sets), or "
+                  "'ivpm destroy' first." % (target_dir, existing))
         return target_dir
+
+    @staticmethod
+    def _existing_ivpm_state(target_dir):
+        """Return the path of IVPM install state under *target_dir*, or None.
+
+        Install state is a deps-dir lock (the target itself, or an immediate
+        child) or an ``ivpm.json`` in an immediate child -- update reads the
+        latter first when recovering the recorded dep-set(s).
+        """
+        from ..package_lock import find_ivpm_deps_dir
+
+        if not os.path.isdir(target_dir):
+            return None
+        deps_dir = find_ivpm_deps_dir(target_dir)
+        if deps_dir is not None:
+            return os.path.join(deps_dir, "package-lock.json")
+        for name in sorted(os.listdir(target_dir)):
+            ivpm_json = os.path.join(target_dir, name, "ivpm.json")
+            if os.path.isfile(ivpm_json):
+                return ivpm_json
+        return None
 
     def _provider_allows_nonempty(self, provider, target_dir):
         """Git can clone into a non-empty dir or reuse an existing clone; other
@@ -244,7 +276,8 @@ class CmdClone(object):
         handler_overlay = rc.handler_overlay if rc is not None else None
         default_package = rc.default_package if rc is not None else None
 
-        dep_set = getattr(args, 'dep_set', None)
+        from ..install_spec import flatten_dep_sets
+        dep_set = flatten_dep_sets(getattr(args, 'dep_set', None))
         ivpm_yaml_path = os.path.join(target_dir, "ivpm.yaml")
         cli_overrides = parse_definitions(getattr(args, 'definitions', []))
 
@@ -269,5 +302,6 @@ class CmdClone(object):
             )
         else:
             if dep_set is not None:
-                fatal("Dependency set '%s' specified but no ivpm.yaml exists in cloned project" % dep_set)
+                fatal("Dependency set(s) '%s' specified but no ivpm.yaml exists in cloned project"
+                      % ",".join(dep_set))
             # No ivpm.yaml and no provider config - just skip update

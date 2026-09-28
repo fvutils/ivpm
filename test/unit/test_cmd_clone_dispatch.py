@@ -148,13 +148,62 @@ class TestCloneDispatch(TestBase):
 class TestPostCloneUpdate(TestBase):
     """The provider's CloneResult.root_config must reach ProjectOps.update."""
 
-    def _args(self):
+    def _args(self, dep_set=None):
         class _A:
             pass
         a = _A()
-        a.dep_set = None
+        a.dep_set = dep_set
         a.definitions = []
         return a
+
+    def _yaml_target(self, name="ws_yaml"):
+        target = os.path.join(self.testdir, name)
+        os.makedirs(target)
+        with open(os.path.join(target, "ivpm.yaml"), "w") as f:
+            f.write("package:\n  name: x\n")
+        return target
+
+    def test_dep_sets_flattened_for_update(self):
+        target = self._yaml_target()
+        with mock.patch.object(ProjectOps, "update") as upd:
+            CmdClone()._post_clone_update(
+                self._args(["a,b", "c"]), target, CloneResult(ok=True))
+        self.assertEqual(["a", "b", "c"], upd.call_args.kwargs["dep_set"])
+
+    def test_dep_sets_deduped_and_stripped(self):
+        target = self._yaml_target()
+        with mock.patch.object(ProjectOps, "update") as upd:
+            CmdClone()._post_clone_update(
+                self._args([" b ", "a,b"]), target, CloneResult(ok=True))
+        self.assertEqual(["b", "a"], upd.call_args.kwargs["dep_set"])
+
+    def test_no_dep_set_selects_default(self):
+        target = self._yaml_target()
+        with mock.patch.object(ProjectOps, "update") as upd:
+            CmdClone()._post_clone_update(
+                self._args(), target, CloneResult(ok=True))
+        self.assertIsNone(upd.call_args.kwargs["dep_set"])
+
+    def test_dep_sets_flattened_for_bare_tree(self):
+        target = os.path.join(self.testdir, "ws_bare_ds")
+        os.makedirs(target)
+        rc = CloneRootConfig(default_package={"name": "x"})
+        with mock.patch.object(ProjectOps, "update") as upd:
+            CmdClone()._post_clone_update(
+                self._args(["a,b"]), target,
+                CloneResult(ok=True, root_config=rc))
+        self.assertEqual(["a", "b"], upd.call_args.kwargs["dep_set"])
+
+    def test_dep_sets_without_manifest_is_fatal(self):
+        target = os.path.join(self.testdir, "ws_none_ds")
+        os.makedirs(target)
+        from ivpm.yamlsrc import SrcLoaderError
+        with mock.patch.object(ProjectOps, "update") as upd:
+            with self.assertRaises(SrcLoaderError) as ctx:
+                CmdClone()._post_clone_update(
+                    self._args(["a,b"]), target, CloneResult(ok=True))
+        self.assertIn("'a,b'", str(ctx.exception))
+        upd.assert_not_called()
 
     def test_overlay_threaded_when_yaml_present(self):
         target = os.path.join(self.testdir, "ws_yaml")
@@ -193,6 +242,185 @@ class TestPostCloneUpdate(TestBase):
             CmdClone()._post_clone_update(self._args(), target,
                                           CloneResult(ok=True))
         upd.assert_not_called()
+
+
+class TestCloneDepSetArgs(TestBase):
+    """clone's -d is repeatable and comma-separated, like update's."""
+
+    def setUp(self):
+        super().setUp()
+        _install_fake_registry()
+
+    def tearDown(self):
+        _reset_registry()
+        super().tearDown()
+
+    def test_repeats_accumulate(self):
+        args, _ = _parse(["clone", "-d", "a,b", "-d", "c", "myvcs://repo"])
+        self.assertEqual(["a,b", "c"], args.dep_set)
+        self.assertEqual("myvcs://repo", args.src)
+
+    def test_absent_is_none(self):
+        args, _ = _parse(["clone", "myvcs://repo"])
+        self.assertIsNone(args.dep_set)
+
+
+class TestCloneFreshWorkspace(TestBase):
+    """clone reuses a checkout, but never a directory holding an IVPM install:
+    its recorded dep-set(s) would conflict with this clone's -d."""
+
+    def setUp(self):
+        super().setUp()
+        _install_fake_registry()
+        FakeVcsProvider.last_request = None
+        # Let the fake provider accept non-empty targets, as git does, so the
+        # IVPM-state guard (not the generic non-empty guard) is what decides.
+        patcher = mock.patch.object(FakeVcsProvider, "allows_nonempty_target",
+                                    True, create=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def tearDown(self):
+        _reset_registry()
+        super().tearDown()
+
+    def _target(self, files):
+        import json
+        target = os.path.join(self.testdir, "ws")
+        for rel, body in files.items():
+            path = os.path.join(target, rel)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                f.write(body if isinstance(body, str) else json.dumps(body))
+        return target
+
+    def _clone(self, target):
+        args, _ = _parse(["clone", "myvcs://repo", target])
+        args.func(args)
+
+    def _assert_refused(self, target, found):
+        from ivpm.yamlsrc import SrcLoaderError
+        with self.assertRaises(SrcLoaderError) as ctx:
+            self._clone(target)
+        msg = str(ctx.exception)
+        self.assertIn("already an IVPM workspace", msg)
+        self.assertIn(os.path.join(target, found), msg)
+        self.assertIsNone(FakeVcsProvider.last_request,
+                          "provider ran despite the refusal")
+
+    _LOCK = {"ivpm_lock_version": 2, "packages": {}}
+
+    def test_packages_lock_refused(self):
+        target = self._target({"packages/package-lock.json": self._LOCK})
+        self._assert_refused(target, "packages/package-lock.json")
+
+    def test_bare_deps_dir_lock_refused(self):
+        target = self._target({"import/package-lock.json": self._LOCK})
+        self._assert_refused(target, "import/package-lock.json")
+
+    def test_ivpm_json_only_refused(self):
+        target = self._target({"packages/ivpm.json": {"dep-set": "a"}})
+        self._assert_refused(target, "packages/ivpm.json")
+
+    def test_target_is_deps_dir_refused(self):
+        target = self._target({"package-lock.json": self._LOCK})
+        self._assert_refused(target, "package-lock.json")
+
+    def test_here_in_workspace_refused(self):
+        from ivpm.yamlsrc import SrcLoaderError
+        target = self._target({"packages/package-lock.json": self._LOCK})
+        cwd = os.getcwd()
+        os.chdir(target)
+        try:
+            args, _ = _parse(["clone", "--here", "myvcs://repo"])
+            with self.assertRaises(SrcLoaderError):
+                args.func(args)
+        finally:
+            os.chdir(cwd)
+        self.assertIsNone(FakeVcsProvider.last_request)
+
+    def test_checkout_without_install_allowed(self):
+        target = self._target({".git/HEAD": "ref: refs/heads/main\n",
+                               "README": "x"})
+        self._clone(target)
+        self.assertIsNotNone(FakeVcsProvider.last_request)
+
+    def test_foreign_lock_allowed(self):
+        """An npm package-lock.json is not IVPM state."""
+        target = self._target({"web/package-lock.json": {"lockfileVersion": 3}})
+        self._clone(target)
+        self.assertIsNotNone(FakeVcsProvider.last_request)
+
+
+class _TwoDepSetProvider(CloneProvider):
+    """Materializes a project with dep-sets a and b, each with a dir dep."""
+    deps_root = None
+
+    @classmethod
+    def provider_info(cls):
+        return CloneProviderInfo(name="twods", description="two dep-sets",
+                                 schemes=["twods"])
+
+    def schemes(self):
+        return ["twods"]
+
+    def clone(self, req):
+        os.makedirs(req.target_dir, exist_ok=True)
+        with open(os.path.join(req.target_dir, "ivpm.yaml"), "w") as f:
+            f.write(
+                "package:\n"
+                "  name: sample\n"
+                "  dep-sets:\n"
+                "    - name: a\n"
+                "      deps:\n"
+                "        - name: dep_a\n"
+                "          url: file://%s/dep_a\n"
+                "          src: dir\n"
+                "    - name: b\n"
+                "      deps:\n"
+                "        - name: dep_b\n"
+                "          url: file://%s/dep_b\n"
+                "          src: dir\n" % (self.deps_root, self.deps_root))
+        return CloneResult(ok=True)
+
+
+class TestCloneMultiDepSetEndToEnd(TestBase):
+    """clone -d a,b installs both sets through the real update, and records
+    the selection so a later bare update keeps it."""
+
+    def setUp(self):
+        super().setUp()
+        rgy = CloneProviderRgy()
+        rgy.register(_TwoDepSetProvider())
+        CloneProviderRgy._inst = rgy
+        deps_root = os.path.join(self.testdir, "deps")
+        for name in ("dep_a", "dep_b"):
+            os.makedirs(os.path.join(deps_root, name))
+            with open(os.path.join(deps_root, name, "README"), "w") as f:
+                f.write(name)
+        _TwoDepSetProvider.deps_root = deps_root
+
+    def tearDown(self):
+        CloneProviderRgy._inst = None
+        super().tearDown()
+
+    def test_clone_installs_and_records_both(self):
+        import json
+        from ivpm.package_lock import read_lock
+        ws = os.path.join(self.testdir, "ws")
+        args, _ = _parse(["clone", "-d", "a,b", "twods://x", ws])
+        args.py_skip_install = True
+        args.func(args)
+
+        lock = read_lock(os.path.join(ws, "packages", "package-lock.json"))
+        self.assertIn("dep_a", lock["packages"])
+        self.assertIn("dep_b", lock["packages"])
+        with open(os.path.join(ws, "packages", "ivpm.json")) as f:
+            self.assertEqual(["a", "b"], json.load(f)["dep-sets"])
+
+        # A bare update adopts the recorded pair, not the default ('a').
+        _, _, dep_sets, _ = ProjectOps(ws)._init()
+        self.assertEqual(["a", "b"], dep_sets)
 
 
 class TestStampRootRecordBare(TestBase):

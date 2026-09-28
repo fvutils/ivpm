@@ -168,7 +168,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     # one summary line, not 500 messages.
     cache_findings: List = dc.field(default_factory=list)
     lock_data: Optional[dict] = None  # Parsed package-lock.json for change detection
-    pending_skill_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, skill_dir) pushed by handlers
+    # (owner, skill_dir) or (owner, skill_dir, meta) pushed by handlers; meta may
+    # carry "source" ("entrypoint" / "share") and "dist"
+    pending_skill_dirs: List[tuple] = dc.field(default_factory=list)
     pending_plugin_dirs: List[Tuple[str, str]] = dc.field(default_factory=list)  # (name, plugin_root) pushed by handlers
     modules_interface: Optional['ModulesInterface'] = None  # lazily populated by PackageModule.update()
     _tui_ref: Optional[object] = None  # Reference to the TUI for prompt callbacks

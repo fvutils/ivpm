@@ -154,7 +154,7 @@ class TestDiscovery(PluginTestBase):
             self.ivpm_update(skip_venv=True)
 
         self.assertEqual(self.agents_plugins(), [])
-        self.assertEqual(self.agents_skills(), ["plugin_foreign_dep"])
+        self.assertEqual(self.agents_skills(), ["plugin-foreign-dep"])
         warnings = [r for r in captured.records if r.levelname in ("WARNING", "ERROR")]
         self.assertEqual(warnings, [], "a foreign plugin.json must not warn")
 
@@ -505,7 +505,7 @@ class TestCleanup(PluginTestBase):
         self.ivpm_update(skip_venv=True)
 
         self.assertEqual(self.agents_plugins(), [])
-        self.assertEqual(self.claude_skills(), ["agents_leaf1"])
+        self.assertEqual(self.claude_skills(), ["agent-leaf1"])
 
     def test_installed_plugin_removed_on_disable(self):
         self.mkFile("ivpm.yaml", dep_yaml("plugin_dep"))

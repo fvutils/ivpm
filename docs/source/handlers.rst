@@ -314,8 +314,11 @@ AI coding agents.
 .. seealso::
 
    :doc:`agent_plugins` covers Agent Plugins support in depth: discovery,
-   validation, the per-tool projection strategy, and MCP configuration.  This
-   section documents the handler itself and the loose-skills mechanism.
+   validation, the per-tool projection strategy, and MCP configuration.
+   :doc:`agent_skills_command` covers ``ivpm skills``, which installs skills
+   from a Python environment without an ``ivpm.yaml``, and
+   :doc:`agent_skills_entrypoints` specifies the ``agent.skills`` contract.
+   This section documents the handler itself and the loose-skills mechanism.
 
 **Purpose**
 
@@ -342,6 +345,10 @@ Each skill file must contain YAML frontmatter with at least ``name:`` and
 Optional frontmatter fields: ``license``, ``compatibility``, ``allowed-tools``.
 
 Packages with missing or malformed frontmatter are skipped with a warning.
+A ``name`` that breaks the `Agent Skills specification
+<https://agentskills.io/specification>`_ -- 1 to 64 characters of lowercase
+``a-z``, ``0-9`` and single inner hyphens -- or a ``description`` over 1024
+characters is warned about, and the skill is still linked.
 
 **Leaf phase**
 
@@ -354,8 +361,8 @@ plugin names its own skills, so those directories are not also discovered as
 loose skills.  Python packages may register plugins through the
 ``agent.plugins`` entry-point group.  See :doc:`agent_plugins`.
 
-Remaining skill files are then discovered using one of four methods
-(in priority order):
+Remaining skill files are then discovered using one of the following methods
+(1-3 in priority order; 4 and 5 always apply):
 
 1. **Consumer-specified paths** (highest priority)
    
@@ -373,8 +380,9 @@ Remaining skill files are then discovered using one of four methods
 
 2. **Package-declared paths**
    
-   The package itself specifies skill paths in its ``ivpm.yaml`` under
-   ``package.with.agents``:
+   The package itself specifies which skills it offers to the projects that
+   depend on it with ``export``, under ``package.with.agents`` in its
+   ``ivpm.yaml``:
    
    .. code-block:: yaml
    
@@ -382,9 +390,18 @@ Remaining skill files are then discovered using one of four methods
          name: my-package
          with:
            agents:
-             skills:
+             export:               # offered to dependents
+               - skills/my-package/SKILL.md
+               - skills/my-package-api/SKILL.md
+             skills:               # used by my-package's own contributors
                - skills/**/SKILL.md
-               - docs/SKILL.md
+
+   ``export`` is read only when the package is a *dependency*; ``skills`` is
+   what the package uses as a *project*, and is the fallback for dependents
+   when ``export`` is absent.  This lets a repository keep a skill -- for
+   working on the package itself -- out of every project that depends on it.
+   ``export: []`` offers nothing.  A skill that is not exported should not be
+   registered as an ``agent.skills`` entry point either.
 
 3. **Auto-probe** (lowest priority, fallback)
    
@@ -425,6 +442,21 @@ Remaining skill files are then discovered using one of four methods
    Entry-points that raise exceptions or return invalid paths emit a warning
    and are skipped.  This mechanism is independent of the package having an
    ``ivpm.yaml`` — it works for any Python package installed into the venv.
+   One entry point may return several directories.  The full contract is in
+   :doc:`agent_skills_entrypoints`.
+
+   ``with.agents.entrypoints`` chooses which of these skills a project gets:
+   ``true`` (the default) links all of them, ``false`` none, and a list of
+   :ref:`skills-selectors` links the matching ones.  With ``false``, a project
+   can leave its venv's skills entirely to ``ivpm skills``.
+
+5. **``share/agent-skills/``** (Python packages only)
+
+   Every ``<venv>/share/agent-skills/<name>/SKILL.md`` is linked too.  This
+   is the layout `pixi-skills <https://github.com/pavelzw/pixi-skills>`_ and
+   conda skill packages use; a wheel installs there from its
+   ``.data/data/share/agent-skills/`` directory.  Selected by
+   ``with.agents.entrypoints`` like entry-point skills.
 
 .. _entry-point group: https://packaging.python.org/en/latest/specifications/entry-points/
 
@@ -443,13 +475,18 @@ Runs when at least one valid skill file was found.  Steps:
    already exists.
 3. Process skills gathered from dependencies (mechanisms 1–3 above) and from
    ``agent.skills`` Python entry-points (mechanism 4)
-4. For each skill, create a relative symlink (or copy as fallback) with a
-   human-readable name derived from its source directory
-5. Dependency skills are named as ``<package>-<dir>`` (or just ``<package>`` for a
-   package-root ``SKILL.md``); conflicting names expand to include parent
-   directories, such as ``<package>-<parent>-<dir>``
-6. Root-project skills are named as ``<dir>``; conflicting names expand to include
-   parent directories, such as ``<parent>-<dir>``
+4. For each skill, create a relative symlink (or copy as fallback)
+5. Name every skill after the ``name`` in its frontmatter, whichever route
+   found it.  The Agent Skills specification requires a skill's directory to
+   match that name, so this is what keeps an installed skill conformant, and
+   it gives a skill the same name whether its package came from git, a local
+   directory or PyPI.  Only when two different skills share a name do both
+   fall back -- first to ``<owner>-<name>`` (the owner is the package or
+   entry-point name), then to names built from their directories -- with a
+   warning.  A skill whose source directory does not match its own name is
+   linked under its frontmatter name, with a warning.
+6. Leave alone every name ``ivpm skills`` has installed in the project (see
+   :ref:`skills-coexistence`)
 7. Link each Agent Plugin whole into ``.agents/plugins/<name>``, named from its
    manifest.  Tools with a plugin mechanism of their own receive the plugin
    itself instead of its individual skills -- Claude Code gets
@@ -474,6 +511,8 @@ that tool:
           cursor: true          # default -- set false to skip .cursor/skills/
           plugins:              # Agent Plugin manifests (default: auto-probe)
             - plugins/**/plugin.json
+          entrypoints: true     # default -- link every venv skill (false: none;
+                                #   or a list of 'ivpm skills' selectors)
           expand_skills: true   # default -- also link each plugin skill
           plugin_install: true  # default -- install plugins natively where supported
           mcp: false            # default -- do not wire up plugin MCP servers
@@ -485,6 +524,15 @@ that tool:
    already existed).  It is now created by default.  Projects that relied on
    ``.claude/`` *not* being created must set ``claude: false`` explicitly.
 
+.. note::
+
+   **Behavior change (skill names).**  Skills used to be named after their
+   directory -- ``<package>-<dir>`` for a dependency, the entry-point name for
+   an ``agent.skills`` skill.  They are now named after their frontmatter
+   ``name``.  The first ``ivpm update`` after upgrading removes the old links
+   and creates the new ones; references to the old names (in prompts or
+   ``CLAUDE.md``, say) need updating.
+
 Package-declared skill paths under ``package.with.agents``:
 
 .. code-block:: yaml
@@ -493,7 +541,9 @@ Package-declared skill paths under ``package.with.agents``:
       name: my-lib
       with:
         agents:
-          skills:
+          export:               # what dependents get
+            - skills/my-lib/SKILL.md
+          skills:               # what my-lib uses as a project
             - skills/**/SKILL.md
             - docs/SKILL.md
 
@@ -515,8 +565,7 @@ Or via consumer dep-entry:
 - **Symlink support**: Creates relative symlinks from ``.agents/skills/`` to skill
   directories within the package.
 - **Fallback**: On platforms without symlink support, falls back to copying the
-  ``SKILL.md`` file and any companion directories (``scripts/``, ``references/``,
-  ``assets/``).
+  whole skill directory, except ``__pycache__/``, ``*.pyc`` and ``.git``.
 - **Tool-specific directories**: ``.claude/skills/`` and ``.cursor/skills/`` are
   populated by default (opt-out).  Set ``claude: false`` / ``cursor: false``
   under ``package.with.agents`` to skip a given tool; an explicit ``false``
@@ -524,6 +573,10 @@ Or via consumer dep-entry:
 - **Stale cleanup**: Removes entries from previous runs before writing new ones.
   This includes entries in a tool directory that was populated by an earlier run
   but is now disabled.
+- **Coexistence with** ``ivpm skills``: names recorded in
+  ``.agents/ivpm-skills.json`` are never removed or replaced.  A skill
+  ``ivpm skills`` already installed is not linked a second time, and a
+  different skill that wants the same name gets the next candidate name.
 
 **Output:**
 

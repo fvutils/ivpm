@@ -52,12 +52,18 @@ Build Python packages with native extensions.
 
 .. code-block:: text
 
-    ivpm build [-d <dep-set>] [-g|--debug]
+    ivpm build [-g|--debug]
+
+``build`` works on the dep-set(s) installed by the last ``ivpm update`` --
+all of them, when several were selected -- and has no selection of its own.
+Run ``ivpm update`` first; to build a different dep-set, change what is
+installed with ``ivpm update -d <name> --force``.
 
 **Options:**
 
 ``-d, --dep-set <name>``
-    Use dependencies from specified dep-set (default: project's default)
+    **Deprecated.** Accepted, with a warning, only when it names the installed
+    dep-set(s); any other value is an error.
 
 ``-g, --debug``
     Enable debug symbols in native extensions
@@ -71,9 +77,6 @@ Build Python packages with native extensions.
     
     # Debug build
     $ ivpm build --debug
-    
-    # Specific dependency set
-    $ ivpm build -d default-dev
 
 **Behavior:**
 
@@ -298,6 +301,13 @@ Create a new workspace from a Git repository.
     directory already holds a git repository for a *different* source, the
     command fails rather than overwriting it.
 
+``clone`` always needs a *fresh workspace*: a target (with or without
+``--here``) that already holds an IVPM install -- a deps-dir with
+``package-lock.json`` or ``ivpm.json`` -- is refused before anything is
+fetched.  Its recorded dep-set(s) would conflict with ``clone``'s ``-d``.  Run
+``ivpm update`` in that workspace instead (``-d <name> --force`` changes its
+dep-sets), or ``ivpm destroy`` it first.
+
 The following three flags belong to the **git** provider (see
 :doc:`clone_providers`); they remain accepted here during the deprecation
 window and are also listed by ``ivpm show clone-providers git``.
@@ -331,8 +341,10 @@ mutually exclusive -- passing more than one is an error.
     detached.  A commit that is not reachable from the refs fetched by the clone
     is fetched explicitly by hash where the server permits it.
 
-``-d, --dep-set <name>``
-    Dependency set for ``ivpm update``
+``-d, --dep-set <name>[,<name>...]``
+    Dependency set(s) for the post-clone ``ivpm update``.  Repeatable, and each
+    value may be a comma-separated list; the sets are merged exactly as for
+    ``update -d`` (see :ref:`selecting-several-dep-sets`).
 
 ``--py-uv``
     Use 'uv' for Python package management
@@ -371,6 +383,9 @@ mutually exclusive -- passing more than one is an error.
 
     # Force HTTPS (as-written) clone with dep-set
     $ ivpm clone -a -d default https://github.com/org/project.git
+
+    # Install two dep-sets at once (same as -d default -d gui-tools)
+    $ ivpm clone -d default,gui-tools https://github.com/org/project.git
     
     # Use uv for package management
     $ ivpm clone --py-uv https://github.com/org/project.git
@@ -955,8 +970,13 @@ Fetch dependencies and initialize environment.
 ``-p, --project-dir <dir>``
     Project directory (default: current)
 
-``-d, --dep-set <name>``
-    Use specified dependency set
+``-d, --dep-set <name>[,<name>...]``
+    Use specified dependency set(s).  Repeatable, and each value may be a
+    comma-separated list: ``-d a,b`` and ``-d a -d b`` are equivalent.  The
+    sets' packages merge left-to-right (a later set wins a name collision; a
+    package in several sets is installed once).  The selection is recorded, so
+    a later bare ``ivpm update``, ``build``, ``status`` and ``sync`` use it; see
+    :ref:`selecting-several-dep-sets`.
 
 ``-j, --jobs <n>``
     Parallel package fetches (default: CPU count)

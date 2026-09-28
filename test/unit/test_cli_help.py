@@ -75,6 +75,16 @@ class TestCliHelp(unittest.TestCase):
 
         self.assertEqual(commands, sorted(commands))
 
+    def test_skills_listed_and_subcommands_alphabetized(self):
+        result = _run("--help")
+        self.assertIn("skills", _usage_commands(result.stdout))
+
+        result = _run("skills", "--help")
+        self.assertEqual(result.returncode, 0)
+        choices = next(line.strip() for line in result.stdout.splitlines()
+                       if line.strip().startswith("{"))
+        self.assertEqual("{install,list,status,sync,uninstall}", choices)
+
     def test_update_accepts_verbose_flag(self):
         result = _run("update", "--help")
         self.assertEqual(result.returncode, 0)

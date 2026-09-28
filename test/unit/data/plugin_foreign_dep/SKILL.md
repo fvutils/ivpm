@@ -1,5 +1,5 @@
 ---
-name: plugin_foreign_dep
+name: plugin-foreign-dep
 description: Test skill plugin_foreign_dep.
 ---
 

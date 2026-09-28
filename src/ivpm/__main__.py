@@ -229,8 +229,10 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
     build_cmd = subparser.add_parser("build",
         help="Build all sub-projects with an IVPM-supported build infrastructure (Python)")
-    build_cmd.add_argument("-d", "--dep-set", dest="dep_set", 
-        help="Uses dependencies from specified dep-set instead of default")
+    build_cmd.add_argument("-d", "--dep-set", dest="dep_set", action="append",
+        metavar="DEP-SET",
+        help="Deprecated: build uses the dep-set(s) installed by 'ivpm update'. "
+             "Accepted only when it names those dep-sets")
     build_cmd.add_argument("-g", "--debug", 
         action="store_true",
         help="Enables debug for native extensions")
@@ -395,10 +397,14 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Target workspace directory; defaults to basename of src")
     clone_cmd.add_argument("--here", dest="here", action="store_true", default=False,
         help="Set up the workspace in the current directory instead of a new subdirectory. "
-             "Idempotent: reuses an existing clone of src if already present, or clones into "
-             "a non-empty directory in place.")
-    clone_cmd.add_argument("-d", "--dep-set", dest="dep_set",
-        help="Dependency set to use for ivpm update")
+             "Reuses an existing clone of src if already present, or clones into "
+             "a non-empty directory in place. Refuses a directory that already "
+             "holds an IVPM workspace (use 'ivpm update' there instead).")
+    clone_cmd.add_argument("-d", "--dep-set", dest="dep_set", action="append",
+        metavar="DEP-SET",
+        help="Dependency set(s) for the post-clone update. May be repeated "
+             "(or comma-separated) to install several dep-sets at once, "
+             "e.g. -d default -d gui-tools")
     clone_cmd.add_argument("--py-uv", dest="py_uv", action="store_true",
         help="Use 'uv' to manage virtual environment")
     clone_cmd.add_argument("--py-pip", dest="py_pip", action="store_true",
@@ -852,6 +858,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
     show_cmd.set_defaults(func=CmdShow())
     subcommands["show"] = show_cmd
+
+    from .cmds.cmd_skills import add_skills_parser
+    subcommands["skills"] = add_skills_parser(subparser, _finalize_subparser_help)
 
     if parser_ext is not None:
         for ext in parser_ext:

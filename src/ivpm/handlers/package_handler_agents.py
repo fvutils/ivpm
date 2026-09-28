@@ -17,14 +17,15 @@
 #*
 #****************************************************************************
 import dataclasses as dc
-import json
 import logging
 import os
-import re
-import shutil
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from .._compat import glob_rel
+from ..agent_skills import frontmatter as _frontmatter
+from ..agent_skills import install as _install
+from ..agent_skills import naming as _naming
+from ..agent_skills.model import SkillEntry
 from ..package import Package
 from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler, ToolchainSupport
@@ -32,104 +33,14 @@ from .handler_phases import HandlerPhase
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_agents")
 
-# Frontmatter delimited by lines containing only '---'
-_FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
-_FIELD_RE = re.compile(r"^(\w[\w-]*):\s*(.+)$", re.MULTILINE)
+# Discovery lives here; naming, linking and cleanup live in ivpm.agent_skills,
+# which the 'ivpm skills' command shares. Module-level aliases keep the names
+# tests patch.
+_TOOL_TARGETS = _install.TOOL_TARGETS
+_symlinks_supported = _install.symlinks_supported
+_parse_frontmatter = _frontmatter.parse
 
-# Agent-tool mirror targets in addition to the always-present .agents/skills/,
-# as (config_key, subdir, plugin_strategy). Each is opt-out (default-on) via
-# package.with.agents; an explicit False (e.g. claude: false) skips the target.
-#
-# plugin_strategy says how an Agent Plugin reaches this tool:
-#
-#   "install"  -- the tool has a real plugin mechanism, so the plugin is
-#                 materialized whole and the tool namespaces its skills
-#                 itself. Claude Code loads any directory under a skills
-#                 directory that contains .claude-plugin/plugin.json as
-#                 "<name>@skills-dir".
-#   "unbundle" -- the tool understands individual skills only, so a plugin's
-#                 skills are linked one by one.
-#
-# The two are mutually exclusive per tool: doing both would surface every
-# skill twice, once namespaced by the plugin and once bare.
-#
-# .agents/skills/ is always "unbundle". That is also what Codex wants -- it
-# scans .agents/skills from the working directory up to the repository root --
-# so Codex needs no mirror of its own.
-_TOOL_TARGETS = (
-    ("claude", os.path.join(".claude", "skills"), "install"),
-    ("cursor", os.path.join(".cursor", "skills"), "unbundle"),
-)
-
-# Precedence used when the same skill directory is discovered by more than one
-# mechanism (see _dedup_entries). Lower sorts first / wins. Plugin-owned
-# entries outrank bare ones: a plugin supplies a real name and provenance.
-_KIND_RANK = {
-    "plugin-project": 0,
-    "plugin-dependency": 1,
-    "project": 2,
-    "dependency": 3,
-}
-
-# Claude Code's manifest location within a plugin. Its schema and the Agent
-# Plugins schema share every field name we emit, and Claude Code documents
-# that it ignores unrecognized top-level fields, so the Agent Plugins manifest
-# is copied across verbatim rather than rewritten.
-_CLAUDE_MANIFEST_DIR = ".claude-plugin"
-_CLAUDE_MCP_NAME = ".mcp.json"
-
-
-def _parse_frontmatter(path: str) -> Optional[Dict[str, str]]:
-    """Return a dict of frontmatter fields, or None on failure."""
-    try:
-        with open(path) as fh:
-            content = fh.read()
-    except OSError as exc:
-        _logger.warning("Could not read %s: %s", path, exc)
-        return None
-
-    m = _FRONTMATTER_RE.match(content)
-    if not m:
-        return None
-
-    fields: Dict[str, str] = {}
-    for fm in _FIELD_RE.finditer(m.group(1)):
-        fields[fm.group(1)] = fm.group(2).strip()
-    return fields
-
-
-def _symlinks_supported(dest_parent: str) -> bool:
-    """Return True if the filesystem at dest_parent supports symlinks."""
-    probe = os.path.join(dest_parent, ".ivpm_symlink_probe")
-    try:
-        os.symlink(".", probe)
-        os.remove(probe)
-        return True
-    except (OSError, NotImplementedError):
-        return False
-
-
-def _copy_skill_dir(src_dir: str, dest_dir: str):
-    """Fallback copy: SKILL.md plus companion directories."""
-    os.makedirs(dest_dir, exist_ok=True)
-    src = os.path.join(src_dir, "SKILL.md")
-    if os.path.isfile(src):
-        shutil.copy2(src, os.path.join(dest_dir, "SKILL.md"))
-    for companion in ("scripts", "references", "assets"):
-        src = os.path.join(src_dir, companion)
-        if os.path.isdir(src):
-            shutil.copytree(src, os.path.join(dest_dir, companion), dirs_exist_ok=True)
-
-
-@dc.dataclass(frozen=True)
-class SkillEntry(object):
-    kind: str
-    owner_name: str
-    root_dir: str
-    skill_dir: str
-    #: Set when this skill came from an Agent Plugin. Drives naming, and lets
-    #: an "install"-strategy tool skip the skill (it gets the whole plugin).
-    plugin_name: Optional[str] = None
+__all__ = ["PackageHandlerAgents", "SkillEntry"]
 
 
 @dc.dataclass
@@ -257,19 +168,21 @@ class PackageHandlerAgents(PackageHandler):
         plugin_install = bool(agents_cfg.get("plugin_install", True))
         emit_mcp = bool(agents_cfg.get("mcp", False))
 
-        # .agents/skills/ is always populated and must stay targets[0] (used as
-        # the symlink-support probe location below). Each tool target is
-        # opt-out: enabled by default, skipped only when set to a false value.
-        # Each target carries the strategy by which plugins reach it.
-        targets = [(".agents", os.path.join(project_dir, ".agents", "skills"), "unbundle")]
-        for cfg_key, subdir, strategy in _TOOL_TARGETS:
-            if not bool(agents_cfg.get(cfg_key, True)):
-                continue
-            targets.append((cfg_key, os.path.join(project_dir, subdir),
-                            strategy if plugin_install else "unbundle"))
+        # .agents/skills/ is always populated and stays targets[0] (the
+        # symlink-support probe location below). Each tool target is opt-out:
+        # enabled by default, skipped only when set to a false value.
+        agents = [key for key, _subdir, _strategy in _TOOL_TARGETS
+                  if bool(agents_cfg.get(key, True))]
+        targets = _install.build_targets(project_dir, agents, plugin_install)
+
+        # Names 'ivpm skills' owns in this project are off limits: never
+        # removed or replaced here (see agent_skills.state).
+        from ..agent_skills import state as _state
+        cmd_state = _state.load_quiet(project_dir)
+        reserved = cmd_state.installed_map() if cmd_state is not None else {}
 
         # Remove entries created by the previous run before writing new ones
-        self._remove_managed(project_dir, self._prev_state)
+        _install.remove_managed(project_dir, self._prev_state, keep=reserved)
 
         self.plugin_entries.extend(self._discover_project_plugins(update_info, project_dir))
         self.skill_entries.extend(self._discover_project_skills(update_info, project_dir))
@@ -283,71 +196,52 @@ class PackageHandlerAgents(PackageHandler):
             if plugin is not None:
                 self.plugin_entries.append(plugin)
 
-        # Consume skills pushed by the Python handler (agent.skills entry-points)
-        for ep_name, skill_dir in getattr(update_info, 'pending_skill_dirs', []):
+        # Consume skills pushed by the Python handler: agent.skills entry
+        # points and <venv>/share/agent-skills, filtered by
+        # with.agents.entrypoints.
+        ep_filter = agents_cfg.get("entrypoints", True)
+        for item in getattr(update_info, 'pending_skill_dirs', []):
+            owner, skill_dir = item[0], item[1]
+            meta = item[2] if len(item) > 2 else {}
+            source = meta.get("source", "entrypoint")
+            label = "agent.skills entrypoint" if source == "entrypoint" else "share/agent-skills"
             skill_file = os.path.join(skill_dir, "SKILL.md")
             if not os.path.isfile(skill_file):
-                _logger.warning(
-                    "agent.skills entrypoint '%s': no SKILL.md in %s", ep_name, skill_dir)
+                _logger.warning("%s '%s': no SKILL.md in %s", label, owner, skill_dir)
                 continue
-            if not self._validate_frontmatter(skill_file, ep_name):
+            if not self._validate_frontmatter(skill_file, owner):
                 continue
-            self.skill_entries.append(SkillEntry("dependency", ep_name, skill_dir, skill_dir))
+            if not self._entrypoint_selected(ep_filter, owner, skill_dir, source, meta):
+                continue
+            self.skill_entries.append(SkillEntry(
+                "dependency", owner, skill_dir, skill_dir, source=source))
 
         self.plugin_entries = self._dedup_plugins(self.plugin_entries)
         self.skill_entries = self._drop_plugin_owned(self.skill_entries, self.plugin_entries)
         if expand_skills:
             self.skill_entries.extend(self._expand_plugin_skills(self.plugin_entries))
         self.skill_entries = self._dedup_entries(self.skill_entries)
+        if reserved:
+            self.skill_entries = self._drop_command_owned(
+                self.skill_entries, project_dir, cmd_state)
 
         if not self.skill_entries and not self.plugin_entries:
             return
 
-        for _, tgt, _strategy in targets:
-            os.makedirs(tgt, exist_ok=True)
+        for tgt in targets:
+            os.makedirs(tgt.path, exist_ok=True)
 
-        use_symlinks = _symlinks_supported(targets[0][1])
-        deps_dir_norm = os.path.normpath(update_info.deps_dir)
+        use_symlinks = _symlinks_supported(targets[0].path)
+        linker = _install.Linker(project_dir, use_symlinks,
+                                 deps_dir=update_info.deps_dir, log=_logger)
 
-        plugin_assigned = self._assign_plugin_names(self.plugin_entries)
-        skill_assigned = self._assign_dest_names(self.skill_entries)
+        plugin_assigned = _naming.assign_plugin_names(self.plugin_entries, _logger)
+        skill_assigned = _naming.assign_dest_names(
+            self.skill_entries, _logger,
+            reserved={n for names in reserved.values() for n in names})
 
-        # Names written per state key, so the next run cleans up exactly what
-        # this one created -- which differs per target once "install" is in play.
-        managed: Dict[str, List[str]] = {}
-
-        # The neutral view: whole plugins, plus every skill individually.
-        if plugin_assigned:
-            plugins_dir = os.path.join(project_dir, ".agents", "plugins")
-            os.makedirs(plugins_dir, exist_ok=True)
-            for dest_name, plugin in plugin_assigned:
-                self._link_dir(os.path.join(plugins_dir, dest_name), plugin.root_dir,
-                               project_dir, deps_dir_norm, use_symlinks)
-            managed["agents_plugins"] = [n for n, _ in plugin_assigned]
-
-        n_installed = 0
-        for cfg_key, tgt, strategy in targets:
-            names: List[str] = []
-
-            if strategy == "install":
-                for dest_name, plugin in plugin_assigned:
-                    if self._install_plugin(os.path.join(tgt, dest_name), plugin,
-                                            project_dir, deps_dir_norm,
-                                            use_symlinks, emit_mcp):
-                        names.append(dest_name)
-                        n_installed += 1
-
-            for dest_name, entry in skill_assigned:
-                # A plugin installed whole already carries this skill, namespaced
-                # by the tool. Linking it here too would surface it twice.
-                if strategy == "install" and entry.plugin_name is not None:
-                    continue
-                self._link_dir(os.path.join(tgt, dest_name), entry.skill_dir,
-                               project_dir, deps_dir_norm, use_symlinks)
-                names.append(dest_name)
-
-            key = "agents_skills" if cfg_key == ".agents" else "%s_skills" % cfg_key
-            managed[key] = names
+        managed, n_installed = _install.populate(
+            linker, targets, skill_assigned, plugin_assigned, emit_mcp)
 
         self._managed = managed
         self._managed_names = managed.get("agents_skills", [])
@@ -416,7 +310,7 @@ class PackageHandlerAgents(PackageHandler):
             if prev is None:
                 by_root[key] = plugin
                 continue
-            if _KIND_RANK.get(plugin.kind, 99) < _KIND_RANK.get(prev.kind, 99):
+            if _naming.KIND_RANK.get(plugin.kind, 99) < _naming.KIND_RANK.get(prev.kind, 99):
                 by_root[key] = plugin
             _logger.debug("Plugin %s discovered more than once (%s and %s)",
                           key, prev.owner_name, plugin.owner_name)
@@ -467,122 +361,6 @@ class PackageHandlerAgents(PackageHandler):
                     plugin_name=plugin.name))
         return entries
 
-    def _assign_plugin_names(self, plugins: List[object]) -> List[Tuple[str, object]]:
-        """Name plugin links from the manifest, disambiguating by owner package.
-
-        The manifest name is spec-constrained to a filesystem-safe charset, so
-        it is a better link name than anything derived from a directory path.
-        """
-        ordered = sorted(plugins, key=lambda p: (p.kind, p.name, p.owner_name))
-        candidates = [[p.name, "%s-%s" % (p.owner_name, p.name)] for p in ordered]
-        names = self._resolve_names(
-            candidates, [("plugin %s (from %s)" % (p.name, p.owner_name)) for p in ordered])
-        return sorted(zip(names, ordered), key=lambda item: item[0])
-
-    def _install_plugin(self, dest: str, plugin, project_dir: str,
-                        deps_dir_norm: str, use_symlinks: bool,
-                        emit_mcp: bool) -> bool:
-        """Materialize a plugin in the form a plugin-aware tool expects.
-
-        The tool loads a directory as a plugin when it finds
-        ``.claude-plugin/plugin.json`` in it, so the installed directory is a
-        thin shell: every top-level entry of the real plugin is linked through,
-        and only the manifest (and optionally the MCP configuration) is
-        generated. Linking rather than copying means edits to a dependency's
-        skills are picked up without re-running ``ivpm update``.
-
-        Returns True when the plugin was installed.
-        """
-        if os.path.exists(dest) or os.path.islink(dest):
-            _logger.warning("Cannot install plugin '%s'; %s already exists",
-                            plugin.name, dest)
-            return False
-
-        os.makedirs(dest, exist_ok=True)
-
-        ships_own_manifest = os.path.isfile(
-            os.path.join(plugin.root_dir, _CLAUDE_MANIFEST_DIR, "plugin.json"))
-
-        for entry in sorted(os.listdir(plugin.root_dir)):
-            # mcp.json is translated below rather than linked: the tool reads
-            # '.mcp.json' and spells the plugin-root placeholder differently.
-            if entry == "mcp.json":
-                continue
-            if entry == _CLAUDE_MANIFEST_DIR and not ships_own_manifest:
-                continue
-            src = os.path.join(plugin.root_dir, entry)
-            self._link_dir(os.path.join(dest, entry), src, project_dir,
-                           deps_dir_norm, use_symlinks, quiet=True)
-
-        if not ships_own_manifest:
-            # The Agent Plugins manifest is already a valid manifest for the
-            # tool: the field names coincide and unrecognized top-level fields
-            # (our '$schema', 'extensions') are ignored at load time. Copy it
-            # verbatim rather than rewriting it.
-            manifest_dir = os.path.join(dest, _CLAUDE_MANIFEST_DIR)
-            os.makedirs(manifest_dir, exist_ok=True)
-            try:
-                shutil.copy2(os.path.join(plugin.root_dir, "plugin.json"),
-                             os.path.join(manifest_dir, "plugin.json"))
-            except OSError as exc:
-                _logger.warning("Could not install manifest for plugin '%s': %s",
-                                plugin.name, exc)
-                return False
-
-        if emit_mcp and plugin.mcp is not None and plugin.mcp.servers:
-            self._write_tool_mcp(dest, plugin, project_dir)
-
-        return True
-
-    def _write_tool_mcp(self, dest: str, plugin, project_dir: str):
-        """Translate the plugin's mcp.json into the tool's own MCP file.
-
-        Only the spelling differs: the tool names the plugin root
-        ``${CLAUDE_PLUGIN_ROOT}`` where Agent Plugins says ``${PLUGIN_ROOT}``,
-        and has no equivalent of ``${PLUGIN_DATA}``, which is therefore
-        resolved to the concrete per-plugin directory IVPM allocates.
-
-        That directory is deliberately *not* tracked for cleanup: the
-        specification requires plugin data to survive updates.
-        """
-        data_dir = os.path.join(project_dir, ".agents", "data", plugin.name)
-        os.makedirs(data_dir, exist_ok=True)
-
-        def subst(value: str) -> str:
-            return (value
-                    .replace("${PLUGIN_ROOT}", "${CLAUDE_PLUGIN_ROOT}")
-                    .replace("${PLUGIN_DATA}", data_dir))
-
-        servers = {}
-        for srv in plugin.mcp.servers:
-            if srv.type == "stdio":
-                command = srv.command
-                if command.startswith("./"):
-                    command = "${CLAUDE_PLUGIN_ROOT}/" + command[2:]
-                entry = {"type": "stdio", "command": subst(command)}
-                if srv.args:
-                    entry["args"] = [subst(a) for a in srv.args]
-                if srv.env:
-                    entry["env"] = {k: subst(v) for k, v in srv.env.items()}
-                if srv.cwd:
-                    cwd = srv.cwd
-                    if cwd.startswith("./"):
-                        cwd = "${CLAUDE_PLUGIN_ROOT}/" + cwd[2:]
-                    entry["cwd"] = subst(cwd)
-            else:
-                entry = {"type": srv.type, "url": srv.url}
-                if srv.headers:
-                    entry["headers"] = dict(srv.headers)
-            servers[srv.name] = entry
-
-        try:
-            with open(os.path.join(dest, _CLAUDE_MCP_NAME), "w") as fh:
-                json.dump({"mcpServers": servers}, fh, indent=2)
-                fh.write("\n")
-        except OSError as exc:
-            _logger.warning("Could not write MCP configuration for plugin '%s': %s",
-                            plugin.name, exc)
-
     @staticmethod
     def _log_diags(diags, owner_name: str):
         """Route plugin diagnostics to the log. Info stays at debug level: it is
@@ -596,36 +374,15 @@ class PackageHandlerAgents(PackageHandler):
 
     # ------------------------------------------------------------------ #
 
-    def _link_dir(self, dest: str, src: str, project_dir: str,
-                  deps_dir_norm: str, use_symlinks: bool,
-                  quiet: bool = False):
-        """Link (or copy) one directory into place.
-
-        Symlinks are relative when the source is inside the project tree and
-        absolute otherwise, so a workspace stays relocatable while a
-        shared-cache dependency still resolves.
-        """
-        if use_symlinks:
-            src_norm = os.path.normpath(src)
-            project_dir_norm = os.path.normpath(project_dir)
-            if src_norm == project_dir_norm or src_norm.startswith(project_dir_norm + os.sep):
-                link_target = os.path.relpath(src, os.path.dirname(dest))
-            else:
-                link_target = os.path.abspath(src)
-            self._ensure_symlink(dest, link_target, src, deps_dir_norm, quiet=quiet)
-        else:
-            if os.path.isdir(src):
-                self._ensure_copy(dest, src)
-            elif not os.path.exists(dest):
-                shutil.copy2(src, dest)
-
     def _get_skill_patterns(self, pkg) -> Optional[List[str]]:
         """Return skill glob patterns (priority 1 or 2), or None for auto-probe.
 
         Priority:
           1. pkg.agents_config['skills'] — consumer-specified via dep entry
-          2. dep's own ivpm.yaml with.agents.skills
-          3. None → caller falls through to auto-probe
+          2. dep's own ivpm.yaml with.agents.export — what it offers dependents
+             (an empty list offers nothing)
+          3. dep's own ivpm.yaml with.agents.skills
+          4. None → caller falls through to auto-probe
         """
         # Priority 1: consumer dep-entry override
         dep_agents = getattr(pkg, "agents_config", None) or {}
@@ -643,6 +400,11 @@ class PackageHandlerAgents(PackageHandler):
         if info is None:
             return None
         cfg = info.handler_configs.get("agents", {}) or {}
+        # 'export' is what the package offers its dependents; 'skills' is
+        # what it uses as a project and is only the fallback here.
+        export = cfg.get("export", None)
+        if export is not None:
+            return [str(p) for p in export]
         skills_list = cfg.get("skills", None)
         return [str(p) for p in skills_list] if skills_list is not None else None
 
@@ -684,159 +446,53 @@ class PackageHandlerAgents(PackageHandler):
 
         return found
 
-    def _dedup_entries(self, entries: List[SkillEntry]) -> List[SkillEntry]:
-        """Collapse entries that resolve to the same skill directory.
+    @staticmethod
+    def _entrypoint_selected(ep_filter, owner: str, skill_dir: str,
+                             source: str, meta: dict) -> bool:
+        """Apply with.agents.entrypoints: true (all), false (none) or a list
+        of 'ivpm skills' selectors."""
+        if ep_filter is True or ep_filter is None:
+            return True
+        if ep_filter is False:
+            return False
+        from ..agent_skills import select as _select
+        name = _frontmatter.skill_name(skill_dir) or os.path.basename(skill_dir)
+        av = _select.Available(
+            name=name, ep_name=owner if source == "entrypoint" else None,
+            dist=meta.get("dist"), version=None, path=skill_dir)
+        sels = [str(x) for x in ep_filter] if isinstance(ep_filter, list) else [str(ep_filter)]
+        return any(_select.matches(sel, av) for sel in sels)
 
-        The same directory can be discovered by more than one mechanism: a source
-        Python dep may ship SKILL.md files *and* register an 'agent.skills'
-        entry-point, and an editable install resolves that entry-point back to the
-        same tree under deps_dir. Paths are compared by realpath because a cached
-        dep's deps_dir path is a symlink into the shared cache, so the on-disk and
-        entry-point views of one skill are spelled differently.
+    @staticmethod
+    def _drop_command_owned(entries: List[SkillEntry], project_dir: str,
+                            cmd_state) -> List[SkillEntry]:
+        """Drop skills 'ivpm skills' already installed in this project.
 
-        Precedence keeps the entry that names and links best: project entries
-        first, then path-discovered dependency entries (which carry package
-        provenance for naming and live inside the project tree, so the created
-        symlink stays relative), then bare entry-point entries.
+        The same skill under the command's name is already there, so linking it
+        again would only surface it twice. Matched by realpath for links and by
+        content for copies.
         """
-        by_target: Dict[str, Tuple[Tuple[int, int], SkillEntry]] = {}
-
+        skills_dir = os.path.join(project_dir, ".agents", "skills")
+        owned_real = set()
+        owned_hash = set()
+        for ent in cmd_state.installed.get("agents_skills", []):
+            path = os.path.join(skills_dir, ent.name)
+            if os.path.islink(path):
+                owned_real.add(os.path.realpath(path))
+            elif ent.hash:
+                owned_hash.add(ent.hash)
+        kept = []
         for entry in entries:
-            key = os.path.realpath(entry.skill_dir)
-            # Entry-point entries carry no package root: root_dir == skill_dir
-            has_root = os.path.normpath(entry.root_dir) != os.path.normpath(entry.skill_dir)
-            rank = (_KIND_RANK.get(entry.kind, len(_KIND_RANK)), 0 if has_root else 1)
-
-            prev = by_target.get(key)
-            if prev is not None:
-                keep = entry if rank < prev[0] else prev[1]
-                _logger.debug(
-                    "Skill %s discovered more than once (%s and %s); keeping the %s entry",
-                    key, prev[1].owner_name, entry.owner_name, keep.owner_name)
-                if keep is prev[1]:
-                    continue
-            by_target[key] = (rank, entry)
-
-        return [entry for _, entry in by_target.values()]
-
-    def _assign_dest_names(self, entries: List[SkillEntry]) -> List[Tuple[str, SkillEntry]]:
-        ordered = sorted(entries, key=lambda e: self._entry_sort_key(e))
-        candidates = [self._name_candidates(e) for e in ordered]
-        labels = ["skill %s (from %s)" % (e.skill_dir, e.owner_name) for e in ordered]
-        names = self._resolve_names(candidates, labels)
-        return sorted(zip(names, ordered), key=lambda item: item[0])
-
-    @classmethod
-    def _resolve_names(cls, candidates: List[List[str]], labels: List[str]) -> List[str]:
-        """Pick one name per item, escalating to longer candidates on collision.
-
-        Each item supplies its candidate names shortest-first. Colliding items
-        both advance to their next candidate; when an item runs out, an
-        arbitrary numeric suffix is the last resort and is worth a warning.
-        """
-        levels = [0 for _ in candidates]
-
-        while True:
-            collisions = cls._find_name_collisions(candidates, levels)
-            if not collisions:
-                break
-
-            advanced = False
-            for idxs in collisions.values():
-                for idx in idxs:
-                    if levels[idx] + 1 < len(candidates[idx]):
-                        levels[idx] += 1
-                        advanced = True
-            if not advanced:
-                break
-
-        names = []
-        used = set()
-        for idx, label in enumerate(labels):
-            base_name = candidates[idx][levels[idx]]
-            dest_name = base_name
-            suffix = 2
-            while dest_name in used:
-                # Items pointing at one directory are merged before we get here,
-                # so this means two *distinct* things exhausted their candidate
-                # names and one is getting an arbitrary suffix.
-                _logger.warning(
-                    "Name '%s' is already in use; linking %s as '%s-%d'",
-                    base_name, label, base_name, suffix)
-                dest_name = "%s-%d" % (base_name, suffix)
-                suffix += 1
-            used.add(dest_name)
-            names.append(dest_name)
-
-        return names
+            if os.path.realpath(entry.skill_dir) in owned_real:
+                continue
+            if owned_hash and _install.content_hash(entry.skill_dir) in owned_hash:
+                continue
+            kept.append(entry)
+        return kept
 
     @staticmethod
-    def _find_name_collisions(candidates: List[List[str]], levels: List[int]) -> Dict[str, List[int]]:
-        names = {}
-        for idx, opts in enumerate(candidates):
-            name = opts[levels[idx]]
-            names.setdefault(name, []).append(idx)
-        return {name: idxs for name, idxs in names.items() if len(idxs) > 1}
-
-    @staticmethod
-    def _entry_sort_key(entry: SkillEntry):
-        return (entry.kind, entry.owner_name, entry.skill_dir)
-
-    def _name_candidates(self, entry: SkillEntry) -> List[str]:
-        parts = self._relative_dir_parts(entry.root_dir, entry.skill_dir)
-
-        if entry.plugin_name is not None:
-            # A plugin gives the skill a real owner: prefer '<plugin>-<skill>'
-            # over anything derived from the directory layout, and fall back to
-            # including the IVPM package when two plugins share a name.
-            dir_name = parts[-1] if parts else entry.plugin_name
-            return ["%s-%s" % (entry.plugin_name, dir_name),
-                    "%s-%s-%s" % (entry.owner_name, entry.plugin_name, dir_name)]
-
-        if entry.kind == "dependency":
-            return self._dependency_name_candidates(entry.owner_name, entry.root_dir, parts)
-        else:
-            return self._project_name_candidates(entry.root_dir, parts)
-
-    @staticmethod
-    def _relative_dir_parts(root_dir: str, skill_dir: str) -> List[str]:
-        rel_dir = os.path.relpath(skill_dir, root_dir)
-        if rel_dir == ".":
-            return []
-        return [part for part in rel_dir.split(os.sep) if part]
-
-    @staticmethod
-    def _dependency_name_candidates(pkg_name: str, root_dir: str, rel_parts: List[str]) -> List[str]:
-        if not rel_parts:
-            return [pkg_name]
-
-        dir_name = rel_parts[-1]
-        parent_parts = rel_parts[:-1]
-        candidates = ["-".join([pkg_name, dir_name])]
-
-        for depth in range(1, len(parent_parts) + 1):
-            prefix = parent_parts[-depth:]
-            candidates.append("-".join([pkg_name] + prefix + [dir_name]))
-
-        return candidates
-
-    @staticmethod
-    def _project_name_candidates(root_dir: str, rel_parts: List[str]) -> List[str]:
-        if rel_parts:
-            dir_name = rel_parts[-1]
-            parent_parts = rel_parts[:-1]
-        else:
-            dir_name = os.path.basename(os.path.normpath(root_dir))
-            parent = os.path.basename(os.path.dirname(os.path.normpath(root_dir)))
-            parent_parts = [parent] if parent else []
-
-        candidates = [dir_name]
-
-        for depth in range(1, len(parent_parts) + 1):
-            prefix = parent_parts[-depth:]
-            candidates.append("-".join(prefix + [dir_name]))
-
-        return candidates
+    def _dedup_entries(entries: List[SkillEntry]) -> List[SkillEntry]:
+        return _naming.dedup_entries(entries, _logger)
 
     def _auto_probe_skill_dirs(self, owner_name: str, root_dir: str) -> List[str]:
         """Auto-probe for skill dirs when no explicit skills config is present.
@@ -868,81 +524,6 @@ class PackageHandlerAgents(PackageHandler):
 
         return found
 
-    def _validate_frontmatter(self, path: str, pkg_name: str) -> bool:
-        fields = _parse_frontmatter(path)
-        if not fields:
-            _logger.warning(
-                "Package %s: %s has missing or malformed frontmatter; skipping",
-                pkg_name, path)
-            return False
-        if not fields.get("name") or not fields.get("description"):
-            _logger.warning(
-                "Package %s: %s frontmatter missing required 'name' or 'description'; skipping",
-                pkg_name, path)
-            return False
-        return True
-
-    def _ensure_symlink(self, dest: str, link_target: str, skill_dir: str,
-                        deps_dir_norm: str, quiet: bool = False):
-        """Create or replace symlink at dest pointing to link_target (relative or absolute).
-
-        ``quiet`` suppresses the "path exists" warning for links written inside
-        a directory this run just created, where an existing entry means the
-        plugin ships that name itself rather than a user having placed it.
-        """
-        if os.path.islink(dest):
-            # Resolve stored target to absolute path for comparison
-            stored_target = os.readlink(dest)
-            stored_abs = os.path.normpath(os.path.join(os.path.dirname(dest), stored_target))
-            expected_abs = os.path.normpath(skill_dir)
-
-            if stored_abs == expected_abs:
-                return  # Already correct, silently leave it
-
-            # Check if it points into deps_dir
-            if stored_abs.startswith(deps_dir_norm + os.sep):
-                os.unlink(dest)
-                os.symlink(link_target, dest)
-            else:
-                _logger.warning(
-                    "Symlink %s points outside deps_dir to %s; leaving as-is",
-                    dest, stored_abs)
-        elif os.path.exists(dest):
-            if not quiet:
-                _logger.warning(
-                    "Cannot create symlink %s; path exists and is not a symlink",
-                    dest)
-        else:
-            os.symlink(link_target, dest)
-
-    def _ensure_copy(self, dest: str, skill_dir: str):
-        """Create or replace copy at dest, handling existing entries gracefully."""
-        if os.path.exists(dest):
-            _logger.warning(
-                "Skill copy %s already exists; skipping", dest)
-        else:
-            _copy_skill_dir(skill_dir, dest)
-
     @staticmethod
-    def _remove_managed(project_dir: str, prev_state: dict):
-        """Remove symlinks/copies written by the previous run.
-
-        Note ``.agents/data/`` is never touched: it is the per-plugin data
-        directory, which the Agent Plugins specification requires to survive
-        updates.
-        """
-        pairs = [("agents_skills", os.path.join(".agents", "skills")),
-                 ("agents_plugins", os.path.join(".agents", "plugins"))]
-        pairs += [("%s_skills" % cfg_key, subdir)
-                  for cfg_key, subdir, _strategy in _TOOL_TARGETS]
-        for key, subdir in pairs:
-            names = prev_state.get(key, [])
-            if not names:
-                continue
-            skills_dir = os.path.join(project_dir, subdir)
-            for name in names:
-                entry = os.path.join(skills_dir, name)
-                if os.path.islink(entry):
-                    os.unlink(entry)
-                elif os.path.isdir(entry):
-                    shutil.rmtree(entry)
+    def _validate_frontmatter(path: str, pkg_name: str) -> bool:
+        return _frontmatter.validate(path, pkg_name, _logger)

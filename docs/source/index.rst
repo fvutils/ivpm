@@ -24,6 +24,8 @@ One YAML file.  One command.  A complete, self-contained workspace.
    core_concepts
    handlers
    agent_plugins
+   agent_skills_command
+   agent_skills_entrypoints
    dependency_sets
    nested_deps
    remote_catalogs

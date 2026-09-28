@@ -508,12 +508,33 @@ class ProjectOps(object):
             from .perf_report import render
             print(render(record))
 
-    def build(self, dep_set : str = None, args = None, debug : bool = False):
-        proj_info, deps_dir, dep_sets, _ = self._init(dep_set)
+    def build(self, dep_set : List[str] = None, args = None, debug : bool = False):
+        """Build the workspace's packages.
 
-        dep_set = dep_sets[0] if dep_sets else None
-        dep_set, ds = self._getDepSet(
-            proj_info, dep_set, origin=getattr(self, "_dep_sets_origin", None))
+        Build works on the dep-set(s) the last update installed -- all of
+        them -- never on a selection of its own. *dep_set* is the deprecated
+        ``build -d``: accepted, with a warning, only when it names the
+        recorded dep-sets.
+        """
+        proj_info, deps_dir, dep_sets, _ = self._init(announce_recorded=False)
+
+        if dep_sets is None:
+            fatal("No installed dep-sets found in %s; run 'ivpm update' "
+                  "before 'ivpm build'." % deps_dir)
+
+        if dep_set is not None:
+            if set(dep_set) != set(dep_sets):
+                fatal("'ivpm build -d %s' does not match the dep-set(s) "
+                      "installed in %s (%s). Build uses the installed "
+                      "dep-sets; run 'ivpm update -d %s --force' to change "
+                      "them." % (",".join(dep_set), deps_dir,
+                                 ",".join(dep_sets), ",".join(dep_set)))
+            warning("'ivpm build -d' is deprecated and ignored: build uses "
+                    "the dep-set(s) installed by 'ivpm update' (%s)" %
+                    ",".join(dep_sets))
+
+        dep_sets, ds = self._getDepSets(
+            proj_info, dep_sets, origin=getattr(self, "_dep_sets_origin", None))
 
         pkg_handler = PackageHandlerRgy.inst().mkHandler()
         updater = PackageUpdater(deps_dir, pkg_handler, args=args, load=False,
@@ -1332,7 +1353,8 @@ class ProjectOps(object):
               deps_dir_override : str = None,
               default_config : dict = None,
               merged_proj_info = None,
-              force : bool = False) -> Tuple['ProjInfo', str, List[str], 'dict']:
+              force : bool = False,
+              announce_recorded : bool = True) -> Tuple['ProjInfo', str, List[str], 'dict']:
         from .proj_info import ProjInfo
 
         # Normalize the requested dep-set(s) to a list (or None for "default").
@@ -1499,10 +1521,12 @@ class ProjectOps(object):
                     "(pass '-d <name> --force' to select a different one, or "
                     "run 'ivpm destroy' to start from a clean workspace)" %
                     os.path.join(deps_dir, persisted_from))
-                note("Using dep-set %s, recorded in %s. Selecting a different "
-                     "dep-set requires -d <name> together with --force." % (
-                         ",".join(persisted_dep_sets),
-                         os.path.join(deps_dir, persisted_from)))
+                if announce_recorded:
+                    note("Using dep-set %s, recorded in %s. Selecting a "
+                         "different dep-set requires -d <name> together with "
+                         "--force." % (
+                             ",".join(persisted_dep_sets),
+                             os.path.join(deps_dir, persisted_from)))
             elif set(req_dep_sets) != set(persisted_dep_sets):
                 # Switching dep-sets re-shapes the workspace, so it is refused
                 # by default. --force is the escape hatch (same role it plays

@@ -280,7 +280,30 @@ ivpm sync            # Pull latest from upstream
 ```bash
 ivpm update -d default      # Release dependencies
 ivpm update -d default-dev  # Development dependencies
+ivpm update -d default,gui  # Several dep-sets, merged (same as -d default -d gui)
 ```
+The selection is recorded: a later bare `ivpm update` and `ivpm build` reuse
+it, and changing it in an installed workspace needs `--force`
+(`ivpm update -d default-dev --force`). `ivpm clone -d` takes the same forms.
+
+### Installing Agent Skills from Python Packages (`ivpm skills`)
+Works in any directory; no `ivpm.yaml` needed. Skills come from packages that
+register the `agent.skills` entry-point group or ship `share/agent-skills/`.
+```bash
+uvx ivpm skills install --with pssparser --all  # uv builds the env; skills are copied
+ivpm skills list                    # what the environment offers, and where installed
+ivpm skills install pssparser-api --agent claude   # selectors: name, entry point,
+                                    #   <ep>/<skill>, dist:<name>, globs
+ivpm skills sync                    # re-create from .agents/ivpm-skills.json
+ivpm skills status                  # dangling links, stale copies, missing skills
+ivpm skills uninstall --all
+```
+Installs into `.agents/skills/`, `.claude/skills/`, `.cursor/skills/`. Commit
+`.agents/ivpm-skills.json`. Environment order: `--with`, `--python`, uvx's own
+env, IVPM project venv, `$VIRTUAL_ENV`, `./.venv`, ivpm's interpreter. In an
+IVPM project, `ivpm update` links venv skills itself; `with.agents.entrypoints:
+false` hands them to `ivpm skills` instead. Installed skill directories are
+named after the SKILL.md frontmatter `name`.
 
 ## Project Structure
 
