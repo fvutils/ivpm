@@ -60,6 +60,24 @@ Clone from a Git repository. Supports branches, tags, commits, and submodules.
 ``patches``
     Apply one or more patch files to the checkout (see :doc:`patching`)
 
+**Option combinations:**
+
+``branch``, ``tag`` and ``commit`` all select what to check out, so IVPM
+rejects combinations that would force it to ignore one of them:
+
+- ``branch`` + ``tag`` -- error. Track a branch or pin a tag, not both.
+- ``tag`` + ``commit`` -- error. A tag already names a commit.
+- ``branch`` + ``commit`` -- allowed. The branch is cloned, then the commit
+  (which should be on that branch) is checked out.
+- ``depth`` must be a positive integer. With ``cache: true`` the package is
+  always fetched at depth 1, so any other ``depth`` is an error.
+- ``ssh: true`` + ``anonymous: true`` -- error; they request opposite
+  transports.
+
+``branch``, ``tag`` and ``commit`` must be non-empty strings. Quote values
+YAML would otherwise read as numbers (``tag: "1.10"``, not ``tag: 1.10``,
+which YAML reads as the float ``1.1``).
+
 **Examples:**
 
 .. code-block:: yaml

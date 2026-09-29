@@ -28,7 +28,7 @@ from typing import Optional
 from .package_url import PackageURL
 from ..proj_info import ProjInfo
 from ..project_ops_info import ProjectUpdateInfo, ProjectStatusInfo, ProjectSyncInfo
-from ..utils import note, fatal
+from ..utils import note, fatal, getlocstr
 from .. import git_auth
 from ..cache import is_github_url, parse_github_url
 from ..git_progress import run_git_with_progress
@@ -1285,6 +1285,73 @@ class PackageGit(PackageURL):
 
         if "tag" in opts.keys():
             self.tag = opts["tag"]
+
+        self._validate_options(opts)
+
+    def _validate_options(self, opts):
+        """Reject option combinations that would otherwise be resolved by
+        silently dropping one of them.
+
+        branch/tag/commit each select what to check out. Nothing used to check
+        them against each other, and every consumer picks its own winner --
+        ``self.branch or self.tag`` for the clone and the ls-remote probe, then
+        a later ``checkout --detach <commit>`` over the top -- so ``branch`` +
+        ``tag`` quietly cloned the branch and ``tag`` + ``commit`` quietly
+        checked out the commit. The one combination that means something is
+        ``branch`` + ``commit``: clone the branch, then pin a commit on it.
+
+        Only non-None values count: a package-lock entry replayed through here
+        (``ivpm sync``) carries every key, with None for the ones never set.
+        """
+        loc = getlocstr(opts)
+
+        for key in ("branch", "tag", "commit"):
+            val = getattr(self, key)
+            if val is None:
+                continue
+            if not isinstance(val, str):
+                # YAML reads `tag: 1.10` as the float 1.1 and an all-digit
+                # hash as an int, so the value is already corrupted by the
+                # time it reaches us -- stringifying it would fetch the wrong
+                # ref, or none.
+                fatal("Package '%s': '%s' must be a string, not %s (%r) @ %s\n"
+                      "  Quote the value in ivpm.yaml, e.g. %s: \"%s\"" % (
+                          self.name, key, type(val).__name__, val, loc,
+                          key, val), opts)
+            if val.strip() == "":
+                fatal("Package '%s': '%s' is empty @ %s" % (
+                    self.name, key, loc), opts)
+
+        if self.branch is not None and self.tag is not None:
+            fatal("Package '%s': 'branch' (%s) and 'tag' (%s) are mutually "
+                  "exclusive @ %s\n"
+                  "  Specify the branch to track, or the tag to pin to -- "
+                  "not both." % (self.name, self.branch, self.tag, loc), opts)
+
+        if self.tag is not None and self.commit is not None:
+            fatal("Package '%s': 'tag' (%s) and 'commit' (%s) are mutually "
+                  "exclusive @ %s\n"
+                  "  A tag already names a commit; specify one or the other." % (
+                      self.name, self.tag, self.commit, loc), opts)
+
+        if self.depth is not None:
+            # bool is an int subclass: `depth: true` must not pass as 1.
+            if isinstance(self.depth, bool) or not isinstance(self.depth, int) \
+                    or self.depth < 1:
+                fatal("Package '%s': 'depth' must be a positive integer, "
+                      "not %r @ %s" % (self.name, self.depth, loc), opts)
+            if self.cache is True and self.depth != 1:
+                fatal("Package '%s': 'depth' (%d) has no effect with "
+                      "'cache: true' @ %s\n"
+                      "  Cached packages are always fetched at depth 1; remove "
+                      "'depth', or use 'cache: false' for an editable clone of "
+                      "that depth." % (self.name, self.depth, loc), opts)
+
+        if self.ssh is True and self.anonymous is True:
+            fatal("Package '%s': 'ssh: true' and 'anonymous: true' conflict "
+                  "@ %s\n"
+                  "  'ssh: true' rewrites the URL to SSH; 'anonymous: true' "
+                  "clones it as written. Specify one." % (self.name, loc), opts)
 
 
     @staticmethod
