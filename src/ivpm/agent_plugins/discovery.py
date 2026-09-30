@@ -32,7 +32,7 @@ quiet.
 """
 import dataclasses as dc
 import os
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Mapping, Optional, Sequence, Tuple
 
 from .._compat import glob_rel
 from .manifest import (
@@ -40,9 +40,13 @@ from .manifest import (
     normalize_plugin_path, within,
 )
 from .mcp import McpConfig, load_mcp
+from . import components as _components
 
-#: Conventional locations probed when no explicit patterns are configured.
-PROBE_PATTERNS = ("plugin.json", "plugins/*/plugin.json")
+#: Conventional locations probed when no explicit patterns are configured:
+#: Agent Plugins manifests, then Claude Code's. A plugin carrying both is
+#: matched twice and loaded once (the dedup below keys on the plugin root).
+PROBE_PATTERNS = ("plugin.json", "plugins/*/plugin.json",
+                  ".claude-plugin/plugin.json", "plugins/*/.claude-plugin/plugin.json")
 
 
 @dc.dataclass(frozen=True)
@@ -56,6 +60,8 @@ class DiscoveredPlugin:
     skill_dirs: Tuple[str, ...] = ()
     mcp: Optional[McpConfig] = None
     diagnostics: Tuple[Diagnostic, ...] = ()
+    #: Components beyond skills (see agent_plugins.components.find)
+    components: Mapping[str, Tuple[str, ...]] = dc.field(default_factory=dict)
 
     @property
     def name(self) -> str:
@@ -104,8 +110,8 @@ def discover(owner_name: str,
                 if explicit:
                     diags.append(Diagnostic(
                         "warning", "plugins.not-a-plugin-path",
-                        "package %s: '%s' is neither a plugin.json nor a directory "
-                        "containing one" % (owner_name, match)))
+                        "package %s: '%s' is neither a plugin manifest nor a "
+                        "directory containing one" % (owner_name, match)))
                 continue
 
             # A dep entry must not be able to reach outside the package it
@@ -190,6 +196,7 @@ def load_at(plugin_root: str,
         skill_dirs=tuple(skill_dirs),
         mcp=mcp_cfg,
         diagnostics=tuple(diags),
+        components=_components.find(manifest),
     ), diags)
 
 
@@ -207,7 +214,7 @@ def load_from_reference(path: str,
     if plugin_root is None:
         return (None, [Diagnostic(
             "warning", "plugins.not-a-plugin-path",
-            "%s: '%s' is neither a plugin.json nor a directory containing one"
+            "%s: '%s' is neither a plugin manifest nor a directory containing one"
             % (owner_name, path))])
     return load_at(plugin_root, owner_name, kind, explicit=True, with_mcp=with_mcp)
 

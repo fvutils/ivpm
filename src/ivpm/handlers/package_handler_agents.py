@@ -93,8 +93,12 @@ class PackageHandlerAgents(PackageHandler):
                 "  tools without one receive each skill as <plugin>-<skill>. The two are",
                 "  mutually exclusive per tool. An unrelated plugin.json is ignored",
                 "  silently; a malformed Agent Plugins manifest warns.",
+                "  Claude Code plugins (.claude-plugin/plugin.json, at a package root or",
+                "  under plugins/*/) are discovered too; their skills reach every tool.",
                 "  MCP servers declared by a plugin are opt-in (mcp: true); review them",
-                "  first with 'ivpm show plugins --mcp'.",
+                "  first with 'ivpm show plugins --mcp'. Hooks, LSP servers, bin/ and",
+                "  monitors are left out of the installed plugin unless executables: true",
+                "  (default: true for the project's own plugins, false for dependencies).",
                 "",
                 "Targets:",
                 "  .agents/skills/ and .agents/plugins/ are always populated. Mirroring to",
@@ -167,6 +171,10 @@ class PackageHandlerAgents(PackageHandler):
         expand_skills = bool(agents_cfg.get("expand_skills", True))
         plugin_install = bool(agents_cfg.get("plugin_install", True))
         emit_mcp = bool(agents_cfg.get("mcp", False))
+        # Unset means per plugin: on for the project's own, off for the rest
+        emit_exec = agents_cfg.get("executables", None)
+        if emit_exec is not None:
+            emit_exec = bool(emit_exec)
 
         # .agents/skills/ is always populated and stays targets[0] (the
         # symlink-support probe location below). Each tool target is opt-out:
@@ -241,7 +249,7 @@ class PackageHandlerAgents(PackageHandler):
             reserved={n for names in reserved.values() for n in names})
 
         managed, n_installed = _install.populate(
-            linker, targets, skill_assigned, plugin_assigned, emit_mcp)
+            linker, targets, skill_assigned, plugin_assigned, emit_mcp, emit_exec)
 
         self._managed = managed
         self._managed_names = managed.get("agents_skills", [])

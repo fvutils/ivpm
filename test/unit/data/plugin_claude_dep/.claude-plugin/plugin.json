@@ -1,0 +1,7 @@
+{
+  "name": "claude-demo",
+  "version": "2.0.0",
+  "description": "Demo Claude Code plugin.",
+  "author": {"name": "Test"},
+  "skills": "./extra-skills"
+}

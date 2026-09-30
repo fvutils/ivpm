@@ -45,9 +45,11 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from urllib.parse import urlparse
 
 from . import validate as _v
-from .manifest import Diagnostic, PluginManifest, within
+from .manifest import SPEC_VERSIONS, Diagnostic, PluginManifest, within
 
 MCP_NAME = "mcp.json"
+#: Claude Code's spelling, also found in plugins that target it
+CLAUDE_MCP_NAME = ".mcp.json"
 
 _MCP_SCHEMA_RE = re.compile(
     r"^https://agent-plugins\.org/schemas/(\d+\.\d+\.\d+)/mcp\.schema\.json$")
@@ -86,12 +88,20 @@ class McpServer:
 @dc.dataclass(frozen=True)
 class McpConfig:
     root_dir: str
-    spec_version: str
+    #: Agent Plugins version; None when read from Claude Code's spelling
+    spec_version: Optional[str]
     servers: Tuple[McpServer, ...] = ()
+    #: Where the servers were declared: 'mcp.json', '.mcp.json' or
+    #: 'plugin.json#mcpServers'
+    source: str = MCP_NAME
 
 
 def load_mcp(manifest: PluginManifest) -> Tuple[Optional[McpConfig], List[Diagnostic]]:
-    """Load ``<plugin-root>/mcp.json``, if present.
+    """Load the plugin's MCP configuration, if it has any.
+
+    ``<plugin-root>/mcp.json`` (Agent Plugins) is preferred.  Without it, the
+    Claude Code spelling is read: ``.mcp.json``, or ``mcpServers`` in the
+    Claude manifest.
 
     A missing file is not an error.  A version mismatch against the owning
     ``plugin.json`` invalidates the *MCP configuration only* -- the plugin and
@@ -101,7 +111,12 @@ def load_mcp(manifest: PluginManifest) -> Tuple[Optional[McpConfig], List[Diagno
     path = os.path.join(manifest.root_dir, MCP_NAME)
 
     if not os.path.exists(path):
-        return (None, diags)
+        return _load_claude_mcp(manifest, diags)
+
+    if os.path.isfile(os.path.join(manifest.root_dir, CLAUDE_MCP_NAME)):
+        diags.append(Diagnostic(
+            "info", "mcp.duplicate",
+            "plugin has both %s and %s; %s is used" % (MCP_NAME, CLAUDE_MCP_NAME, MCP_NAME)))
     if not os.path.isfile(path):
         diags.append(Diagnostic("warning", "mcp.not-a-file",
                                 "%s is not a regular file; ignored" % path))
@@ -130,7 +145,7 @@ def load_mcp(manifest: PluginManifest) -> Tuple[Optional[McpConfig], List[Diagno
         return (None, diags)
 
     version = m.group(1)
-    if version != manifest.spec_version:
+    if manifest.spec_version is not None and version != manifest.spec_version:
         diags.append(Diagnostic(
             "error", "mcp.version-skew",
             "%s targets Agent Plugins %s but plugin.json targets %s; "
@@ -161,6 +176,127 @@ def load_mcp(manifest: PluginManifest) -> Tuple[Optional[McpConfig], List[Diagno
 
     return (McpConfig(root_dir=manifest.root_dir, spec_version=version,
                       servers=tuple(servers)), diags)
+
+
+def _load_claude_mcp(manifest: PluginManifest,
+                     diags: List[Diagnostic]) -> Tuple[Optional[McpConfig], List[Diagnostic]]:
+    """Read MCP servers declared the way Claude Code expects them.
+
+    Claude's server entries differ from Agent Plugins' only in spelling: no
+    ``type`` means stdio, ``http`` means streamable HTTP, and the plugin root
+    is ``${CLAUDE_PLUGIN_ROOT}``.  Each entry is respelled and then held to the
+    same per-server rules, so ``ivpm show plugins --mcp`` reviews both formats
+    alike.
+    """
+    declared = manifest.claude.get("mcpServers") if manifest.claude else None
+    if declared is not None:
+        source = "plugin.json#mcpServers"
+        if isinstance(declared, dict) and "mcpServers" not in declared:
+            servers_raw = declared
+        else:
+            servers_raw = _read_claude_mcp_refs(manifest, declared, diags)
+    elif os.path.isfile(os.path.join(manifest.root_dir, CLAUDE_MCP_NAME)):
+        source = CLAUDE_MCP_NAME
+        servers_raw = _read_claude_mcp_refs(manifest, "./" + CLAUDE_MCP_NAME, diags)
+    else:
+        return (None, diags)
+
+    if servers_raw is None:
+        return (None, diags)
+
+    schema = _v.load_schema(SPEC_VERSIONS[-1], "mcp")
+    servers: List[McpServer] = []
+    for name in sorted(servers_raw):
+        raw = servers_raw[name]
+        if isinstance(raw, dict):
+            raw = _respell_claude_server(raw)
+        server, sdiags = _load_server(name, raw, manifest, schema)
+        diags.extend(sdiags)
+        if server is not None:
+            servers.append(server)
+
+    return (McpConfig(root_dir=manifest.root_dir, spec_version=None,
+                      servers=tuple(servers), source=source), diags)
+
+
+def _read_claude_mcp_refs(manifest: PluginManifest, refs: Any,
+                          diags: List[Diagnostic]) -> Optional[Dict[str, Any]]:
+    """Merge the ``mcpServers`` of one or more ``./``-relative JSON files."""
+    items = [refs] if isinstance(refs, (str, dict)) else refs
+    if not isinstance(items, list):
+        diags.append(Diagnostic("warning", "mcp.not-an-object",
+                                "'mcpServers' must be an object, a path, or a list"))
+        return None
+    merged: Dict[str, Any] = {}
+    for item in items:
+        if isinstance(item, dict):
+            doc = item
+        elif isinstance(item, str) and item.startswith("./"):
+            path = os.path.join(manifest.root_dir, item[2:])
+            if not within(manifest.root_dir, path):
+                diags.append(Diagnostic("warning", "mcp.escapes-root",
+                                        "%s resolves outside the plugin root; ignored" % item))
+                continue
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    doc = json.load(fh)
+            except (OSError, ValueError, UnicodeDecodeError) as exc:
+                diags.append(Diagnostic("error", "mcp.unreadable",
+                                        "cannot read %s: %s" % (path, exc)))
+                continue
+        else:
+            diags.append(Diagnostic("warning", "mcp.not-an-object",
+                                    "ignoring MCP reference %s" % json.dumps(item)))
+            continue
+        if not isinstance(doc, dict):
+            diags.append(Diagnostic("error", "mcp.not-an-object",
+                                    "MCP configuration %s must be a JSON object" % item))
+            continue
+        servers = doc.get("mcpServers", doc)
+        if isinstance(servers, dict):
+            merged.update(servers)
+    return merged
+
+
+#: Fields the Agent Plugins schema allows per transport. Claude Code accepts
+#: more (timeouts, OAuth settings); those are its business, and the plugin's
+#: own file is what Claude Code reads, so they are dropped from the review copy
+#: rather than failing the server.
+_SERVER_FIELDS = {
+    "stdio": ("type", "command", "args", "env", "cwd"),
+    "streamable-http": ("type", "url", "headers"),
+    "sse": ("type", "url", "headers"),
+}
+
+
+def _respell_claude_server(raw: Dict[str, Any]) -> Dict[str, Any]:
+    out = dict(raw)
+    if "type" not in out and "command" in out:
+        out["type"] = "stdio"
+    elif out.get("type") == "http":
+        out["type"] = "streamable-http"
+    fields = _SERVER_FIELDS.get(out.get("type"))
+    if fields is not None:
+        out = {k: v for k, v in out.items() if k in fields}
+
+    def respell(value):
+        if not isinstance(value, str):
+            return value
+        return (value.replace("${CLAUDE_PLUGIN_ROOT}", "${PLUGIN_ROOT}")
+                .replace("${CLAUDE_PLUGIN_DATA}", "${PLUGIN_DATA}"))
+
+    command = out.get("command")
+    if isinstance(command, str) and command.startswith("${CLAUDE_PLUGIN_ROOT}/"):
+        # Agent Plugins spells a plugin-relative executable './x'
+        out["command"] = "./" + command[len("${CLAUDE_PLUGIN_ROOT}/"):]
+    cwd = out.get("cwd")
+    if isinstance(cwd, str) and cwd.startswith("${CLAUDE_PLUGIN_ROOT}/"):
+        out["cwd"] = "./" + cwd[len("${CLAUDE_PLUGIN_ROOT}/"):]
+    if isinstance(out.get("args"), list):
+        out["args"] = [respell(a) for a in out["args"]]
+    if isinstance(out.get("env"), dict):
+        out["env"] = {k: respell(v) for k, v in out["env"].items()}
+    return out
 
 
 # ---------------------------------------------------------------------------

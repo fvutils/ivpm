@@ -1,3 +1,26 @@
+# 2.39.0
+- **Claude Code plugins are discovered.** A dependency (or the project) with
+  `.claude-plugin/plugin.json` -- at its root or under `plugins/*/` -- is now a
+  plugin, where before it was silently skipped. Its skills are unbundled into
+  `.agents/skills/` and `.cursor/skills/`, including extra skill paths named in
+  the manifest, and Claude Code receives the whole plugin in
+  `.claude/skills/<name>/`. Commands, subagents and other Claude-only parts go
+  to Claude Code only and are listed by `ivpm show plugins`.
+- **New `with.agents.executables`.** Hooks, LSP servers, monitors and `bin/`
+  run code, so a dependency's are now left out of the plugin installed for
+  Claude Code unless `executables: true`. The project's own plugins keep
+  them by default. `bin/` is also linked when `mcp: true`. **Behavior change:**
+  a dependency plugin's `bin/` is no longer linked into `.claude/skills/<name>/`
+  by default.
+- **Fix: a plugin's own `.mcp.json` reached Claude Code even with `mcp: false`.**
+  Only `mcp.json` was held back; `.mcp.json` was linked through with every
+  other file. Both are now gated by `mcp`, and MCP declared inline in the
+  manifest is removed from the installed copy.
+- `ivpm show plugins` reports each plugin's format, its Claude-only components,
+  and what installation left out and why (`--json`: `format`, `components`,
+  `omitted`). `--check` accepts a Claude Code plugin, and `--mcp` lists servers
+  declared in `.mcp.json` or the Claude manifest.
+
 
 # 2.37.0
 - **New `ivpm skills` command: install agent skills from Python packages, a la

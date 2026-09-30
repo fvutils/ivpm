@@ -21,6 +21,7 @@ from ivpm.agent_plugins import (
     Classification, PluginManifest, classify, iter_skill_dirs, load_plugin,
     normalize_plugin_path, within,
 )
+from ivpm.agent_plugins import components as comp
 from ivpm.agent_plugins import mcp as mcp_mod
 from ivpm.agent_plugins import validate as v
 
@@ -726,6 +727,270 @@ class TestVendoredSchemas(unittest.TestCase):
     def test_missing_schema_raises(self):
         with self.assertRaises(v.SchemaError):
             v.load_schema("9.9.9", "plugin")
+
+
+# ---------------------------------------------------------------------------
+# Claude Code format -- .claude-plugin/plugin.json
+# ---------------------------------------------------------------------------
+
+class ClaudeTestBase(PluginTestBase):
+
+    def mkclaude(self, doc, subdir="p", raw=None):
+        root = os.path.join(self.tmp, subdir)
+        os.makedirs(os.path.join(root, ".claude-plugin"), exist_ok=True)
+        with open(os.path.join(root, ".claude-plugin", "plugin.json"), "w") as fh:
+            fh.write(raw if raw is not None else json.dumps(doc, indent=2))
+        return root
+
+    def write(self, root, rel, content):
+        path = os.path.join(root, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as fh:
+            fh.write(content if isinstance(content, str) else json.dumps(content))
+        return path
+
+
+class TestClaudeLoad(ClaudeTestBase):
+
+    def test_minimal(self):
+        root = self.mkclaude({"name": "cc-plugin", "version": "1.2.3",
+                              "description": "d", "keywords": ["a", 1]})
+        m, diags = load_plugin(root)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.format, "claude")
+        self.assertIsNone(m.spec_version)
+        self.assertEqual((m.name, m.version, m.description), ("cc-plugin", "1.2.3", "d"))
+        self.assertEqual(m.keywords, ("a",))
+        self.assertEqual(m.claude["name"], "cc-plugin")
+        self.assertNotIn("error", self.severities(diags))
+
+    def test_name_defaults_to_directory(self):
+        root = self.mkclaude({"description": "no name"}, subdir="dir-name")
+        m, _ = load_plugin(root)
+        self.assertEqual(m.name, "dir-name")
+
+    def test_invalid_name_rejected(self):
+        root = self.mkclaude({"name": "Bad Name"})
+        m, diags = load_plugin(root)
+        self.assertIsNone(m)
+        self.assertIn("name.charset", self.codes(diags))
+
+    def test_invalid_directory_name_rejected(self):
+        root = self.mkclaude({}, subdir="Bad_Dir")
+        m, diags = load_plugin(root)
+        self.assertIsNone(m)
+
+    def test_malformed_manifest_warns(self):
+        root = self.mkclaude(None, raw="[1, 2]")
+        m, diags = load_plugin(root)
+        self.assertIsNone(m)
+        self.assertIn("claude.bad-manifest", self.codes(diags))
+
+    def test_bad_optional_field_dropped(self):
+        root = self.mkclaude({"name": "cc", "version": 3})
+        m, diags = load_plugin(root)
+        self.assertIsNone(m.version)
+        self.assertIn("field.invalid", self.codes(diags))
+
+    def test_repository_object_form(self):
+        root = self.mkclaude({"name": "cc", "repository": {"url": "https://x/y"}})
+        m, _ = load_plugin(root)
+        self.assertEqual(m.repository, "https://x/y")
+
+    def test_user_config_warns(self):
+        root = self.mkclaude({"name": "cc", "userConfig": {"token": {"type": "string"}}})
+        m, diags = load_plugin(root)
+        self.assertIsNotNone(m)
+        self.assertIn("claude.user-config", self.codes(diags))
+
+    def test_agent_plugins_manifest_preferred(self):
+        root = self.mkplugin(minimal("ap-name"))
+        self.mkclaude({"name": "ap-name", "description": "claude side"})
+        m, _ = load_plugin(root)
+        self.assertEqual(m.format, "agent-plugins")
+        self.assertEqual(m.claude["description"], "claude side")
+
+    def test_foreign_plugin_json_falls_back_to_claude(self):
+        root = self.mkplugin(None, raw='{"id": "grafana"}')
+        self.mkclaude({"name": "cc"})
+        m, _ = load_plugin(root)
+        self.assertEqual((m.format, m.name), ("claude", "cc"))
+
+    def test_unsupported_version_falls_back_to_claude(self):
+        root = self.mkplugin(None, raw=json.dumps({
+            "$schema": "https://agent-plugins.org/schemas/9.0.0/plugin.schema.json",
+            "name": "x"}))
+        self.mkclaude({"name": "cc"})
+        m, diags = load_plugin(root)
+        self.assertEqual(m.format, "claude")
+        self.assertIn("manifest.unsupported-version", self.codes(diags))
+
+
+class TestClaudeNormalize(ClaudeTestBase):
+
+    def test_manifest_path(self):
+        root = self.mkclaude({"name": "cc"})
+        self.assertEqual(normalize_plugin_path(
+            os.path.join(root, ".claude-plugin", "plugin.json")), root)
+
+    def test_manifest_dir(self):
+        root = self.mkclaude({"name": "cc"})
+        self.assertEqual(normalize_plugin_path(os.path.join(root, ".claude-plugin")), root)
+
+    def test_root(self):
+        root = self.mkclaude({"name": "cc"})
+        self.assertEqual(normalize_plugin_path(root), root)
+
+    def test_empty_claude_dir_is_not_a_plugin(self):
+        root = os.path.join(self.tmp, "p")
+        os.makedirs(os.path.join(root, ".claude-plugin"))
+        self.assertIsNone(normalize_plugin_path(root))
+        self.assertIsNone(normalize_plugin_path(os.path.join(root, ".claude-plugin")))
+
+
+class TestClaudeSkills(ClaudeTestBase):
+
+    def skill_names(self, root):
+        m, _ = load_plugin(root)
+        dirs, diags = iter_skill_dirs(m)
+        return [os.path.relpath(d, root) for d in dirs], diags
+
+    def test_default_skills_dir(self):
+        root = self.mkclaude({"name": "cc"})
+        self.mkskill(root, "one")
+        names, _ = self.skill_names(root)
+        self.assertEqual(names, [os.path.join("skills", "one")])
+
+    def test_container_path(self):
+        root = self.mkclaude({"name": "cc", "skills": "./more"})
+        self.mkskill(root, "one")
+        self.write(root, "more/two/SKILL.md", "---\nname: two\ndescription: d\n---\n")
+        names, _ = self.skill_names(root)
+        self.assertEqual(names, [os.path.join("skills", "one"), os.path.join("more", "two")])
+
+    def test_direct_skill_path_list(self):
+        root = self.mkclaude({"name": "cc", "skills": ["./solo", "./skills"]})
+        self.mkskill(root, "one")
+        self.write(root, "solo/SKILL.md", "---\nname: solo\ndescription: d\n---\n")
+        names, _ = self.skill_names(root)
+        self.assertEqual(names, [os.path.join("skills", "one"), "solo"])
+
+    def test_path_must_be_dot_relative(self):
+        root = self.mkclaude({"name": "cc", "skills": "more"})
+        _, diags = self.skill_names(root)
+        self.assertIn("field.invalid", self.codes(diags))
+
+    def test_escaping_path_rejected(self):
+        root = self.mkclaude({"name": "cc", "skills": "./../outside"})
+        os.makedirs(os.path.join(self.tmp, "outside", "x"))
+        names, diags = self.skill_names(root)
+        self.assertEqual(names, [])
+        self.assertIn("skills.escapes-root", self.codes(diags))
+
+    def test_missing_path_warns(self):
+        root = self.mkclaude({"name": "cc", "skills": "./nope"})
+        _, diags = self.skill_names(root)
+        self.assertIn("skills.not-a-directory", self.codes(diags))
+
+
+class TestClaudeMcp(ClaudeTestBase):
+
+    def load(self, root):
+        m, _ = load_plugin(root)
+        return mcp_mod.load_mcp(m)
+
+    def test_dot_mcp_json(self):
+        root = self.mkclaude({"name": "cc"})
+        self.write(root, ".mcp.json", {"mcpServers": {
+            "local": {"command": "${CLAUDE_PLUGIN_ROOT}/bin/srv",
+                      "args": ["--data", "${CLAUDE_PLUGIN_DATA}"], "timeout": 5},
+            "remote": {"type": "http", "url": "https://example.com/mcp"}}})
+        cfg, diags = self.load(root)
+        self.assertEqual(cfg.source, ".mcp.json")
+        self.assertIsNone(cfg.spec_version)
+        servers = {s.name: s for s in cfg.servers}
+        self.assertEqual(servers["local"].command, "./bin/srv")
+        self.assertEqual(servers["local"].args, ("--data", "${PLUGIN_DATA}"))
+        self.assertEqual(servers["remote"].type, "streamable-http")
+        self.assertNotIn("error", self.severities(diags))
+
+    def test_inline_object(self):
+        root = self.mkclaude({"name": "cc", "mcpServers": {"s": {"command": "npx"}}})
+        cfg, _ = self.load(root)
+        self.assertEqual(cfg.source, "plugin.json#mcpServers")
+        self.assertEqual([s.name for s in cfg.servers], ["s"])
+
+    def test_inline_path(self):
+        root = self.mkclaude({"name": "cc", "mcpServers": "./conf/mcp.json"})
+        self.write(root, "conf/mcp.json", {"mcpServers": {"s": {"command": "npx"}}})
+        cfg, _ = self.load(root)
+        self.assertEqual([s.name for s in cfg.servers], ["s"])
+
+    def test_bad_server_dropped_siblings_kept(self):
+        root = self.mkclaude({"name": "cc", "mcpServers": {
+            "bad": {"command": "sh -c 'rm -rf /'"}, "good": {"command": "npx"}}})
+        cfg, diags = self.load(root)
+        self.assertEqual([s.name for s in cfg.servers], ["good"])
+        self.assertIn("server.command-not-a-token", self.codes(diags))
+
+    def test_agent_plugins_mcp_json_preferred(self):
+        root = self.mkplugin(minimal("ap"))
+        self.write(root, "mcp.json", {"$schema": MCP_SCHEMA, "mcpServers": {
+            "a": {"type": "stdio", "command": "npx"}}})
+        self.write(root, ".mcp.json", {"mcpServers": {"b": {"command": "npx"}}})
+        cfg, diags = self.load(root)
+        self.assertEqual(cfg.source, "mcp.json")
+        self.assertEqual([s.name for s in cfg.servers], ["a"])
+        self.assertIn("mcp.duplicate", self.codes(diags))
+
+    def test_agent_plugins_mcp_json_in_claude_plugin(self):
+        """No version skew is possible without an Agent Plugins manifest."""
+        root = self.mkclaude({"name": "cc"})
+        self.write(root, "mcp.json", {"$schema": MCP_SCHEMA, "mcpServers": {
+            "a": {"type": "stdio", "command": "npx"}}})
+        cfg, diags = self.load(root)
+        self.assertEqual([s.name for s in cfg.servers], ["a"])
+        self.assertNotIn("mcp.version-skew", self.codes(diags))
+
+
+class TestComponents(ClaudeTestBase):
+
+    def test_find(self):
+        root = self.mkclaude({"name": "cc", "lspServers": {}, "experimental": {"monitors": []}})
+        for entry in ("commands/x.md", "agents/a.md", "hooks/hooks.json", "bin/t"):
+            self.write(root, entry, "x")
+        m, _ = load_plugin(root)
+        found = comp.find(m)
+        self.assertEqual(list(found), ["hooks", "lsp", "bin", "monitors", "commands", "agents"])
+        self.assertEqual(found["lsp"], ("plugin.json#lspServers",))
+        self.assertEqual(found["monitors"], ("plugin.json#experimental.monitors",))
+
+    def test_omitted(self):
+        found = {"mcp": (".mcp.json",), "hooks": ("hooks",), "bin": ("bin",),
+                 "commands": ("commands",)}
+        self.assertEqual(comp.omitted(found, False, False),
+                         {"mcp": "mcp", "hooks": "executables", "bin": "executables"})
+        # MCP servers conventionally run from bin/
+        self.assertEqual(comp.omitted(found, True, False), {"hooks": "executables"})
+        self.assertEqual(comp.omitted(found, True, True), {})
+
+    def test_filter_manifest(self):
+        data = {"name": "cc", "hooks": {}, "mcpServers": {},
+                "experimental": {"monitors": [], "themes": []}}
+        out, changed = comp.filter_manifest(data, {"hooks": "executables",
+                                                   "monitors": "executables"})
+        self.assertTrue(changed)
+        self.assertEqual(out, {"name": "cc", "mcpServers": {},
+                               "experimental": {"themes": []}})
+        self.assertIn("hooks", data, "the original must not be modified")
+
+    def test_filter_manifest_unchanged(self):
+        out, changed = comp.filter_manifest({"name": "cc"}, {"hooks": "executables"})
+        self.assertFalse(changed)
+
+    def test_executables_default(self):
+        self.assertTrue(comp.executables_default("plugin-project"))
+        self.assertFalse(comp.executables_default("plugin-dependency"))
 
 
 if __name__ == "__main__":

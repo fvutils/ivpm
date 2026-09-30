@@ -4,7 +4,8 @@ Agent Plugins
 
 IVPM consumes `Agent Plugins <https://agent-plugins.org/specification>`_, the
 vendor-neutral standard for packaging Agent Skills and MCP server
-configuration into a portable unit.  A plugin travelling as an IVPM dependency
+configuration into a portable unit, and Claude Code plugins
+(``.claude-plugin/plugin.json``).  A plugin travelling as an IVPM dependency
 is discovered, validated, and projected into your workspace in whatever form
 each AI coding tool can actually consume.
 
@@ -60,6 +61,45 @@ The manifest is *declarative only*.  It cannot relocate components and cannot
 declare them inline: ``skills/`` means ``skills/``.
 
 
+.. _agent-plugins-claude:
+
+Claude Code plugins
+-------------------
+
+Most plugins published so far carry only Claude Code's own manifest,
+``.claude-plugin/plugin.json``.  IVPM reads these too:
+
+.. code-block:: text
+
+    my-plugin/
+    ├── .claude-plugin/
+    │   └── plugin.json      the manifest ("name" is the only field IVPM needs)
+    ├── skills/              skills, as for Agent Plugins
+    ├── commands/            slash commands   -- Claude Code only
+    ├── agents/              subagents        -- Claude Code only
+    ├── hooks/hooks.json     event hooks      -- executable
+    ├── bin/                 added to PATH    -- executable
+    └── .mcp.json            MCP servers
+
+* The ``.claude-plugin`` directory is the type tag, so no ``$schema`` is
+  needed.
+* ``name`` falls back to the directory name, as it does in Claude Code.  It
+  must satisfy the same rules as an Agent Plugins name, since IVPM uses it as
+  a directory name.
+* Skills come from ``skills/`` plus any path the manifest's ``skills`` field
+  names (``"./extra-skills"`` or a list).  A named path may be one skill or a
+  directory of skills.
+* MCP servers come from ``.mcp.json`` or the manifest's ``mcpServers``.
+* A plugin that carries both manifests is one plugin.  The Agent Plugins
+  manifest is its identity; Claude Code receives the Claude manifest.
+
+Skills and MCP servers are the only parts other tools can use.  Commands,
+subagents, output styles and the rest reach Claude Code with the plugin and
+are listed by ``ivpm show plugins``; they are never translated.  Components
+that run code are held back unless you opt in -- see
+:ref:`agent-plugins-executables`.
+
+
 Consuming plugins
 =================
 
@@ -92,9 +132,10 @@ infer them from the directory layout.
              plugins:
                - plugins/**/plugin.json
 
-3. **Auto-probe** — nothing configured, so two conventional locations are
-   checked: ``plugin.json`` at the package root, then
-   ``plugins/*/plugin.json``.
+3. **Auto-probe** — nothing configured, so the conventional locations are
+   checked: ``plugin.json`` at the package root, ``plugins/*/plugin.json``,
+   then the Claude Code equivalents ``.claude-plugin/plugin.json`` and
+   ``plugins/*/.claude-plugin/plugin.json``.
 
 4. **Python entry-points** — a package installed into the managed virtual
    environment may register plugins under the ``agent.plugins`` group.  See
@@ -109,7 +150,9 @@ matched manifest is the plugin root.  This is the canonical spelling, and it is
 what makes ``plugins/**/plugin.json`` work without special cases.
 
 A pattern that matches a directory containing ``plugin.json`` is also accepted,
-so an entry-point returning a package-data directory needs no change.
+so an entry-point returning a package-data directory needs no change.  So is a
+pattern matching ``.claude-plugin/plugin.json``; the plugin root is then the
+parent of ``.claude-plugin/``.
 
 A configured path must resolve *inside* the package it describes.  A dep entry
 pointing at ``../../../elsewhere/plugin.json`` is rejected with a warning.
@@ -165,11 +208,17 @@ directory under a skills directory containing ``.claude-plugin/plugin.json``
 loads as ``<name>@skills-dir``, and Claude Code namespaces the plugin's skills
 itself as ``/<plugin>:<skill>``.
 
-IVPM materializes ``.claude/skills/<name>/`` as a thin shell: every top-level
-entry of the real plugin is linked through, and only the manifest is
-generated.  The generated manifest is a **verbatim copy** of the Agent Plugins
+IVPM materializes ``.claude/skills/<name>/`` as a thin shell: top-level
+entries of the real plugin are linked through, and only the manifest is
+generated.  The generated manifest is a **verbatim copy** of the plugin's own
+``.claude-plugin/plugin.json`` or, failing that, of the Agent Plugins
 ``plugin.json`` — the field names coincide, and Claude Code documents that it
 ignores unrecognized top-level fields, so no rewriting is needed.
+
+The exception is anything held back by the ``mcp`` and ``executables`` keys:
+those entries are not linked, and when the manifest itself declares them
+(``mcpServers``, ``hooks``, ``lspServers``), the copy has those keys
+removed.
 
 Because the plugin's components are linked rather than copied, edits to a
 dependency's skills are picked up without re-running ``ivpm update``.
@@ -233,6 +282,10 @@ Diagnostic codes
      - Meaning
    * - ``manifest.not-a-plugin``
      - no recognized ``$schema``; not an Agent Plugins manifest
+   * - ``claude.bad-manifest``
+     - ``.claude-plugin/plugin.json`` is not a readable JSON object
+   * - ``claude.user-config``
+     - the plugin declares ``userConfig``, which IVPM cannot supply
    * - ``manifest.unsupported-version``
      - an Agent Plugins manifest for a spec version this build cannot read
    * - ``manifest.unknown-key``
@@ -253,6 +306,8 @@ Diagnostic codes
      - a configured path resolves outside the package
    * - ``mcp.version-skew``
      - ``mcp.json`` and ``plugin.json`` target different spec versions
+   * - ``mcp.duplicate``
+     - both ``mcp.json`` and ``.mcp.json`` exist; ``mcp.json`` is used
    * - ``server.*``
      - a single MCP server was rejected; see :ref:`agent-plugins-mcp`
 
@@ -304,7 +359,9 @@ That command prints each server's transport, command, arguments, and the
 **names** of its environment variables.  Values are never printed — they
 routinely carry tokens, and this output should be safe to paste into an issue.
 
-With ``mcp: true``, an installed plugin gets a translated ``.mcp.json``.  Only
+With ``mcp: true``, an installed plugin gets a translated ``.mcp.json``.  (A
+plugin that ships Claude Code's ``.mcp.json`` and no ``mcp.json`` has it
+linked as is.  Without ``mcp: true`` neither file reaches Claude Code.)  Only
 the spelling differs between the two formats:
 
 .. list-table::
@@ -328,6 +385,40 @@ Claude Code applies its own per-server approval to a project-scope plugin's
 MCP servers, the same gate a project ``.mcp.json`` goes through.  Enabling
 ``mcp: true`` in IVPM makes the servers available to be approved; it does not
 approve them.
+
+
+.. _agent-plugins-executables:
+
+Hooks, LSP servers and ``bin/``
+===============================
+
+Some plugin components run code without an MCP server's approval step:
+
+* ``hooks/`` (or ``hooks`` in the manifest) runs shell commands on agent
+  events, such as every session start;
+* ``.lsp.json`` (or ``lspServers``) and ``monitors/`` launch processes;
+* ``bin/`` is added to the agent's ``PATH``, where it can shadow ordinary
+  commands.
+
+For a plugin that arrives as a dependency these are **left out of the
+installed plugin unless you opt in**, for the same reason MCP servers are:
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      with:
+        agents:
+          executables: true    # default: true for the project's own plugins,
+                               #          false for dependencies
+
+A plugin in the project itself was written by the project, so its hooks are
+installed by default; set ``executables: false`` to hold those back too.
+``bin/`` is also linked whenever ``mcp: true``, because MCP servers
+conventionally run from it.
+
+``ivpm show plugins <name>`` lists what was left out and the key that would
+bring it in.
 
 
 .. _agent-plugins-authoring:
@@ -423,6 +514,10 @@ All keys live under ``package.with.agents``.
    * - ``mcp``
      - ``false``
      - aggregate plugin MCP configuration into the workspace
+   * - ``executables``
+     - *(per plugin)*
+     - install hooks, LSP servers, monitors and ``bin/``; unset means ``true``
+       for the project's own plugins and ``false`` for dependencies
    * - ``claude``
      - ``true``
      - populate ``.claude/skills/``

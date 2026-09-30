@@ -222,8 +222,26 @@ class TestProjection(PluginTestBase):
         self.assertTrue(os.path.isfile(os.path.join(skills, "alpha", "SKILL.md")))
 
     def test_installed_plugin_carries_other_top_level_entries(self):
-        """bin/ and friends are linked through so ${CLAUDE_PLUGIN_ROOT} works."""
+        """Top-level entries are linked through so ${CLAUDE_PLUGIN_ROOT} works."""
         self.mkFile("ivpm.yaml", dep_yaml("plugin_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertTrue(os.path.isfile(
+            self.path(".claude", "skills", "demo-plugin", "skills", "alpha", "SKILL.md")))
+
+    def test_bin_held_back_by_default(self):
+        """Claude Code puts a plugin's bin/ on PATH, so a dependency's bin/ is
+        an executable component and needs the project's opt-in."""
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertFalse(os.path.lexists(
+            self.path(".claude", "skills", "demo-plugin", "bin")))
+
+    def test_bin_linked_with_executables(self):
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_dep",
+            with_block="\n    with:\n        agents:\n            executables: true"))
         self.ivpm_update(skip_venv=True)
 
         self.assertTrue(os.path.isfile(
@@ -468,6 +486,46 @@ class TestMcp(PluginTestBase):
         self.assertTrue(os.path.isdir(data_arg))
         self.assertTrue(data_arg.endswith(os.path.join(".agents", "data", "mcp-plugin")))
 
+    def test_bin_linked_when_mcp_enabled(self):
+        """MCP servers conventionally live in bin/; enabling MCP must not leave
+        them unable to start."""
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_mcp_dep",
+            with_block="\n    with:\n        agents:\n            mcp: true"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertTrue(os.path.isfile(
+            self.path(".claude", "skills", "mcp-plugin", "bin", "srv")))
+
+    def test_stray_claude_mcp_not_leaked(self):
+        """A plugin's own .mcp.json must not reach Claude Code without mcp: true."""
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_stray_mcp_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.claude_skills(), ["stray-mcp"])
+        self.assertFalse(os.path.lexists(
+            self.path(".claude", "skills", "stray-mcp", ".mcp.json")))
+
+    def test_stray_claude_mcp_linked_when_enabled(self):
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_stray_mcp_dep",
+            with_block="\n    with:\n        agents:\n            mcp: true"))
+        self.ivpm_update(skip_venv=True)
+
+        servers = json.load(open(self.path(
+            ".claude", "skills", "stray-mcp", ".mcp.json")))["mcpServers"]
+        self.assertEqual(sorted(servers), ["stray"])
+
+    def test_translated_mcp_wins_over_shipped(self):
+        """With both mcp.json and .mcp.json, the translation is installed."""
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_mcp_dep",
+            with_block="\n    with:\n        agents:\n            mcp: true"))
+        self.ivpm_update(skip_venv=True)
+
+        path = self.path(".claude", "skills", "mcp-plugin", ".mcp.json")
+        self.assertFalse(os.path.islink(path))
+
     def test_mcp_http_server_passthrough(self):
         self.mkFile("ivpm.yaml", dep_yaml(
             "plugin_mcp_dep",
@@ -492,6 +550,151 @@ class TestMcp(PluginTestBase):
 
         self.ivpm_update(skip_venv=True)
         self.assertTrue(os.path.isfile(marker), "plugin data must survive an update")
+
+
+class TestClaudeFormat(PluginTestBase):
+    """Plugins that carry only .claude-plugin/plugin.json."""
+
+    def claude_plugin(self, name, *parts):
+        return self.path(".claude", "skills", name, *parts)
+
+    def test_discovered_at_package_root(self):
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_claude_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.agents_plugins(), ["claude-demo"])
+
+    def test_skills_unbundled_including_manifest_paths(self):
+        """skills/ plus the manifest's own 'skills' path reach every other tool."""
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_claude_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.agents_skills(), ["claude-demo-alpha", "claude-demo-gamma"])
+        self.assertEqual(self.cursor_skills(), ["claude-demo-alpha", "claude-demo-gamma"])
+
+    def test_claude_receives_plugin_whole(self):
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_claude_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.claude_skills(), ["claude-demo"])
+        src = json.load(open(self.path(
+            "packages", "plugin_claude_dep", ".claude-plugin", "plugin.json")))
+        installed = json.load(open(self.claude_plugin(
+            "claude-demo", ".claude-plugin", "plugin.json")))
+        self.assertEqual(src, installed)
+        for entry in ("commands", "agents", "skills", "extra-skills"):
+            self.assertTrue(os.path.isdir(self.claude_plugin("claude-demo", entry)), entry)
+
+    def test_executables_and_mcp_held_back_by_default(self):
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_claude_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        for entry in ("hooks", "bin", ".mcp.json"):
+            self.assertFalse(os.path.lexists(self.claude_plugin("claude-demo", entry)), entry)
+
+    def test_executables_opt_in(self):
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_claude_dep",
+            with_block="\n    with:\n        agents:\n            executables: true"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertTrue(os.path.isfile(self.claude_plugin("claude-demo", "hooks", "hooks.json")))
+        self.assertTrue(os.path.isfile(self.claude_plugin("claude-demo", "bin", "tool")))
+        self.assertFalse(os.path.lexists(self.claude_plugin("claude-demo", ".mcp.json")))
+
+    def test_native_mcp_linked_when_enabled(self):
+        """A Claude plugin's .mcp.json is already in Claude Code's spelling."""
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_claude_dep",
+            with_block="\n    with:\n        agents:\n            mcp: true"))
+        self.ivpm_update(skip_venv=True)
+
+        path = self.claude_plugin("claude-demo", ".mcp.json")
+        self.assertTrue(os.path.islink(path))
+        self.assertEqual(sorted(json.load(open(path))["mcpServers"]), ["local", "remote"])
+
+    def test_inline_declarations_filtered_from_manifest(self):
+        """hooks/mcpServers declared in plugin.json are removed from the copy
+        Claude Code reads, and nothing else is."""
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_claude_inline_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.claude_skills(), ["inline-demo"])
+        installed = json.load(open(self.claude_plugin(
+            "inline-demo", ".claude-plugin", "plugin.json")))
+        self.assertNotIn("hooks", installed)
+        self.assertNotIn("mcpServers", installed)
+        self.assertEqual(installed["description"], "Declares components in its manifest.")
+
+    def test_inline_declarations_kept_when_enabled(self):
+        self.mkFile("ivpm.yaml", dep_yaml(
+            "plugin_claude_inline_dep",
+            with_block="\n    with:\n        agents:\n"
+                       "            executables: true\n            mcp: true"))
+        self.ivpm_update(skip_venv=True)
+
+        installed = json.load(open(self.claude_plugin(
+            "inline-demo", ".claude-plugin", "plugin.json")))
+        self.assertIn("hooks", installed)
+        self.assertIn("mcpServers", installed)
+
+    def test_dual_format_loaded_once_with_claude_manifest(self):
+        """Agent Plugins manifest is the identity; Claude Code gets its own."""
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_dual_dep"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.agents_plugins(), ["dual-demo"])
+        self.assertEqual(self.agents_skills(), ["dual-demo-epsilon"])
+        installed = json.load(open(self.claude_plugin(
+            "dual-demo", ".claude-plugin", "plugin.json")))
+        self.assertEqual(installed["description"], "Ships both manifests (Claude).")
+
+    def test_project_plugin_executables_default_on(self):
+        """The project's own plugin was written by the project."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_project_claude_plugin
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("plugins/mine/.claude-plugin/plugin.json", json.dumps({"name": "mine"}))
+        self.mkFile("plugins/mine/hooks/hooks.json", "{}")
+        self.mkFile("plugins/mine/skills/thing/SKILL.md",
+                    "---\nname: thing\ndescription: A thing.\n---\n\nbody\n")
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.claude_skills(), ["mine"])
+        self.assertTrue(os.path.isfile(self.claude_plugin("mine", "hooks", "hooks.json")))
+
+    def test_project_plugin_executables_false_overrides(self):
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_project_claude_plugin
+            with:
+                agents:
+                    executables: false
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.mkFile("plugins/mine/.claude-plugin/plugin.json", json.dumps({"name": "mine"}))
+        self.mkFile("plugins/mine/hooks/hooks.json", "{}")
+        self.ivpm_update(skip_venv=True)
+
+        self.assertFalse(os.path.lexists(self.claude_plugin("mine", "hooks")))
+
+    def test_cleanup_removes_claude_plugin(self):
+        self.mkFile("ivpm.yaml", dep_yaml("plugin_claude_dep"))
+        self.ivpm_update(skip_venv=True)
+        self.mkFile("ivpm.yaml", dep_yaml("agents_leaf1"))
+        self.ivpm_update(skip_venv=True)
+
+        self.assertEqual(self.agents_plugins(), [])
+        self.assertEqual(self.claude_skills(), ["agent-leaf1"])
+        self.assertTrue(os.path.isfile(self.path(
+            "packages", "plugin_claude_dep", "hooks", "hooks.json")),
+            "cleanup must not reach through links into the package")
 
 
 class TestCleanup(PluginTestBase):

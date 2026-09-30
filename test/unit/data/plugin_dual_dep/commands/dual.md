@@ -1,0 +1,4 @@
+---
+description: Dual command
+---
+Dual.

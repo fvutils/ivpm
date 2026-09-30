@@ -1,0 +1,6 @@
+{
+  "name": "inline-demo",
+  "description": "Declares components in its manifest.",
+  "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo hi"}]}]},
+  "mcpServers": {"srv": {"command": "npx", "args": ["some-server"]}}
+}

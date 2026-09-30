@@ -74,7 +74,12 @@ def _package_dirs(project_dir, proj_info, deps_dir, dep_set):
 
 
 def _collect(project_dir, dep_set=None, with_mcp=True):
-    """Discover every plugin visible from ``project_dir``."""
+    """Discover every plugin visible from ``project_dir``.
+
+    Returns ``(plugins, diagnostics, agents_config)``; the last is the
+    project's ``with.agents`` block, which decides what installation leaves
+    out.
+    """
     from ..agent_plugins import discovery
     from ..proj_info import ProjInfo, resolve_deps_dir
 
@@ -111,15 +116,39 @@ def _collect(project_dir, dep_set=None, with_mcp=True):
         plugins.extend(found)
         diags.extend(fdiags)
 
-    return plugins, diags
+    return plugins, diags, agents_cfg
 
 
-def _as_dict(plugin):
+def _gates(agents_cfg):
+    """``(emit_mcp, emit_exec)`` as the agents handler reads them."""
+    agents_cfg = agents_cfg or {}
+    emit_exec = agents_cfg.get("executables", None)
+    return (bool(agents_cfg.get("mcp", False)),
+            None if emit_exec is None else bool(emit_exec))
+
+
+def _omitted(plugin, gates):
+    """Components installation leaves out of this plugin, kind -> key."""
+    from ..agent_plugins import components
+    emit_mcp, emit_exec = gates
+    if emit_exec is None:
+        emit_exec = components.executables_default(plugin.kind)
+    return components.omitted(plugin.components, emit_mcp, emit_exec)
+
+
+def _format_label(m):
+    if m.format == "claude":
+        return "Claude Code"
+    return "Agent Plugins %s" % m.spec_version
+
+
+def _as_dict(plugin, gates=(False, None)):
     m = plugin.manifest
     return {
         "name": m.name,
         "owner": plugin.owner_name,
         "kind": plugin.kind,
+        "format": m.format,
         "version": m.version,
         "description": m.description,
         "spec_version": m.spec_version,
@@ -132,8 +161,29 @@ def _as_dict(plugin):
         "unknown_keys": list(m.unknown_keys),
         "skills": [os.path.basename(d) for d in plugin.skill_dirs],
         "mcp_servers": [_server_as_dict(s) for s in (plugin.mcp.servers if plugin.mcp else ())],
+        "components": {k: list(v) for k, v in plugin.components.items()},
+        "omitted": _omitted(plugin, gates),
         "diagnostics": [dataclasses.asdict(d) for d in plugin.diagnostics],
     }
+
+
+def _component_lines(plugin, gates):
+    """``(label, text)`` rows describing components beyond skills.
+
+    Everything Claude Code alone understands is listed, then whatever
+    installation leaves out and the key that would bring it in.
+    """
+    from ..agent_plugins import components
+    rows = []
+    only = ["%s (%s)" % (k, ", ".join(v)) for k, v in plugin.components.items()
+            if k in components.CLAUDE_ONLY_KINDS]
+    if only:
+        rows.append(("Claude Code only", "; ".join(only)))
+    omitted = _omitted(plugin, gates)
+    if omitted:
+        rows.append(("Not installed", "; ".join(
+            "%s (%s: false)" % (k, key) for k, key in omitted.items())))
+    return rows
 
 
 def _server_as_dict(server):
@@ -162,6 +212,7 @@ def _rich_list(plugins):
     console = make_console()
     table = Table(box=box.SIMPLE_HEAVY, show_header=True, header_style="bold")
     table.add_column("Plugin", style="cyan bold")
+    table.add_column("Format", style="secondary")
     table.add_column("Version", style="secondary")
     table.add_column("Skills", justify="right")
     table.add_column("MCP", justify="right")
@@ -170,7 +221,7 @@ def _rich_list(plugins):
 
     for p in plugins:
         n_mcp = len(p.mcp.servers) if p.mcp else 0
-        table.add_row(p.name, p.manifest.version or "",
+        table.add_row(p.name, p.manifest.format, p.manifest.version or "",
                       str(len(p.skill_dirs)), str(n_mcp) if n_mcp else "",
                       "%s (%s)" % (p.owner_name, p.kind),
                       p.manifest.description or "")
@@ -180,16 +231,16 @@ def _rich_list(plugins):
 def _plain_list(plugins):
     for p in plugins:
         n_mcp = len(p.mcp.servers) if p.mcp else 0
-        print("%-24s %-10s skills=%-3d mcp=%-3d %s"
-              % (p.name, p.manifest.version or "-", len(p.skill_dirs), n_mcp,
-                 p.owner_name))
+        print("%-24s %-13s %-10s skills=%-3d mcp=%-3d %s"
+              % (p.name, p.manifest.format, p.manifest.version or "-",
+                 len(p.skill_dirs), n_mcp, p.owner_name))
 
 
-def _plain_detail(p):
+def _plain_detail(p, gates):
     m = p.manifest
     print("Plugin:       %s" % m.name)
     print("Provided by:  %s (%s)" % (p.owner_name, p.kind))
-    print("Spec version: %s" % m.spec_version)
+    print("Format:       %s" % _format_label(m))
     if m.version:
         print("Version:      %s" % m.version)
     if m.description:
@@ -207,6 +258,11 @@ def _plain_detail(p):
         print("\nMCP servers:")
         for s in p.mcp.servers:
             print("  %s" % _server_line(s))
+    rows = _component_lines(p, gates)
+    if rows:
+        print("")
+        for label, text in rows:
+            print("%-17s %s" % (label + ":", text))
     if m.extensions:
         print("\nExtension namespaces:")
         for ns in sorted(m.extensions):
@@ -216,11 +272,11 @@ def _plain_detail(p):
     _print_diagnostics(p.diagnostics)
 
 
-def _rich_detail(p):
+def _rich_detail(p, gates):
     console = make_console()
     m = p.manifest
-    console.print("\n[bold cyan]Plugin:[/] [bold]%s[/]  [label](Agent Plugins %s)[/]"
-                  % (m.name, m.spec_version))
+    console.print("\n[bold cyan]Plugin:[/] [bold]%s[/]  [label](%s)[/]"
+                  % (m.name, _format_label(m)))
     console.print("[label]Provided by:[/] %s (%s)" % (p.owner_name, p.kind))
     if m.version:
         console.print("[label]Version:[/] %s" % m.version)
@@ -240,6 +296,11 @@ def _rich_detail(p):
         console.print("\n[bold]MCP servers:[/]")
         for s in p.mcp.servers:
             console.print("  %s" % _server_line(s))
+    rows = _component_lines(p, gates)
+    if rows:
+        console.print("")
+        for label, text in rows:
+            console.print("[label]%s:[/] %s" % (label, text))
     if m.extensions:
         console.print("\n[bold]Extension namespaces:[/]")
         for ns in sorted(m.extensions):
@@ -303,12 +364,15 @@ def _run_check(path, as_json):
         }, indent=2))
     else:
         if plugin is not None:
-            print("%s: Agent Plugins %s manifest for '%s'"
-                  % (path, plugin.manifest.spec_version, plugin.name))
+            print("%s: %s manifest for '%s'"
+                  % (path, _format_label(plugin.manifest), plugin.name))
             print("  skills:      %d" % len(plugin.skill_dirs))
             print("  mcp servers: %d" % (len(plugin.mcp.servers) if plugin.mcp else 0))
+            for kind, where in plugin.components.items():
+                if kind != "mcp":
+                    print("  %-12s %s" % (kind + ":", ", ".join(where)))
         else:
-            print("%s: not a usable Agent Plugins plugin" % path)
+            print("%s: not a usable plugin" % path)
         for d in diags:
             print("  %-8s %-28s %s" % (d.severity, d.code, d.message))
         if plugin is not None and not problems:
@@ -335,12 +399,13 @@ class ShowPlugins:
 
         project_dir = getattr(args, "project_dir", None) or os.getcwd()
         try:
-            plugins, diags = _collect(project_dir, getattr(args, "dep_set", None))
+            plugins, diags, agents_cfg = _collect(project_dir, getattr(args, "dep_set", None))
         except FileNotFoundError as exc:
             print("ivpm show plugins: %s" % exc, file=sys.stderr)
             sys.exit(1)
 
         plugins.sort(key=lambda p: (p.name, p.owner_name))
+        gates = _gates(agents_cfg)
 
         if name:
             matches = [p for p in plugins if p.name == name]
@@ -355,7 +420,7 @@ class ShowPlugins:
 
         if as_json:
             print(json.dumps({
-                "plugins": [_as_dict(p) for p in plugins],
+                "plugins": [_as_dict(p, gates) for p in plugins],
                 "diagnostics": [dataclasses.asdict(d) for d in diags],
             }, indent=2))
             return
@@ -363,11 +428,11 @@ class ShowPlugins:
         plain = no_rich or not sys.stdout.isatty()
 
         if name:
-            (_plain_detail if plain else _rich_detail)(plugins[0])
+            (_plain_detail if plain else _rich_detail)(plugins[0], gates)
             return
 
         if not plugins:
-            print("No Agent Plugins found in this project.")
+            print("No plugins found in this project.")
         elif plain:
             _plain_list(plugins)
         else:

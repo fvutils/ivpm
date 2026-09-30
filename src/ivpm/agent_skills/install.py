@@ -25,6 +25,10 @@ import os
 import shutil
 from typing import Collection, Dict, List, Optional, Tuple
 
+from ..agent_plugins import components as _components
+from ..agent_plugins.manifest import CLAUDE_MANIFEST_DIR
+from ..agent_plugins.mcp import CLAUDE_MCP_NAME, MCP_NAME
+
 _logger = logging.getLogger("ivpm.agent_skills.install")
 
 # Agent-tool mirror targets in addition to the always-present .agents/skills/,
@@ -55,12 +59,6 @@ TOOL_TARGETS = (
 #: Every agent name accepted by ``ivpm skills --agent``, in target order.
 AGENTS = ("agents",) + tuple(key for key, _, _ in TOOL_TARGETS)
 
-# Claude Code's manifest location within a plugin. Its schema and the Agent
-# Plugins schema share every field name we emit, and Claude Code documents
-# that it ignores unrecognized top-level fields, so the Agent Plugins manifest
-# is copied across verbatim rather than rewritten.
-CLAUDE_MANIFEST_DIR = ".claude-plugin"
-CLAUDE_MCP_NAME = ".mcp.json"
 
 # Never copied into an installed skill: bytecode caches and VCS metadata are
 # not part of a skill, and a stale .pyc would defeat the content hash.
@@ -259,15 +257,23 @@ class Linker(object):
     # Agent Plugins
     # -------------------------------------------------------------- #
 
-    def install_plugin(self, dest: str, plugin, emit_mcp: bool) -> bool:
+    def install_plugin(self, dest: str, plugin, emit_mcp: bool,
+                       emit_exec: Optional[bool] = None) -> bool:
         """Materialize a plugin in the form a plugin-aware tool expects.
 
         The tool loads a directory as a plugin when it finds
         ``.claude-plugin/plugin.json`` in it, so the installed directory is a
-        thin shell: every top-level entry of the real plugin is linked through,
+        thin shell: top-level entries of the real plugin are linked through,
         and only the manifest (and optionally the MCP configuration) is
         generated. Linking rather than copying means edits to a dependency's
         skills are picked up without re-running ``ivpm update``.
+
+        Components that run code are left out unless enabled: MCP servers by
+        ``emit_mcp``, hooks / LSP servers / ``bin/`` / monitors by
+        ``emit_exec``. ``emit_exec`` None means the default for the plugin's
+        kind (see ``agent_plugins.components.executables_default``). Where the
+        manifest itself declares a left-out component, the shell's manifest is
+        a copy with that declaration removed.
 
         Returns True when the plugin was installed.
         """
@@ -276,39 +282,76 @@ class Linker(object):
                              plugin.name, dest)
             return False
 
+        if emit_exec is None:
+            emit_exec = _components.executables_default(plugin.kind)
+        omit = _components.omitted(getattr(plugin, "components", {}) or {},
+                                   emit_mcp, emit_exec)
+        skip = set(_components.skipped_entries(omit))
+        # An Agent Plugins mcp.json is never linked: when enabled it is
+        # translated below, since the tool reads '.mcp.json' and spells the
+        # plugin-root placeholder differently. The translation also takes
+        # precedence over a '.mcp.json' the plugin ships alongside it.
+        translate_mcp = (emit_mcp and plugin.mcp is not None and plugin.mcp.servers
+                         and plugin.mcp.source == MCP_NAME)
+        skip.add(MCP_NAME)
+        if translate_mcp:
+            skip.add(CLAUDE_MCP_NAME)
+
         os.makedirs(dest, exist_ok=True)
 
-        ships_own_manifest = os.path.isfile(
-            os.path.join(plugin.root_dir, CLAUDE_MANIFEST_DIR, "plugin.json"))
-
         for entry in sorted(os.listdir(plugin.root_dir)):
-            # mcp.json is translated below rather than linked: the tool reads
-            # '.mcp.json' and spells the plugin-root placeholder differently.
-            if entry == "mcp.json":
-                continue
-            if entry == CLAUDE_MANIFEST_DIR and not ships_own_manifest:
+            if entry in skip or entry == CLAUDE_MANIFEST_DIR:
                 continue
             src = os.path.join(plugin.root_dir, entry)
             self.link_dir(os.path.join(dest, entry), src, quiet=True)
 
-        if not ships_own_manifest:
-            # The Agent Plugins manifest is already a valid manifest for the
-            # tool: the field names coincide and unrecognized top-level fields
-            # (our '$schema', 'extensions') are ignored at load time. Copy it
-            # verbatim rather than rewriting it.
-            manifest_dir = os.path.join(dest, CLAUDE_MANIFEST_DIR)
-            os.makedirs(manifest_dir, exist_ok=True)
-            try:
-                shutil.copy2(os.path.join(plugin.root_dir, "plugin.json"),
-                             os.path.join(manifest_dir, "plugin.json"))
-            except OSError as exc:
-                self.log.warning("Could not install manifest for plugin '%s': %s",
-                                 plugin.name, exc)
-                return False
+        if not self._write_tool_manifest(dest, plugin, omit):
+            return False
 
-        if emit_mcp and plugin.mcp is not None and plugin.mcp.servers:
+        if translate_mcp:
             self.write_tool_mcp(dest, plugin)
 
+        return True
+
+    def _write_tool_manifest(self, dest: str, plugin, omit) -> bool:
+        """Write ``<dest>/.claude-plugin/plugin.json``.
+
+        The plugin's own Claude manifest is preferred; failing that, the
+        Agent Plugins manifest is already a valid manifest for the tool (the
+        field names coincide and unrecognized top-level fields such as our
+        '$schema' and 'extensions' are ignored at load time). Either is copied
+        verbatim unless a left-out component must be removed from it. Other
+        files the plugin keeps in ``.claude-plugin/`` are linked through.
+        """
+        m = plugin.manifest
+        if m.claude is not None:
+            src = os.path.join(m.root_dir, CLAUDE_MANIFEST_DIR, "plugin.json")
+            data = m.claude
+        else:
+            src = os.path.join(m.root_dir, "plugin.json")
+            data = _read_json_object(src)
+        filtered, changed = _components.filter_manifest(data, omit)
+
+        manifest_dir = os.path.join(dest, CLAUDE_MANIFEST_DIR)
+        try:
+            os.makedirs(manifest_dir, exist_ok=True)
+            if changed:
+                with open(os.path.join(manifest_dir, "plugin.json"), "w") as fh:
+                    json.dump(filtered, fh, indent=2)
+                    fh.write("\n")
+            else:
+                shutil.copy2(src, os.path.join(manifest_dir, "plugin.json"))
+        except OSError as exc:
+            self.log.warning("Could not install manifest for plugin '%s': %s",
+                             plugin.name, exc)
+            return False
+
+        own_dir = os.path.join(m.root_dir, CLAUDE_MANIFEST_DIR)
+        if os.path.isdir(own_dir):
+            for entry in sorted(os.listdir(own_dir)):
+                if entry != "plugin.json":
+                    self.link_dir(os.path.join(manifest_dir, entry),
+                                  os.path.join(own_dir, entry), quiet=True)
         return True
 
     def write_tool_mcp(self, dest: str, plugin):
@@ -361,14 +404,25 @@ class Linker(object):
                              plugin.name, exc)
 
 
+def _read_json_object(path: str) -> Optional[dict]:
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def populate(linker: Linker, targets: List[Target],
              skill_assigned: List[Tuple[str, object]],
              plugin_assigned: List[Tuple[str, object]],
-             emit_mcp: bool = False) -> Tuple[Dict[str, List[str]], int]:
+             emit_mcp: bool = False,
+             emit_exec: Optional[bool] = None) -> Tuple[Dict[str, List[str]], int]:
     """Write every assigned skill and plugin into every target.
 
     ``skill_assigned`` holds ``(dest_name, SkillEntry)`` pairs and
     ``plugin_assigned`` ``(dest_name, DiscoveredPlugin)`` pairs.
+    ``emit_mcp`` and ``emit_exec`` are passed to ``Linker.install_plugin``.
 
     Returns ``(managed, n_native_installs)``, where ``managed`` maps each
     state key to the names written under it -- which differs per target once
@@ -393,7 +447,8 @@ def populate(linker: Linker, targets: List[Target],
 
         if tgt.strategy == "install":
             for dest_name, plugin in plugin_assigned:
-                if linker.install_plugin(os.path.join(tgt.path, dest_name), plugin, emit_mcp):
+                if linker.install_plugin(os.path.join(tgt.path, dest_name), plugin,
+                                         emit_mcp, emit_exec):
                     names.append(dest_name)
                     n_installed += 1
 

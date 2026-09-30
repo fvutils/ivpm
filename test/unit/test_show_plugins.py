@@ -113,7 +113,7 @@ class TestList(TestShowPluginsBase):
 
     def test_no_plugins_message(self):
         out = self.run_show()
-        self.assertIn("No Agent Plugins found", out)
+        self.assertIn("No plugins found", out)
 
     def test_foreign_plugin_json_not_listed_and_silent(self):
         """An unrelated plugin.json must neither appear nor produce noise."""
@@ -121,7 +121,7 @@ class TestList(TestShowPluginsBase):
             "$schema": "https://example.com/schemas/plugin.json",
             "id": "acme-datasource"}))
         out = self.run_show()
-        self.assertIn("No Agent Plugins found", out)
+        self.assertIn("No plugins found", out)
         self.assertNotIn("warning", out)
         self.assertNotIn("acme", out)
 
@@ -154,7 +154,7 @@ class TestList(TestShowPluginsBase):
             "$schema": "https://agent-plugins.org/schemas/2.0.0/plugin.schema.json",
             "name": "future"})
         out = self.run_show()
-        self.assertIn("No Agent Plugins found", out)
+        self.assertIn("No plugins found", out)
         # Auto-probe: an unreadable *Agent Plugins* manifest is worth reporting,
         # unlike a foreign one.
         self.assertIn("unsupported-version", out)
@@ -268,6 +268,82 @@ class TestCheck(TestShowPluginsBase):
         self.assertFalse(data["valid"])
         self.assertIsNone(data["plugin"])
         self.assertTrue(any(d["code"] == "name.charset" for d in data["diagnostics"]))
+
+
+class TestClaudeFormat(TestShowPluginsBase):
+
+    def mkclaude(self, dirname="plugins/cc", manifest=None):
+        doc = manifest if manifest is not None else {"name": "cc", "version": "1.0.0"}
+        self.write(os.path.join(dirname, ".claude-plugin", "plugin.json"), json.dumps(doc))
+        self.write(os.path.join(dirname, "skills", "greet", "SKILL.md"),
+                   "---\nname: greet\ndescription: Greets.\n---\n\nbody\n")
+        self.write(os.path.join(dirname, "commands", "hi.md"), "hi\n")
+        self.write(os.path.join(dirname, "hooks", "hooks.json"), "{}\n")
+        self.write(os.path.join(dirname, ".mcp.json"), json.dumps(
+            {"mcpServers": {"s": {"command": "npx"}}}))
+        return os.path.join(self.proj, dirname)
+
+    def set_agents(self, block):
+        self.write("ivpm.yaml", """\
+package:
+  name: demo-proj
+  with:
+    agents:
+%s
+  dep-sets:
+    - name: default-dev
+      deps: []
+""" % block)
+
+    def test_listed_with_format(self):
+        self.mkclaude()
+        out = self.run_show()
+        self.assertIn("cc", out)
+        self.assertIn("claude", out)
+        self.assertIn("skills=1", out)
+
+    def test_detail_reports_components(self):
+        self.mkclaude()
+        out = self.run_show(name="cc")
+        self.assertIn("Format:       Claude Code", out)
+        self.assertIn("Claude Code only: commands (commands)", out)
+        # The project's own plugin: executables default on, MCP still opt-in
+        self.assertIn("Not installed:    mcp (mcp: false)", out)
+        self.assertNotIn("hooks (executables", out)
+
+    def test_detail_reports_executables_gate(self):
+        self.set_agents("      executables: false\n      mcp: true")
+        self.mkclaude()
+        out = self.run_show(name="cc")
+        self.assertIn("hooks (executables: false)", out)
+        self.assertNotIn("mcp (mcp: false)", out)
+
+    def test_json(self):
+        self.mkclaude()
+        plugin = json.loads(self.run_show(json=True))["plugins"][0]
+        self.assertEqual(plugin["format"], "claude")
+        self.assertIsNone(plugin["spec_version"])
+        self.assertEqual(plugin["components"]["commands"], ["commands"])
+        self.assertEqual(plugin["omitted"], {"mcp": "mcp"})
+        self.assertEqual([s["name"] for s in plugin["mcp_servers"]], ["s"])
+
+    def test_mcp_view_includes_claude_servers(self):
+        self.mkclaude()
+        out = self.run_show(mcp=True)
+        self.assertIn("cc.s", out)
+
+    def test_check(self):
+        root = self.mkclaude()
+        code, out = self.run_show_exit(check=root)
+        self.assertEqual(code, 0, out)
+        self.assertIn("Claude Code manifest for 'cc'", out)
+        self.assertIn("commands:", out)
+
+    def test_check_claude_manifest_path(self):
+        root = self.mkclaude()
+        code, _ = self.run_show_exit(
+            check=os.path.join(root, ".claude-plugin", "plugin.json"))
+        self.assertEqual(code, 0)
 
 
 if __name__ == "__main__":

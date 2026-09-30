@@ -16,11 +16,21 @@
 #* limitations under the License.
 #*
 #****************************************************************************
-"""Loading and validation of Agent Plugins ``plugin.json`` manifests.
+"""Loading and validation of plugin manifests.
 
-The central question this module answers is *is this manifest an Agent Plugins
-manifest at all?*  ``plugin.json`` is a heavily overloaded filename, so the
-answer is layered:
+Two manifest formats are read:
+
+* **Agent Plugins** -- ``<root>/plugin.json``, the vendor-neutral standard.
+* **Claude Code** -- ``<root>/.claude-plugin/plugin.json``.  Most plugins
+  published for Claude Code carry only this one.
+
+When a directory has both, the Agent Plugins manifest is the plugin's identity
+and the Claude manifest is kept alongside it (``PluginManifest.claude``) to be
+shipped to Claude Code unchanged.
+
+For the Agent Plugins format the central question is *is this manifest an
+Agent Plugins manifest at all?*  ``plugin.json`` is a heavily overloaded
+filename, so the answer is layered:
 
 1. the file is named ``plugin.json``, parses as JSON, and is an object;
 2. its ``$schema`` is exactly ``https://agent-plugins.org/schemas/<v>/plugin.schema.json``
@@ -30,6 +40,9 @@ answer is layered:
 Layers 1 and 2 distinguish "not ours, stay quiet" from "ours, but broken, warn".
 That distinction matters: a package may legitimately carry an unrelated
 ``plugin.json``, and warning about it would be noise.
+
+The Claude format needs no such layering: nothing else uses a
+``.claude-plugin`` directory, so its location is the type tag.
 
 Diagnostics are *returned*, never printed, so the caller chooses the log level:
 the agents handler warns, ``ivpm show plugins --check`` renders a report, and
@@ -48,6 +61,12 @@ from . import validate as _v
 SPEC_VERSIONS = ("1.0.0",)
 
 MANIFEST_NAME = "plugin.json"
+
+#: Where a Claude Code plugin keeps its manifest, relative to the plugin root.
+CLAUDE_MANIFEST_DIR = ".claude-plugin"
+
+FORMAT_AGENT_PLUGINS = "agent-plugins"
+FORMAT_CLAUDE = "claude"
 
 _PLUGIN_SCHEMA_RE = re.compile(
     r"^https://agent-plugins\.org/schemas/(\d+\.\d+\.\d+)/plugin\.schema\.json$")
@@ -87,11 +106,13 @@ class Diagnostic:
 class PluginManifest:
     """A validated ``plugin.json``.
 
-    ``root_dir`` is the directory containing the manifest -- the plugin root,
-    against which every plugin-relative path resolves.
+    ``root_dir`` is the plugin root, against which every plugin-relative path
+    resolves: the directory containing ``plugin.json``, or the parent of
+    ``.claude-plugin/``.
     """
     root_dir: str
-    spec_version: str
+    #: Agent Plugins version; None for a Claude-format manifest
+    spec_version: Optional[str]
     name: str
     version: Optional[str] = None
     description: Optional[str] = None
@@ -104,6 +125,10 @@ class PluginManifest:
     #: Unknown top-level keys. The spec requires reporting and ignoring these
     #: rather than rejecting the plugin, so they are recorded, not fatal.
     unknown_keys: Tuple[str, ...] = ()
+    #: FORMAT_AGENT_PLUGINS or FORMAT_CLAUDE -- which manifest is the identity
+    format: str = FORMAT_AGENT_PLUGINS
+    #: The parsed ``.claude-plugin/plugin.json``, when the plugin ships one
+    claude: Optional[Mapping[str, Any]] = None
 
 
 # ---------------------------------------------------------------------------
@@ -127,23 +152,40 @@ def within(root: str, candidate: str) -> bool:
     return cand_r == root_r or cand_r.startswith(root_r + os.sep)
 
 
+def claude_manifest_path(root_dir: str) -> str:
+    return os.path.join(root_dir, CLAUDE_MANIFEST_DIR, MANIFEST_NAME)
+
+
 def normalize_plugin_path(path: str) -> Optional[str]:
     """Resolve a plugin reference to its root directory.
 
-    Accepts either spelling, per the extension-point contract:
+    Accepts either spelling, per the extension-point contract, for either
+    manifest format:
 
-    * a path to a ``plugin.json`` file  -> its containing directory
-    * a directory containing ``plugin.json`` -> that directory
+    * a path to a ``plugin.json`` file  -> its containing directory, or the
+      parent of ``.claude-plugin/`` for a Claude manifest
+    * a ``.claude-plugin`` directory holding ``plugin.json`` -> its parent
+    * a directory containing ``plugin.json`` or ``.claude-plugin/plugin.json``
+      -> that directory
 
-    Returns None when the path is neither.  A *directory* named ``plugin.json``
-    is not a manifest and yields None.
+    Returns None when the path is none of these.  A *directory* named
+    ``plugin.json`` is not a manifest and yields None.
     """
     if not path:
         return None
     abspath = os.path.abspath(path)
     if os.path.basename(abspath) == MANIFEST_NAME and os.path.isfile(abspath):
+        parent = os.path.dirname(abspath)
+        if os.path.basename(parent) == CLAUDE_MANIFEST_DIR:
+            return os.path.dirname(parent)
+        return parent
+    if not os.path.isdir(abspath):
+        return None
+    if (os.path.basename(abspath) == CLAUDE_MANIFEST_DIR
+            and os.path.isfile(os.path.join(abspath, MANIFEST_NAME))):
         return os.path.dirname(abspath)
-    if os.path.isdir(abspath) and os.path.isfile(os.path.join(abspath, MANIFEST_NAME)):
+    if (os.path.isfile(os.path.join(abspath, MANIFEST_NAME))
+            or os.path.isfile(claude_manifest_path(abspath))):
         return abspath
     return None
 
@@ -191,7 +233,11 @@ def _read_json(path: str) -> Any:
 # ---------------------------------------------------------------------------
 
 def load_plugin(root_dir: str) -> Tuple[Optional[PluginManifest], List[Diagnostic]]:
-    """Load and validate ``<root_dir>/plugin.json``.
+    """Load and validate the plugin rooted at ``root_dir``.
+
+    The Agent Plugins manifest (``<root_dir>/plugin.json``) is preferred;
+    failing that, ``<root_dir>/.claude-plugin/plugin.json`` is loaded as a
+    Claude-format plugin.
 
     Returns ``(manifest, diagnostics)``.  A None manifest means the plugin was
     rejected; check the diagnostics' severity to tell "not ours" (info) from
@@ -203,9 +249,12 @@ def load_plugin(root_dir: str) -> Tuple[Optional[PluginManifest], List[Diagnosti
     """
     diags: List[Diagnostic] = []
     manifest_path = os.path.join(root_dir, MANIFEST_NAME)
+    has_claude = os.path.isfile(claude_manifest_path(root_dir))
 
     kind, version = classify(manifest_path)
     if kind is Classification.NOT_A_PLUGIN:
+        if has_claude:
+            return _load_claude(root_dir, diags)
         diags.append(Diagnostic(
             "info", "manifest.not-a-plugin",
             "%s is not an Agent Plugins manifest (no recognized $schema)"
@@ -216,6 +265,8 @@ def load_plugin(root_dir: str) -> Tuple[Optional[PluginManifest], List[Diagnosti
             "warning", "manifest.unsupported-version",
             "%s targets Agent Plugins %s; this build supports %s"
             % (manifest_path, version, ", ".join(SPEC_VERSIONS))))
+        if has_claude:
+            return _load_claude(root_dir, diags)
         return (None, diags)
 
     data = _read_json(manifest_path)
@@ -279,6 +330,96 @@ def load_plugin(root_dir: str) -> Tuple[Optional[PluginManifest], List[Diagnosti
         keywords=tuple(values.get("keywords") or ()),
         extensions=extensions,
         unknown_keys=unknown,
+        claude=_read_claude(root_dir) if has_claude else None,
+    ), diags)
+
+
+def _read_claude(root_dir: str) -> Optional[Dict[str, Any]]:
+    try:
+        with open(claude_manifest_path(root_dir), encoding="utf-8") as fh:
+            data = json.load(fh)
+    except (OSError, ValueError, UnicodeDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+#: Claude manifest fields that carry over to PluginManifest, with their type
+_CLAUDE_FIELDS = {
+    "version": str,
+    "description": str,
+    "author": dict,
+    "homepage": str,
+    "repository": str,
+    "license": str,
+    "keywords": list,
+}
+
+
+def _load_claude(root_dir: str,
+                 diags: List[Diagnostic]) -> Tuple[Optional[PluginManifest], List[Diagnostic]]:
+    """Load ``<root_dir>/.claude-plugin/plugin.json``.
+
+    Claude Code's schema is open and growing, so unknown keys are not
+    reported.  The name must satisfy the Agent Plugins name rules even so:
+    IVPM uses it as a directory name in every target.
+    """
+    manifest_path = claude_manifest_path(root_dir)
+    data = _read_claude(root_dir)
+    if data is None:
+        diags.append(Diagnostic(
+            "warning", "claude.bad-manifest",
+            "%s is not a readable JSON object" % manifest_path))
+        return (None, diags)
+
+    # Claude Code names a plugin without a 'name' after its directory.
+    name = data.get("name", os.path.basename(os.path.abspath(root_dir)))
+    schema = _v.load_schema(SPEC_VERSIONS[-1], "plugin")
+    name_errors = _v.validate(name, schema["properties"]["name"], schema, "/name")
+    if name_errors:
+        for err in name_errors:
+            diags.append(Diagnostic("error", _NAME_CODES.get(err.keyword, "name.invalid"),
+                                    "invalid plugin name %s in %s: %s"
+                                    % (json.dumps(name), manifest_path, _NAME_RULES.get(
+                                        err.keyword, err.message)),
+                                    path="/name"))
+        return (None, diags)
+
+    values: Dict[str, Any] = {}
+    for key, typ in _CLAUDE_FIELDS.items():
+        if key not in data:
+            continue
+        value = data[key]
+        if key == "repository" and isinstance(value, dict):
+            value = value.get("url")
+        if key == "keywords" and isinstance(value, list):
+            value = [k for k in value if isinstance(k, str)]
+        if not isinstance(value, typ):
+            diags.append(Diagnostic("warning", "field.invalid",
+                                    "ignoring '%s': expected %s" % (key, typ.__name__),
+                                    path="/" + key))
+            continue
+        values[key] = value
+
+    if data.get("userConfig"):
+        diags.append(Diagnostic(
+            "warning", "claude.user-config",
+            "plugin '%s' declares userConfig; IVPM cannot supply it, so the "
+            "plugin may need configuring in Claude Code" % name,
+            path="/userConfig"))
+
+    return (PluginManifest(
+        root_dir=os.path.abspath(root_dir),
+        spec_version=None,
+        name=name,
+        version=values.get("version"),
+        description=values.get("description"),
+        author=values.get("author"),
+        homepage=values.get("homepage"),
+        repository=values.get("repository"),
+        license=values.get("license"),
+        keywords=tuple(values.get("keywords") or ()),
+        format=FORMAT_CLAUDE,
+        claude=data,
     ), diags)
 
 
@@ -312,39 +453,107 @@ def iter_skill_dirs(manifest: PluginManifest) -> Tuple[List[str], List[Diagnosti
     contain a regular file named ``SKILL.md``.  Nothing is searched recursively:
     ``skills/a/b/SKILL.md`` is not a skill.
 
+    A Claude manifest may name further skill locations in ``skills`` (a
+    ``./``-relative path or a list of them).  Each names either one skill (it
+    holds ``SKILL.md``) or a container of skills, like ``skills/``.
+
     A missing ``skills/`` is not an error.  A ``skills`` that exists but is not
     a directory disqualifies only this component type.  Symlinked skill
     directories are followed but must stay within the plugin root.
     """
     diags: List[Diagnostic] = []
-    skills_dir = os.path.join(manifest.root_dir, "skills")
+    found: List[str] = []
+    seen = set()
+
+    def add(path):
+        key = os.path.realpath(path)
+        if key not in seen:
+            seen.add(key)
+            found.append(path)
+
+    for path in _scan_skills_container(manifest.root_dir, "skills", diags):
+        add(path)
+
+    for rel in _claude_skill_paths(manifest, diags):
+        path = os.path.join(manifest.root_dir, rel)
+        if not within(manifest.root_dir, path):
+            diags.append(Diagnostic(
+                "error", "skills.escapes-root",
+                "skill path '%s' resolves outside the plugin root; skipped" % rel,
+                path="/skills"))
+            continue
+        if not os.path.isdir(path):
+            diags.append(Diagnostic(
+                "warning", "skills.not-a-directory",
+                "skill path '%s' is not a directory; skipped" % rel,
+                path="/skills"))
+            continue
+        if os.path.isfile(os.path.join(path, "SKILL.md")):
+            add(path)
+            continue
+        for skill in _scan_skills_container(manifest.root_dir, rel, diags):
+            add(skill)
+
+    return (found, diags)
+
+
+def _claude_skill_paths(manifest: PluginManifest,
+                        diags: List[Diagnostic]) -> List[str]:
+    """Relative skill locations named by the Claude manifest's ``skills``."""
+    if manifest.claude is None or "skills" not in manifest.claude:
+        return []
+    value = manifest.claude["skills"]
+    items = [value] if isinstance(value, str) else value
+    if not isinstance(items, list):
+        diags.append(Diagnostic("warning", "field.invalid",
+                                "ignoring 'skills': expected a path or a list of paths",
+                                path="/skills"))
+        return []
+    out = []
+    for item in items:
+        if not isinstance(item, str) or not item.startswith("./"):
+            diags.append(Diagnostic("warning", "field.invalid",
+                                    "ignoring skills path %s: paths start with './'"
+                                    % json.dumps(item), path="/skills"))
+            continue
+        rel = os.path.normpath(item[2:])
+        if rel != "skills":
+            out.append(rel)
+    return out
+
+
+def _scan_skills_container(root_dir: str, rel: str,
+                           diags: List[Diagnostic]) -> List[str]:
+    """Immediate subdirectories of ``<root_dir>/<rel>`` that hold ``SKILL.md``."""
+    skills_dir = os.path.join(root_dir, rel)
 
     if not os.path.exists(skills_dir):
-        return ([], diags)
+        return []
     if not os.path.isdir(skills_dir):
         diags.append(Diagnostic(
             "warning", "skills.not-a-directory",
             "%s exists but is not a directory; no skills loaded" % skills_dir))
-        return ([], diags)
+        return []
 
     found: List[str] = []
     for entry in sorted(os.listdir(skills_dir)):
         path = os.path.join(skills_dir, entry)
         if not os.path.isdir(path):
             continue
-        if not within(manifest.root_dir, path):
+        label = "%s/%s" % (rel.replace(os.sep, "/"), entry)
+        if not within(root_dir, path):
             diags.append(Diagnostic(
                 "error", "skills.escapes-root",
                 "skill '%s' resolves outside the plugin root; skipped" % entry,
-                path="skills/" + entry))
+                path=label))
             continue
         skill_md = os.path.join(path, "SKILL.md")
         if not os.path.isfile(skill_md):
             diags.append(Diagnostic(
                 "warning", "skills.no-skill-md",
                 "skill directory '%s' has no SKILL.md; skipped" % entry,
-                path="skills/" + entry))
+                path=label))
             continue
         found.append(path)
 
-    return (found, diags)
+    return found
