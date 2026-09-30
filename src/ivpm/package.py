@@ -128,6 +128,9 @@ class Package(object):
     self_types : List[Tuple[str, dict]] = dc.field(default_factory=list)
     # agents_config holds the 'agents:' dict from the dep entry (consumer-specified override).
     agents_config : Optional[dict] = None
+    # "<marketplace url>#<marketplace name>" for a package contributed by a
+    # `src: marketplace` dependency; recorded in the lock as provenance.
+    from_marketplace : Optional[str] = None
     # patches holds the resolved, MD5-fingerprinted patch list from the dep entry's
     # 'patches:' key (empty by default -> today's behavior exactly). Populated by
     # IvpmYamlReader.read_deps for patch-capable sources only.

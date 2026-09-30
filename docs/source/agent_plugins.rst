@@ -141,6 +141,9 @@ infer them from the directory layout.
    environment may register plugins under the ``agent.plugins`` group.  See
    :ref:`agent-plugins-authoring` below.
 
+Plugins can also be installed by name from a marketplace; see
+:doc:`plugin_marketplaces`.
+
 Patterns name manifests, not directories
 ----------------------------------------
 

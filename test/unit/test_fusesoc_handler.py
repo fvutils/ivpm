@@ -255,8 +255,8 @@ CAPI=2:
         self.assertIn("ivpm:fusesoc end", content)
         self.assertIn("fusesoc-cores.envrc", content)
 
-    def test_no_direnv_no_append(self):
-        """Direnv handler not active → packages.envrc not created/touched."""
+    def test_section_without_envrc_pkgs(self):
+        """No package publishes an envrc → fusesoc section is still wired in."""
         self.mkFile("ivpm.yaml", """
         package:
             name: test_no_direnv
@@ -270,7 +270,10 @@ CAPI=2:
         self.ivpm_update(skip_venv=True)
 
         envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
-        self.assertFalse(os.path.isfile(envrc_path))
+        with open(envrc_path) as f:
+            content = f.read()
+        self.assertIn("export IVPM_PACKAGES=", content)
+        self.assertIn("source_env ./fusesoc-cores.envrc", content)
 
     def test_sentinel_replaces_old_section(self):
         """Second ivpm update → old sentinel section replaced, not duplicated."""

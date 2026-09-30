@@ -28,8 +28,8 @@ class TestDirenv(TestBase):
         self.assertIn("source_env ./envrc_leaf1/export.envrc", content)
         self.assertIn("export IVPM_PACKAGES=", content)
 
-    def test_no_envrc_no_file(self):
-        """Packages without envrc files produce no packages.envrc."""
+    def test_no_envrc_base_file(self):
+        """Packages without envrc files still get a base packages.envrc."""
         self.mkFile("ivpm.yaml", """
         package:
             name: test_direnv_no_envrc
@@ -44,8 +44,61 @@ class TestDirenv(TestBase):
         self.ivpm_update(skip_venv=True)
 
         envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
-        self.assertFalse(os.path.isfile(envrc_path),
-                         "packages.envrc should NOT be generated when no envrc files exist")
+        self.assertTrue(os.path.isfile(envrc_path),
+                        "packages.envrc should always be generated")
+        with open(envrc_path) as f:
+            content = f.read()
+        self.assertIn("export IVPM_PACKAGES=", content)
+        self.assertIn("export IVPM_PROJECT=", content)
+        self.assertNotIn("source_env", content)
+
+    def test_no_deps_base_file(self):
+        """A project with no deps at all still gets a base packages.envrc."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_direnv_no_deps
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+
+        self.ivpm_update(skip_venv=True)
+
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
+        with open(envrc_path) as f:
+            self.assertIn("export IVPM_PACKAGES=", f.read())
+
+    def test_removed_envrc_pkg_not_sourced(self):
+        """Dropping the last envrc package rewrites packages.envrc without it."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_direnv_stale
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: envrc_leaf1
+                      url: file://${DATA_DIR}/envrc_leaf1
+                      src: dir
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
+        with open(envrc_path) as f:
+            self.assertIn("envrc_leaf1", f.read())
+
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_direnv_stale
+            dep-sets:
+                - name: default-dev
+                  deps: []
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        with open(envrc_path) as f:
+            content = f.read()
+        self.assertNotIn("envrc_leaf1", content)
+        self.assertIn("export IVPM_PACKAGES=", content)
 
     def test_dotenvrc_ignored_without_explicit_config(self):
         """A package with only .envrc (no export.envrc, no explicit config) is NOT collected."""
@@ -63,8 +116,10 @@ class TestDirenv(TestBase):
         self.ivpm_update(skip_venv=True)
 
         envrc_path = os.path.join(self.testdir, "packages", "packages.envrc")
-        self.assertFalse(os.path.isfile(envrc_path),
-                         "packages.envrc should NOT be generated when .envrc has no explicit config")
+        with open(envrc_path) as f:
+            content = f.read()
+        self.assertNotIn("envrc_leaf2", content,
+                         ".envrc should not be sourced without explicit config")
 
     def test_explicit_envrc_config(self):
         """A package that declares with.direnv.envrc publishes that file."""

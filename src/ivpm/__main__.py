@@ -825,13 +825,23 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
     show_plugins_cmd = show_subparser.add_parser("plugins",
         aliases=["plugin"],
-        help="Show Agent Plugins provided by this project and its dependencies")
+        help="Show plugins provided by this project and its dependencies, "
+             "or offered by a marketplace (--from)")
     show_plugins_cmd.add_argument("name", nargs="?",
         help="Show full detail for this specific plugin (omit to list all)")
     show_plugins_cmd.add_argument("--check", dest="check", default=None,
         metavar="PATH",
-        help="Validate a plugin directory or plugin.json against the Agent "
-             "Plugins specification and report conformance problems")
+        help="Validate a plugin directory or manifest (Agent Plugins "
+             "plugin.json or .claude-plugin/plugin.json) and report conformance "
+             "problems")
+    show_plugins_cmd.add_argument("--from", dest="from_marketplace", default=None,
+        metavar="MARKETPLACE",
+        help="List the plugins a marketplace offers, without installing anything: "
+             "a git URL, GitHub owner/repo, local directory or marketplace.json, "
+             "or an https URL of a marketplace.json")
+    show_plugins_cmd.add_argument("--marketplace-file", dest="marketplace_file",
+        default=None, metavar="PATH",
+        help="With --from: catalog path within the marketplace")
     show_plugins_cmd.add_argument("--mcp", action="store_true", default=False,
         help="Show the MCP servers these plugins declare (env values are never "
              "printed). Review this before enabling 'mcp: true'")

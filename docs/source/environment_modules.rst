@@ -173,9 +173,9 @@ A ``module:`` dependency contributes its logical specifier; a
 ``modulefile:`` dependency contributes the resolved absolute path.  There
 is no ``module use`` line -- see the requirements below.
 
-``packages/packages.envrc`` (written by the :ref:`direnv handler
-<handler-direnv>`) is patched with a sentinel-wrapped section that sources
-it:
+``packages/packages.envrc`` (written on every update by the :ref:`direnv
+handler <handler-direnv>`, even when no package publishes an envrc file) is
+patched with a sentinel-wrapped section that sources it:
 
 .. code-block:: sh
 

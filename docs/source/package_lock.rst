@@ -594,6 +594,15 @@ in ``python_packages``.
     including transitive pip dependencies that were not explicitly listed in
     ``ivpm.yaml``.
 
+The installer used to manage the venv is recorded alongside, under
+``python_venv``::
+
+    "python_venv": {"installer": "uv"}
+
+A later ``ivpm update`` (for example with ``--py-force-install``) re-uses it
+unless ``--py-uv`` / ``--py-pip`` or ``with.python.venv: uv|pip`` says
+otherwise.
+
 Format Versioning
 =================
 

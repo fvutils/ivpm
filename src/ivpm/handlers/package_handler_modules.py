@@ -30,6 +30,7 @@ from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
 from .scope_keys import pkg_key
+from .envrc_sections import patch_envrc_section, remove_envrc_section
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_modules")
 
@@ -135,10 +136,7 @@ class PackageHandlerModules(PackageHandler):
         if os.path.isfile(envrc_path):
             os.remove(envrc_path)
 
-        # Remove sentinel section from packages.envrc
-        pkg_envrc = os.path.join(deps_dir, "packages.envrc")
-        if os.path.isfile(pkg_envrc):
-            _remove_sentinel_section(pkg_envrc)
+        remove_envrc_section(deps_dir, _MODULES_SENTINEL_BEGIN, _MODULES_SENTINEL_END)
 
     def get_lock_entries(self, deps_dir: str) -> dict:
         if not self.module_pkgs:
@@ -165,57 +163,5 @@ class PackageHandlerModules(PackageHandler):
 
 def _patch_packages_envrc(deps_dir: str):
     """Insert or replace the modules section inside ``packages/packages.envrc``."""
-    envrc_path = os.path.join(deps_dir, "packages.envrc")
-    if not os.path.isfile(envrc_path):
-        return  # direnv handler not active
-
-    new_section = (
-        "%s\n"
-        "source_env ./modules.envrc\n"
-        "%s\n"
-    ) % (_MODULES_SENTINEL_BEGIN, _MODULES_SENTINEL_END)
-
-    with open(envrc_path) as fp:
-        content = fp.read()
-
-    begin_idx = content.find(_MODULES_SENTINEL_BEGIN)
-    end_idx = content.find(_MODULES_SENTINEL_END)
-
-    if begin_idx != -1 and end_idx != -1:
-        # Replace existing section
-        end_of_line = content.find("\n", end_idx)
-        if end_of_line == -1:
-            end_of_line = len(content)
-        else:
-            end_of_line += 1
-        new_content = content[:begin_idx] + new_section + content[end_of_line:]
-    else:
-        if begin_idx != -1 or end_idx != -1:
-            _logger.warning(
-                "packages.envrc has incomplete modules sentinels; appending new section")
-        new_content = content + "\n" + new_section
-
-    with open(envrc_path, "w") as fp:
-        fp.write(new_content)
-
-
-def _remove_sentinel_section(envrc_path: str):
-    """Remove the modules sentinel section from packages.envrc."""
-    with open(envrc_path) as fp:
-        content = fp.read()
-
-    begin_idx = content.find(_MODULES_SENTINEL_BEGIN)
-    end_idx = content.find(_MODULES_SENTINEL_END)
-
-    if begin_idx != -1 and end_idx != -1:
-        end_of_line = content.find("\n", end_idx)
-        if end_of_line == -1:
-            end_of_line = len(content)
-        else:
-            end_of_line += 1
-        # Also remove the preceding newline if present
-        if begin_idx > 0 and content[begin_idx - 1] == "\n":
-            begin_idx -= 1
-        new_content = content[:begin_idx] + content[end_of_line:]
-        with open(envrc_path, "w") as fp:
-            fp.write(new_content)
+    patch_envrc_section(deps_dir, _MODULES_SENTINEL_BEGIN, _MODULES_SENTINEL_END,
+                        "source_env ./modules.envrc\n")

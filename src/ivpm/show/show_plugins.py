@@ -24,6 +24,7 @@ Four modes:
 * <name>      -- detail for one plugin
 * ``--check`` -- validate a plugin (or manifest) path and report conformance
 * ``--mcp``   -- show what MCP servers the plugins would wire up
+* ``--from``  -- list what a marketplace offers, fetching only its catalog
 
 ``--mcp`` exists so a human can review MCP configuration *before* enabling it.
 It therefore prints environment-variable **names only**, never values: those
@@ -44,32 +45,35 @@ from ..tui_theme import make_console
 def _package_dirs(project_dir, proj_info, deps_dir, dep_set):
     """Return (name, dir, dep_agents_config) for each installed dependency.
 
-    Prefers package-lock.json (which lists transitive packages too) and falls
-    back to the dep-set's declared names when the project has not been updated.
+    Prefers package-lock.json (which lists transitive packages too, with the
+    'agents:' config each was resolved with) and falls back to the dep-set's
+    declared names when the project has not been updated.
     """
-    names = []
+    locked = {}
     lock_path = os.path.join(deps_dir, "package-lock.json")
     if os.path.isfile(lock_path):
         try:
             with open(lock_path) as fh:
                 data = json.load(fh)
-            names = sorted((data.get("packages", data) or {}).keys())
+            locked = data.get("packages", data) or {}
         except (OSError, ValueError):
-            names = []
+            locked = {}
 
     dep_set_obj = proj_info.dep_set_m.get(dep_set) if proj_info.dep_set_m else None
     packages = dep_set_obj.packages if dep_set_obj is not None else {}
 
-    if not names:
-        names = list(packages.keys())
+    names = sorted(locked.keys()) or list(packages.keys())
 
     result = []
     for name in names:
         pkg_dir = os.path.join(deps_dir, name)
         if not os.path.isdir(pkg_dir):
             continue
-        pkg = packages.get(name)
-        result.append((name, pkg_dir, getattr(pkg, "agents_config", None)))
+        entry = locked.get(name)
+        cfg = entry.get("agents") if isinstance(entry, dict) else None
+        if cfg is None:
+            cfg = getattr(packages.get(name), "agents_config", None)
+        result.append((name, pkg_dir, cfg))
     return result
 
 
@@ -112,7 +116,8 @@ def _collect(project_dir, dep_set=None, with_mcp=True):
         found, fdiags = discovery.discover(
             name, pkg_dir,
             discovery.resolve_patterns(pkg_dir, dep_cfg),
-            kind="dependency", with_mcp=with_mcp)
+            kind="dependency", with_mcp=with_mcp,
+            overlays=(dep_cfg or {}).get("plugin_manifests"))
         plugins.extend(found)
         diags.extend(fdiags)
 
@@ -385,6 +390,103 @@ def _run_check(path, as_json):
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _fetch_marketplace(src, marketplace_file, workdir):
+    """Load a marketplace's catalog, fetching as little as possible.
+
+    A git marketplace is shallow-cloned into ``workdir``; a catalog URL is
+    downloaded; a local marketplace is read in place.  Nothing is written to
+    the workspace.
+    """
+    import subprocess
+    from ..agent_plugins import marketplace as mk
+    from ..pkg_types.package_marketplace import _classify_url
+
+    kind, url, catalog = _classify_url(src, None)
+    marketplace_file = marketplace_file or catalog
+
+    if kind == "url":
+        import httpx
+        r = httpx.get(url, follow_redirects=True, timeout=30)
+        if r.status_code < 200 or r.status_code >= 300:
+            raise RuntimeError("cannot fetch %s: HTTP %d" % (url, r.status_code))
+        try:
+            data = json.loads(r.content)
+        except ValueError as exc:
+            raise RuntimeError("%s is not JSON: %s" % (url, exc))
+        return mk.parse(data, url, None)
+
+    if kind == "git":
+        root = os.path.join(workdir, "marketplace")
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0")
+        proc = subprocess.run(["git", "clone", "-q", "--depth", "1", url, root],
+                              capture_output=True, text=True, env=env)
+        if proc.returncode != 0:
+            raise RuntimeError("cannot clone %s: %s" % (url, proc.stderr.strip()))
+    else:
+        root = url[len("file://"):]
+
+    path = mk.find_catalog(root, marketplace_file)
+    if path is None:
+        raise RuntimeError("no marketplace catalog (%s) in %s" % (
+            marketplace_file or " or ".join(mk.CATALOG_LOCATIONS), src))
+    return mk.load(path, root)
+
+
+def _entry_location(entry):
+    src = entry.source
+    if entry.source_kind == "relative":
+        return "./" + src["path"]
+    if entry.source_kind == "git-subdir":
+        return "%s  %s" % (src["url"], src["path"])
+    if "url" in src:
+        pin = src.get("sha") or src.get("ref")
+        return src["url"] + ("@" + pin if pin else "")
+    return src.get("package") or src.get("source") or ""
+
+
+def _run_from(src, marketplace_file, as_json):
+    import tempfile
+    workdir = tempfile.mkdtemp(prefix="ivpm-marketplace-")
+    try:
+        try:
+            mkt = _fetch_marketplace(src, marketplace_file, workdir)
+        except RuntimeError as exc:
+            print("ivpm show plugins: %s" % exc, file=sys.stderr)
+            sys.exit(1)
+    finally:
+        import shutil
+        shutil.rmtree(workdir, ignore_errors=True)
+
+    if as_json:
+        print(json.dumps({
+            "marketplace": mkt.name,
+            "description": mkt.description,
+            "plugins": [{
+                "name": e.name,
+                "description": e.description,
+                "version": e.version,
+                "category": e.category,
+                "source_kind": e.source_kind,
+                "location": _entry_location(e),
+                "installable": e.supported,
+            } for e in mkt.entries],
+            "diagnostics": [dataclasses.asdict(d) for d in mkt.diagnostics],
+        }, indent=2))
+    else:
+        if mkt.name:
+            print("Marketplace: %s%s" % (mkt.name,
+                                         " -- " + mkt.description if mkt.description else ""))
+            print("")
+        for e in mkt.entries:
+            flag = "" if e.supported else "  (not installable: %s source)" % e.source_kind
+            print("%-24s %-10s %s%s" % (e.name, e.source_kind, _entry_location(e), flag))
+            if e.description:
+                print("%-24s %s" % ("", e.description))
+        _print_diagnostics(list(mkt.diagnostics))
+    if any(d.severity == "error" for d in mkt.diagnostics):
+        sys.exit(1)
+
+
 class ShowPlugins:
     def __call__(self, args):
         name = getattr(args, "name", None)
@@ -392,9 +494,14 @@ class ShowPlugins:
         no_rich = getattr(args, "no_rich", False)
         check = getattr(args, "check", None)
         mcp_only = getattr(args, "mcp", False)
+        from_mkt = getattr(args, "from_marketplace", None)
 
         if check:
             _run_check(check, as_json)
+            return
+
+        if from_mkt:
+            _run_from(from_mkt, getattr(args, "marketplace_file", None), as_json)
             return
 
         project_dir = getattr(args, "project_dir", None) or os.getcwd()

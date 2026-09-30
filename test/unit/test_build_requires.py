@@ -9,9 +9,11 @@ and a package whose build backend is absent fails with ModuleNotFoundError.
 installed ahead of anything that needs building.
 """
 import os
+import sys
 import tempfile
 import unittest
 
+from ivpm.content_attrib import OriginMap
 from ivpm.handlers.package_handler_python import PackageHandlerPython
 
 
@@ -111,6 +113,110 @@ requires = ["Zuspec_IR.Core"]
 
     def test_no_source_packages_yields_nothing(self):
         self.assertEqual([], _handler()._collect_build_requires(self.dir, []))
+
+
+
+class TestDynamicBuildRequires(unittest.TestCase):
+    """PEP 517 lets a backend ask for more at build time than it declares in
+    ``[build-system] requires``. hatchling does this for editable builds
+    ('editables'), and under --no-build-isolation nobody installs it unless
+    IVPM asks the backend and installs the answer itself."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        # A stand-in venv whose interpreter is the one running the tests.
+        self.venv = os.path.join(self.dir, "venv")
+        os.makedirs(os.path.join(self.venv, "bin"))
+        os.symlink(sys.executable, os.path.join(self.venv, "bin", "python"))
+
+    def _pkg(self, name, toml, backend_src=None):
+        d = os.path.join(self.dir, name)
+        os.makedirs(d, exist_ok=True)
+        with open(os.path.join(d, "pyproject.toml"), "w") as fp:
+            fp.write(toml)
+        if backend_src is not None:
+            with open(os.path.join(d, "fake_backend.py"), "w") as fp:
+                fp.write(backend_src)
+        return name
+
+    def _intree(self, name, backend_src):
+        return self._pkg(name, """
+[build-system]
+requires = ["setuptools"]
+build-backend = "fake_backend"
+backend-path = ["."]
+""", backend_src)
+
+    def _write(self, h, names, static=()):
+        h._origins = OriginMap()
+        path = os.path.join(self.dir, "reqs.txt")
+        n = h._write_dynamic_build_requires(
+            self.venv, self.dir, names, list(static), path)
+        with open(path) as fp:
+            lines = [l.strip() for l in fp
+                     if l.strip() and not l.startswith("#")]
+        self.assertEqual(n, len(lines))
+        return lines
+
+    def test_setuptools_and_default_backends_are_not_asked(self):
+        """Their hook runs setup.py, which may import siblings not yet
+        installed; and no build-backend means setuptools' legacy backend."""
+        self._pkg("st", '[build-system]\nrequires = ["setuptools"]\n'
+                        'build-backend = "setuptools.build_meta"\n')
+        self._pkg("legacy", '[build-system]\nrequires = ["setuptools"]\n'
+                            'build-backend = "setuptools.build_meta:__legacy__"\n')
+        self._pkg("none", '[build-system]\nrequires = ["setuptools"]\n')
+        self._pkg("hatch", '[build-system]\nrequires = ["hatchling"]\n'
+                           'build-backend = "hatchling.build"\n')
+        got = _handler()._dynamic_build_targets(
+            self.dir, ["st", "legacy", "none", "hatch", "never-cloned"])
+        self.assertEqual(["hatch"], [t[0] for t in got])
+        self.assertEqual("hatchling.build", got[0][2])
+        self.assertTrue(got[0][4])  # editable by default
+
+    def test_backend_answer_is_collected(self):
+        """The motivating case: hatchling asking for 'editables'."""
+        self._intree("hatchlike", """
+def get_requires_for_build_editable(config_settings=None):
+    return ["editables~=0.3"]
+""")
+        h = _handler()
+        self.assertEqual(["editables~=0.3"], self._write(h, ["hatchlike"]))
+        self.assertEqual("hatchlike", h._build_requires_src["editables~=0.3"])
+
+    def test_workspace_and_static_requirements_are_filtered(self):
+        self._intree("p", """
+def get_requires_for_build_editable(config_settings=None):
+    return ["setuptools", "Zuspec_IR.Core", "editables"]
+""")
+        got = self._write(_handler(["zuspec-ir-core"]), ["p"],
+                          static=["setuptools"])
+        self.assertEqual(["editables"], got)
+
+    def test_backend_output_is_not_mistaken_for_the_answer(self):
+        self._intree("noisy", """
+print("backend chatter")
+def get_requires_for_build_editable(config_settings=None):
+    print("more chatter")
+    return ["editables"]
+""")
+        self.assertEqual(["editables"], self._write(_handler(), ["noisy"]))
+
+    def test_backend_without_the_hook_needs_nothing(self):
+        self._intree("bare", "x = 1\n")
+        self.assertEqual([], self._write(_handler(), ["bare"]))
+
+    def test_backend_that_cannot_load_is_tolerated(self):
+        """Typically a backend provided by a workspace package that is not
+        installed yet; the build reports that better than we can here."""
+        self._pkg("broken", '[build-system]\nrequires = ["nope"]\n'
+                            'build-backend = "no_such_backend_mod"\n')
+        self._intree("ok", """
+def get_requires_for_build_editable(config_settings=None):
+    return ["editables"]
+""")
+        self.assertEqual(["editables"],
+                         self._write(_handler(), ["broken", "ok"]))
 
 
 if __name__ == "__main__":

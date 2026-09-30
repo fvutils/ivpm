@@ -220,6 +220,13 @@ def _entry_from_pkg(pkg) -> dict:
     # both the extension-entry path and the built-in path include it.
     _add_patch_fields(entry, pkg)
 
+    # So is the dep entry's 'agents:' block: it decides which skills and
+    # plugins the agents handler takes from the package, and reproduction has
+    # no manifest to recover it from. Packages contributed by a marketplace
+    # depend on it entirely.
+    if getattr(pkg, "agents_config", None):
+        entry["agents"] = dict(pkg.agents_config)
+
     # Let extension packages contribute their own lock-entry fields.
     # If get_lock_entry() returns a dict, merge it and skip the
     # built-in type-specific branches.
@@ -290,6 +297,10 @@ def _entry_from_pkg(pkg) -> dict:
     # dep-set factory.
     if getattr(pkg, "from_ivpm_source", None):
         entry["from_ivpm_source"] = pkg.from_ivpm_source
+
+    # ... or selected from a `src: marketplace` catalog.
+    if getattr(pkg, "from_marketplace", None):
+        entry["from_marketplace"] = pkg.from_marketplace
 
     return entry
 
@@ -937,6 +948,8 @@ class IvpmLockReader:
 
             pkg.resolved_by = entry.get("resolved_by", "root")
             pkg.dep_set = entry.get("dep_set")
+            if entry.get("agents"):
+                pkg.agents_config = dict(entry["agents"])
             # Reconstruct the patch set so a patched dependency reproduces its
             # patched variant (not a silent pristine tree). Generic across all
             # source types, mirroring _add_patch_fields on the write side.

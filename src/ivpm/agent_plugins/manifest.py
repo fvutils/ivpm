@@ -129,6 +129,9 @@ class PluginManifest:
     format: str = FORMAT_AGENT_PLUGINS
     #: The parsed ``.claude-plugin/plugin.json``, when the plugin ships one
     claude: Optional[Mapping[str, Any]] = None
+    #: True when ``claude`` did not come from the plugin but was supplied for
+    #: it (a marketplace entry); it must then be written out, not copied
+    synthesized: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -370,6 +373,20 @@ def _load_claude(root_dir: str,
             "warning", "claude.bad-manifest",
             "%s is not a readable JSON object" % manifest_path))
         return (None, diags)
+    return load_claude_data(root_dir, data, manifest_path, diags)
+
+
+def load_claude_data(root_dir: str, data: Mapping[str, Any], where: str,
+                     diags: Optional[List[Diagnostic]] = None,
+                     synthesized: bool = False
+                     ) -> Tuple[Optional[PluginManifest], List[Diagnostic]]:
+    """Build a Claude-format manifest from already-decoded ``data``.
+
+    ``where`` names the source in messages.  ``synthesized`` marks data that
+    was supplied for the plugin rather than read from it.
+    """
+    diags = diags if diags is not None else []
+    manifest_path = where
 
     # Claude Code names a plugin without a 'name' after its directory.
     name = data.get("name", os.path.basename(os.path.abspath(root_dir)))
@@ -419,7 +436,8 @@ def _load_claude(root_dir: str,
         license=values.get("license"),
         keywords=tuple(values.get("keywords") or ()),
         format=FORMAT_CLAUDE,
-        claude=data,
+        claude=dict(data),
+        synthesized=synthesized,
     ), diags)
 
 

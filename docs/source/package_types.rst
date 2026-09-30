@@ -878,6 +878,33 @@ Raw packages are placed in ``packages/<name>/`` but not processed further.
    that need no install step.
 
 
+.. _marketplace-source:
+
+Plugin Marketplace (``marketplace``)
+------------------------------------
+
+Installs agent plugins selected by name from a plugin marketplace
+(``marketplace.json``).  Each selected plugin becomes a dependency of its own,
+fetched and locked like any other.
+
+.. code-block:: yaml
+
+    - name: claude-official
+      src: marketplace
+      url: anthropics/claude-plugins-official   # owner/repo, git URL, path, or catalog URL
+      plugins: [code-review, "lsp-*"]
+
+**Fields**
+
+- ``url`` *(required)* — GitHub ``owner/repo``, a git URL, a local directory or
+  ``marketplace.json``, or an ``https`` URL of a ``marketplace.json``.
+- ``plugins`` *(required)* — plugin names or glob patterns.
+- ``marketplace-file`` — catalog path within the marketplace.
+- ``branch`` / ``tag`` / ``commit`` — for a git marketplace.
+
+See :doc:`plugin_marketplaces` for source mapping, locking and browsing.
+
+
 .. _ivpm-yaml-factory:
 
 ivpm.yaml (Dep-Set Factory)

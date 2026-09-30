@@ -28,6 +28,7 @@ from ..project_ops_info import ProjectUpdateInfo
 from .package_handler import PackageHandler
 from .handler_phases import HandlerPhase
 from .scope_keys import pkg_key
+from .envrc_sections import patch_envrc_section, remove_envrc_section
 
 _logger = logging.getLogger("ivpm.handlers.package_handler_fusesoc")
 
@@ -96,44 +97,10 @@ def _patch_packages_envrc(deps_dir: str):
     """Insert or replace the fusesoc section inside ``packages/packages.envrc``.
 
     Uses begin/end sentinel comments so the section can be reliably replaced
-    on subsequent runs, regardless of whether the direnv handler regenerates
-    the rest of the file.
+    on subsequent runs.
     """
-    envrc_path = os.path.join(deps_dir, "packages.envrc")
-    if not os.path.isfile(envrc_path):
-        return  # direnv handler not active; nothing to patch
-
-    new_section = (
-        "%s\n"
-        "source_env ./fusesoc-cores.envrc\n"
-        "%s\n"
-    ) % (_SENTINEL_BEGIN, _SENTINEL_END)
-
-    with open(envrc_path) as fp:
-        content = fp.read()
-
-    begin_idx = content.find(_SENTINEL_BEGIN)
-    end_idx = content.find(_SENTINEL_END)
-
-    if begin_idx != -1 and end_idx != -1:
-        # Replace existing section
-        end_of_line = content.find("\n", end_idx)
-        if end_of_line == -1:
-            end_of_line = len(content)
-        else:
-            end_of_line += 1  # include the newline
-        new_content = content[:begin_idx] + new_section + content[end_of_line:]
-    else:
-        if begin_idx != -1 or end_idx != -1:
-            # One sentinel present without the other — damaged state; append fresh
-            _logger.warning(
-                "packages.envrc has incomplete fusesoc sentinels; appending new section")
-            new_content = content + "\n" + new_section
-        else:
-            new_content = content + "\n" + new_section
-
-    with open(envrc_path, "w") as fp:
-        fp.write(new_content)
+    patch_envrc_section(deps_dir, _SENTINEL_BEGIN, _SENTINEL_END,
+                        "source_env ./fusesoc-cores.envrc\n")
 
 
 def _patch_fusesoc_conf(conf_path: str, core_dirs: Dict[str, List[str]]):
@@ -411,21 +378,4 @@ class PackageHandlerFuseSoC(PackageHandler):
                 if os.path.isfile(path):
                     os.remove(path)
 
-            # Remove sentinel section from packages.envrc
-            envrc_path = os.path.join(deps_dir, "packages.envrc")
-            if os.path.isfile(envrc_path):
-                begin_sentinel = "%s\n" % _SENTINEL_BEGIN
-                end_sentinel = "%s\n" % _SENTINEL_END
-                with open(envrc_path) as fp:
-                    content = fp.read()
-                begin_idx = content.find(begin_sentinel)
-                end_idx = content.find(end_sentinel)
-                if begin_idx != -1 and end_idx != -1:
-                    end_of_line = content.find("\n", end_idx)
-                    if end_of_line == -1:
-                        end_of_line = len(content)
-                    else:
-                        end_of_line += 1
-                    new_content = content[:begin_idx] + content[end_of_line:]
-                    with open(envrc_path, "w") as fp:
-                        fp.write(new_content)
+            remove_envrc_section(deps_dir, _SENTINEL_BEGIN, _SENTINEL_END)

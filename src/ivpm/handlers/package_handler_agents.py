@@ -285,7 +285,9 @@ class PackageHandlerAgents(PackageHandler):
         from ..agent_plugins import discovery as _discovery
         if patterns is self._UNSET:
             patterns = _discovery.resolve_patterns(root_dir, dep_agents_config)
-        plugins, diags = _discovery.discover(owner_name, root_dir, patterns, kind=kind)
+        overlays = (dep_agents_config or {}).get("plugin_manifests")
+        plugins, diags = _discovery.discover(owner_name, root_dir, patterns, kind=kind,
+                                             overlays=overlays)
         self._log_diags(diags, owner_name)
         for plugin in plugins:
             self._log_diags(plugin.diagnostics, owner_name)

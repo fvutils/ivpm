@@ -37,6 +37,30 @@ class TestModulesHandlerBasic(TestBase):
             content = f.read()
         self.assertIn("module load", content)
 
+    def test_modules_sourced_from_packages_envrc(self):
+        """Modules-only project -> packages.envrc exists and sources modules.envrc."""
+        self.mkFile("ivpm.yaml", """
+        package:
+            name: test_modules_sourced
+            dep-sets:
+                - name: default-dev
+                  deps:
+                    - name: module_leaf1
+                      url: file://${DATA_DIR}/module_leaf1
+                      src: dir
+                      type:
+                        module:
+                          load: true
+        """)
+        self.ivpm_update(skip_venv=True)
+
+        path = os.path.join(self.testdir, "packages", "packages.envrc")
+        self.assertTrue(os.path.isfile(path), "packages.envrc should exist")
+        with open(path) as f:
+            content = f.read()
+        self.assertIn("export IVPM_PACKAGES=", content)
+        self.assertIn("source_env ./modules.envrc", content)
+
     def test_no_module_deps_no_output(self):
         """No module-typed deps -> modules.envrc not created."""
         self.mkFile("ivpm.yaml", """

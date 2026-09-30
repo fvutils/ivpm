@@ -35,6 +35,7 @@ from .package_npm import PackageNpm
 from .package_packagejson import PackagePackageJson
 from .package_pyproject_toml import PackagePyprojectToml
 from .package_ivpm_yaml import PackageIvpmYaml
+from .package_marketplace import PackageMarketplace
 
 @dc.dataclass
 class PkgTypeRgy(object):
@@ -104,6 +105,7 @@ class PkgTypeRgy(object):
         self.register("package.json", PackagePackageJson.create, PackagePackageJson.source_info())
         self.register("pyproject.toml", PackagePyprojectToml.create, PackagePyprojectToml.source_info())
         self.register("ivpm.yaml", PackageIvpmYaml.create, PackageIvpmYaml.source_info())
+        self.register("marketplace", PackageMarketplace.create, PackageMarketplace.source_info())
 
         # Discover plugin-provided sources via the 'ivpm.sources' entry-point group.
         # Each entry point resolves to a package class exposing create() and

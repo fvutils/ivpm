@@ -331,6 +331,8 @@ class Linker(object):
             src = os.path.join(m.root_dir, "plugin.json")
             data = _read_json_object(src)
         filtered, changed = _components.filter_manifest(data, omit)
+        # Manifest data supplied by a marketplace has no file to copy.
+        changed = changed or m.synthesized
 
         manifest_dir = os.path.join(dest, CLAUDE_MANIFEST_DIR)
         try:

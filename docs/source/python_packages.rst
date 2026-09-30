@@ -86,6 +86,13 @@ IVPM checks if ``uv`` is available. If found, uses ``uv``; otherwise, uses ``pip
     $ ivpm update --py-pip
     $ ivpm clone https://github.com/org/project --py-pip
 
+**The selection is remembered.** The installer a workspace's venv is managed
+with is recorded in ``packages/package-lock.json`` (``python_venv.installer``),
+so later runs -- including ``ivpm update --py-force-install`` -- keep using it
+without repeating ``--py-uv`` / ``--py-pip``. Pass the other flag to switch.
+For a workspace whose lock predates this record, IVPM keeps the tool that
+created the existing venv.
+
 Managing Installation
 ---------------------
 
@@ -169,7 +176,8 @@ Controls **whether and how** the virtual environment is created.
 4. CLI ``--py-uv`` / ``--py-pip``
 5. ``venv: uv`` / ``venv: pip`` in ``with.python`` (a selected dep-set's
    ``with.python`` overrides the package-level one)
-6. Built-in default (auto-detect)
+6. The installer recorded in ``package-lock.json`` by a previous run
+7. Built-in default (auto-detect)
 
 .. note::
 

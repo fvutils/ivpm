@@ -16,10 +16,24 @@
   Only `mcp.json` was held back; `.mcp.json` was linked through with every
   other file. Both are now gated by `mcp`, and MCP declared inline in the
   manifest is removed from the installed copy.
+- **New `src: marketplace`: install plugins by name from a plugin
+  marketplace.** `url` names the marketplace (GitHub `owner/repo`, git URL,
+  local directory or `marketplace.json`, or an https catalog URL) and
+  `plugins:` the plugins to take (names or globs). Plugins stored in the
+  marketplace are used from it; plugins with `github`, `url`, `git-subdir` or
+  `archive` sources become dependencies of their own, fetched through the cache
+  and pinned in the lock. `npm` sources are not supported yet; `command`
+  sources are refused.
+- **`ivpm show plugins --from <marketplace>`** lists what a marketplace offers,
+  fetching only its catalog.
+- **Lock entries record each dependency's `agents:` config**, so
+  `ivpm update --lock-file` reproduces which skills and plugins a dependency
+  supplies instead of falling back to auto-discovery.
 - `ivpm show plugins` reports each plugin's format, its Claude-only components,
   and what installation left out and why (`--json`: `format`, `components`,
   `omitted`). `--check` accepts a Claude Code plugin, and `--mcp` lists servers
   declared in `.mcp.json` or the Claude manifest.
+- Correct isseus with build dependencies in editable Python installations
 
 
 # 2.37.0

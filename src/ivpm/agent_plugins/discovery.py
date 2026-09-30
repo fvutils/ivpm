@@ -36,7 +36,7 @@ from typing import List, Mapping, Optional, Sequence, Tuple
 
 from .._compat import glob_rel
 from .manifest import (
-    Diagnostic, PluginManifest, iter_skill_dirs, load_plugin,
+    Diagnostic, PluginManifest, iter_skill_dirs, load_claude_data, load_plugin,
     normalize_plugin_path, within,
 )
 from .mcp import McpConfig, load_mcp
@@ -76,7 +76,9 @@ def discover(owner_name: str,
              root_dir: str,
              patterns: Optional[Sequence[str]] = None,
              kind: str = "dependency",
-             with_mcp: bool = True) -> Tuple[List[DiscoveredPlugin], List[Diagnostic]]:
+             with_mcp: bool = True,
+             overlays: Optional[Mapping[str, Mapping]] = None
+             ) -> Tuple[List[DiscoveredPlugin], List[Diagnostic]]:
     """Find plugins provided by the package rooted at ``root_dir``.
 
     ``patterns`` are globs matching ``plugin.json`` files, relative to
@@ -84,10 +86,16 @@ def discover(owner_name: str,
     matches a *directory* containing a manifest is also accepted, so an
     entry-point or a hand-written config may use either spelling.
 
+    ``overlays`` maps a plugin's path relative to ``root_dir`` (``"."`` for
+    the root) to manifest data supplied for it by a marketplace (see
+    ``apply_overlay``).  A directory with an overlay is a plugin even without
+    a manifest of its own.
+
     Returns ``(plugins, diagnostics)``.  Diagnostics not attributable to a
     specific plugin (a pattern that matched nothing, a path that escaped the
     package) come back in the second element.
     """
+    overlays = overlays or {}
     explicit = patterns is not None
     pattern_list = list(patterns) if explicit else list(PROBE_PATTERNS)
 
@@ -106,6 +114,9 @@ def discover(owner_name: str,
 
         for match in matches:
             plugin_root = normalize_plugin_path(os.path.join(root_dir, match))
+            if plugin_root is None and _rel_key(root_dir, os.path.join(root_dir, match)) \
+                    in overlays and os.path.isdir(os.path.join(root_dir, match)):
+                plugin_root = os.path.abspath(os.path.join(root_dir, match))
             if plugin_root is None:
                 if explicit:
                     diags.append(Diagnostic(
@@ -129,7 +140,8 @@ def discover(owner_name: str,
             seen.add(key)
 
             plugin, pdiags = load_at(plugin_root, owner_name, kind,
-                                     explicit=explicit, with_mcp=with_mcp)
+                                     explicit=explicit, with_mcp=with_mcp,
+                                     overlay=overlays.get(_rel_key(root_dir, plugin_root)))
             if plugin is None:
                 diags.extend(pdiags)
             else:
@@ -169,7 +181,8 @@ def load_at(plugin_root: str,
             owner_name: str,
             kind: str = "dependency",
             explicit: bool = True,
-            with_mcp: bool = True) -> Tuple[Optional[DiscoveredPlugin], List[Diagnostic]]:
+            with_mcp: bool = True,
+            overlay: Optional[Mapping] = None) -> Tuple[Optional[DiscoveredPlugin], List[Diagnostic]]:
     """Load one plugin from a known root, resolving its components.
 
     ``explicit`` says whether someone named this path on purpose.  When they
@@ -177,7 +190,10 @@ def load_at(plugin_root: str,
     informational note to a warning: silence would leave the user wondering why
     their configured plugin never appeared.
     """
-    manifest, diags = load_plugin(plugin_root)
+    if overlay is not None:
+        manifest, diags = apply_overlay(plugin_root, overlay)
+    else:
+        manifest, diags = load_plugin(plugin_root)
     if manifest is None:
         return (None, _escalate(diags) if explicit else diags)
 
@@ -217,6 +233,39 @@ def load_from_reference(path: str,
             "%s: '%s' is neither a plugin manifest nor a directory containing one"
             % (owner_name, path))])
     return load_at(plugin_root, owner_name, kind, explicit=True, with_mcp=with_mcp)
+
+
+def apply_overlay(plugin_root: str, overlay: Mapping
+                  ) -> Tuple[Optional[PluginManifest], List[Diagnostic]]:
+    """Load a plugin whose marketplace entry supplies manifest data.
+
+    ``overlay`` is ``{"strict": bool, "fields": {...}}``.  With ``strict``
+    the plugin's own manifest is the authority and the entry only fills gaps
+    (``description``, ``version``); without it -- or when the plugin has no
+    manifest at all -- the entry *is* the manifest, as Claude Code treats it.
+    """
+    fields = dict(overlay.get("fields") or {})
+    strict = overlay.get("strict", True) is not False
+    has_own = normalize_plugin_path(plugin_root) is not None
+
+    if strict and has_own:
+        manifest, diags = load_plugin(plugin_root)
+        if manifest is None:
+            return (manifest, diags)
+        fill = {}
+        for key in ("description", "version"):
+            if getattr(manifest, key) is None and isinstance(fields.get(key), str):
+                fill[key] = fields[key]
+        return (dc.replace(manifest, **fill) if fill else manifest, diags)
+
+    where = "marketplace entry for %s" % plugin_root
+    return load_claude_data(plugin_root, fields, where, synthesized=True)
+
+
+def _rel_key(root_dir: str, path: str) -> str:
+    """``path`` relative to ``root_dir`` in the form overlays are keyed by."""
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(root_dir))
+    return rel.replace(os.sep, "/")
 
 
 def _escalate(diags: List[Diagnostic]) -> List[Diagnostic]:

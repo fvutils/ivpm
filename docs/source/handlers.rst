@@ -280,8 +280,11 @@ root phase.
 
 **Root phase**
 
-Runs when at least one package with an envrc file was found, or when the
-root project declares ``env:`` directives.  Steps:
+Always runs, so ``packages/packages.envrc`` exists after every update even
+when no package publishes an envrc file: it exports the deps-dir root
+variable, and the modules, python, node and fusesoc handlers add their
+sentinel-wrapped sections to it.  Rewriting it each run also drops
+``source_env`` lines for packages that were removed.  Steps:
 
 1. Build a dependency map among envrc-providing packages
 2. Topologically sort them (dependencies before dependents)

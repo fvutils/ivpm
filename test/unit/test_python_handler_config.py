@@ -243,6 +243,66 @@ class TestVenvModeResolution(TestBase):
         h = self._make_handler()
         self.assertEqual(h._resolve_venv_mode(ui), VenvMode.AUTO)
 
+    def _args(self, uv=False, pip=False):
+        args = MagicMock()
+        args.py_skip_install = False
+        args.py_uv = uv
+        args.py_pip = pip
+        return args
+
+    def test_lock_installer_used_by_default(self):
+        """A bare re-run keeps the installer a previous run recorded."""
+        from ivpm.proj_info import VenvMode
+        ui = self._make_update_info(args=self._args())
+        ui.lock_data = {"python_venv": {"installer": "pip"}}
+        self.assertEqual(self._make_handler()._resolve_venv_mode(ui), VenvMode.PIP)
+        ui.lock_data = {"python_venv": {"installer": "uv"}}
+        self.assertEqual(self._make_handler()._resolve_venv_mode(ui), VenvMode.UV)
+
+    def test_lock_installer_beats_yaml_auto(self):
+        from ivpm.proj_info import VenvMode, PythonConfig
+        ui = self._make_update_info(args=self._args(),
+                                    python_config=PythonConfig(venv=VenvMode.AUTO))
+        ui.lock_data = {"python_venv": {"installer": "pip"}}
+        self.assertEqual(self._make_handler()._resolve_venv_mode(ui), VenvMode.PIP)
+
+    def test_cli_and_yaml_beat_lock_installer(self):
+        from ivpm.proj_info import VenvMode, PythonConfig
+        ui = self._make_update_info(args=self._args(uv=True))
+        ui.lock_data = {"python_venv": {"installer": "pip"}}
+        self.assertEqual(self._make_handler()._resolve_venv_mode(ui), VenvMode.UV)
+        ui = self._make_update_info(args=self._args(),
+                                    python_config=PythonConfig(venv=VenvMode.UV))
+        ui.lock_data = {"python_venv": {"installer": "pip"}}
+        self.assertEqual(self._make_handler()._resolve_venv_mode(ui), VenvMode.UV)
+
+    def test_bad_lock_installer_ignored(self):
+        from ivpm.proj_info import VenvMode
+        ui = self._make_update_info(args=self._args())
+        ui.lock_data = {"python_venv": {"installer": "conda"}}
+        self.assertEqual(self._make_handler()._resolve_venv_mode(ui), VenvMode.AUTO)
+
+    def test_venv_created_by_uv_detection(self):
+        from ivpm.handlers.package_handler_python import _venv_created_by_uv
+        d = os.path.join(self.testdir, "venv")
+        os.makedirs(d)
+        self.assertFalse(_venv_created_by_uv(d))
+        with open(os.path.join(d, "pyvenv.cfg"), "w") as f:
+            f.write("home = /usr/bin\nversion = 3.12.3\n")
+        self.assertFalse(_venv_created_by_uv(d))
+        with open(os.path.join(d, "pyvenv.cfg"), "w") as f:
+            f.write("home = /usr/bin\nuv = 0.9.16\n")
+        self.assertTrue(_venv_created_by_uv(d))
+
+    def test_installer_recorded_in_lock_entries(self):
+        h = self._make_handler()
+        deps = os.path.join(self.testdir, "deps")
+        # A stub interpreter: 'pip list' fails, the installer is still recorded
+        self.mkFile(os.path.join("deps", "python", "bin", "python"), "")
+        h._installer = "pip"
+        self.assertEqual(h.get_lock_entries(deps).get("python_venv"),
+                         {"installer": "pip"})
+
 
 # ---------------------------------------------------------------------------
 # Lazy venv creation integration tests
@@ -418,3 +478,38 @@ package:
                         if line.strip().startswith("ivpm"):
                             ivpm_count += 1
         self.assertEqual(ivpm_count, 1, "ivpm must appear exactly once across requirements files")
+
+
+# ---------------------------------------------------------------------------
+# Installer persistence across updates
+# ---------------------------------------------------------------------------
+
+class TestInstallerPersistence(TestBase):
+    """The pip/uv selection survives a bare re-run (e.g. --py-force-install)."""
+
+    def test_pip_selection_survives_force_install(self):
+        import json
+        import shutil
+        from ivpm.project_ops import ProjectOps
+        if shutil.which("uv") is None:
+            self.skipTest("needs 'uv' on PATH to show the default would differ")
+        self.mkFile("ivpm.yaml", _YAML_WITH_PYPI)
+
+        class Args:
+            py_uv = False
+            py_pip = True
+            py_system_site_packages = False
+            anonymous_git = None
+            log_level = "NONE"
+
+        self.ivpm_update(skip_venv=False, args=Args())
+        lock_path = os.path.join(self.testdir, "packages", "package-lock.json")
+        with open(lock_path) as f:
+            self.assertEqual(json.load(f)["python_venv"], {"installer": "pip"})
+
+        # Bare re-run: no --py-pip, force re-install
+        Args.py_pip = False
+        ProjectOps(self.testdir, Args()).update(
+            dep_set="default-dev", skip_venv=False, force_py_install=True)
+        with open(lock_path) as f:
+            self.assertEqual(json.load(f)["python_venv"], {"installer": "pip"})
