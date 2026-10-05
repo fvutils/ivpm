@@ -19,7 +19,7 @@ package:
     - name: ptyprocess
       src: pypi
     - name: fusesoc
-      url: http://github.com/olofk/fusesoc.git
+      src: pypi
     - name: pytest
       src: pypi
 
