@@ -1,3 +1,11 @@
+# 2.40.1
+- **Fix: Python 3.9 development bootstrap.** ivpm's own `ivpm.yaml` took
+  fusesoc from upstream git, whose 2.4.7 requires Python >= 3.10. It now comes
+  from PyPI, so pip installs the newest fusesoc for each interpreter.
+- 2.40.0 was tagged but never published to PyPI, because this failure blocked
+  the release. 2.40.1 is the first release that includes the 2.40.0 changes
+  below.
+
 # 2.40.0
 - **Fix: a protection policy removed execute permission from every cached
   file.** Under a preparer's `ProtectionPolicy`, every file got exactly
