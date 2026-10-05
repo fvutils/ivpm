@@ -42,9 +42,9 @@ class PackagePackageJson(Package):
         self.src_type = "package.json"
 
         if "url" in opts:
-            self.url = str(opts["url"])
+            self.url = self._opt_str(opts, "url")
         if "path" in opts:
-            self.json_path = str(opts["path"])
+            self.json_path = self._opt_str(opts, "path")
 
     @staticmethod
     def create(name, opts, si) -> 'Package':

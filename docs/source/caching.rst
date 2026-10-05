@@ -561,11 +561,18 @@ What that buys you, stated as guarantees:
   resolved the intact tree or sees a clean miss. A deletion that fails part-way
   leaves inert marked residue, not a truncated entry that reads as a hit
   forever.
+- **Content is never copied into the cache.** Every fetch downloads or clones
+  straight into staging on the cache filesystem, and the publish is a rename.
+  If the cache cannot take a package's content (a read-only mount, a package
+  directory owned by someone else, a full disk), the update fails and names
+  the cache directory. It does not fetch elsewhere and copy the tree in. To
+  work around a cache you cannot fix, turn caching off for that dependency
+  (``cache: false``) or for the run (``IVPM_CACHE=``).
 - **Two concurrent fetches of the same package never collide.** Staging names
   carry a UUID, so no two builders — thread, process, host, or reused PID —
   are ever handed the same path.
-- **A losing builder adopts the winner's entry** rather than failing or
-  overwriting. Its own staging tree is discarded.
+- **A losing builder never fails.** It uses the winner's entry when this host
+  can see it, and otherwise its own copy (see `Lost publish races on NFS`_).
 - **``ivpm cache clean`` and ``ivpm cache verify`` are safe to run while
   updates are in flight.** Neither destroys a build in progress, and a fresh
   staging directory is never mistaken for abandoned residue.
@@ -586,6 +593,58 @@ What that buys you, stated as guarantees:
 The residual risk is not concurrency but *damage*: a filesystem that loses
 bytes, a process killed at the wrong moment in an older IVPM, a hand-edited
 entry. That is what the verification levels above are for.
+
+Lost publish races on NFS
+-------------------------
+
+When two runs fetch the same missing version at once, both build it and both
+try to publish it; the publish rename lets exactly one win. The loser knows
+from that refusal that a complete entry exists, but on NFS *its host* may not
+be able to see it yet: the client cached "doesn't exist" from the lookup that
+found the cache miss moments earlier, and keeps that answer for up to the
+mount's ``acdirmax`` (60 seconds by default).
+
+So the loser keeps its own finished copy and waits, re-checking on a
+backing-off schedule, for the winner's entry to become visible. The package's
+progress line shows the wait::
+
+   · waiting for cache entry published by another process to become visible (12s / 70s)
+
+and a plain (non-TUI) log gets a note when the wait starts and every 10 seconds.
+If the entry becomes usable, the loser discards its copy and links the shared
+entry, as before.
+
+If it does not, the run publishes its own copy beside the shared entry as
+``<version>~alt~<id>``, links the workspace to that, and prints a warning naming
+it. Nothing fails. Inside the copy, ``.ivpm-cache-divergence.json`` records why
+it exists: the host, user, how long it waited and against what budget, and
+every check it made. Lookups always go to the shared entry, so the next run
+links there and the copy becomes an unused breadcrumb. ``ivpm cache verify``
+lists these copies (``divergent-copy``, informational; never repaired away),
+``ivpm cache info -v`` shows them per package, and ``ivpm cache clean`` removes
+them by the same last-used rule as other entries, or all at once with
+``--divergent``.
+
+If the entry exists but this user cannot read it, the run does not wait --
+waiting cannot fix a permission problem -- and the warning says so.
+
+How long to wait is decided once per run, highest priority first:
+
+#. ``IVPM_CACHE_ADOPT_WAIT=<seconds>``, or ``cache-adopt-wait: <seconds>`` in
+   the user/site config file (``0`` means never wait).
+#. The cache mount's options, for ``nfs``/``nfs4``: ``acdirmax`` (or
+   ``actimeo``) plus 10 seconds; 70 seconds when neither is set, since the
+   kernel default applies; 5 seconds with ``lookupcache=positive|none`` or
+   ``noac``, which cache no negative lookups. Local filesystems also get 5
+   seconds.
+#. 60 seconds when the mount cannot be determined (no ``/proc``) or is another
+   shared filesystem such as Lustre or GPFS.
+
+.. tip::
+
+   Mounting the cache with ``lookupcache=positive`` removes the stale view, and
+   with it nearly all of the waiting. The cost is one extra lookup round-trip
+   for names that do not exist.
 
 Writing a Race-Safe Cache Provider
 ==================================
@@ -1159,7 +1218,7 @@ cache clean
 
 .. code-block:: text
 
-   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>] [-n/--dry-run]
+   ivpm cache clean [-c/--cache-dir <dir>] [-d/--days <n>] [-n/--dry-run] [--divergent]
 
 Options:
 
@@ -1167,6 +1226,9 @@ Options:
 - ``-d, --days``: Remove entries unused (last-linked, see above) for more than
   this many days (default: 7)
 - ``-n, --dry-run``: List entries that would be removed without deleting
+- ``--divergent``: Also remove every divergent copy (``<version>~alt~<id>``)
+  regardless of age. A workspace still linked to one needs an ``ivpm update``,
+  which relinks it to the shared entry.
 
 See Also
 ========

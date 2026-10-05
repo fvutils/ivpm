@@ -46,8 +46,27 @@ if TYPE_CHECKING:
     from .cache import DirectoryCacheStore
 
 
+class CacheUnavailableError(Exception):
+    """The cache is configured for a package but cannot take its content.
+
+    Fatal by design.  Fetching somewhere else and copying the tree into the
+    cache afterwards would turn a network fetch into a network fetch plus a
+    full local copy -- usually across filesystems -- and hide a misconfigured
+    shared cache behind a run that merely got slower.
+    """
+
+    def __init__(self, package_name: str, cache_dir: Optional[str], cause):
+        super().__init__(
+            "cannot fetch %s into the cache at %s: %s.  Fix the cache's "
+            "permissions, or turn caching off for this dependency (cache: "
+            "false) or for the run (IVPM_CACHE=)"
+            % (package_name, cache_dir or "<unknown>", cause))
+        self.package_name = package_name
+        self.cache_dir = cache_dir
+
+
 def acquire_staging(provider, pkg, deps_dir: str) -> str:
-    """A unique, not-yet-created build directory, preferring the cache FS.
+    """A unique, not-yet-created build directory on the cache filesystem.
 
     Every fetch path that ends in ``provider.store(...)`` must build its tree
     here rather than at a fixed path.  Two properties matter, and both are
@@ -59,29 +78,26 @@ def acquire_staging(provider, pkg, deps_dir: str) -> str:
       second used to ``rmtree`` the first one's half-built tree out from under
       it, and could then publish a truncated entry.  A uuid4 suffix makes that
       impossible regardless of thread, process, host, or reused PID.
-    * **Locality.**  Cache-side staging makes the subsequent ``store()`` a
-      same-directory ``rename`` instead of a cross-device copy of the whole
-      tree.
+    * **Locality.**  Content goes from the network straight onto the cache
+      filesystem, and ``store()`` publishes it with a same-directory
+      ``rename``.  Nothing is ever copied.
 
-    Falls back to a uniquely-named deps-dir path when the provider offers no
-    cache-side staging, or when the cache side is not writable (read-only
-    mount, foreign-owned package directory).  The fallback is still uuid-unique,
-    so it costs a tree copy but never correctness.
+    A cache side that cannot be written (read-only mount, foreign-owned package
+    directory, no space) raises :class:`CacheUnavailableError`.  There is
+    deliberately no fallback: staging elsewhere would mean copying the whole
+    tree into the cache afterwards.
+
+    *deps_dir* is used only for a provider that has no cache-side staging at
+    all (``new_staging`` returns None) -- one that does not store on a
+    filesystem, so there is no locality to lose.
     """
     try:
         staging = provider.new_staging(pkg)
     except OSError as e:
-        # OSError only, and deliberately NOT ProtectionError.  A cache side
-        # that is merely unavailable (read-only mount, foreign-owned package
-        # directory, no space) is a locality problem: staging elsewhere costs a
-        # tree copy and nothing else.  A protection policy that cannot be
-        # applied is not -- falling back would fetch the whole package and then
-        # fail at publish anyway, and a reader skimming this would reasonably
-        # mistake the fallback for a safe degradation when it is the opposite.
-        # Let it propagate; it already carries a message naming the group.
-        note("Cache staging unavailable for %s (%s); staging under %s instead"
-             % (getattr(pkg, "name", "?"), e, deps_dir))
-        staging = None
+        # A ProtectionError is not caught: it already names the group.
+        raise CacheUnavailableError(
+            getattr(pkg, "name", "?"), getattr(provider, "cache_dir", None),
+            e) from e
     if staging is None:
         os.makedirs(deps_dir, exist_ok=True)
         # Same private-parent shape as cache-side staging: the tree being
@@ -180,6 +196,65 @@ def staging_scratch(staging: str) -> str:
     # today, but a scan that learns about staging trees and not about this
     # would read an in-flight download as cache content.
     return os.path.join(os.path.dirname(staging), "download.staging.dl")
+
+
+def emit_pkg_progress(session, package_name: str, message: str,
+                      task_id: Optional[str] = None) -> None:
+    """Show *message* as *package_name*'s progress text (TUI row / transcript)."""
+    dispatcher = getattr(session, "event_dispatcher", None)
+    if dispatcher is None:
+        return
+    from .update_event import UpdateEvent, UpdateEventType
+    dispatcher.dispatch(UpdateEvent(
+        event_type=UpdateEventType.HANDLER_TASK_PROGRESS,
+        package_name=package_name,
+        task_id=task_id or "cache:%s" % package_name,
+        task_name="cache",
+        task_message=message,
+    ))
+
+
+class _SessionAdoptMonitor:
+    """Routes a lost-race wait to the session: progress text and a perf span.
+
+    Duck-types :class:`ivpm.cache_adopt.AdoptMonitor`.  Every hook is a no-op
+    without a session (tests, ``ivpm cache`` commands).
+    """
+
+    def __init__(self, session, package_name: str):
+        self._session = session
+        self._pkg = package_name
+        self._span = None
+
+    def started(self, budget) -> None:
+        perf = getattr(self._session, "perf", None)
+        if perf is not None:
+            self._span = perf.open_span("cache.adopt_wait", package=self._pkg,
+                                        budget_s=budget.seconds,
+                                        budget_source=budget.source)
+
+    def progress(self, elapsed: float, budget: float, detail: str) -> None:
+        emit_pkg_progress(
+            self._session, self._pkg,
+            "· waiting for cache entry published by another process to become "
+            "visible (%ds / %ds)" % (elapsed, budget))
+
+    def finished(self, result) -> None:
+        perf = getattr(self._session, "perf", None)
+        if perf is None:
+            return
+        span = self._span
+        if span is None:
+            # Adopted on the first probe: still worth one (instant) record, so
+            # the perf data counts how often a race was lost at all.
+            span = perf.open_span("cache.adopt_wait", package=self._pkg,
+                                  budget_s=result.budget.seconds,
+                                  budget_source=result.budget.source)
+        span.meta["outcome"] = result.outcome
+        span.meta["waited_s"] = round(result.waited_s, 3)
+        span.meta["probes"] = len(result.observations)
+        span.meta["last_probe"] = result.last_probe
+        perf.close_span(span)
 
 
 class CacheState(enum.Enum):
@@ -326,6 +401,18 @@ class CacheProvider:
         """
         return None
 
+    def linked_policy_mismatch(self, pkg) -> Optional[str]:
+        """Why ``pkg``'s existing cache link is wrong for its current policy.
+
+        Called for a reused package after the preparers have run.  Returns a
+        short description of the change (``"<old> -> <new>"``) when ``pkg.path``
+        is a symlink into this cache whose protection partition is not the one
+        :func:`~ivpm.protection.policy_for` now selects, and None otherwise --
+        including when the path is not a cache link at all.  Default None: a
+        provider with no partitions has nothing to compare.
+        """
+        return None
+
 
 class NullCacheProvider(CacheProvider):
     """The provider returned when caching is disabled — always uncacheable."""
@@ -362,6 +449,12 @@ class DirectoryCacheProvider(CacheProvider):
         # 500 legacy entries must produce one line, not 500.
         self._reported_kinds = set()
         self._verify_lock = threading.Lock()
+        # (package, version) -> the path store() actually published to, when
+        # that is not the canonical entry: a divergent copy left by a lost
+        # race, or (last resort) a staging tree to copy uncached.  materialize
+        # is a separate call, so the decision has to be remembered.  Shared by
+        # with_deps_dir() views (a shallow copy shares the dict).
+        self._published_elsewhere = {}
 
     @property
     def verify_level(self) -> str:
@@ -489,13 +582,43 @@ class DirectoryCacheProvider(CacheProvider):
         return self._store.new_staging(pkg.name, policy_for(pkg))
 
     def store(self, pkg, version: str, source_path: str) -> str:
-        return self._store.store_version(
+        policy = policy_for(pkg)
+        path = self._store.store_version(
             pkg.name, version, source_path, source=source_info(pkg),
-            policy=policy_for(pkg))
+            policy=policy, monitor=_SessionAdoptMonitor(self.session, pkg.name),
+            context={"workspace": self.context.root_dir,
+                     "deps_dir": self.context.deps_dir})
+        key = (pkg.name, version)
+        canonical = self._store.get_version_cache_dir(pkg.name, version, policy)
+        with self._verify_lock:
+            if path == canonical:
+                self._published_elsewhere.pop(key, None)
+            else:
+                self._published_elsewhere[key] = path
+        if path != canonical:
+            session = self.session
+            if session is not None and hasattr(session, "report_cache_divergent"):
+                session.report_cache_divergent(path)
+        return path
 
     def materialize(self, pkg, version: str) -> str:
+        key = (pkg.name, version)
+        with self._verify_lock:
+            target = self._published_elsewhere.get(key)
+            if target is not None and self._store._is_transient(
+                    os.path.basename(target)):
+                # Last resort: neither the winner nor a divergent copy could
+                # be published.  The tree is copied once, then gone.
+                del self._published_elsewhere[key]
+                copy_from = target
+            else:
+                copy_from = None
+        if copy_from is not None:
+            return self._store.copy_to_deps(pkg.name, copy_from,
+                                            self.context.deps_dir)
         return self._store.link_to_deps(pkg.name, version,
-                                        self.context.deps_dir, policy_for(pkg))
+                                        self.context.deps_dir, policy_for(pkg),
+                                        target=target)
 
     def note_reference(self, pkg) -> None:
         # The fast path has the existing deps/<pkg> symlink but not the version
@@ -504,3 +627,24 @@ class DirectoryCacheProvider(CacheProvider):
         link_path = os.path.join(self.context.deps_dir, getattr(pkg, "name", ""))
         if os.path.islink(link_path):
             self._store.touch_linked_target(link_path)
+
+    def linked_policy_mismatch(self, pkg) -> Optional[str]:
+        path = getattr(pkg, "path", None)
+        if not path or not os.path.islink(path):
+            return None
+        # Only a link made *by the cache*: one hop, straight to an entry.  A
+        # deps-source link into a parent workspace can chain on into the cache,
+        # but re-linking it would only reach the parent's link again -- the
+        # parent's own update is what moves that one.
+        target = os.path.join(os.path.dirname(path), os.readlink(path))
+        if os.path.islink(target):
+            return None
+        entry = self._store.linked_entry(target)
+        if entry is None:
+            return None              # an editable clone or deps-source link
+        have = entry[1]
+        policy = policy_for(pkg)
+        want = policy.partition_key() if policy is not None else None
+        if have == want:
+            return None
+        return "%s -> %s" % (have or "unprotected", want or "unprotected")

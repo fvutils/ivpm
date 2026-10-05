@@ -303,11 +303,11 @@ depends on where the raise happened:
 Either way the exit status is 1.  Run with ``ivpm --log-level DEBUG`` to see
 the originating traceback.
 
-Non-fatal exceptions raised inside a *leaf* callback are caught and reported as
-warnings; the run continues with the remaining packages.  Root callbacks have
-no such policy -- a root handler that fails halfway through is not something
-the run can meaningfully skip -- so any exception from a root callback ends the
-run.
+Any other exception, from a leaf or a root callback, is treated as a bug in
+the handler and ends the run.  The user sees one line naming the handler, the
+callback (and, for a leaf callback, the package) and the file the stack trace
+was written to -- not the traceback itself -- and ``ivpm`` exits with status
+70, so a script can tell an internal error from a user error (status 1).
 
 
 Registering a Handler via Entry Points
@@ -643,6 +643,40 @@ refusal -- a preparer that crashed did not prepare anything.
 Raising ``PrepareDenied`` from ``on_session_start()`` aborts the whole run
 before the root deps-dir is created, which is the right place to reject a
 read-only filesystem or an exhausted quota once rather than per package.
+
+Protecting cached content
+-------------------------
+
+With caching enabled, a package's bytes are fetched into the cache and only
+*linked* into ``req.target_dir``, so changing the group or mode of
+``target_dir`` protects nothing that is cached. To protect cached content,
+return a ``ProtectionPolicy`` with the result:
+
+.. code-block:: python
+
+    from ivpm.protection import ProtectionPolicy
+
+    def prepare(self, req):
+        policy = ProtectionPolicy.for_group("dsp-restricted",
+                                            dir_mode=0o2770, file_mode=0o660)
+        return PrepareResult.ok(policy=policy)
+
+The policy is part of the cache path: entries live under
+``<cache>/<pkg>/@protect.<digest>/<version>``, where the digest covers the gid,
+both modes and any default ACL. Two users who resolve to different policies
+get separate copies instead of evicting, or being locked out of, each other's.
+Use the same modes for everyone who shares a group; different modes mean
+different partitions.
+
+Directories get ``dir_mode`` plus setgid. Files get ``file_mode``, with execute
+carried over ``chmod X``-style: if the source file has any execute bit, execute
+is added for each class that ``file_mode`` grants read to. With
+``file_mode=0o660``, a script comes out ``0o770`` and a data file ``0o660``,
+both with write removed once the entry is sealed. setuid, setgid and sticky are
+never carried over, and ``file_mode`` must not contain them.
+
+A preparer that returns a policy should normally set ``always = True``, so that
+the policy is also attached to packages that are reused rather than fetched.
 
 
 Contributing a Site Configuration

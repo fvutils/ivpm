@@ -66,6 +66,7 @@ class UpdateEvent:
     cache_hits: int = 0
     cache_misses: int = 0
     cache_invalidated: int = 0  # HITs rejected by verification and rebuilt
+    cache_divergent: int = 0    # lost races linked to this run's own copy
     cacheable_packages: int = 0
     editable_packages: int = 0
     cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set

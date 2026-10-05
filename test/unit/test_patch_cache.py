@@ -3,9 +3,9 @@
 #*
 #* Phase 4 -- cache-mode resolver (PatchAwareResolver). Hermetic: the source
 #* "fetch" copies a local fixture tree (no git, no network), exercised through
-#* a real DirectoryCacheProvider over a temp store. Covers base-first caching,
-#* MISS->build->HIT (no re-apply), divergent-set segregation + dedup, the
-#* disabled (editable) stub error, and partial-apply cleanup.
+#* a real DirectoryCacheProvider over a temp store. Covers fetch-and-patch in
+#* cache staging, MISS->build->HIT (no re-apply), divergent-set segregation +
+#* dedup, the disabled (editable) path, and partial-apply cleanup.
 #****************************************************************************
 import os
 import types
@@ -128,18 +128,31 @@ class TestCacheMiss(_ResolverBase):
             "hello patched\n")
         m = read_manifest(os.path.join(self.deps_dir, "somelib"))
         self.assertEqual(m["patchset_id"], pkg.patchset.patchset_id)
-        self.assertEqual(m["base"], {"kind": "cache", "version": BASE})
+        self.assertEqual(m["base"], {"kind": "fetch", "version": BASE})
         self.assertEqual(ui.misses, 1)
         self.assertEqual(ui.hits, 0)
 
-    def test_base_first_base_entry_present(self):
-        # Even though only a patched view was requested, the pristine base is cached.
+    def test_patches_in_cache_staging_without_a_base_entry(self):
+        """The pristine tree is fetched into cache-side staging and patched
+        there: no separate base entry, and no copy of one."""
         pkg = FakePkg("somelib", [mkspec("fix.patch")])
-        self.resolve(pkg)
-        self.assertTrue(self.store.has_version("somelib", BASE))
-        # The base entry is pristine (no manifest).
-        self.assertIsNone(read_manifest(self.cache_entry("somelib", BASE)))
+        fetched_into = []
+        orig = pkg.fetch_pristine
+
+        def recording(update_info, dest_dir, base_version):
+            fetched_into.append(dest_dir)
+            return orig(update_info, dest_dir, base_version)
+        pkg.fetch_pristine = recording
+
+        from unittest.mock import patch
+        with patch("ivpm.fscopy.copy_tree",
+                   side_effect=AssertionError("patching copied a tree")):
+            self.resolve(pkg)
+
         self.assertEqual(pkg.fetch_count, 1)
+        self.assertTrue(fetched_into[0].startswith(
+            self.store.get_package_cache_dir("somelib") + os.sep))
+        self.assertFalse(self.store.has_version("somelib", BASE))
 
     def test_manifest_result_records_modified_path(self):
         pkg = FakePkg("somelib", [mkspec("fix.patch")])
@@ -182,7 +195,7 @@ class TestCacheHit(_ResolverBase):
 
 class TestDivergentSets(_ResolverBase):
 
-    def test_distinct_sets_distinct_entries_shared_base(self):
+    def test_distinct_sets_distinct_entries(self):
         a = FakePkg("somelib", [mkspec("fix.patch")])
         b = FakePkg("somelib", [mkspec("fix.patch"),
                                 mkspec("sub.patch", directory="src")])
@@ -194,8 +207,8 @@ class TestDivergentSets(_ResolverBase):
         self.assertNotEqual(eff_a, eff_b)
         self.assertTrue(self.store.has_version("somelib", eff_a))
         self.assertTrue(self.store.has_version("somelib", eff_b))
-        # Base fetched exactly once across both builds (base-first sharing).
-        self.assertEqual(a.fetch_count + b.fetch_count, 1)
+        # Each distinct set is fetched once, straight into its own staging.
+        self.assertEqual((a.fetch_count, b.fetch_count), (1, 1))
 
     def test_identical_sets_share_one_entry(self):
         a = FakePkg("somelib", [mkspec("fix.patch")])
@@ -234,12 +247,13 @@ class TestPartialApplySafety(_ResolverBase):
             self.resolve(pkg)
 
         eff = effective_version(BASE, pkg.patchset)
-        # No variant entry, no leftover staging dir...
+        # No variant entry, no base entry, no leftover staging anywhere.
         self.assertFalse(self.store.has_version("somelib", eff))
-        self.assertFalse(os.path.exists(
-            os.path.join(self.deps_dir, ".patch_stage_somelib")))
-        # ...but the pristine base WAS cached (base-first, before the apply).
-        self.assertTrue(self.store.has_version("somelib", BASE))
+        self.assertFalse(self.store.has_version("somelib", BASE))
+        self.assertEqual(os.listdir(self.deps_dir), [])
+        pkg_dir = self.store.get_package_cache_dir("somelib")
+        self.assertEqual([n for n in os.listdir(pkg_dir)
+                          if ".staging." in n], [])
 
 
 if __name__ == "__main__":

@@ -360,14 +360,21 @@ class TestSetupVenvIvpmInstall(unittest.TestCase):
         import ivpm.utils as utils_mod
 
         custom_args = ["/opt/site/ivpm-custom.whl"]
-        os_system_calls = []
+        captured = []
+
+        def fake_run(cmd, **kwargs):
+            captured.append((list(cmd), kwargs.get("env")))
+            result = MagicMock()
+            result.returncode = 0
+            return result
 
         with patch("ivpm.utils.get_site_config", return_value=self._make_install_config(custom_args)), \
              patch("ivpm.utils.get_sys_python", return_value="/fake/python"), \
              patch("ivpm.utils.get_venv_python", return_value="/fake/python"), \
-             patch("subprocess.run"), \
-             patch("os.system", side_effect=lambda cmd: os_system_calls.append(cmd)), \
-             patch("shutil.which", return_value=None):
+             patch("subprocess.run", side_effect=fake_run), \
+             patch("os.system"), \
+             patch("shutil.which", return_value=None), \
+             patch.dict(os.environ, {"PYTHONPATH": "/opt/ivpm/lib"}):
 
             utils_mod.setup_venv(
                 "/fake/python_dir",
@@ -375,9 +382,12 @@ class TestSetupVenvIvpmInstall(unittest.TestCase):
                 suppress_output=False
             )
 
-        install_cmds = [c for c in os_system_calls if "install" in c and "pip" not in c.split()[-1]]
-        self.assertTrue(install_cmds, "Expected an os.system install command")
-        self.assertIn("/opt/site/ivpm-custom.whl", install_cmds[0])
+        install = [(c, env) for c, env in captured if "/opt/site/ivpm-custom.whl" in c]
+        self.assertTrue(install, "Expected an ivpm install command with custom wheel")
+        # The bootstrap install must not see IVPM's own PYTHONPATH either.
+        env = install[0][1]
+        self.assertIsNotNone(env)
+        self.assertFalse("PYTHONPATH" in env, "PYTHONPATH reached the installer")
 
     def test_uv_uses_config_install_args(self):
         """setup_venv (uv) uses site config install args."""

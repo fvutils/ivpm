@@ -52,8 +52,14 @@ def _dispatch_root(callback, *args):
     is what puts it on screen (as a ``SrcLoaderError`` carrying diagnostics,
     the shape ``main()`` has always handled).  No ``loc``: a root-phase failure
     belongs to the project, not to any one dependency entry.
+
+    Any other exception is a bug, not a report: it becomes an
+    ``InternalError`` naming the handler and callback, which ``main()`` turns
+    into one line and a distinct exit status.  ``PackageHandlerList`` already
+    does this per handler, so this only matters for a bare handler.
     """
     from .handlers.package_handler import HandlerFatalError
+    from .internal_error import InternalError, is_expected, handler_name
     try:
         callback(*args)
     except HandlerFatalError as e:
@@ -62,6 +68,12 @@ def _dispatch_root(callback, *args):
         if getattr(e, "reported", False):
             raise
         fatal(str(e))
+    except Exception as e:
+        if is_expected(e):
+            raise
+        raise InternalError(
+            e, "running %s" % getattr(callback, "__name__", "a root callback"),
+            handler_name(getattr(callback, "__self__", None))) from e
 
 
 # Lock fields worth naming in the drift report, in the order a reader wants

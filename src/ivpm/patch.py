@@ -35,7 +35,6 @@
 import os
 import json
 import enum
-import uuid
 import shutil
 import hashlib
 import datetime
@@ -390,59 +389,11 @@ def apply_patchset(target_dir: str, patchset: PatchSet, base_version: str, pkg) 
 #* Cache-mode resolver (Phase 4)
 #*
 #* Turn a patched dependency into an ordinary cache entry whose version is the
-#* effective version (base + patch-set id). Base-first: the pristine base is
-#* always cached, and each patched variant is a full copy of it with the patch
-#* set applied. Editable (cache-disabled) patching is a later phase -- here a
-#* DISABLED lookup is a hard, actionable error.
+#* effective version (base + patch-set id). The pristine base is fetched
+#* straight into cache-side staging and patched there; no pristine base entry
+#* is kept, so nothing is copied out of the cache to be patched. A DISABLED
+#* lookup takes the editable in-place path instead.
 #****************************************************************************
-
-def _rmtree_if_exists(path: str) -> None:
-    if os.path.islink(path) or os.path.isfile(path):
-        os.unlink(path)
-    elif os.path.isdir(path):
-        shutil.rmtree(path)
-
-
-def _make_writable(path: str) -> None:
-    """Add owner-write to every entry in a tree (cached bases are read-only, so
-    a copy of one must be re-opened for writing before patches can apply).
-
-    ``lstat`` and skip symlinks: ``os.stat``/``os.chmod`` follow them, so an
-    absolute link inside a package made this modify a file outside the tree,
-    and a dangling one made it raise.  Neither mattered while ``_copy_tree``
-    was dereferencing links (there were none left to trip over); both do now
-    that links are preserved."""
-    import stat
-    for root, dirs, files in os.walk(path):
-        for name in dirs + files:
-            p = os.path.join(root, name)
-            try:
-                st = os.lstat(p)
-                if stat.S_ISLNK(st.st_mode):
-                    continue
-                os.chmod(p, stat.S_IMODE(st.st_mode) | stat.S_IWUSR)
-            except OSError:
-                pass
-    try:
-        os.chmod(path, os.stat(path).st_mode | stat.S_IWUSR)
-    except OSError:
-        pass
-
-
-def _copy_tree(src: str, dst: str, policy=None) -> None:
-    """Copy a (possibly read-only) cached base into a writable staging dir.
-
-    ``shutil.copytree``'s default ``symlinks=False`` was wrong twice over: it
-    replaced every symlink with a copy of its target, so a patched variant was
-    published without the links its source had, and it raised outright on a
-    *dangling* link -- meaning a package carrying one could not be patch-cached
-    at all.  It also never reproduced ownership, so a cross-filesystem copy
-    silently re-grouped the result.
-    """
-    from .fscopy import copy_tree
-    copy_tree(src, dst, policy)
-    _make_writable(dst)
-
 
 #: Per-file content fingerprint.  Shared with cache content verification --
 #: see :func:`ivpm.utils.sha256_file`.
@@ -461,28 +412,10 @@ def _walk_rel(root: str) -> set:
     return out
 
 
-def _diff_tree(base_path: str, staging: str) -> list:
-    """Fingerprint every path the patch set added/modified/deleted (manifest
-    ``result[]``). Drives the cleanliness check in later phases."""
-    base = _walk_rel(base_path)
-    stag = _walk_rel(staging)
-    result = []
-    for rel in sorted(stag - base):
-        result.append({"path": rel, "op": "added",
-                       "sha256": _sha256_file(os.path.join(staging, rel))})
-    for rel in sorted(base - stag):
-        result.append({"path": rel, "op": "deleted"})
-    for rel in sorted(base & stag):
-        sh = _sha256_file(os.path.join(staging, rel))
-        if sh != _sha256_file(os.path.join(base_path, rel)):
-            result.append({"path": rel, "op": "modified", "sha256": sh})
-    return result
-
-
 class PatchAwareResolver:
     """Coordinate the patch/cache dance for one patched dependency.
 
-    Centralizes lookup -> (base-first) build -> store -> materialize so the
+    Centralizes lookup -> fetch-and-patch in staging -> store -> materialize so the
     package types don't duplicate it (mirroring how CacheProvider centralizes
     cache acquisition). The package type calls this only when the patch set is
     non-empty; the resolver assumes non-empty.
@@ -499,7 +432,6 @@ class PatchAwareResolver:
         entry it produces could never be invalidated.
         """
         from .proj_info import ProjInfo
-        from .protection import policy_for
         from .utils import note
 
         patchset = pkg.patchset
@@ -523,46 +455,27 @@ class PatchAwareResolver:
             update_info.report_cache_hit()
             return ProjInfo.mkFromProj(pkg_dir)
 
-        # MISS: derive the variant from the cached pristine base.
+        # MISS: fetch the pristine base straight into cache-side staging and
+        # patch it there.  Content goes from the network to the cache
+        # filesystem once and is published by rename -- no pristine base entry
+        # is kept, so nothing is ever copied out of the cache to be patched.
         update_info.report_cache_miss()
-        base_path = self._ensure_base(provider, pkg, base_version, update_info)
-        # Build on the cache filesystem so provider.store publishes with a
-        # same-FS rename (not a cross-device copy).  Unique per-build name so
-        # two concurrent runs never rmtree/copy into one path.  Falls back to a
-        # unique deps_dir path if the provider offers no cache-side staging.
-        staging = provider.new_staging(pkg) or os.path.join(
-            deps_dir, ".patch_stage_%s.%s" % (pkg.name, uuid.uuid4().hex))
-        _rmtree_if_exists(staging)
-        policy = policy_for(pkg)
+        from .cache_provider import acquire_staging, discard_staging
+        staging = acquire_staging(provider, pkg, deps_dir)
         try:
-            _copy_tree(base_path, staging, policy)
+            pkg.fetch_pristine(update_info, staging, base_version)
+            pristine = _snapshot_tree(staging)
             apply_patchset(staging, patchset, base_version, pkg)
             write_manifest(
                 staging, base_version, getattr(pkg, "src_type", None), patchset,
-                base_ref={"kind": "cache", "version": base_version},
-                result=_diff_tree(base_path, staging))
+                base_ref={"kind": "fetch", "version": base_version},
+                result=_diff_snapshot(pristine, staging))
         except BaseException:
-            from .cache_provider import discard_staging
             discard_staging(staging)     # never store a partial variant
             raise
         provider.store(pkg, eff, staging)     # atomic; race-safe; consumes staging
         provider.materialize(pkg, eff)
         return ProjInfo.mkFromProj(pkg_dir)
-
-    def _ensure_base(self, provider, pkg, base_version: str, update_info) -> str:
-        """Guarantee the pristine base is a cache entry; return its path. The
-        base is fetched at most once no matter how many patch sets target it."""
-        res = provider.lookup(pkg, base_version)
-        if res.is_hit:
-            return res.cached_path
-        # Fetch onto the cache filesystem so store() renames the pristine base
-        # into place instead of copying it across devices.
-        tmp = provider.new_staging(pkg) or os.path.join(
-            update_info.deps_dir,
-            ".patch_base_%s.%s" % (pkg.name, uuid.uuid4().hex))
-        _rmtree_if_exists(tmp)
-        pkg.fetch_pristine(update_info, tmp, base_version)   # network fetch, once
-        return provider.store(pkg, base_version, tmp)        # base now shared, RO
 
     def _apply_in_place(self, update_info, pkg, pkg_dir, base_version):
         """Editable (cache-disabled) patching: classify the on-disk tree and run

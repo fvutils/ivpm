@@ -132,13 +132,17 @@ class TestFP01ReinstallFlag(TestBase):
 class TestFP03FlagPropagation(TestBase):
 
     def _run_post_load(self, force_py_install):
-        """Drive on_root_post_load far enough to reach the install call."""
+        """Drive on_root_post_load far enough to reach the install call.
+
+        A first, unforced run completes an install so the "already installed"
+        branch is taken by the second; that is the branch force_py_install is
+        supposed to punch through.
+        """
+        self._post_load_once(False)
+        return self._post_load_once(force_py_install)
+
+    def _post_load_once(self, force_py_install):
         deps_dir = os.path.join(self.testdir, "packages")
-        os.makedirs(deps_dir, exist_ok=True)
-        # Pre-create the marker so the "already installed" branch is taken;
-        # that is the branch force_py_install is supposed to punch through.
-        with open(os.path.join(deps_dir, "python_pkgs_1.txt"), "w") as fp:
-            fp.write("somepkg\n")
         os.makedirs(os.path.join(deps_dir, "python"), exist_ok=True)
 
         args = MagicMock()
@@ -189,7 +193,8 @@ class TestFP03FlagPropagation(TestBase):
                             "force=True must reach _install_requirements")
 
     def test_FP03b_force_false_short_circuits(self):
-        """Without the flag the already-installed marker skips install entirely."""
+        """Without the flag a completed install of the same requirements is
+        not repeated."""
         calls = self._run_post_load(False)
         self.assertEqual([], calls)
 

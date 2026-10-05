@@ -99,6 +99,9 @@ class CmdCache:
         for pkg in info['packages']:
             print(f"  {pkg['name']}:")
             print(f"    Versions: {len(pkg['versions'])}")
+            divergent = pkg.get('divergent') or []
+            if divergent:
+                print(f"    Divergent copies: {len(divergent)}")
             print(f"    Size: {format_size(pkg['total_size'])}")
 
             if args.verbose:
@@ -106,6 +109,12 @@ class CmdCache:
                     print(f"      - {ver['version']}: {format_size(ver['size'])}")
                     print(f"          stored:      {format_age(ver.get('stored'))}")
                     print(f"          last linked: {format_age(ver.get('last_linked'))}")
+                for d in divergent:
+                    print(f"      ~ {d['name']}: {format_size(d['size'])}")
+                    print(f"          reason:      {d.get('reason') or '-'}"
+                          f" (host {d.get('host') or '-'})")
+                    print(f"          created:     {format_age(d.get('created'))}")
+                    print(f"          last linked: {format_age(d.get('last_linked'))}")
     
     def _resolve_cache_dir(self, args, exit_code: int = 1) -> str:
         """The cache directory to operate on, or exit with a clear reason.
@@ -144,14 +153,17 @@ class CmdCache:
 
         dry_run = getattr(args, "dry_run", False)
         cache = DirectoryCacheStore(cache_dir)
-        removed = cache.clean_older_than(args.days, dry_run=dry_run)
+        divergent = getattr(args, "divergent", False)
+        removed = cache.clean_older_than(args.days, dry_run=dry_run,
+                                         divergent=divergent)
 
+        also = " (and all divergent copies)" if divergent else ""
         if dry_run:
             print(f"Would remove {removed} cache entries unused for more "
-                  f"than {args.days} days")
+                  f"than {args.days} days{also}")
         else:
             print(f"Removed {removed} cache entries unused for more "
-                  f"than {args.days} days")
+                  f"than {args.days} days{also}")
 
     # ----------------------------------------------------------------- verify
 
@@ -257,11 +269,15 @@ class CmdCache:
             print("  No problems found.")
             return
 
+        from ..cache_verify import REPAIR_NONE
         auto = sum(1 for f in result.findings if f.auto_repairable)
-        manual = len(result.findings) - auto
+        manual = sum(1 for f in result.findings if f.repair == REPAIR_MANUAL)
+        informational = sum(1 for f in result.findings
+                            if f.repair == REPAIR_NONE)
         print()
         print(f"  Problems      {len(result.findings)} total · "
-              f"{auto} auto-repairable · {manual} need manual action")
+              f"{auto} auto-repairable · {manual} need manual action"
+              + (f" · {informational} informational" if informational else ""))
         by_problem = {}
         for f in result.findings:
             slot = by_problem.setdefault(f.problem.value, [0, f.repair, 0])
@@ -271,6 +287,20 @@ class CmdCache:
                 by_problem.items(), key=lambda kv: -kv[1][0]):
             extra = f"  ({format_size(size)})" if size else ""
             print(f"                {count:>3}  {name:<20} {repair:<9}{extra}")
+
+        divergent = [f for f in result.findings
+                     if f.problem.value.startswith("divergent-")]
+        if divergent:
+            # Each one is a lost publish race this host could not resolve;
+            # name them, since the paths are what someone debugging needs.
+            print()
+            shown = divergent if verbose else divergent[:5]
+            print("  Divergent     " + f"\n{' ' * 16}".join(
+                f.path for f in shown))
+            if len(shown) < len(divergent):
+                print(f"{' ' * 16}... {len(divergent) - len(shown)} more (-v)")
+            print(f"{' ' * 16}copies left by lost publish races; details in "
+                  f"each one's .ivpm-cache-divergence.json")
 
         worst = sorted(result.by_package().items(), key=lambda kv: -kv[1])[:3]
         if worst:

@@ -91,6 +91,7 @@ class RichUpdateTUI(UpdateEventListener):
         self.cache_hits = 0
         self.cache_misses = 0
         self.cache_invalidated = 0
+        self.cache_divergent = 0
         self.cacheable_packages = 0
         self.editable_packages = 0
         self.cache_unconfigured_packages = 0
@@ -329,6 +330,7 @@ class RichUpdateTUI(UpdateEventListener):
             self.cache_hits = event.cache_hits
             self.cache_misses = event.cache_misses
             self.cache_invalidated = event.cache_invalidated
+            self.cache_divergent = event.cache_divergent
             self.cacheable_packages = event.cacheable_packages
             self.editable_packages = event.editable_packages
             self.cache_unconfigured_packages = event.cache_unconfigured_packages
@@ -408,6 +410,17 @@ class RichUpdateTUI(UpdateEventListener):
                 style="yellow"))
             lines.append(Text(
                 "  Run 'ivpm cache verify --repair' to check the rest of the cache.",
+                style="yellow"))
+
+        if self.cache_divergent > 0:
+            n = self.cache_divergent
+            lines.append("")
+            lines.append(Text(
+                f"⚠ {n} {'package' if n == 1 else 'packages'} linked to this "
+                f"run's own copy after losing a cache publish race.",
+                style="yellow"))
+            lines.append(Text(
+                "  See the warnings above; 'ivpm cache verify' lists these copies.",
                 style="yellow"))
 
 
@@ -536,6 +549,13 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 print(f"  ⚠ {n} cache {'entry' if n == 1 else 'entries'} failed "
                       f"verification and {'was' if n == 1 else 'were'} rebuilt.")
                 print("    Run 'ivpm cache verify --repair' to check the rest of the cache.")
+
+            if event.cache_divergent > 0:
+                n = event.cache_divergent
+                print("")
+                print(f"  ⚠ {n} {'package' if n == 1 else 'packages'} linked to "
+                      f"this run's own copy after losing a cache publish race.")
+                print("    See the warnings above; 'ivpm cache verify' lists these copies.")
             
             if event.deps_source_hits or event.deps_source_misses:
                 print(f"  Deps-source hits: {event.deps_source_hits}")

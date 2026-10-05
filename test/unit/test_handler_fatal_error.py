@@ -118,12 +118,16 @@ class TestDispatchRoot(unittest.TestCase):
             _dispatch_root(boom, FakeUpdateInfo())
         self.assertIs(ctx.exception, original)
 
-    def test_other_exceptions_are_not_swallowed(self):
+    def test_other_exceptions_become_internal_errors(self):
+        """Not swallowed, and not mistaken for a user error either."""
+        from ivpm.internal_error import InternalError
+
         def boom(info):
             raise RuntimeError("not a handler error")
 
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(InternalError) as ctx:
             _dispatch_root(boom, FakeUpdateInfo())
+        self.assertIsInstance(ctx.exception.cause, RuntimeError)
 
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

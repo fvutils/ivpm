@@ -481,7 +481,7 @@ class TestLeafErrorPolicy(unittest.TestCase):
     """
     PackageUpdater catches leaf handler exceptions per policy:
     - HandlerFatalError  → re-raised (aborts update)
-    - Other exceptions   → log + continue
+    - Other exceptions   → wrapped as InternalError (aborts update, exit 70)
 
     These tests verify the exception types are raised and caught correctly
     from within a handler, not the PackageUpdater integration.

@@ -183,8 +183,11 @@ class TestSmoke(TestBase):
 
         self.ivpm_update(skip_venv=False)
 
-        # vlsim should not be installed, since we skipped re-installation
-        with self.assertRaises(subprocess.CalledProcessError):
-            self.exec(
-                ["packages/python/bin/python", "-c", "import vlsim"],
-                cwd=self.testdir)
+        # The requirements changed, so the new dependency is installed without
+        # needing --py-force-install.
+        self.assertEqual(self.exec(
+            ["packages/python/bin/python", "-c", "import vlsim"],
+            cwd=self.testdir).strip(), "")
+
+        # Unchanged requirements: the completed install is not repeated.
+        self.ivpm_update(skip_venv=False)

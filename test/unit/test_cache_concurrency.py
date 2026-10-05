@@ -53,17 +53,16 @@ def _store_worker(cache_dir, scratch, tag, content, barrier):
 
 
 def _variant_worker(cache_dir, deps_dir, base_version, eff, tag, content, barrier):
-    """T2 worker: mirror PatchAwareResolver's pre-store staging + publish,
-    concurrently, sharing one deps_dir and one cache."""
-    from ivpm.patch import _copy_tree, _rmtree_if_exists
+    """T2 worker: mirror PatchAwareResolver's miss path, concurrently, sharing
+    one deps_dir and one cache: fetch into cache-side staging, patch in place,
+    publish."""
     store = DirectoryCacheStore(cache_dir)
-    base_path = store.get_version_cache_dir("pkg", base_version)
     barrier.wait()
-    # Build on the cache FS via new_staging (mirrors provider.new_staging):
-    # unique per-build (H5) and same-filesystem so store publishes by rename.
+    # Unique per-build (H5) and on the cache FS, so store publishes by rename.
     staging = store.new_staging("pkg")
-    _rmtree_if_exists(staging)
-    _copy_tree(base_path, staging)
+    os.makedirs(staging)
+    with open(os.path.join(staging, "content.txt"), "w") as f:
+        f.write("base-content")          # the "fetch"
     with open(os.path.join(staging, "patched.txt"), "w") as f:
         f.write(content)                 # same for every worker -> identical variant
     store.store_version("pkg", eff, staging)
@@ -204,13 +203,6 @@ class TestPublishRaceAndAdopt(_StoreBase):
 # --- 3.2 Presence semantics -------------------------------------------------
 
 class TestPresenceSemantics(_StoreBase):
-    def test_link_to_deps_rejects_vanished_entry(self):
-        # Entry emptied (e.g. concurrent GC) between lookup and materialize.
-        empty = self.store.get_version_cache_dir("pkg", "v1")
-        os.makedirs(empty)
-        with self.assertRaises(CacheStoreError):
-            self.store.link_to_deps("pkg", "v1", self.deps_dir)
-
     def test_link_to_deps_ok_when_populated(self):
         version_dir = self.store.get_version_cache_dir("pkg", "v1")
         os.makedirs(version_dir)
@@ -363,10 +355,6 @@ class TestMultiProcessRaces(_StoreBase):
 
     def test_t2_patch_variant_race_no_corruption(self):
         import multiprocessing
-        # Seed a shared, populated base entry.
-        base = _make_source(self.test_dir, "base", "base-content")
-        self.store.store_version("pkg", "base1", base)
-
         n = 6
         eff = "base1+patch.abcdef0123456789"
         barrier = multiprocessing.get_context("fork").Barrier(n)
@@ -374,15 +362,13 @@ class TestMultiProcessRaces(_StoreBase):
                  "PATCHED", barrier) for i in range(n)]
         _run_procs(_variant_worker, args)
 
-        # Exactly one populated variant entry; base intact; no staging residue
-        # in the cache and no .patch_stage residue in deps_dir.
+        # Exactly one populated variant entry; no staging residue in the cache
+        # and nothing in deps_dir.
         self.assertTrue(self.store.has_version("pkg", eff))
         got = self.store.get_version_cache_dir("pkg", eff)
         self.assertEqual(_content(got), ["content.txt", "patched.txt"])
-        self.assertTrue(self.store.has_version("pkg", "base1"))
         self.assertEqual(self._staging_residue(), [])
-        self.assertEqual(
-            [n for n in os.listdir(self.deps_dir) if n.startswith(".patch_")], [])
+        self.assertEqual(os.listdir(self.deps_dir), [])
 
 
 # --- cache-side staging (same-FS publish) -----------------------------------

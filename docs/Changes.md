@@ -1,3 +1,96 @@
+# 2.40.0
+- **Fix: a protection policy removed execute permission from every cached
+  file.** Under a preparer's `ProtectionPolicy`, every file got exactly
+  `file_mode`, so tool wrappers, hooks and `bin/` scripts in a cached package
+  stopped working. `file_mode` is now the mode for non-executable files.
+  Execute carries over `chmod X`-style: if the source file has any execute bit,
+  execute is added for each class `file_mode` grants read to. With
+  `file_mode=0o660`, a script is published `0o550` and a data file `0o440`.
+  setuid, setgid and sticky are never carried over, and a `file_mode` that
+  contains them is rejected. The same rule applies when a nested-scope package
+  is copied out of the cache into a writable tree.
+- **Change: an unusable cache now fails the update instead of falling back.**
+  When the cache side couldn't be written (read-only mount, a package
+  directory owned by someone else, a full disk), IVPM used to fetch into the
+  deps-dir and copy the whole tree into the cache. Now it fails with
+  `cannot fetch <pkg> into the cache at <dir>`. Fix the cache, or turn caching
+  off for the dependency (`cache: false`) or the run (`IVPM_CACHE=`). A
+  publish whose source is not on the cache filesystem is also refused rather
+  than copied.
+- **Change: cached patched packages are patched in the cache.** On a miss,
+  the pristine source is fetched straight into cache-side staging, patched
+  there, and published as the `<base>+patch.<id>` entry. IVPM no longer keeps
+  a separate pristine base entry and copies it for each patch set. Two
+  different patch sets of the same base now each fetch the source once.
+- **Fix: a reused cache link kept its old protection partition.** If the policy
+  a package resolves to changes (the user's group, the project's group list, or
+  unprotected to protected), `ivpm update` used to keep linking the workspace to
+  the old partition. Now, when the package's policy has changed, the link is
+  refreshed into the matching partition ("refreshing <pkg>: protection policy
+  changed (...)"). The old partition's entry is left alone. This runs only
+  when every installed preparer was consulted for the reused package, so the
+  preparer that sets the policy needs `always = True`. Only symlinks made by
+  the cache are moved; real trees in the deps-dir are never touched.
+- **Fix: losing a cache publish race on NFS failed the whole update.** When two
+  runs fetched the same missing version at once, the loser's publish was
+  refused. It then checked for the winner's entry, but its host could still
+  have "doesn't exist" cached from the lookup moments earlier (for up to the
+  mount's `acdirmax`, 60 s by default), and the run failed with
+  `CacheStoreError: ... Directory not empty`.
+  - The loser now keeps its own copy and waits for the winner's entry to become
+    visible. The package's progress line shows the wait, and plain logs get a
+    note every 10 s.
+  - The wait is `acdirmax` (or `actimeo`) plus 10 s for the cache's NFS
+    mount. It is 5 s for `lookupcache=positive|none`, `noac` or local
+    filesystems, and 60 s when the mount is unknown. Override it with
+    `IVPM_CACHE_ADOPT_WAIT` or `cache-adopt-wait:` in the config file.
+  - If the entry still isn't visible, or this user can't read it, the run
+    publishes its own copy as `<version>~alt~<id>` and links to it, with a
+    warning. Inside the copy, `.ivpm-cache-divergence.json` records the host,
+    the budget and every check made. Later runs use the shared entry.
+  - `ivpm cache verify` lists these copies (`divergent-copy`, informational),
+    and `ivpm cache info -v` shows them. `ivpm cache clean` ages them out like
+    other entries; `--divergent` removes all of them.
+- **New: a multi-host stress test for the shared cache.**
+  `test/stress/cache_stress.py` runs IVPM's cache code on 2 to N hosts at once
+  and checks nine invariants. It covers publish races, NFS time-to-visible for
+  each refresh method, end-to-end updates, eviction churn and hit-path load.
+  See `docs/cache-stress-test.md`.
+- **Fix: `--py-pip` left PyPI packages out of the venv when IVPM's own
+  interpreter already had them.** pip ran with IVPM's `sys.path` (and the
+  launcher's `PYTHONPATH=<ivpm>/lib`) in its environment. It reported
+  anything installed in the host Python, in `~/.local` or in IVPM's bundled
+  `lib/` as "Requirement already satisfied" and skipped it. The update then
+  succeeded, but the venv's Python couldn't import those packages. Every
+  pip/uv install into the venv, including the initial venv setup, now runs
+  without `PYTHONPATH`/`PYTHONHOME`, with `PYTHONNOUSERSITE=1` and with the
+  venv's `bin/` first on `PATH`. pip is run directly instead of through
+  `ivpm.pywrap`.
+- **After installing, the venv is checked for every package the generated
+  `python_pkgs_*.txt` files name.** A missing package is now a fatal error that
+  names the package, where before the update succeeded silently.
+  Requirements with environment markers aren't checked.
+- **Fix: a failed Python install made the next `ivpm update` skip installing.**
+  IVPM decided packages were installed because `python_pkgs_1.txt` existed,
+  but that file is written before the installer runs. A completion marker is
+  now written into the venv only after every install phase succeeds and is
+  verified. It records a digest of the requirements, so the install is skipped
+  only when they are unchanged; changed requirements are installed without
+  needing `--py-force-install`. The marker is removed before installing, so a
+  failed or interrupted install is retried on the next run. The first update
+  after upgrading reinstalls once, because no marker exists yet.
+- **Unexpected exceptions are reported as internal errors, not tracebacks.**
+  An exception other than IVPM's own error types, from a handler callback or
+  anywhere else, now prints one line: the handler, what it was doing (and the
+  package, for a leaf callback), the exception, and the file the stack trace
+  was written to. `ivpm` exits with status 70, not 1, so scripts can tell an
+  internal error from a user error. An unexpected exception in a *leaf*
+  callback now ends the run. Before, it was logged on the debug channel only
+  and the run continued.
+- **`url: null` (or `path: null`) on a `pyproject.toml` or `package.json`
+  entry is now a located error.** It used to become the string `"None"` and
+  fail later as "file not found".
+
 # 2.39.0
 - **Claude Code plugins are discovered.** A dependency (or the project) with
   `.claude-plugin/plugin.json` -- at its root or under `plugins/*/` -- is now a

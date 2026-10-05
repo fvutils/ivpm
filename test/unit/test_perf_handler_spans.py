@@ -84,9 +84,9 @@ class TestPerfHandlerSpans(TestBase):
             self.skipTest("second update failed environmentally: %s" % e)
 
         cats = {s.category for s in ops2._perf.spans}
-        # Already-installed fast path returns before assembling requirements.
+        # Requirements are assembled (that is what the already-installed check
+        # compares against), but nothing is installed.
         self.assertNotIn("pip.install", cats)
-        self.assertNotIn("reqs.assemble", cats)
         # Tree still reconstructs cleanly.
         roots = ops2._perf.to_tree()
         self.assertEqual(len(roots), 1)

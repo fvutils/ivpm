@@ -145,6 +145,17 @@ class SiteConfig:
         """
         return DEFAULT_CACHE_VERIFY_LEVEL
 
+    def get_default_cache_adopt_wait(self) -> Optional[float]:
+        """Seconds a lost cache-publish race waits for the winner to appear.
+
+        ``None`` (the default) derives the wait from the cache filesystem's
+        NFS attribute-cache options (see :mod:`ivpm.cache_adopt`).  ``0``
+        means never wait: use this run's own copy immediately.
+        ``IVPM_CACHE_ADOPT_WAIT`` and the ``cache-adopt-wait:`` config-file key
+        take priority over this value.
+        """
+        return None
+
     def get_ivpm_install_args(self) -> List[str]:
         """Return the pip install argument(s) used to install IVPM into a new venv.
 
@@ -247,6 +258,7 @@ def parse_git_auth_order(value) -> List[str]:
 # Both files share the same schema; recognized keys today:
 #   site-config: acme                  # pin the active registered site config
 #   cache-verify: shape                # off | shape | content
+#   cache-adopt-wait: 70               # seconds; see ivpm.cache_adopt
 #   git-auth-order: [gh, ssh]          # default order for unmatched hosts
 #   git-auth:                          # host-glob -> order rules
 #     - host: "*.internal.corp"
@@ -428,6 +440,53 @@ def resolve_cache_verify_level(override=None) -> str:
     return (parse_cache_verify_level(
         get_site_config().get_default_cache_verify_level(), "site config")
         or DEFAULT_CACHE_VERIFY_LEVEL)
+
+
+def parse_cache_adopt_wait(value, origin: str = "") -> Optional[float]:
+    """A non-negative number of seconds, or None when unset or unusable.
+
+    Like :func:`parse_cache_verify_level`, a bad value is ignored with a
+    warning rather than raised: a typo in a shared config file must not stop
+    every run that reads it, and the derived default is safe.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    try:
+        seconds = float(value)
+    except (TypeError, ValueError):
+        seconds = -1.0
+    if seconds >= 0 and seconds == seconds and seconds != float("inf"):
+        return seconds
+    _logger.warning(
+        "ignoring unusable cache adopt wait %r%s (expected seconds >= 0)",
+        value, (" from %s" % origin) if origin else "")
+    return None
+
+
+def resolve_cache_adopt_wait() -> Tuple[Optional[float], Optional[str]]:
+    """``(seconds, source)`` for an explicitly configured adopt wait.
+
+    ``(None, None)`` when nothing configures it, in which case the caller
+    derives the wait from the cache's mount.  Priority:
+    ``IVPM_CACHE_ADOPT_WAIT``, then the ``cache-adopt-wait:`` key of the user
+    and site config files, then :meth:`SiteConfig.get_default_cache_adopt_wait`.
+    """
+    env = parse_cache_adopt_wait(
+        os.environ.get("IVPM_CACHE_ADOPT_WAIT"), "IVPM_CACHE_ADOPT_WAIT")
+    if env is not None:
+        return env, "env:IVPM_CACHE_ADOPT_WAIT"
+    for path, data in _load_config_files():
+        seconds = parse_cache_adopt_wait(data.get("cache-adopt-wait"), path)
+        if seconds is not None:
+            return seconds, "config:%s" % path
+    try:
+        site = parse_cache_adopt_wait(
+            get_site_config().get_default_cache_adopt_wait(), "site config")
+    except Exception:
+        site = None
+    if site is not None:
+        return site, "site-config"
+    return None, None
 
 
 def resolve_git_auth_order_ex(host: Optional[str] = None) -> Tuple[List[str], str]:

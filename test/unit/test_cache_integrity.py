@@ -134,19 +134,21 @@ class TestAcquireStaging(_Base):
         paths = {acquire_staging(prov, pkg, self.deps_dir) for _ in range(50)}
         self.assertEqual(len(paths), 50)
 
-    def test_staging_falls_back_when_cache_unwritable(self):
+    def test_staging_fails_when_cache_unwritable(self):
+        """No fallback: staging in the deps-dir would mean copying the whole
+        tree into the cache afterwards."""
+        from ivpm.cache_provider import CacheUnavailableError
         os.makedirs(self.cache_dir)
         os.chmod(self.cache_dir, 0o555)
         try:
-            pkg = _Pkg("libX")
-            staging = acquire_staging(self._provider(), pkg, self.deps_dir)
+            with self.assertRaises(CacheUnavailableError) as cm:
+                acquire_staging(self._provider(), _Pkg("libX"), self.deps_dir)
         finally:
             os.chmod(self.cache_dir, 0o755)
-        private = os.path.dirname(staging)
-        self.assertEqual(os.path.dirname(private), self.deps_dir)
-        self.assertIn(".ivpm-fetch.libX.", os.path.basename(private))
-        self.assertFalse(os.path.exists(staging))
-        self.assertEqual(stat.S_IMODE(os.stat(private).st_mode) & 0o077, 0)
+        self.assertIn("libX", str(cm.exception))
+        self.assertIn(self.cache_dir, str(cm.exception))
+        self.assertFalse(os.path.exists(self.deps_dir)
+                         and os.listdir(self.deps_dir))
 
     def test_staging_falls_back_for_provider_without_staging(self):
         staging = acquire_staging(NullCacheProvider(None), _Pkg("libX"),
@@ -757,16 +759,17 @@ class TestEntryManifest(_Base):
         self.assertFalse(os.access(self.store.entry_manifest_path(path), os.W_OK))
 
     def test_derived_entry_does_not_inherit_the_base_manifest(self):
-        """A patched variant is built by copying a cached base, so it arrives
-        carrying the base's manifest -- read-only, and describing the wrong
-        version.  Left in place it would make every lookup of the variant a
-        miss, forever."""
+        """A tree derived from a cached entry arrives carrying that entry's
+        manifest -- read-only, and describing the wrong version.  Left in place
+        it would make every lookup of the new entry a miss, forever."""
         base = self._store_entry("libX", "base1", {"a.txt": "a"})
         staging = self.store.new_staging("libX")
-        # _copy_tree, not copytree: the production patch resolver re-opens the
-        # copy for writing, because a cached base is sealed unwritable.
-        from ivpm.patch import _copy_tree
-        _copy_tree(base, staging)
+        from ivpm.fscopy import copy_tree
+        copy_tree(base, staging)
+        for root, dirs, files in os.walk(staging):
+            for n in dirs + files:
+                os.chmod(os.path.join(root, n), 0o755)
+        os.chmod(staging, 0o755)
         with open(os.path.join(staging, "patched.txt"), "w") as f:
             f.write("p")
         entry = self.store.store_version("libX", "base1+patch", staging)

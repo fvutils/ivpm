@@ -23,8 +23,9 @@ import json
 import time
 import uuid
 import shutil
-from typing import Optional
-from .msg import note
+from typing import Optional, Tuple
+from .msg import note, warning
+from .cache_adopt import ALT_MARKER, DIVERGENCE_RECORD, DIVERGENCE_SCHEMA
 from .site_config import get_site_config
 from .protection import (
     PARTITION_PREFIX, ProtectionError, ProtectionPolicy,
@@ -56,9 +57,8 @@ class CacheStoreError(Exception):
 
     The benign lost-race path (another worker published the same entry first)
     adopts the winner's entry instead of raising.  This exception is reserved
-    for *genuine* failures — ``ENOSPC``, ``EACCES``, ``EROFS``, a vanished
-    entry at link time — so they surface with context rather than being
-    silently mistaken for a cache miss.
+    for *genuine* failures — ``ENOSPC``, ``EACCES``, ``EROFS`` — so they
+    surface with context rather than being silently mistaken for a cache miss.
     """
 
     def __init__(self, package_name: str, version: str, cause):
@@ -66,6 +66,19 @@ class CacheStoreError(Exception):
             package_name, version, cause))
         self.package_name = package_name
         self.version = version
+        self.cause = cause
+
+
+class _LostRace(Exception):
+    """The publish rename was refused because the entry already exists.
+
+    Not an ``OSError``: it must not be caught by the transfer's ENOENT retry or
+    by the generic failure branch, both of which would discard the sealed tree
+    the lost-race path still needs.
+    """
+
+    def __init__(self, cause: OSError):
+        super().__init__(str(cause))
         self.cause = cause
 
 
@@ -349,6 +362,30 @@ class DirectoryCacheStore:
         """
         return self._STAGING_MARKER in name or self._TOMB_MARKER in name
 
+    # A divergent entry is this run's own copy, published under
+    # ``<key>~alt~<uuid32>`` when a lost race could not use the winner's entry
+    # (see cache_adopt).  It is content -- linked into a workspace -- but never
+    # the answer to a lookup, which only ever goes to the canonical key.
+    _ALT_MARKER = ALT_MARKER
+    _DIVERGENCE_RECORD = DIVERGENCE_RECORD
+
+    #: Files at an entry's root that are cache machinery, not content: the
+    #: manifest (written at seal time) and the divergence record (written after
+    #: it).  Every measurement of an entry skips both.
+    _ENTRY_SKIP = (".ivpm-cache-entry.json", DIVERGENCE_RECORD)
+
+    def _is_divergent(self, name: str) -> bool:
+        return self._ALT_MARKER in name
+
+    def canonical_key(self, name: str) -> str:
+        """The canonical version key a (possibly divergent) entry name is for."""
+        return name.split(self._ALT_MARKER, 1)[0]
+
+    def read_divergence_record(self, entry_dir: str) -> Optional[dict]:
+        """A divergent entry's record, or None if absent/unreadable."""
+        return self._read_meta_at(os.path.join(entry_dir,
+                                               self._DIVERGENCE_RECORD))
+
     def _evict(self, package_name: str, version: str,
                policy: Optional[ProtectionPolicy] = None) -> bool:
         """Atomically remove an entry from view, then delete its bytes.
@@ -513,7 +550,9 @@ class DirectoryCacheStore:
 
     def store_version(self, package_name: str, version: str, source_path: str,
                       source: Optional[dict] = None,
-                      policy: Optional[ProtectionPolicy] = None) -> str:
+                      policy: Optional[ProtectionPolicy] = None,
+                      monitor=None,
+                      context: Optional[dict] = None) -> str:
         """Store a package version in the cache.
 
         Args:
@@ -526,9 +565,17 @@ class DirectoryCacheStore:
                 published from a *different* source than the one now asking
                 for it, which is the only externally visible symptom of a
                 cache-key collision.
+            monitor: Optional :class:`ivpm.cache_adopt.AdoptMonitor` that
+                observes a lost-race wait (progress, outcome).
+            context: Optional extra fields (e.g. the workspace) recorded in a
+                divergence record if one has to be written.
 
         Returns:
-            Path to the cached version directory
+            Path to the entry the caller should use.  Normally the canonical
+            entry.  When this run lost the publish race and could not use the
+            winner's entry, a divergent ``<key>~alt~<uuid>`` entry holding this
+            run's own copy -- or, if even that could not be published, the
+            sealed staging tree itself (see :meth:`copy_to_deps`).
         """
         version_dir = self.get_version_cache_dir(package_name, version, policy)
 
@@ -609,6 +656,10 @@ class DirectoryCacheStore:
                 policy=policy,
                 seal=lambda staging: self._seal(
                     staging, package_name, version, source, policy))
+        except _LostRace as lost:
+            return self._resolve_lost_race(
+                package_name, version, version_dir, staging_dir, source_path,
+                lost.cause, policy, monitor, context)
         except ProtectionError as e:
             self._discard(staging_dir)
             self._consume_source(source_path)
@@ -620,13 +671,9 @@ class DirectoryCacheStore:
             # until write permission comes back.  A plain rmtree here silently
             # left the whole tree behind on every lost race.
             self._discard(staging_dir)
-            # Only a lost race adopts the winner's (atomically complete) entry;
-            # any other errno (ENOSPC/EACCES/EROFS/...) is a genuine failure.
-            if e.errno in (errno.ENOTEMPTY, errno.EEXIST, errno.ENOTDIR) \
-                    and self._is_populated(version_dir):
-                self._consume_source(source_path)
-                return version_dir
             self._consume_source(source_path)
+            # A lost race never gets here (it is _LostRace, above).  Any other
+            # errno (ENOSPC/EACCES/EROFS/ENOTDIR...) is a genuine failure.
             raise CacheStoreError(package_name, version, e) from e
 
         self._reap_staging_parent(source_path)
@@ -648,6 +695,162 @@ class DirectoryCacheStore:
 
         note(f"Cached {package_name} version {version}")
         return version_dir
+
+    def _resolve_lost_race(self, package_name: str, version: str,
+                           version_dir: str, staging_dir: str,
+                           source_path: str, cause: OSError,
+                           policy: Optional[ProtectionPolicy],
+                           monitor, context: Optional[dict]) -> str:
+        """Use the winner's entry, or -- failing that -- our own copy.
+
+        ``ENOTEMPTY``/``EEXIST`` from the publish rename is the server saying a
+        complete, sealed entry is at *version_dir*: the seal happens before the
+        rename, and an empty leftover would have been replaced rather than
+        refused.  That answer is authoritative and is not re-validated.  The
+        only open question is whether *this host* can use the entry yet -- on
+        NFS it may still hold the "doesn't exist" result of the cache-miss
+        lookup moments ago.  So keep our sealed tree, wait (bounded) for the
+        winner to become usable here, and only if it does not, publish ours
+        under a divergent name.  A lost race never fails the run.
+        """
+        from . import cache_adopt as ca
+        from .utils import safe_version_key
+        keep_staging = False
+        try:
+            budget = ca.resolve_adopt_budget(self.cache_dir)
+            result = ca.await_winner(
+                version_dir, package_name, safe_version_key(version), budget,
+                manifest_name=self._ENTRY_MANIFEST,
+                legacy_ok=self._legacy_entries_ok, monitor=monitor)
+            if result.adopted:
+                if result.outcome == ca.ADOPTED_AFTER_WAIT:
+                    note("%s: the cache entry another process published became "
+                         "visible after %.1fs" % (package_name, result.waited_s))
+                return version_dir
+            path = self._publish_divergent(
+                package_name, version, version_dir, staging_dir, cause,
+                result, policy, context)
+            keep_staging = path == staging_dir
+            return path
+        finally:
+            # Covers adoption, a published divergent copy (the tree has been
+            # renamed away, so this is a no-op), and Ctrl-C mid-wait: a sealed
+            # tree is never left behind.
+            if not keep_staging:
+                self._discard(staging_dir)
+            self._consume_source(source_path)
+
+    def _publish_divergent(self, package_name: str, version: str,
+                           version_dir: str, staging_dir: str,
+                           cause: OSError, result,
+                           policy: Optional[ProtectionPolicy],
+                           context: Optional[dict]) -> str:
+        """Publish our sealed staging tree as ``<key>~alt~<uuid>``, with a record.
+
+        Returns the divergent entry.  If even that rename fails, returns the
+        staging tree itself; the caller then copies it into the workspace
+        uncached (:meth:`copy_to_deps`) and it ages out via the staging sweep.
+        """
+        from . import cache_adopt as ca
+        alt_dir = version_dir + self._ALT_MARKER + uuid.uuid4().hex
+        record = self._divergence_record(package_name, version, version_dir,
+                                         alt_dir, cause, result, context)
+        self._write_divergence_record(staging_dir, record, policy)
+        why = ca.describe_outcome(result)
+        try:
+            os.rename(staging_dir, alt_dir)
+        except OSError as e:
+            warning("%s: another process published this cache entry first, but "
+                    "%s.  Publishing this run's own copy as a divergent entry "
+                    "also failed (%s), so it is used uncached for this "
+                    "workspace only.\n  Probe trail: %s"
+                    % (package_name, why, e,
+                       json.dumps(result.observations[-8:])))
+            return staging_dir
+
+        now = time.time()
+        self._write_meta_at(alt_dir + self._META_SUFFIX, {
+            "schema": self._META_SCHEMA, "stored": now, "last_linked": now})
+
+        if result.outcome == ca.DIVERGENT_UNREADABLE:
+            later = ("Later runs by this user will keep doing this until the "
+                     "entry's group/permissions are fixed.")
+        else:
+            later = "Later runs will use the shared entry."
+        warning("%s: another process published this cache entry first, but %s."
+                "  Using this run's own copy instead:\n    %s\n"
+                "  Details: %s\n"
+                "  %s  'ivpm cache verify' lists these copies; 'ivpm cache "
+                "clean' removes them."
+                % (package_name, why, alt_dir,
+                   os.path.join(alt_dir, self._DIVERGENCE_RECORD), later))
+        return alt_dir
+
+    def _divergence_record(self, package_name, version, version_dir, alt_dir,
+                           cause, result, context) -> dict:
+        import getpass
+        import platform
+        from .utils import safe_version_key
+        try:
+            user = getpass.getuser()
+        except Exception:
+            user = None
+        record = {
+            "schema": DIVERGENCE_SCHEMA,
+            "reason": result.outcome,
+            "package": package_name,
+            "version": safe_version_key(version),
+            "canonical": version_dir,
+            "path": alt_dir,
+            "created": time.time(),
+            "host": _hostname(),
+            "pid": os.getpid(),
+            "user": user,
+            "ivpm": _ivpm_version(),
+            "kernel": platform.release(),
+            "rename_errno": errno.errorcode.get(cause.errno, str(cause.errno)),
+            "waited_s": round(result.waited_s, 3),
+            "budget": result.budget.to_json(),
+            "last_probe": result.last_probe,
+            "observations": result.observations,
+        }
+        if context:
+            for k, v in context.items():
+                record.setdefault(k, v)
+        return record
+
+    def _write_divergence_record(self, staging_dir: str, record: dict,
+                                 policy: Optional[ProtectionPolicy]) -> bool:
+        """Write the record into our already-sealed tree's root, then reseal.
+
+        Inside the entry, so the explanation can never be separated from what
+        it explains.  The root is ours (we created it), so owner-write can
+        always be restored briefly; the original mode is put back regardless.
+        Best effort: a missing record does not make the copy unusable.
+        """
+        try:
+            root_mode = stat.S_IMODE(os.lstat(staging_dir).st_mode)
+        except OSError:
+            return False
+        path = os.path.join(staging_dir, self._DIVERGENCE_RECORD)
+        try:
+            os.chmod(staging_dir, root_mode | stat.S_IWUSR | stat.S_IXUSR)
+            with open(path, "w") as fp:
+                json.dump(record, fp, sort_keys=True, indent=2)
+            if policy is not None:
+                from .protection import chgrp
+                chgrp(path, policy.gid)
+            os.chmod(path, file_seal_mode(0o644, policy))
+            return True
+        except (OSError, ProtectionError) as e:
+            note("Could not write the divergence record for %s (%s)"
+                 % (record.get("path"), e))
+            return False
+        finally:
+            try:
+                os.chmod(staging_dir, root_mode)
+            except OSError:
+                pass
 
     @staticmethod
     def _check_sibling(package_name: str, version: str,
@@ -695,7 +898,12 @@ class DirectoryCacheStore:
                 self._transfer(source_path, staging_dir, policy)
                 if seal is not None:
                     seal(staging_dir)
-                os.rename(staging_dir, version_dir)
+                try:
+                    os.rename(staging_dir, version_dir)
+                except OSError as e:
+                    if e.errno in (errno.ENOTEMPTY, errno.EEXIST):
+                        raise _LostRace(e) from e
+                    raise
                 return
             except OSError as e:
                 if e.errno != errno.ENOENT or attempt == 1:
@@ -706,36 +914,34 @@ class DirectoryCacheStore:
 
     def _transfer(self, source_path: str, staging_dir: str,
                   policy: Optional[ProtectionPolicy]):
-        """Move the built tree into staging without changing who can read it.
+        """Move the built tree into staging by rename -- never by copy.
 
-        ``shutil.move`` was the wrong primitive.  On one filesystem it renames,
-        which is perfect; across filesystems it silently degrades to
-        ``copytree`` + ``copy2``, which preserves mode and xattrs but **not
-        ownership** -- so every file was re-grouped to whatever the destination
-        inherited.  That is one of the two mechanisms behind wrong-group cache
-        entries, and it is invisible afterwards because the result looks
-        entirely self-consistent.
-
-        So the two cases are made explicit: rename when we can, and when we
-        cannot, copy with a function that reproduces ownership and protection
-        and *verifies* each node it writes.
+        Every fetch builds on the cache filesystem
+        (:func:`~ivpm.cache_provider.acquire_staging`), so this is always a
+        same-filesystem rename.  ``EXDEV`` means a tree was built somewhere
+        else, which is a bug or a misconfiguration, not something to paper over
+        with a copy.  A silent copy is how a misconfigured shared cache quietly
+        doubles its I/O -- and ``shutil.move``'s copy did not even preserve
+        ownership, so it also published entries carrying the wrong group.
         """
         try:
             os.rename(source_path, staging_dir)
-            if policy is not None:
-                # A rename carries the source's group, which is right when the
-                # source was built inside this partition and wrong when it was
-                # not (the deps-dir staging fallback).  Cheap to confirm; a
-                # mismatch is corrected by the seal walk, which is already
-                # about to touch every node.
-                self._retag_root(staging_dir, policy)
-            return
         except OSError as e:
-            if e.errno != errno.EXDEV:
-                raise
-        from .fscopy import copy_tree
-        copy_tree(source_path, staging_dir, policy)
-        self._discard(source_path)
+            if e.errno == errno.EXDEV:
+                # Re-raised as an OSError so store_version's failure path
+                # cleans up and reports it as a CacheStoreError.
+                raise OSError(
+                    errno.EXDEV,
+                    "%s is not on the cache filesystem; content must be "
+                    "fetched into cache-side staging, not copied in"
+                    % source_path) from e
+            raise
+        if policy is not None:
+            # A rename carries the source's group, which is right when the
+            # source was built inside this partition.  Cheap to confirm; a
+            # mismatch is corrected by the seal walk, which is already about
+            # to touch every node.
+            self._retag_root(staging_dir, policy)
 
     def _retag_root(self, path: str, policy: ProtectionPolicy):
         from .protection import chgrp
@@ -886,7 +1092,7 @@ class DirectoryCacheStore:
             if resolve_cache_verify_level() != "content":
                 return None
             from .cache_verify import entry_merkle
-            return entry_merkle(staging_dir, skip_name=self._ENTRY_MANIFEST)
+            return entry_merkle(staging_dir, skip_name=self._ENTRY_SKIP)
         except (OSError, ImportError):
             return None
 
@@ -1081,25 +1287,29 @@ class DirectoryCacheStore:
             pass
 
     def link_to_deps(self, package_name: str, version: str, deps_dir: str,
-                     policy: Optional[ProtectionPolicy] = None) -> str:
+                     policy: Optional[ProtectionPolicy] = None,
+                     target: Optional[str] = None) -> str:
         """Create a symlink from the deps directory to the cached version.
         
         Args:
             package_name: Name of the package
             version: Version identifier
             deps_dir: Dependencies directory
+            target: Link here instead of the canonical entry -- the divergent
+                entry :meth:`store_version` returned after a lost race.
             
         Returns:
             Path to the symlink in deps_dir
         """
-        version_dir = self.get_version_cache_dir(package_name, version, policy)
-        # Defensive backstop: materialize is only called after a HIT or a
-        # successful store (both guarantee populated), but a concurrent GC
-        # removing the entry between lookup and here would otherwise symlink a
-        # vanishing/empty target.
-        if not self._is_populated(version_dir):
-            raise CacheStoreError(
-                package_name, version, "entry missing or empty at link time")
+        version_dir = target or self.get_version_cache_dir(
+            package_name, version, policy)
+        # No presence re-check here.  materialize is only called after a HIT or
+        # a successful store, both of which establish the entry; a symlink does
+        # not need its target to be visible to be created.  Re-checking from
+        # this client could only fail spuriously -- after adopting a lost race
+        # on NFS, this host may not yet see the winner's entry -- and a
+        # concurrent GC removing the entry after this point is not something a
+        # check here could prevent anyway.
         link_path = os.path.join(deps_dir, package_name)
 
         # A real directory here is a materialized copy from an earlier run;
@@ -1131,8 +1341,39 @@ class DirectoryCacheStore:
         # Linking is the single choke point for "this entry was referenced
         # into a workspace" — refresh last_linked here (covers both the cache
         # HIT path and the MISS→store→materialize path).
-        self._touch_last_linked(package_name, version, policy)
+        if target is None:
+            self._touch_last_linked(package_name, version, policy)
+        else:
+            self._touch_at(version_dir)
         note(f"Linked {package_name} from cache")
+        return link_path
+
+    def copy_to_deps(self, package_name: str, tree: str, deps_dir: str) -> str:
+        """Last resort after a lost race: an *uncached* copy in the workspace.
+
+        Used only when neither the winner's entry nor a divergent copy could be
+        published (see :meth:`_publish_divergent`).  *tree* is our sealed
+        staging tree; it is copied, made writable (it is no longer shared
+        content, and a later run must be able to replace it), and discarded.
+        """
+        link_path = os.path.join(deps_dir, package_name)
+        os.makedirs(deps_dir, exist_ok=True)
+        tmp = "%s.ivpm-copy.%s" % (link_path, uuid.uuid4().hex)
+        try:
+            shutil.copytree(tree, tmp, symlinks=True)
+            self._make_writable(tmp)
+            if os.path.islink(link_path) or (
+                    os.path.lexists(link_path) and not os.path.isdir(link_path)):
+                os.unlink(link_path)
+            elif os.path.isdir(link_path):
+                self._discard(link_path)
+            os.rename(tmp, link_path)
+        except BaseException:
+            self._discard(tmp)
+            raise
+        self._discard(tree)
+        self._reap_staging_parent(tree)
+        note("Copied %s into %s uncached" % (package_name, link_path))
         return link_path
 
     # --- stale-tracking sidecar -------------------------------------------
@@ -1259,31 +1500,51 @@ class DirectoryCacheStore:
         the path is not a version directory inside this cache — e.g. an
         editable clone or a deps-source link elsewhere.
         """
-        if self.cache_dir is None:
+        entry = self.linked_entry(target_path)
+        if entry is None:
             return False
+        return self._touch_resolved(*entry)
+
+    def linked_entry(self, target_path: str
+                     ) -> Optional[Tuple[str, Optional[str], str]]:
+        """``(package, partition, version)`` for a path into this cache.
+
+        *partition* is the ``@protect.<digest>`` directory name, or None for
+        the unpartitioned layout.  Returns None when the path does not resolve
+        to a version directory inside this cache -- an editable clone, a
+        deps-source link elsewhere, or no cache at all.
+        """
+        if self.cache_dir is None:
+            return None
         real_cache = os.path.realpath(self.cache_dir)
         rel = os.path.relpath(os.path.realpath(target_path), real_cache)
         parts = rel.split(os.sep)
         if rel.startswith(".."):
-            return False
+            return None
         # Two shapes now: <pkg>/<version> when no policy is in force, and
-        # <pkg>/p.<digest>/<version> when one is.  The caller has a symlink and
-        # no policy object, so the partition is read back off the path rather
-        # than recomputed -- which is also the only way this works for a link
-        # created by a *different* workspace's policy.
+        # <pkg>/@protect.<digest>/<version> when one is.  The caller has a
+        # symlink and no policy object, so the partition is read back off the
+        # path rather than recomputed -- which is also the only way this works
+        # for a link created by a *different* workspace's policy.
         if len(parts) == 2:
-            package_name, partition, version = parts[0], None, parts[1]
-        elif len(parts) == 3 and parts[1].startswith(PARTITION_PREFIX):
-            package_name, partition, version = parts
-        else:
-            return False
-        return self._touch_resolved(package_name, partition, version)
+            return parts[0], None, parts[1]
+        if len(parts) == 3 and parts[1].startswith(PARTITION_PREFIX):
+            return parts[0], parts[1], parts[2]
+        return None
 
     def _touch_resolved(self, package_name: str, partition: Optional[str],
                         version: str) -> bool:
-        """Touch an entry identified by its *path*, not by a policy object."""
+        """Touch an entry identified by its *path*, not by a policy object.
+
+        *version* may be a divergent ``<key>~alt~<uuid>`` name: the path is
+        what identifies the entry, so a workspace linked to a divergent copy
+        keeps that copy's last-used time fresh exactly like a normal entry.
+        """
         version_dir = os.path.join(self.get_package_cache_dir(package_name),
                                    *(p for p in (partition, version) if p))
+        return self._touch_at(version_dir)
+
+    def _touch_at(self, version_dir: str) -> bool:
         if not self._is_populated(version_dir):
             return False
         meta_path = version_dir + self._META_SUFFIX
@@ -1404,6 +1665,27 @@ class DirectoryCacheStore:
                 })
                 pkg_info["total_size"] += size
 
+            # Divergent copies left by lost races: listed separately, because
+            # they are not versions anyone can look up, but they are real
+            # bytes, possibly linked into a workspace.
+            pkg_info["divergent"] = []
+            for partition, name, path in self._iter_entries(
+                    pkg_dir, result, divergent=True):
+                size = self._get_dir_size(path)
+                rec = self.read_divergence_record(path) or {}
+                meta = self._read_meta_at(path + self._META_SUFFIX) or {}
+                pkg_info["divergent"].append({
+                    "name": name,
+                    "version": self.canonical_key(name),
+                    "partition": partition,
+                    "size": size,
+                    "reason": rec.get("reason"),
+                    "host": rec.get("host"),
+                    "created": rec.get("created"),
+                    "last_linked": meta.get("last_linked"),
+                })
+                pkg_info["total_size"] += size
+
             result["packages"].append(pkg_info)
             result["total_size"] += pkg_info["total_size"]
 
@@ -1424,14 +1706,23 @@ class DirectoryCacheStore:
                 report.setdefault("unreadable", []).append(path)
             return []
 
-    def _iter_entries(self, pkg_dir: str, report: Optional[dict] = None):
+    def _iter_entries(self, pkg_dir: str, report: Optional[dict] = None,
+                      divergent: bool = False):
         """Yield ``(partition, version, path)`` for every entry of a package.
 
         Flattens the two possible layouts -- ``<pkg>/<version>`` and
         ``<pkg>/p.<digest>/<version>`` -- so that scanning code (info, GC,
         verification) has exactly one shape to handle and cannot accidentally
         treat a partition directory as an entry.
+
+        Divergent ``~alt~`` entries are *not* versions: by default they are
+        skipped, and with *divergent* only they are yielded (``version`` is
+        then the entry's full name).
         """
+        def wanted(name):
+            return (not self._is_transient(name)
+                    and self._is_divergent(name) == divergent)
+
         for name in sorted(self._listdir(pkg_dir, report)):
             path = os.path.join(pkg_dir, name)
             if not os.path.isdir(path) or os.path.islink(path):
@@ -1443,10 +1734,9 @@ class DirectoryCacheStore:
                     spath = os.path.join(path, sub)
                     if not os.path.isdir(spath) or os.path.islink(spath):
                         continue
-                    if self._is_transient(sub):
-                        continue
-                    yield name, sub, spath
-            else:
+                    if wanted(sub):
+                        yield name, sub, spath
+            elif wanted(name):
                 yield None, name, path
 
     def _get_dir_size(self, path: str) -> int:
@@ -1545,13 +1835,19 @@ class DirectoryCacheStore:
         self._discard(tomb)
         return True
 
-    def clean_older_than(self, days: int, dry_run: bool = False) -> int:
+    def clean_older_than(self, days: int, dry_run: bool = False,
+                         divergent: bool = False) -> int:
         """Remove cache entries whose *last-used* age exceeds ``days``.
 
         Last-used is :meth:`entry_last_used` — ``max(stored, last_linked,
         dir-mtime)`` — so an entry symlinked into a live workspace survives
         even if it was first cached long ago.  With no sidecar this collapses
         to the directory mtime (legacy behavior).
+
+        Divergent ``~alt~`` copies age by the same rule.  With *divergent*,
+        every divergent copy is removed regardless of age (a workspace still
+        linked to one then needs an ``ivpm update``, which relinks it to the
+        shared entry).  Nothing else ever removes them.
 
         Returns the number of entries removed, or — when ``dry_run`` — the
         number that *would* be removed.  Orphaned sidecars are swept alongside.
@@ -1600,6 +1896,21 @@ class DirectoryCacheStore:
                         pkg_name,
                         version if partition is None
                         else "%s/%s" % (partition, version)))
+
+            for partition, name, path in list(
+                    self._iter_entries(pkg_dir, divergent=True)):
+                if not divergent and self._last_used_at(path) >= cutoff:
+                    continue
+                if dry_run:
+                    removed += 1
+                elif self._evict_at(path):
+                    removed += 1
+                else:
+                    continue
+                note("%s divergent copy %s/%s" % (
+                    "Would remove" if dry_run else "Removed", pkg_name,
+                    name if partition is None
+                    else "%s/%s" % (partition, name)))
 
             if dry_run:
                 continue

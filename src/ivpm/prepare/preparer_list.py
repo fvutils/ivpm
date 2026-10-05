@@ -123,6 +123,17 @@ class PreparerList(object):
         set_policy(req.pkg, policy)
         return policy
 
+    def covers(self, req: PrepareRequest) -> bool:
+        """Whether every registered preparer runs for *req*.
+
+        Only then is the policy :meth:`prepare` attaches the whole answer.  For
+        a reused package, a preparer without ``always = True`` is skipped, and
+        its policy -- had it returned one -- is missing from the result; acting
+        on that partial answer would move the package out of its partition.
+        """
+        return bool(self.preparers) and all(
+            self._applies(p, req) for p in self.ordered())
+
     @staticmethod
     def _applies(preparer, req) -> bool:
         """Whether this preparer runs for this package.

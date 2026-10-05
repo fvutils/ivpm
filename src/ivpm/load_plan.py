@@ -63,6 +63,7 @@ class LoadState(enum.Enum):
 
     ABSENT = enum.auto()              # nothing at the path
     PREPARED_EMPTY = enum.auto()      # directory exists and is empty
+    DANGLING_LINK = enum.auto()       # symlink whose target is gone
     RESIDENT_LINK = enum.auto()       # symlink (cache hit / deps-source hit)
     RESIDENT_MATCHING = enum.auto()   # populated; lock entry matches the spec
     RESIDENT_DRIFTED = enum.auto()    # populated; lock entry differs
@@ -196,6 +197,19 @@ class LoadPlanner(object):
         with self._lock:
             return self._memo.setdefault(key, decision)
 
+    def override(self, pkg, decision: LoadDecision) -> None:
+        """Replace the memoized decision for *pkg*.
+
+        For the one case the planner cannot decide up front: a reused cache
+        link whose protection partition is no longer the one its policy
+        selects.  The policy is only known after the preparers have run, which
+        is after :meth:`decide`.  The updater changes the filesystem to match
+        (it removes the link) before overriding, so the provider's later
+        :meth:`decide` call observes an answer consistent with what is on disk.
+        """
+        with self._lock:
+            self._memo[self._key(pkg)] = decision
+
     def drifted(self) -> Dict[str, dict]:
         """Packages decided so far whose spec differs from the lock.
 
@@ -240,6 +254,15 @@ class LoadPlanner(object):
         if path is None or not os.path.lexists(path):
             return LoadDecision(LoadAction.FETCH, LoadState.ABSENT,
                                 "no content at %s" % (path or "<unset path>"))
+
+        # (2b) A symlink whose target is gone -- an evicted cache entry, a
+        # moved deps-source -- is not a populated package. Detecting it costs
+        # one stat of the link target, not a traversal, so it does not violate
+        # (3). The updater clears the link before the fetch.
+        if os.path.islink(path) and not os.path.exists(path):
+            return LoadDecision(
+                LoadAction.FETCH, LoadState.DANGLING_LINK,
+                "link target %s is missing" % os.readlink(path))
 
         # (3) A symlink is a cache or deps-source hit.  Tested before any
         # emptiness probe: the target is shared, read-only and potentially

@@ -25,6 +25,12 @@ from typing import List
 from ivpm.package import Package
 from .package_handler import PackageHandler
 from .handler_order import resolve_order
+from ..internal_error import call_handler
+
+
+def _leaf_action(callback, pkg) -> str:
+    return "running %s for package '%s'" % (
+        callback, getattr(pkg, "name", None) or "?")
 
 @dc.dataclass
 class PackageHandlerList(PackageHandler):
@@ -50,7 +56,8 @@ class PackageHandlerList(PackageHandler):
         """
         self._all_pkgs = []
         for h in resolve_order(self.handlers):
-            h.on_root_pre_load(update_info)
+            call_handler(h, "running on_root_pre_load", h.on_root_pre_load,
+                         update_info)
 
     def on_root_post_load(self, update_info):
         """Evaluate root_when, resolve handler order, then call each in order.
@@ -64,7 +71,8 @@ class PackageHandlerList(PackageHandler):
         passing = [h for h in self.handlers if self._root_conditions_pass(h)]
         passing = [h for h in passing if not self._skip_for_toolchain(h, update_info)]
         for h in resolve_order(passing):
-            h.on_root_post_load(update_info)
+            call_handler(h, "running on_root_post_load", h.on_root_post_load,
+                         update_info)
 
     @staticmethod
     def _skip_for_toolchain(h, update_info) -> bool:
@@ -90,7 +98,8 @@ class PackageHandlerList(PackageHandler):
             if not self._has_leaf_behavior(h):
                 continue
             if self._leaf_conditions_pass(h, pkg):
-                h.on_leaf_pre_load(pkg, update_info)
+                call_handler(h, _leaf_action("on_leaf_pre_load", pkg),
+                             h.on_leaf_pre_load, pkg, update_info)
 
     def on_leaf_post_load(self, pkg: Package, update_info):
         # Accumulate every package for root_when evaluation
@@ -99,7 +108,8 @@ class PackageHandlerList(PackageHandler):
             if not self._has_leaf_behavior(h):
                 continue
             if self._leaf_conditions_pass(h, pkg):
-                h.on_leaf_post_load(pkg, update_info)
+                call_handler(h, _leaf_action("on_leaf_post_load", pkg),
+                             h.on_leaf_post_load, pkg, update_info)
 
     # ------------------------------------------------------------------ #
     # Other hooks forwarded to all handlers                                #
@@ -107,7 +117,7 @@ class PackageHandlerList(PackageHandler):
 
     def build(self, build_info):
         for h in self.handlers:
-            h.build(build_info)
+            call_handler(h, "running build", h.build, build_info)
 
     def on_destroy(self, remove_info):
         """Tear down each handler's artifacts in REVERSE creation order (the

@@ -107,6 +107,15 @@ class TestResidencyStates(_LoadPlanTestCase):
         self.assertIs(d.state, LoadState.RESIDENT_DRIFTED)
         self.assertIs(d.action, LoadAction.REFRESH)
 
+    def test_dangling_symlink_fetches(self):
+        """An evicted cache entry leaves a link to nothing: not populated."""
+        pkg = self.mkPkg(url="https://example.com/p1.git")
+        os.symlink(os.path.join(self.tmp, "evicted"), pkg.path)
+        lock = self.mkLock({"p1": self.gitEntry("p1")})
+        d = LoadPlanner(self.deps_dir, lock).decide(pkg)
+        self.assertIs(d.state, LoadState.DANGLING_LINK)
+        self.assertIs(d.action, LoadAction.FETCH)
+
     def test_populated_untracked_reuses(self):
         """No lock entry must never mean 'safe to overwrite'."""
         pkg = self.mkPkg()

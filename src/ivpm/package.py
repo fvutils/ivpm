@@ -405,6 +405,20 @@ class Package(object):
         
         return info
     
+    def _opt_str(self, opts, key) -> str:
+        """``opts[key]`` as a string; fatal() if it is null or a mapping/list.
+
+        ``str()`` alone turns ``key: null`` into the string "None", which then
+        fails far from its cause -- as "file not found: <dir>/None", say.
+        """
+        v = opts[key]
+        if v is None or isinstance(v, (dict, list)):
+            fatal("Package '%s': '%s' must be a string, not %s @ %s" % (
+                self.name, key,
+                "null" if v is None else "a %s" % type(v).__name__,
+                getlocstr(self)), self)
+        return str(v)
+
     def process_options(self, opts, si):
         self.srcinfo = si
 

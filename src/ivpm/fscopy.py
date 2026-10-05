@@ -36,7 +36,7 @@ import os
 import shutil
 import stat
 
-from .protection import ProtectionError, ProtectionPolicy, chgrp
+from .protection import ProtectionError, ProtectionPolicy, chgrp, policy_file_mode
 
 
 def copy_tree(src: str, dst: str, policy=None) -> None:
@@ -98,7 +98,7 @@ def _finish_file(src: str, dst: str, st, policy) -> None:
     # system.posix_acl_access, so a file's ACL survives the copy.
     shutil.copystat(src, dst, follow_symlinks=False)
     if policy is not None:
-        os.chmod(dst, policy.file_mode)
+        os.chmod(dst, policy_file_mode(st.st_mode, policy))
     _verify(dst, st, policy, is_dir=False)
 
 
@@ -141,7 +141,8 @@ def _verify(path: str, src_st, policy, *, is_dir: bool) -> None:
     if policy is None:
         want = stat.S_IMODE(src_st.st_mode)
     else:
-        want = (policy.dir_mode | stat.S_ISGID) if is_dir else policy.file_mode
+        want = ((policy.dir_mode | stat.S_ISGID) if is_dir
+                else policy_file_mode(src_st.st_mode, policy))
     if stat.S_IMODE(st.st_mode) != stat.S_IMODE(want):
         raise ProtectionError(
             "%s came out with mode 0o%o, expected 0o%o"

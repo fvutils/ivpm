@@ -51,9 +51,9 @@ class PackagePyprojectToml(Package):
         super().process_options(opts, si)
         self.src_type = "pyproject.toml"
         if "url" in opts:
-            self.url = str(opts["url"])
+            self.url = self._opt_str(opts, "url")
         if "path" in opts:
-            self.toml_path = str(opts["path"])
+            self.toml_path = self._opt_str(opts, "path")
         if self.url is None and self.toml_path is None:
             # Minimal form: the pyproject.toml next to the declaring ivpm.yaml
             self.toml_path = "pyproject.toml"

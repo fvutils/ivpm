@@ -36,10 +36,11 @@ from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
 from typing import Dict, List, Tuple
 from ivpm.utils import get_venv_python
+from .internal_error import InternalError, is_expected, handler_name
 from .project_ops_info import ProjectUpdateInfo
 from .dep_mode import FLATTEN
 from .dep_materialize import promote_to_writable
-from .load_plan import LoadAction
+from .load_plan import LoadAction, LoadDecision
 from .perf import span_or_null
 from .pkg_remove import RefreshDenied
 from .prepare import PrepareDenied
@@ -69,6 +70,26 @@ def _origin_suffix(pkg) -> str:
     if resolved_by:
         parts.append("required by: %s" % resolved_by)
     return (" [%s]" % ", ".join(parts)) if parts else ""
+
+
+def _dispatch_leaf(callback, pkg, update_info):
+    """Run a leaf-phase handler callback, converting a bug into InternalError.
+
+    ``HandlerFatalError`` and ``fatal()`` pass through to the batch driver,
+    which reports them against the dependency. Anything else used to be logged
+    on the (normally silent) debug channel and the run carried on, leaving the
+    package half-processed with no visible sign. It now ends the run as an
+    internal error naming the handler and the package.
+    """
+    try:
+        callback(pkg, update_info)
+    except Exception as e:
+        if is_expected(e):
+            raise
+        raise InternalError(
+            e, "running %s for package '%s'" % (
+                getattr(callback, "__name__", "a leaf callback"), pkg.name),
+            handler_name(getattr(callback, "__self__", None))) from e
 
 
 def _already_reported(exc) -> bool:
@@ -496,6 +517,11 @@ class PackageUpdater(object):
                 # that would send the user looking at the wrong thing. The
                 # dependency's file:line:col still comes from pkg.srcinfo.
                 fatal(str(result), pkg)
+            elif isinstance(result, InternalError):
+                # A bug, not a fetch failure: "Failed to update <pkg>" would
+                # send the user to check the dependency's source spec. main()
+                # reports it with the right framing and exit status.
+                raise result
             elif _already_reported(result):
                 # The reason was rendered where it was hit; all that is missing
                 # is which dependency entry is responsible. Report that much,
@@ -531,13 +557,15 @@ class PackageUpdater(object):
                 None, self._update_pkg, pkg, scope
             )
 
-    def _prepare_pkg(self, pkg, decision, scope, update_info) -> None:
+    def _prepare_pkg(self, pkg, decision, scope, update_info) -> bool:
         """Run the registered preparers for *pkg* before it is populated.
 
-        A no-op when no preparer is installed, which is the default.
+        A no-op when no preparer is installed, which is the default.  Returns
+        True when every preparer ran, i.e. the policy now attached to *pkg* is
+        the complete answer rather than a partial one.
         """
         if not self.preparers:
-            return
+            return False
 
         from .prepare import PrepareRequest
         from .protection import ProtectionError
@@ -576,6 +604,41 @@ class PackageUpdater(object):
                     "protection", PrepareResult.deny(str(e)))])
         if policy is not None:
             _logger.debug("%s will be protected as %s", pkg.name, policy)
+        return self.preparers.covers(req)
+
+    def _relink_if_policy_changed(self, pkg, decision, update_info):
+        """Re-fetch a reused cache link whose protection partition is stale.
+
+        The planner decides REUSE before the preparers run, so it cannot see
+        that the policy changed -- the user's group, the project's group list,
+        or a move from unprotected to protected.  Left alone, the workspace
+        would keep pointing at content protected for the old policy on every
+        later update.  Returns the decision the provider should act on.
+
+        Only a symlink into the cache is touched: removing it discards nothing,
+        so no removal-safety gate applies.  A real tree in the deps-dir is never
+        re-protected here.
+        """
+        if decision.action is not LoadAction.REUSE:
+            return decision
+        if pkg.path is None or not os.path.islink(pkg.path):
+            return decision
+        try:
+            change = update_info.get_cache_provider().linked_policy_mismatch(pkg)
+        except Exception:
+            _logger.debug("Could not check the cache link for %s", pkg.name,
+                          exc_info=True)
+            return decision
+        if change is None:
+            return decision
+
+        reason = "protection policy changed (%s)" % change
+        note("refreshing %s: %s" % (pkg.name, reason))
+        os.unlink(pkg.path)
+        decision = LoadDecision(LoadAction.REFRESH, decision.state, reason,
+                                lock_entry=decision.lock_entry)
+        update_info.get_load_planner().override(pkg, decision)
+        return decision
 
     def _refresh_pkg(self, pkg, decision, update_info) -> None:
         """Clear a stale tree so the provider's fetch path can re-materialize it.
@@ -669,13 +732,25 @@ class PackageUpdater(object):
                 note("refreshing %s: %s" % (pkg.name, decision.reason))
                 self._refresh_pkg(pkg, decision, update_info)
 
+            # A dangling link holds no content, so there is nothing to protect:
+            # just clear it, or the provider would try to write through it.
+            # Keyed on the filesystem rather than decision.state so that a
+            # patched package (state PATCHED) is covered as well.
+            if (pkg.path is not None and os.path.islink(pkg.path)
+                    and not os.path.exists(pkg.path)):
+                note("re-fetching %s: link target %s is missing" % (
+                    pkg.name, os.readlink(pkg.path)))
+                os.unlink(pkg.path)
+
             # Prepare the location before anything is written into it. This is
             # where a site configures the target (group, mode, ACL) so that
             # content inherits it as it is created, and where it can refuse.
-            self._prepare_pkg(pkg, decision, scope, update_info)
+            if self._prepare_pkg(pkg, decision, scope, update_info):
+                decision = self._relink_if_policy_changed(
+                    pkg, decision, update_info)
 
             # Notify handler before the package is fetched
-            self.pkg_handler.on_leaf_pre_load(pkg, update_info)
+            _dispatch_leaf(self.pkg_handler.on_leaf_pre_load, pkg, update_info)
 
             pkg.proj_info = pkg.update(update_info)
 
@@ -692,13 +767,7 @@ class PackageUpdater(object):
             update_info.all_pkgs_by_key[pkg_key(pkg)] = pkg
 
             # Notify the package handlers after the source is loaded
-            from .handlers.package_handler import HandlerFatalError
-            try:
-                self.pkg_handler.on_leaf_post_load(pkg, update_info)
-            except HandlerFatalError:
-                raise
-            except Exception as leaf_exc:
-                _logger.warning("Handler error for package %s: %s", pkg.name, leaf_exc)
+            _dispatch_leaf(self.pkg_handler.on_leaf_post_load, pkg, update_info)
 
             # Ensure that we use the requested dep-set
             if pkg.proj_info is not None:
@@ -722,7 +791,8 @@ class PackageUpdater(object):
             from .utils import describe_exception
             self.update_info.package_error(
                 pkg.name,
-                str(e) if _already_reported(e) else describe_exception(e),
+                str(e) if _already_reported(e) or isinstance(e, InternalError)
+                else describe_exception(e),
                 loc=getattr(pkg, "srcinfo", None))
             raise
 

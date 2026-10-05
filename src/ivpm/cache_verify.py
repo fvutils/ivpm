@@ -71,6 +71,8 @@ class Problem(enum.Enum):
     STAGING_RESIDUE      = "staging-residue"
     TOMB_RESIDUE         = "tomb-residue"
     VERSION_KEY_INVALID  = "version-key-invalid"
+    DIVERGENT_COPY       = "divergent-copy"         # a lost race's own copy
+    DIVERGENT_NO_RECORD  = "divergent-no-record"    # ...without its record
 
 
 # --- repair actions -------------------------------------------------------
@@ -79,6 +81,9 @@ REPAIR_RESEAL   = "reseal"
 REPAIR_REMOVE   = "remove"
 REPAIR_BACKFILL = "backfill"
 REPAIR_MANUAL   = "manual"
+#: Informational: nothing to repair.  Divergent copies are removed only by
+#: ``ivpm cache clean`` -- one may be linked into a live workspace.
+REPAIR_NONE     = "none"
 
 #: How each problem is fixed.  A property of the *problem*, decided once here
 #: rather than re-derived at each call site -- otherwise the CLI, the update
@@ -106,6 +111,8 @@ REPAIR: Dict[Problem, str] = {
     # IVPM must not guess at an administrator's intent.
     Problem.ENTRY_SYMLINK:        REPAIR_MANUAL,
     Problem.VERSION_KEY_INVALID:  REPAIR_MANUAL,
+    Problem.DIVERGENT_COPY:       REPAIR_NONE,
+    Problem.DIVERGENT_NO_RECORD:  REPAIR_NONE,
 }
 
 #: Default severity per problem.  See the severity policy in the docs: an
@@ -129,6 +136,11 @@ SEVERITY: Dict[Problem, Severity] = {
     # Expected during the migration window, and there may be hundreds.  INFO,
     # aggregated, so it informs without becoming noise.
     Problem.MANIFEST_MISSING:     Severity.INFO,
+    # Breadcrumbs from lost publish races (see cache_adopt).  Worth knowing
+    # about -- many of them point at a mount or permission problem -- but not
+    # damage.
+    Problem.DIVERGENT_COPY:       Severity.NOTE,
+    Problem.DIVERGENT_NO_RECORD:  Severity.NOTE,
 }
 
 #: Problems that mean *an entry can serve content that is not what its key
@@ -146,6 +158,14 @@ SERVES_WRONG_CONTENT = frozenset({
 
 #: Problems that describe residue rather than an entry -- their bytes are pure
 #: reclaimable waste.
+#: Findings that describe the cache without saying anything is wrong with it;
+#: they never move the status off HEALTHY.
+INFORMATIONAL = frozenset({
+    Problem.MANIFEST_MISSING,
+    Problem.DIVERGENT_COPY,
+    Problem.DIVERGENT_NO_RECORD,
+})
+
 RESIDUE = frozenset({
     Problem.STAGING_RESIDUE,
     Problem.TOMB_RESIDUE,
@@ -193,7 +213,7 @@ class Finding:
 
     @property
     def auto_repairable(self) -> bool:
-        return self.repair != REPAIR_MANUAL
+        return self.repair not in (REPAIR_MANUAL, REPAIR_NONE)
 
     def to_json(self) -> dict:
         out = {
@@ -269,7 +289,7 @@ class VerifyResult:
         the wrong bytes, or a human has to intervene.  A CI gate fails on
         BROKEN and warns on DEGRADED.
         """
-        real = [f for f in self.findings if f.problem is not Problem.MANIFEST_MISSING]
+        real = [f for f in self.findings if f.problem not in INFORMATIONAL]
         if not real:
             return Status.HEALTHY
         for f in real:
@@ -300,6 +320,7 @@ class VerifyResult:
 
     def to_json(self) -> dict:
         auto = sum(1 for f in self.findings if f.auto_repairable)
+        manual = sum(1 for f in self.findings if f.repair == REPAIR_MANUAL)
         return {
             "schema": 1,
             "cache_dir": self.cache_dir,
@@ -313,7 +334,8 @@ class VerifyResult:
             "elapsed_s": round(self.elapsed_s, 3),
             "totals": {"problems": len(self.findings),
                        "auto_repairable": auto,
-                       "manual": len(self.findings) - auto,
+                       "manual": manual,
+                       "informational": len(self.findings) - auto - manual,
                        "reclaimable_bytes": self.reclaimable_bytes},
             "by_problem": self.by_problem(),
             "findings": [f.to_json() for f in self.findings],
@@ -366,7 +388,7 @@ def _check_dir(m: 'TreeMeasurement', dp: str):
         m.bad_dirs.append(dp)
 
 
-def measure_tree(path: str, *, skip_name: Optional[str] = None,
+def measure_tree(path: str, *, skip_name=None,
                  hash_content: bool = False,
                  check_dir_seal: bool = False) -> TreeMeasurement:
     """Census one entry tree, by exactly the rule the seal used.
@@ -383,12 +405,21 @@ def measure_tree(path: str, *, skip_name: Optional[str] = None,
       tree, so counting it now would make every sealed entry look one file too
       large.
 
+    *skip_name* is one root-level file name, or a collection of them (the
+    manifest and the divergence record), excluded from the census.
+
     With *hash_content*, also computes a merkle root over the tree: sorted
     ``relpath\\0kind\\0digest`` lines, so a rename, a retype, or a content
     change all move the root, and the result does not depend on walk order.
     """
     m = TreeMeasurement()
     lines = []
+    if skip_name is None:
+        skip = frozenset()
+    elif isinstance(skip_name, str):
+        skip = frozenset((skip_name,))
+    else:
+        skip = frozenset(skip_name)
     if check_dir_seal:
         # The entry root is sealed too, and is the *only* directory in an entry
         # with no subdirectories -- so skipping it would make permission drift
@@ -401,7 +432,7 @@ def measure_tree(path: str, *, skip_name: Optional[str] = None,
             if check_dir_seal:
                 _check_dir(m, dp)
         for f in sorted(filenames):
-            if skip_name is not None and root == path and f == skip_name:
+            if root == path and f in skip:
                 continue
             m.files += 1
             fp = os.path.join(root, f)
@@ -438,7 +469,7 @@ def measure_tree(path: str, *, skip_name: Optional[str] = None,
     return m
 
 
-def entry_merkle(path: str, skip_name: Optional[str] = None) -> str:
+def entry_merkle(path: str, skip_name=None) -> str:
     """The merkle root of an entry tree (used at seal time and at verify time)."""
     return measure_tree(path, skip_name=skip_name, hash_content=True).merkle
 
@@ -550,7 +581,7 @@ def _verify_one(store, result: VerifyResult, package_name: str, version: str,
     want_hash = (level == LEVEL_CONTENT
                  and manifest is not None
                  and manifest.get("content", {}).get("merkle"))
-    m = measure_tree(path, skip_name=store._ENTRY_MANIFEST,
+    m = measure_tree(path, skip_name=store._ENTRY_SKIP,
                      hash_content=bool(want_hash),
                      check_dir_seal=True)
     result.bytes_hashed += m.bytes_hashed
@@ -662,6 +693,12 @@ def _verify_package(store, result: VerifyResult, pkg_name: str, pkg_dir: str,
         if name == store._POLICY_FILE:
             continue          # the partition's own description, not content
 
+        if store._is_divergent(name) and os.path.isdir(path) \
+                and not os.path.islink(path):
+            _verify_divergent(store, result, pkg_name, name, path, level)
+            versions.add(name)            # its sidecar is not an orphan
+            continue
+
         if not os.path.isdir(path) and not os.path.islink(path):
             continue                       # a stray file, not our business
 
@@ -710,6 +747,60 @@ def _verify_package(store, result: VerifyResult, pkg_name: str, pkg_dir: str,
                 "the sidecar is not readable JSON; this entry's age falls back "
                 "to its directory mtime",
                 reclaimable=_file_size(path)))
+
+
+def _verify_divergent(store, result: VerifyResult, pkg_name: str, name: str,
+                      path: str, level: str):
+    """A lost race's own copy: report it, and verify it as its canonical key.
+
+    Verified against the *canonical* key because that is what its manifest
+    records -- it was sealed for that key before the publish rename lost.
+    Checking it against its own directory name would read as a
+    ``MANIFEST_MISMATCH`` and evict a copy a workspace may be linked to.
+    """
+    canonical = store.canonical_key(name)
+    result.entries += 1
+    result.total_bytes += _size(store, path)
+    if os.path.isfile(store.entry_manifest_path(path)):
+        result.sealed += 1
+    else:
+        result.legacy += 1
+
+    rec = store.read_divergence_record(path)
+    if rec is None:
+        result.findings.append(make_finding(
+            Problem.DIVERGENT_NO_RECORD, pkg_name, name, path,
+            "a divergent copy of %s with no readable %s; it was left by a lost "
+            "publish race, but why is not recorded" % (
+                canonical, store._DIVERGENCE_RECORD),
+            uid=_uid(path)))
+    else:
+        result.findings.append(make_finding(
+            Problem.DIVERGENT_COPY, pkg_name, name, path,
+            "this run's own copy of %s, published by %s on %s (%s) after %s; "
+            "waited %ss of a %ss budget (%s), last probe %s.  Removed by "
+            "'ivpm cache clean'" % (
+                canonical, rec.get("user") or "?", rec.get("host") or "?",
+                _when(rec.get("created")), rec.get("reason") or "?",
+                rec.get("waited_s", "?"),
+                (rec.get("budget") or {}).get("seconds", "?"),
+                (rec.get("budget") or {}).get("source", "?"),
+                rec.get("last_probe") or "?"),
+            uid=_uid(path)))
+
+    # Everything else is checked exactly as for a normal entry -- but the
+    # findings name the divergent path, and a repair acts on that path.
+    sub = VerifyResult(level=level, cache_dir=store.cache_dir)
+    _verify_one(store, sub, pkg_name, canonical, path, level, None)
+    for f in sub.findings:
+        f.version = name
+    result.extend(sub)
+
+
+def _when(ts) -> str:
+    if not isinstance(ts, (int, float)):
+        return "?"
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts))
 
 
 def _check_residue(store, result: VerifyResult, pkg_name: str, name: str,
@@ -780,7 +871,7 @@ class RepairReport:
 
     @property
     def manual(self) -> int:
-        return sum(1 for f in self.final.findings if not f.auto_repairable)
+        return sum(1 for f in self.final.findings if f.repair == REPAIR_MANUAL)
 
     def to_json(self) -> dict:
         return {"outcome": self.outcome.value, "passes": len(self.passes),
@@ -907,6 +998,11 @@ def _apply_one(store, f: Finding) -> bool:
     run against a cache with active updates.
     """
     if f.repair == REPAIR_EVICT:
+        if store._is_divergent(os.path.basename(f.path)):
+            # By path: a divergent copy is not reachable by (package, version)
+            # -- that lookup names the canonical entry, which must not be the
+            # one evicted for a fault in the copy.
+            return bool(store._evict_at(f.path))
         return bool(store._evict(f.package, f.version))
 
     if f.repair == REPAIR_RESEAL:
@@ -914,7 +1010,7 @@ def _apply_one(store, f: Finding) -> bool:
         # shape or content check is evicted, never resealed), so the content
         # is known good and only its modes are wrong.
         store._make_readonly(f.path)
-        m = measure_tree(f.path, skip_name=store._ENTRY_MANIFEST,
+        m = measure_tree(f.path, skip_name=store._ENTRY_SKIP,
                          check_dir_seal=True)
         return not m.writable and not m.bad_dirs
 

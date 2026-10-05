@@ -31,7 +31,8 @@ import shutil
 import sys
 from typing import ClassVar, Dict, List, Optional, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
-from ..utils import note, fatal, get_venv_python, setup_venv, resolve_pkg_path
+from ..utils import (note, fatal, get_venv_python, setup_venv, resolve_pkg_path,
+                     venv_install_env)
 from ..installer_run import run_installer, format_output_tail
 from ..content_attrib import (
     ENROLLED_EXPLICIT, ENROLLED_PROBE, ENROLLED_PROVIDES, ENROLLED_SRC_TYPE,
@@ -255,12 +256,78 @@ def _resolve_pyproject_url(url: str, pkg=None, proj_dir: str = None) -> str:
     relative path against the ivpm.yaml that declared *pkg*."""
     from ..utils import resolve_pkg_path
 
+    if not isinstance(url, str) or not url:
+        # Callers check for a url first, and process_options() rejects a null
+        # one; reaching here means one of those checks was lost.
+        raise ValueError("pyproject.toml url must be a non-empty string, not %r"
+                         % (url,))
     path = url
     if path.startswith("file://"):
         path = path[len("file://"):]
     if pkg is not None:
         return resolve_pkg_path(pkg, path, proj_dir)
     return os.path.expandvars(path)
+
+
+# Written into the venv once every install phase has succeeded and been
+# verified. Holds the digest of the requirements that were installed; a run
+# whose requirements digest to the same value has nothing to install. Kept in
+# the venv, not beside the requirements files, so a deleted venv cannot be
+# mistaken for an installed one.
+_INSTALL_MARKER = ".ivpm-install-complete"
+
+
+def _requirements_digest(paths, deferred=()) -> str:
+    """Digest of the per-phase requirements files, in install order.
+
+    A deferred phase is not written until the install reaches it, so only its
+    position counts; its content follows from the phases before it.
+    """
+    import hashlib
+    h = hashlib.sha256()
+    for path in paths:
+        h.update(os.path.basename(path).encode() + b"\0")
+        if path in deferred:
+            h.update(b"<deferred>")
+        else:
+            with open(path, "rb") as fp:
+                h.update(fp.read())
+        h.update(b"\0")
+    return h.hexdigest()
+
+
+def _read_install_marker(path) -> Optional[str]:
+    try:
+        with open(path, "r") as fp:
+            return json.load(fp).get("requirements")
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
+def _write_install_marker(path, digest) -> None:
+    with open(path, "w") as fp:
+        json.dump({"requirements": digest}, fp)
+        fp.write("\n")
+
+
+def _remove_install_marker(path) -> None:
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+# Run by the venv's interpreter: the PEP 503-normalised names of every
+# distribution it can see.
+_INSTALLED_DISTS_QUERY = """
+import importlib.metadata as m, json, re
+names = set()
+for d in m.distributions():
+    n = d.metadata["Name"]
+    if n:
+        names.add(re.sub(r"[-_.]+", "-", n).lower())
+print(json.dumps(sorted(names)))
+"""
 
 
 def _pep508_split(spec: str):
@@ -785,18 +852,6 @@ class PackageHandlerPython(PackageHandler):
             self.use_uv = shutil.which("uv") is not None
         self._installer = "uv" if self.use_uv else "pip"
 
-        # Check whether packages were already installed
-        if os.path.isfile(os.path.join(update_info.deps_dir, "python_pkgs_1.txt")):
-            if update_info.force_py_install:
-                note("Forcing re-install of Python packages")
-            else:
-                note("Python packages already installed. Use --py-force-install to force re-install")
-                self._push_entrypoint_agent_dirs(python_dir, update_info)
-                return
-        else:
-            note("Installing Python packages")
-
-
         # Assemble the per-phase requirements files. Opened as an explicit
         # span (not a with-block) to avoid reindenting the long assembly body;
         # closed just before the install phase below.
@@ -947,20 +1002,34 @@ class PackageHandlerPython(PackageHandler):
         if _reqs_span is not None:
             _perf.close_span(_reqs_span)
 
+        # Skip the install only if the last one *completed* for exactly these
+        # requirements. The requirements files are rewritten above on every
+        # run, so their mere presence says nothing about whether an install
+        # into the venv ever succeeded.
+        marker = os.path.join(python_dir, _INSTALL_MARKER)
+        digest = _requirements_digest(python_requirements_paths, deferred_phases)
+        if not update_info.force_py_install and _read_install_marker(marker) == digest:
+            note("Python packages already installed. Use --py-force-install to force re-install")
+            self._push_entrypoint_agent_dirs(python_dir, update_info)
+            return
+        if update_info.force_py_install:
+            note("Forcing re-install of Python packages")
+        elif os.path.isfile(marker):
+            note("Python requirements changed; installing Python packages")
+        else:
+            note("Installing Python packages")
+        # Removed before installing, so an install that fails -- or is killed
+        # part-way -- leaves no marker and the next run retries it.
+        _remove_install_marker(marker)
+
         if len(python_requirements_paths):
-            import sys
-            import platform
-
-            ps = ";" if platform.system() == "Windows" else ":"
-            env = os.environ.copy()
-            env["PYTHONPATH"] = ps.join(sys.path)
-
             n = len(python_requirements_paths)
             note("Installing Python dependencies in %d phases" % n)
             suppress_output = getattr(update_info, 'suppress_output', False)
             with span_or_null(getattr(update_info, "perf", None), "pip.install",
                               phases=n, mode=("uv" if self.use_uv else "pip")), \
                  self.task_context(update_info, "python-install", "Installing Python packages") as task:
+                installed = []
                 for i, reqfile in enumerate(python_requirements_paths, 1):
                     task.progress(
                         f"Installing package set {i}/{n}",
@@ -978,6 +1047,12 @@ class PackageHandlerPython(PackageHandler):
                         task=task,
                         force=update_info.force_py_install,
                         update_info=update_info)
+                    installed.append(reqfile)
+
+            self._verify_installed(
+                os.path.join(update_info.deps_dir, "python"), installed)
+
+        _write_install_marker(marker, digest)
 
         self._push_entrypoint_agent_dirs(python_dir, update_info)
 
@@ -1170,10 +1245,12 @@ class PackageHandlerPython(PackageHandler):
         # quote the installer whatever mode the run was in.
         quiet = suppress_output or task is not None
 
-        if use_uv:
-            env = os.environ.copy()
-            env["VIRTUAL_ENV"] = python_dir
+        # The installer must see only the venv. Anything visible through
+        # IVPM's own PYTHONPATH or the user site would count as already
+        # installed and be left out of the venv.
+        env = venv_install_env(python_dir)
 
+        if use_uv:
             cmd = [
                 shutil.which("uv"),
                 "pip",
@@ -1201,17 +1278,7 @@ class PackageHandlerPython(PackageHandler):
                     python_dir=python_dir, use_uv=True, use_pre=use_pre,
                     env=env)
         else: # Use pip
-            import sys
-            import platform
-
-            ps = ";" if platform.system() == "Windows" else ":"
-            env = os.environ.copy()
-            env["PYTHONPATH"] = ps.join(sys.path)
-
             cmd = [
-                get_venv_python(python_dir),
-                "-m",
-                "ivpm.pywrap",
                 get_venv_python(python_dir),
                 "-m",
                 "pip",
@@ -1403,7 +1470,61 @@ class PackageHandlerPython(PackageHandler):
         return None
 
 
-    def _reinstall_targets(self, requirements_file) -> List[str]:
+    def _verify_installed(self, python_dir, requirements_files) -> None:
+        """Fail if a distribution named by *requirements_files* is not in the venv.
+
+        The installer exiting 0 is not proof: when it can see packages outside
+        the venv it reports them "already satisfied" and installs nothing, and
+        the venv is later found to be missing them. So ask the venv itself,
+        with the same clean environment its users will have.
+
+        Requirements carrying an environment marker are not checked -- whether
+        they apply is the venv interpreter's decision, and IVPM's interpreter
+        may not agree with it.
+        """
+        if not (os.path.isdir(os.path.join(python_dir, "Scripts"))
+                or os.path.isfile(os.path.join(python_dir, "bin", "python"))):
+            # Nothing to ask; the install itself would already have failed.
+            return
+        expected = []
+        for reqfile in requirements_files:
+            for dist in self._reinstall_targets(reqfile, verifying=True):
+                expected.append((dist, reqfile))
+        if not expected:
+            return
+
+        try:
+            result = subprocess.run(
+                [get_venv_python(python_dir), "-c", _INSTALLED_DISTS_QUERY],
+                env=venv_install_env(python_dir),
+                capture_output=True, text=True, timeout=120)
+        except (OSError, subprocess.TimeoutExpired) as e:
+            warning("could not list the packages installed in %s (%s); "
+                    "skipping the post-install check" % (python_dir, e))
+            return
+        if result.returncode != 0:
+            warning("could not list the packages installed in %s; skipping "
+                    "the post-install check%s" % (
+                        python_dir, format_output_tail(result.stderr.splitlines())))
+            return
+        try:
+            present = set(json.loads(result.stdout))
+        except ValueError:
+            warning("could not parse the package list of %s; skipping the "
+                    "post-install check" % python_dir)
+            return
+
+        missing = [(d, f) for d, f in expected if d not in present]
+        if missing:
+            fatal("the installer reported success, but these required Python "
+                  "packages are not installed in %s:\n%s\n"
+                  "An installer that can see packages outside the venv "
+                  "(PYTHONPATH, user site) treats them as already installed." % (
+                      python_dir,
+                      "\n".join("  %s (from %s)" % (d, os.path.basename(f))
+                                for d, f in missing)))
+
+    def _reinstall_targets(self, requirements_file, verifying=False) -> List[str]:
         """Return the distribution names a requirements file directly names.
 
         Used to scope a forced reinstall to the requirements themselves,
@@ -1414,6 +1535,10 @@ class PackageHandlerPython(PackageHandler):
         An entry whose name cannot be determined is dropped: omitting it costs
         a package its forced rebuild, whereas guessing wrong names a different
         distribution -- or none at all, which some installers reject outright.
+
+        With *verifying*, the names are used to check the venv after the
+        install instead: nothing is warned about, and entries with an
+        environment marker are dropped (see :meth:`_verify_installed`).
         """
         targets = []
         seen = set()
@@ -1435,6 +1560,8 @@ class PackageHandlerPython(PackageHandler):
                 if line.startswith("--editable="):
                     path = line.split("=", 1)[1].strip()
                 dist = _project_name_at(path)
+                if dist is None and verifying:
+                    continue
                 if dist is None:
                     # Visible, not logged: the user asked for a forced
                     # reinstall, and this is IVPM quietly not doing it for
@@ -1454,8 +1581,10 @@ class PackageHandlerPython(PackageHandler):
                 # these from the file, so no marking is needed.
                 continue
             else:
-                dist = _pep508_split(line)[0]
+                dist, rest = _pep508_split(line)
                 if not dist:
+                    continue
+                if verifying and ";" in rest:
                     continue
 
             if dist not in seen:
@@ -1601,8 +1730,7 @@ class PackageHandlerPython(PackageHandler):
         real build. IVPM's own PYTHONPATH is withheld so the answer comes from
         the venv and not from whatever IVPM happens to be running out of.
         """
-        env = os.environ.copy()
-        env.pop("PYTHONPATH", None)
+        env = venv_install_env(python_dir)
         cmd = [get_venv_python(python_dir), "-c", _BUILD_REQUIRES_QUERY,
                backend, json.dumps(backend_path),
                "editable" if editable else "wheel"]

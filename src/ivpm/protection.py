@@ -36,7 +36,11 @@ read by whatever ends up creating content.  Three properties matter:
   inheritance on the partition directory, so it is correct for every fetch path
   with no O(files) ``chgrp`` walk.
 * **It never widens.**  Everything here either sets a mode the site asked for
-  or removes write permission from whatever is already there.
+  or removes write permission from whatever is already there.  The one bit a
+  policy carries over from the content is *execute*, ``chmod X``-style: an
+  executable file stays executable for exactly the classes the policy lets
+  read it (:func:`policy_file_mode`).  Execute is only ever added where the
+  source already had it, and setuid/setgid/sticky are never carried over.
 """
 import dataclasses as dc
 import hashlib
@@ -71,6 +75,10 @@ PARTITION_PREFIX = "@protect."
 #: mode can always be derived from the mode the site asked for.
 _WRITE_BITS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH
 
+_EXEC_BITS = stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+
+_SPECIAL_BITS = stat.S_ISUID | stat.S_ISGID | stat.S_ISVTX
+
 
 class ProtectionError(Exception):
     """A protection policy could not be applied or verified.
@@ -91,6 +99,12 @@ class ProtectionPolicy:
     seal derives the published mode by removing write bits (:func:`seal_mode`),
     so a site states one mode and gets the writable and read-only forms of it
     consistently.
+
+    ``file_mode`` is the mode of a *non-executable* file.  A file whose source
+    has any execute bit additionally gets execute for every class
+    ``file_mode`` grants read to (:func:`policy_file_mode`), so ``0o660`` gives
+    ``0o770`` for a script and ``0o660`` for data.  ``file_mode`` must not
+    contain setuid, setgid or sticky bits.
     """
 
     gid: int
@@ -115,6 +129,12 @@ class ProtectionPolicy:
                 raise ProtectionError(
                     "protection policy %s must be a mode in 0..0o7777, got %r"
                     % (name, mode))
+        if self.file_mode & _SPECIAL_BITS:
+            # Every file in the entry would get them -- a setuid bit stamped
+            # across a whole package is never what a site meant.
+            raise ProtectionError(
+                "protection policy file_mode 0o%o must not contain setuid, "
+                "setgid or sticky bits" % self.file_mode)
 
     # --- identity ---------------------------------------------------------
 
@@ -242,9 +262,32 @@ def dir_seal_mode(current_mode: int,
     return seal_mode(current_mode, None if policy is None else policy.dir_mode)
 
 
+def policy_file_mode(src_mode: int, policy: ProtectionPolicy) -> int:
+    """The writable mode a file gets under *policy*, given its source mode.
+
+    ``policy.file_mode``, plus ``chmod X``-style execute: when the source has
+    any execute bit, execute is added for each class (user/group/other) that
+    ``file_mode`` grants read to.  Without this a policy stripped execute from
+    every cached file -- tool wrappers and hooks stopped working -- and no
+    single ``file_mode`` could fix it: ``0o660`` drops every execute bit,
+    ``0o770`` marks data files executable.
+
+    Idempotent across the seal: a sealed executable still has its execute
+    bits, so recomputing from the sealed mode gives the same answer.  That is
+    what keeps the seal verifier from reporting drift on every executable.
+    """
+    mode = policy.file_mode & ~_SPECIAL_BITS
+    if src_mode & _EXEC_BITS:
+        # Each read bit shifted down by two is the same class's execute bit.
+        mode |= (mode & (stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)) >> 2
+    return mode
+
+
 def file_seal_mode(current_mode: int,
                    policy: Optional[ProtectionPolicy]) -> int:
-    return seal_mode(current_mode, None if policy is None else policy.file_mode)
+    if policy is None:
+        return seal_mode(current_mode)
+    return policy_file_mode(current_mode, policy) & ~_WRITE_BITS
 
 
 # --- applying a policy to a directory --------------------------------------

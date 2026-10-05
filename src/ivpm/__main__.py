@@ -14,6 +14,8 @@ from ivpm.packages_info import PackagesInfo
 from ivpm.proj_info import ProjInfo
 from ivpm.msg import flush_deferred_errors, setup_logging, SrcLoaderError
 from ivpm.handlers.package_handler import HandlerFatalError
+from ivpm.internal_error import (InternalError, EXIT_USER_ERROR,
+                                 EXIT_INTERNAL_ERROR)
 from .cmds.cmd_build import CmdBuild
 from .cmds.cmd_cache import CmdCache
 from .cmds.cmd_perf import CmdPerf
@@ -269,6 +271,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
         help="Remove entries unused for more than this many days (default: 7)")
     cache_clean_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
         help="List entries that would be removed without deleting anything")
+    cache_clean_cmd.add_argument("--divergent", dest="divergent", action="store_true",
+        help="Also remove every divergent copy (<version>~alt~<id>) left by a "
+             "lost publish race, regardless of age")
 
     # 'verify' has two modes with different guarantees: without --repair it is
     # non-mutating by construction and safe against a cache you do not own;
@@ -1074,7 +1079,7 @@ def main(project_dir=None):
         flush_deferred_errors()
         if not e.diagnostics:
             print(str(e), file=sys.stderr)
-        sys.exit(1)
+        sys.exit(EXIT_USER_ERROR)
     except HandlerFatalError as e:
         # A handler raising this is reporting an *expected* failure, so the
         # user gets the message and nothing else -- a traceback here reads as
@@ -1088,7 +1093,19 @@ def main(project_dir=None):
         if not getattr(e, "reported", False):
             # Raised outside a task_context, so nothing has been said yet.
             print(str(e), file=sys.stderr)
-        sys.exit(1)
+        sys.exit(EXIT_USER_ERROR)
+    except Exception as e:
+        # Anything else is a bug -- in ivpm or in a handler. The user gets one
+        # line saying what was running and where the stack trace went, and an
+        # exit status that tells a script this was not their input's fault.
+        # The dispatch sites wrap what they can, naming the handler; this
+        # catches the rest (command code, lock/state writing, ...).
+        if not isinstance(e, InternalError):
+            e = InternalError(e, "running 'ivpm %s'" % (
+                getattr(args, "command", None) or "?"))
+        flush_deferred_errors()
+        print("ivpm: %s" % e.summary(), file=sys.stderr)
+        sys.exit(EXIT_INTERNAL_ERROR)
     finally:
         # Any errors a TUI deferred are rendered here -- after the progress
         # display and its summary have been torn down, so the failure reason is

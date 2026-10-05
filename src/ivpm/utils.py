@@ -199,6 +199,36 @@ def get_venv_bindir(python_dir):
     return os.path.join(python_dir, "bin")
 
 
+# Variables that make an interpreter see packages from outside the venv it
+# belongs to. __PYVENV_LAUNCHER__ is set by the macOS framework launcher and
+# redirects sys.executable to whichever interpreter first set it.
+_VENV_LEAK_VARS = ("PYTHONPATH", "PYTHONHOME", "__PYVENV_LAUNCHER__")
+
+
+def venv_install_env(python_dir, base=None):
+    """Return the environment for an installer that installs into *python_dir*.
+
+    The installer must see only the venv. IVPM's launcher puts IVPM's bundled
+    libraries on PYTHONPATH, and anything on PYTHONPATH -- or in the user site
+    -- counts as "already satisfied" to pip, which then leaves it out of the
+    venv. The venv's own Python later runs without that PYTHONPATH and the
+    package is missing. So the leak variables are removed and the user site is
+    turned off.
+
+    The venv's script directory goes first on PATH, so that build backends
+    find tools (cmake, ninja, ...) installed into the venv by earlier phases.
+    """
+    env = dict(os.environ if base is None else base)
+    for var in _VENV_LEAK_VARS:
+        env.pop(var, None)
+    env["PYTHONNOUSERSITE"] = "1"
+    env["VIRTUAL_ENV"] = python_dir
+    path = env.get("PATH", "")
+    bindir = get_venv_bindir(python_dir)
+    env["PATH"] = bindir + os.pathsep + path if path else bindir
+    return env
+
+
 def find_project_root(path):
     pt = path
     while pt != "" and not is_filesystem_root(pt):
@@ -306,9 +336,8 @@ def setup_venv(python_dir, uv_pip="auto", suppress_output=False, system_site_pac
         if result.returncode != 0:
             raise Exception("Failed to create virtual environment")
 
-        # Ensure 'uv' knows where to install stuff
-        env = os.environ.copy()
-        env["VIRTUAL_ENV"] = python_dir
+        # Ensure 'uv' knows where to install stuff, and sees nothing else
+        env = venv_install_env(python_dir)
 
         cmd = [
             shutil.which("uv"),
@@ -347,20 +376,19 @@ def setup_venv(python_dir, uv_pip="auto", suppress_output=False, system_site_pac
         note("upgrading pip")
         ivpm_python = get_venv_python(python_dir)
 
-        if suppress_output:
-            subprocess.run(
-                [ivpm_python, "-m", "pip", "install", "--upgrade", "pip"],
-                stdout=stdout_arg,
-                stderr=stderr_arg
-            )
-            subprocess.run(
-                [ivpm_python, "-m", "pip", "install", "--upgrade", *ivpm_install_args, "setuptools", "wheel"],
-                stdout=stdout_arg,
-                stderr=stderr_arg
-            )
-        else:
-            os.system(ivpm_python + " -m pip install --upgrade pip")
-            os.system(ivpm_python + " -m pip install --upgrade " + " ".join(ivpm_install_args) + " setuptools wheel")
+        env = venv_install_env(python_dir)
+        subprocess.run(
+            [ivpm_python, "-m", "pip", "install", "--upgrade", "pip"],
+            env=env,
+            stdout=stdout_arg,
+            stderr=stderr_arg
+        )
+        subprocess.run(
+            [ivpm_python, "-m", "pip", "install", "--upgrade", *ivpm_install_args, "setuptools", "wheel"],
+            env=env,
+            stdout=stdout_arg,
+            stderr=stderr_arg
+        )
 
     
     return ivpm_python

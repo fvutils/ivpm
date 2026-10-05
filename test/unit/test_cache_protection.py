@@ -18,6 +18,7 @@ import stat
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SRCDIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "src"))
@@ -26,7 +27,8 @@ if SRCDIR not in sys.path:
 
 from ivpm.cache import CacheStoreError, DirectoryCacheStore
 from ivpm.protection import (PARTITION_PREFIX, ProtectionError,
-                             ProtectionPolicy, seal_mode)
+                             ProtectionPolicy, file_seal_mode,
+                             policy_file_mode, seal_mode)
 
 
 def _secondary_gid():
@@ -107,43 +109,59 @@ class TestPublishedEntryCarriesItsGroup(_Base):
                              "%s carries the wrong group" % node)
 
     @needs_group
-    def test_cross_filesystem_publish_uses_the_policy_group(self):
-        """The mechanism the report did identify.
-
-        shutil.move degrades to a copy across filesystems, and copy2 never
-        touches ownership.  Simulated by forcing the EXDEV path rather than
-        requiring a second mount, so it runs everywhere.
-        """
+    def test_cross_filesystem_copy_uses_the_policy_group(self):
+        """shutil's copy2 never touches ownership, so a copy out of the cache
+        used to re-group content to whatever the destination inherited."""
         policy = self._policy()
         src = self._src({"src/meta/album.dj": "secret"})
-        entry = self._store_cross_fs("libX", "v1", src, policy)
+        entry = self._copy_with_policy("libX", "v1", src, policy)
         self.assertEqual(
             os.stat(os.path.join(entry, "src", "meta", "album.dj")).st_gid,
             policy.gid)
 
-    def _store_cross_fs(self, pkg, version, src, policy):
+    def _copy_with_policy(self, pkg, version, src, policy):
+        """What a cross-filesystem copy produces.
+
+        Publishing never copies any more -- a cross-filesystem publish is
+        refused -- but the same copy primitive still carries cached content
+        out of the cache when a nested boundary is promoted to a writable
+        tree, so its protection guarantees are tested directly.
+        """
+        from ivpm.fscopy import copy_tree
+        dst = os.path.join(self.test_dir, "copy_%s_%s" % (pkg, version))
+        copy_tree(src, dst, policy)
+        return dst
+
+    def test_cross_filesystem_publish_is_refused(self):
+        """Content is fetched onto the cache filesystem; a tree that is not
+        there is a bug or a misconfiguration, never something to copy in."""
         import errno
         from unittest.mock import patch
+        src = self._src({"a.txt": "a"})
         real = os.rename
 
         def exdev(a, b, *args, **kw):
-            # Only the source->staging transfer is redirected; the publish
-            # rename itself must stay real, or this would test nothing.
             if os.path.abspath(a) == os.path.abspath(src):
                 raise OSError(errno.EXDEV, "cross-device link")
             return real(a, b, *args, **kw)
 
         with patch("ivpm.cache.os.rename", side_effect=exdev):
-            return self.store.store_version(pkg, version, src, policy=policy)
+            with self.assertRaises(CacheStoreError) as cm:
+                self.store.store_version("libX", "v1", src)
+        self.assertIn("not on the cache filesystem", str(cm.exception))
+        self.assertFalse(self.store.has_version("libX", "v1"))
+        pkg_dir = self.store.get_package_cache_dir("libX")
+        self.assertEqual(
+            [n for n in os.listdir(pkg_dir) if not n.startswith(".")], [])
 
     @needs_group
-    def test_cross_filesystem_publish_preserves_symlinks(self):
+    def test_cross_filesystem_copy_preserves_symlinks(self):
         policy = self._policy()
         src = self._src({"real/f.txt": "x"})
         os.symlink("real", os.path.join(src, "alias"))
         os.symlink("nowhere", os.path.join(src, "broken"))
 
-        entry = self._store_cross_fs("libX", "v1", src, policy)
+        entry = self._copy_with_policy("libX", "v1", src, policy)
         self.assertTrue(os.path.islink(os.path.join(entry, "alias")))
         self.assertTrue(os.path.islink(os.path.join(entry, "broken")))
         self.assertEqual(os.readlink(os.path.join(entry, "alias")), "real")
@@ -191,6 +209,109 @@ class TestSealingPreservesRestrictions(_Base):
         d = stat.S_IMODE(os.stat(os.path.join(entry, "sub")).st_mode)
         self.assertEqual(d & 0o777, 0o550)
         self.assertEqual(d & 0o007, 0, "other must not reach a 2770 policy")
+
+
+class TestExecuteBitsSurviveAPolicy(_Base):
+    """A policy used to stamp ``file_mode`` on every file, stripping execute
+    from tool wrappers and hooks.  Execute now carries over ``chmod X``-style:
+    for the classes the policy lets read the file, and only if the source had
+    any execute bit."""
+
+    def test_policy_file_mode_table(self):
+        cases = [
+            # (file_mode, source, building, sealed)
+            (0o660, 0o644, 0o660, 0o440),
+            (0o660, 0o755, 0o770, 0o550),
+            (0o660, 0o700, 0o770, 0o550),
+            (0o660, 0o4755, 0o770, 0o550),
+            (0o660, 0o2755, 0o770, 0o550),
+            (0o660, 0o001, 0o770, 0o550),
+            (0o640, 0o755, 0o750, 0o550),
+            (0o640, 0o644, 0o640, 0o440),
+            (0o664, 0o755, 0o775, 0o555),
+            (0o600, 0o755, 0o700, 0o500),
+        ]
+        for file_mode, src, building, sealed in cases:
+            with self.subTest(file_mode=oct(file_mode), src=oct(src)):
+                p = ProtectionPolicy(gid=0, file_mode=file_mode)
+                self.assertEqual(oct(policy_file_mode(src, p)), oct(building))
+                self.assertEqual(oct(file_seal_mode(src, p)), oct(sealed))
+
+    def test_seal_is_idempotent(self):
+        """The verifier recomputes from the *sealed* mode; it must agree."""
+        for file_mode in (0o660, 0o640, 0o600):
+            p = ProtectionPolicy(gid=0, file_mode=file_mode)
+            for src in (0o644, 0o755, 0o700, 0o600):
+                with self.subTest(file_mode=oct(file_mode), src=oct(src)):
+                    once = file_seal_mode(src, p)
+                    self.assertEqual(oct(file_seal_mode(once, p)), oct(once))
+
+    def test_no_policy_keeps_the_source_mode(self):
+        for src in (0o755, 0o750, 0o644, 0o600):
+            with self.subTest(src=oct(src)):
+                self.assertEqual(file_seal_mode(src, None), src & ~0o222)
+
+    def test_special_bits_in_file_mode_are_rejected(self):
+        for bad in (0o4660, 0o2660, 0o1660):
+            with self.subTest(file_mode=oct(bad)):
+                with self.assertRaises(ProtectionError):
+                    ProtectionPolicy(gid=0, file_mode=bad)
+
+    def _exec_tree(self):
+        src = self._src({"bin/tool": "#!/bin/sh\n", "data.txt": "d",
+                         "bin/suid": "#!/bin/sh\n"})
+        os.chmod(os.path.join(src, "bin", "tool"), 0o755)
+        os.chmod(os.path.join(src, "data.txt"), 0o644)
+        os.chmod(os.path.join(src, "bin", "suid"), 0o4755)
+        return src
+
+    def _mode(self, *parts):
+        return stat.S_IMODE(os.lstat(os.path.join(*parts)).st_mode)
+
+    def _check(self, entry, other_read):
+        exe = 0o555 if other_read else 0o550
+        self.assertEqual(oct(self._mode(entry, "bin", "tool")), oct(exe))
+        self.assertEqual(oct(self._mode(entry, "bin", "suid")), oct(exe),
+                         "setuid must never be carried into the cache")
+        self.assertEqual(oct(self._mode(entry, "data.txt")),
+                         oct(0o444 if other_read else 0o440))
+
+    @needs_group
+    def test_same_filesystem_publish_keeps_execute(self):
+        policy = self._policy(file_mode=0o640)
+        entry = self.store.store_version("libX", "v1", self._exec_tree(),
+                                         policy=policy)
+        self._check(entry, other_read=False)
+
+    @needs_group
+    def test_cross_filesystem_copy_keeps_execute(self):
+        policy = self._policy(file_mode=0o640)
+        copy = TestPublishedEntryCarriesItsGroup._copy_with_policy(
+            self, "libX", "v1", self._exec_tree(), policy)
+        # A copy is the writable form; sealing (when it applies) removes write.
+        self.assertEqual(oct(self._mode(copy, "bin", "tool")), oct(0o750))
+        self.assertEqual(oct(self._mode(copy, "bin", "suid")), oct(0o750))
+        self.assertEqual(oct(self._mode(copy, "data.txt")), oct(0o640))
+
+    @needs_group
+    def test_execute_is_only_added_where_the_policy_grants_read(self):
+        policy = self._policy(file_mode=0o660)
+        entry = self.store.store_version("libX", "v1", self._exec_tree(),
+                                         policy=policy)
+        self._check(entry, other_read=False)
+
+    @needs_group
+    def test_an_entry_with_executables_verifies_clean(self):
+        import ivpm.cache_verify as cv
+        policy = self._policy(file_mode=0o660)
+        self.store.store_version("libX", "v1", self._exec_tree(),
+                                 policy=policy)
+        result = cv.verify_cache(self.store, level="content")
+        self.assertTrue(result.ok, [str(f) for f in result.findings])
+        # And the publish-time seal check, which recomputes every mode from
+        # the sealed tree, agrees with what the seal produced.
+        self.store._verify_sealed(
+            self.store.get_version_cache_dir("libX", "v1", policy), policy)
 
 
 # --- symlinks must not be doors out of the tree ------------------------------
@@ -244,29 +365,6 @@ class TestSymlinksAreNeverFollowed(_Base):
         self.assertEqual(
             [f.problem for f in result.findings], [],
             "an entry containing a symlinked directory reports drift")
-
-    def test_patch_base_copy_preserves_symlinks(self):
-        """copytree's default symlinks=False replaced every link with a copy of
-        its target, so a patched variant was published without the links its
-        source had."""
-        from ivpm.patch import _copy_tree
-        base = self._src({"real/f.txt": "x"})
-        os.symlink("real/f.txt", os.path.join(base, "alias"))
-        stage = os.path.join(self.test_dir, "stage")
-
-        _copy_tree(base, stage)
-        self.assertTrue(os.path.islink(os.path.join(stage, "alias")))
-
-    def test_patch_base_copy_survives_a_dangling_symlink(self):
-        """It raised outright, so a package carrying one could not be
-        patch-cached at all."""
-        from ivpm.patch import _copy_tree
-        base = self._src()
-        os.symlink("nowhere", os.path.join(base, "broken"))
-        stage = os.path.join(self.test_dir, "stage")
-
-        _copy_tree(base, stage)                      # must not raise
-        self.assertTrue(os.path.islink(os.path.join(stage, "broken")))
 
     def test_dir_size_does_not_follow_symlinks(self):
         src = self._src({"big.bin": "x" * 5000})

@@ -131,6 +131,9 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     # reports -- the hit rate below would read "cache not warmed yet" when the
     # real story is "the cache is producing bad entries".
     cache_invalidated: int = 0
+    # A lost publish race whose winner this host could not use, so the run
+    # linked its own (divergent) copy instead.  See cache_adopt.
+    cache_divergent: int = 0
     total_packages: int = 0
     cacheable_packages: int = 0
     cache_unconfigured_packages: int = 0  # cache=True but IVPM_CACHE not set
@@ -372,6 +375,11 @@ class ProjectUpdateInfo(ProjectOpsInfo):
         if finding is not None:
             self.cache_findings.append(finding)
 
+    def report_cache_divergent(self, path=None):
+        """Record that a package was linked to a divergent copy (lost race)."""
+        self.cache_divergent += 1
+        self._annotate_pkg_span("cache_divergent", True)
+
     def _annotate_pkg_span(self, key, value):
         """Set a meta field on the calling thread's current package span, if any.
 
@@ -484,6 +492,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 cache_hits=self.cache_hits,
                 cache_misses=self.cache_misses,
                 cache_invalidated=self.cache_invalidated,
+                cache_divergent=self.cache_divergent,
                 cacheable_packages=self.cacheable_packages,
                 editable_packages=self.editable_packages,
                 cache_unconfigured_packages=self.cache_unconfigured_packages,
@@ -510,6 +519,8 @@ class ProjectUpdateInfo(ProjectOpsInfo):
                 _logger.info("  Hit rate: %.1f%%", hit_rate)
                 if self.cache_invalidated:
                     _logger.info("  Failed verification: %d", self.cache_invalidated)
+                if self.cache_divergent:
+                    _logger.info("  Divergent copies: %d", self.cache_divergent)
 
     def cache_health_summary(self) -> Optional[str]:
         """One line describing cache problems seen this run, or None.
