@@ -125,9 +125,15 @@ class TestInternalError(TestBase):
             raise original
         updater._update_pkg_async = fail
 
+        # The semaphore is built inside the running loop: on Python 3.9 an
+        # asyncio primitive binds the current loop at construction, and there
+        # is none outside asyncio.run().
+        async def run():
+            return await updater._process_batch_parallel(
+                [(Package("pkg-a"), None)], asyncio.Semaphore(1))
+
         with self.assertRaises(InternalError) as ctx:
-            asyncio.run(updater._process_batch_parallel(
-                [(Package("pkg-a"), None)], asyncio.Semaphore(1)))
+            asyncio.run(run())
         self.assertIs(ctx.exception, original)
 
 
