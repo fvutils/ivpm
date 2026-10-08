@@ -679,6 +679,242 @@ A preparer that returns a policy should normally set ``always = True``, so that
 the policy is also attached to packages that are reused rather than fetched.
 
 
+.. _clone-preparers:
+
+Contributing a Clone Preparer
+=============================
+
+A **clone preparer** is the root-project counterpart of a package preparer. It
+runs when ``ivpm clone`` creates a workspace, before the clone provider writes
+anything. It can refuse the clone, and it can set up the workspace directory --
+its group, mode or default ACL -- so that everything the clone and the
+post-clone update write inherits those settings.
+
+IVPM ships none, and it never interprets site policy. Which groups exist, which
+sources are export-restricted and where workspaces may live are the extension's
+business. Core only runs the hooks, checks that a prepared directory is still
+empty, and cleans up after a failed clone.
+
+Clone preparers are registered through the ``ivpm.clone_preparers`` entry-point
+group. Use ``ivpm show clone-preparers`` to see what is installed, in what
+order it runs, and which stages each one implements. ``ivpm clone --help`` also
+lists them.
+
+Two stages
+----------
+
+A clone preparer overrides ``check()``, ``prepare()``, or both:
+
+``check(req)``
+    Decide whether the clone may proceed. It **must not write anything**. Every
+    applicable preparer's ``check()`` runs, and all refusals are reported
+    together.
+
+``prepare(req)``
+    Runs only when no ``check()`` refused. It may create ``req.target_dir`` and
+    its missing parents, and set metadata on them. It runs in ``order``, and
+    the first refusal stops the stage.
+
+Each returns a ``ClonePrepareResult``: ``ok()`` (or ``None``) to proceed,
+``warn(message, hint)`` to proceed with a warning, or ``deny(message, hint)``
+to refuse. A refusal stops the clone before anything is fetched:
+
+.. code-block:: text
+
+    clone of 'git@github.com:acme/chip.git' was refused by the 'acme-export' clone preparer
+      export-restricted sources may not be cloned here
+      Hint: clone into an export-controlled area
+
+``applies(req)`` (default ``True``) lets a preparer opt out of a clone
+entirely. ``order`` (default 100, lower first, ties broken by name) sets the
+order for both stages. One instance is created per clone, so ``prepare()`` can
+use what ``check()`` worked out and cached on ``self``.
+
+Example
+-------
+
+.. code-block:: python
+
+    # acme_ivpm/workspace_policy.py
+    import grp, os
+    from ivpm.clone import (ClonePreparer, ClonePrepareResult,
+                            ManifestLoadError)
+
+    class WorkspacePolicy(ClonePreparer):
+        name = "acme-workspace"
+        description = "Refuse restricted sources; create the workspace in its group"
+
+        def check(self, req):
+            try:
+                cfg = req.config()        # this preparer's 'with:' block
+            except ManifestLoadError as e:
+                return ClonePrepareResult.warn(
+                    "cannot read the workspace policy: %s" % e)
+            if cfg.get("export") == "restricted" \
+                    and not req.target_dir.startswith("/proj/ec/"):
+                return ClonePrepareResult.deny(
+                    "export-restricted sources may not be cloned here",
+                    hint="clone under /proj/ec/")
+            self._group = cfg.get("group")
+            if self._group is not None:
+                try:
+                    self._gid = grp.getgrnam(self._group).gr_gid
+                except KeyError:
+                    return ClonePrepareResult.deny(
+                        "unknown group '%s'" % self._group)
+                if self._gid not in os.getgroups():
+                    return ClonePrepareResult.deny(
+                        "you are not a member of '%s'" % self._group,
+                        hint="request membership of '%s'" % self._group)
+
+        def prepare(self, req):
+            if self._group is None or req.target_nonempty:
+                return None
+            os.makedirs(req.target_dir, exist_ok=True)
+            os.chown(req.target_dir, -1, self._gid)
+            os.chmod(req.target_dir, 0o2770)   # setgid: the group is inherited
+
+.. code-block:: toml
+
+    # pyproject.toml of the extension
+    [project.entry-points."ivpm.clone_preparers"]
+    acme-workspace = "acme_ivpm.workspace_policy:WorkspacePolicy"
+
+The configuration is in the source's own ``ivpm.yaml``, keyed by the
+preparer's ``name``. It can be set for the package and overridden per dep-set,
+as for any other ``with:`` block:
+
+.. code-block:: yaml
+
+    package:
+      name: chip
+      with:
+        acme-workspace:
+          group: chip-eng
+      dep-sets:
+        - name: default-dev
+          deps: [...]
+        - name: secure
+          with:
+            acme-workspace:
+              export: restricted
+          deps: [...]
+
+What a preparer sees
+--------------------
+
+``req`` is a ``ClonePrepareRequest``:
+
+``src``, ``url``, ``provider``
+    The locator as typed, the URL after ``IVPM_GIT_URL_MAP`` rewriting, and the
+    clone provider that will run.
+
+``target_dir``
+    The absolute workspace directory. It usually does not exist yet. With
+    ``--here``, or when the git provider reuses an existing checkout, it may
+    already hold content; ``target_nonempty`` says so, as it was before any
+    ``prepare()`` ran.
+
+``branch``, ``tag``, ``revision``, ``dep_set``, ``cli_overrides``, ``args``
+    What was asked for on the command line: the ref, the ``-d`` dep-sets, the
+    ``-D`` definitions, and the full argument namespace.
+
+``read_file(path)``
+    The text of a file in the source, relative to its root, at the requested
+    ref -- without cloning. ``None`` when the file does not exist, or when the
+    provider cannot read files before cloning. The built-in git provider can;
+    see :doc:`clone_providers`.
+
+The source's manifest is available through three helpers, all built on
+``read_file()``. They see the manifest at the requested branch, tag or
+revision -- the one the post-clone update will install from:
+
+``load_root_package()``
+    The root ``ivpm.yaml`` with its ``include:`` files merged and ``-D`` values
+    applied, as a ``ProjInfo``. ``None`` when the source has no ``ivpm.yaml``
+    or the provider cannot read it. Parsed once per clone, however many
+    preparers ask.
+
+``selected_dep_sets()``
+    The dep-set name(s) the post-clone update will install: the ``-d`` values,
+    else ``default-dep-set``, else the first dep-set.
+
+``config(name=None)``
+    The ``with: <name>:`` block as the post-clone update will see it: the
+    package-level block overlaid by the selected dep-sets' blocks. With no
+    argument, the calling preparer's own block. ``{}`` when there is no
+    manifest or no such block. The result is a copy.
+
+All three raise ``ManifestLoadError`` when the manifest exists but cannot be
+loaded -- malformed YAML, an ``include:`` that is missing or outside the
+source tree, an unknown ``-d`` dep-set. The message is the diagnostic IVPM
+would have printed; nothing is printed. Normally turn it into a WARN, as the
+example does: refusing would stop someone from cloning a broken branch in order
+to fix it. The post-clone update reads the manifest again and reports the
+problem then. Only the root manifest is read; dependency manifests are not
+fetched.
+
+Rules a clone preparer must follow
+----------------------------------
+
+**Write nothing in** ``check()``. Every check runs before any prepare, so that
+a refusal from any preparer means no preparer has touched the disk.
+
+**Leave** ``target_dir`` **empty.** ``prepare()`` may create the directory and
+its parents and set group, mode, default ACLs or xattrs on them, but must not
+create entries inside it -- the provider populates it. IVPM checks this, and
+refuses the clone if a preparer left anything behind, leaving the directory
+in place for inspection.
+
+**Never call** ``os.umask()``. It is process-wide, and the post-clone update
+fetches on worker threads. Use setgid on the directory to propagate the group,
+and a default ACL (``setfacl -d -m g:eng:rwX``) to propagate permission bits.
+
+**Respect an existing workspace.** When ``target_nonempty`` is true, the
+directory belongs to the user. Changing its metadata is the preparer's choice,
+and IVPM does not undo it.
+
+**Treat the result as a head start, not a guarantee.** ``prepare()`` acts on
+the manifest as it was read before the clone, and a branch can move before the
+clone happens. Post-clone handlers and package preparers remain
+authoritative. If two clone preparers set the same metadata, the later one in
+``order`` wins; IVPM does not merge them.
+
+Failure and cleanup
+-------------------
+
+Clone preparers fail closed:
+
+- A preparer that raises in ``applies()``, ``check()`` or ``prepare()`` refuses
+  the clone. The message names the preparer, the method and the exception;
+  ``ivpm --log-level DEBUG clone ...`` shows the traceback. Return ``warn()``
+  instead when your preparer cannot reach a verdict and the clone should go
+  ahead.
+- A clone preparer that is installed but fails to import stops ``ivpm clone``.
+  A preparer exists to validate or prepare where a workspace is created, so
+  IVPM will not clone without it; fix or uninstall the distribution that
+  provides it.
+
+Before ``prepare()`` runs, IVPM records which components of ``target_dir``'s
+path do not exist yet. If ``prepare()`` refuses or raises, or the clone itself
+fails, IVPM removes those directories again, deepest first, but only if they
+are still empty -- it never deletes content, and never removes a directory
+that existed before. Once the clone has succeeded, nothing is rolled back: a
+failure in the post-clone update leaves the populated workspace, as it does
+without preparers.
+
+Prompts and credentials
+-----------------------
+
+Clone preparers run before the progress display starts, so a preparer may
+prompt on the terminal; ``req.prompt_callback`` is ``None``.
+
+``read_file()`` contacts the source before the clone does. Over https with no
+credential helper (and no ``gh`` login), git may therefore ask for credentials
+twice: once for the pre-clone read, once for the clone. With ssh, a
+credential helper or ``gh auth login``, it does not ask.
+
+
 Contributing a Site Configuration
 =================================
 
@@ -790,7 +1026,7 @@ See Also
 - :doc:`package_types` -- Package source types and content types
 - :doc:`clone_providers` -- Pluggable ``ivpm clone`` source providers (which
   also describe the root project for ``ivpm status`` via ``probe()`` /
-  ``root_status()``)
+  ``root_status()``), and what a provider owes clone preparers
 - :doc:`package_lock` -- The lock file, and the load decision that reads it
 - :doc:`caching` -- Customizing the cache through a site configuration
 - :doc:`git_integration` -- Site-managed git authentication defaults

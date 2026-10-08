@@ -206,6 +206,16 @@ A clone provider is a class that extends
     **read-only and fast** -- local queries only, no network.  Default:
     ``None``.
 
+``read_source_file(req, path)`` *(optional)*
+    Return the text of ``path`` (relative to the source root) at the requested
+    branch, tag or revision, without materializing the tree, or ``None``.  This
+    is what clone preparers read the source's ``ivpm.yaml`` through.  Default:
+    ``None``.  See `Supporting clone preparers`_.
+
+``end_source_reads(req)`` *(optional)*
+    Release whatever ``read_source_file()`` kept for ``req`` -- scratch
+    directories, connections.  Default: no-op.
+
 Complete example
 ----------------
 
@@ -316,6 +326,48 @@ How the provider is selected:
 Returning ``None`` from ``root_status()`` (or declining in ``probe()``) cleanly
 omits the root header; it is never an error for the root type to be unknown.
 
+Supporting clone preparers
+--------------------------
+
+:ref:`Clone preparers <clone-preparers>` run before ``clone()``.  They can
+refuse the clone, and they can create ``req.target_dir`` in advance with a
+group, mode or default ACL.  A provider owes them two things.
+
+**Accept an existing, empty** ``target_dir``.  A preparer may already have
+created it, and its metadata is the point: populate the directory in place
+rather than removing and recreating it, or the setgid bit and default ACL are
+lost.  The built-in git provider does this.  IVPM guarantees that a prepared
+directory reaches ``clone()`` empty.  If ``clone()`` fails (returns
+``ok=False`` or raises), IVPM removes the directories the preparers created,
+provided they are still empty -- so a failed clone should leave the
+directory empty, not half-populated, where it can.
+
+**Optionally, let preparers read the source.**  Preparers usually decide from
+the source's own ``ivpm.yaml``, which they read through
+``read_source_file()``.  A provider that leaves it at the default still works:
+the preparers see no manifest and decide without one.  An implementation must:
+
+* return the file as it is at the ref ``clone()`` will check out --
+  ``req.branch``, ``req.tag`` or ``req.revision``, resolved the same way;
+* return ``None`` for a path that does not exist, is a directory, or lies
+  outside the source tree (an absolute path, or one that climbs out with
+  ``..``);
+* return ``None`` rather than raise when the source cannot be reached, so the
+  preparer chooses between warning and refusing;
+* write nothing into ``req.target_dir`` -- use a temporary directory, and
+  release it in ``end_source_reads()``, which IVPM calls once the preparers
+  have finished, whatever the outcome;
+* make repeated reads cheap: a manifest with ``include:`` files is read one
+  file at a time.
+
+The built-in git provider fetches the requested commit into a scratch
+repository with ``--depth 1 --filter=blob:none``, so only the files actually
+read are downloaded, and reads them with ``git cat-file``.  It uses the same URL
+rewriting, authentication order and ``--ssh`` / ``--anonymous`` handling as the
+clone.  Each git command it runs for a read times out after
+``IVPM_CLONE_READ_TIMEOUT`` seconds (default 120); a read that times out
+returns ``None``.
+
 Testing your provider
 ---------------------
 
@@ -342,4 +394,5 @@ See Also
 
 - :doc:`git_integration` -- the built-in git provider's authentication/transport
 - :doc:`package_types` -- package *sources* (the ``ivpm.sources`` sibling)
-- :doc:`extending_ivpm` -- other IVPM extension points (handlers, site config)
+- :doc:`extending_ivpm` -- other IVPM extension points (handlers, package and
+  clone preparers, site config)

@@ -139,6 +139,15 @@ def parse_with_section(with_data: dict, name: str, scope: str = "package"):
     rgy = PackageHandlerRgy.inst()
     known_with_keys = {h.name for h in rgy.handlers if h.name} | _RESERVED_WITH_KEYS
     known_with_keys |= {n for n in PackagePreparerRgy.inst().names() if n}
+    # ...and so do clone preparers ('ivpm clone' hands each its own block).
+    # One that failed to load is reported by 'ivpm clone'; it must not make
+    # every manifest unreadable.
+    from .clone.clone_preparer_rgy import (
+        ClonePreparerRgy, ClonePreparerLoadError)
+    try:
+        known_with_keys |= {n for n in ClonePreparerRgy.inst().names() if n}
+    except ClonePreparerLoadError:
+        pass
 
     for key in with_data.keys():
         if key not in known_with_keys:
@@ -301,10 +310,30 @@ def merge_with(base: dict, over: dict, _top: bool = True) -> dict:
     return result
 
 
+class LocalFS(object):
+    """How the reader reaches files other than the manifest it was handed
+    (``include:`` files and patch files).  The default: the local filesystem.
+
+    ``ivpm clone``'s pre-clone manifest load substitutes one that reads from the
+    source at the requested ref, so includes resolve without a checkout.
+    """
+
+    def isfile(self, path: str) -> bool:
+        return os.path.isfile(path)
+
+    def open(self, path: str):
+        return open(path)
+
+    def md5(self, path: str) -> str:
+        from .patch import md5_file
+        return md5_file(path)
+
+
 class IvpmYamlReader(object):
     
-    def __init__(self):
+    def __init__(self, fs=None):
         self.debug = False
+        self._fs = fs if fs is not None else LocalFS()
         # Names whose value is a function of the environment (platform
         # builtins and match results) for the manifest currently being read.
         # Consulted in read_deps to record, per package, which of them its
@@ -543,10 +572,10 @@ class IvpmYamlReader(object):
                     fatal("Cyclic include detected: %s includes %s, which is "
                           "already on the include chain" % (name, inc_path),
                           inc)
-                if not os.path.isfile(inc_path):
+                if not self._fs.isfile(inc_path):
                     fatal("Include file '%s' (referenced from %s) does not exist"
                           % (inc_path, name), inc)
-                with open(inc_path) as inc_fp:
+                with self._fs.open(inc_path) as inc_fp:
                     inc_pkg = self._load_merged_pkg(inc_fp, inc_path, _visited)
                 self._merge_pkg(pkg, inc_pkg, base=name, incl_path=inc_path)
             # 'include' is consumed by the merge; it is not a ProjInfo field.
@@ -1005,7 +1034,7 @@ class IvpmYamlReader(object):
         each path against the declaring ivpm.yaml's directory, and fails with a
         located error on a missing file or an unknown patch option.
         """
-        from .patch import PatchSpec, PatchCapability, md5_file
+        from .patch import PatchSpec, PatchCapability
 
         if pkg.patch_capability() == PatchCapability.NONE:
             fatal("Package '%s': source type '%s' does not support patches @ %s" % (
@@ -1047,13 +1076,13 @@ class IvpmYamlReader(object):
 
             resolved = file_rel if os.path.isabs(file_rel) \
                 else os.path.normpath(os.path.join(base_dir, file_rel))
-            if not os.path.isfile(resolved):
+            if not self._fs.isfile(resolved):
                 fatal("Package '%s': patch file not found: %s @ %s" % (
                     pkg.name, resolved, getlocstr(d)), loc)
 
             specs.append(PatchSpec(
                 name=os.path.basename(file_rel), source=file_rel,
-                resolved_path=resolved, md5=md5_file(resolved),
+                resolved_path=resolved, md5=self._fs.md5(resolved),
                 strip=strip, directory=directory, tool=tool))
         return specs
 

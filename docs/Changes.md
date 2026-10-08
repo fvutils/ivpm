@@ -1,3 +1,32 @@
+# 2.41.0
+- **New: clone preparers, a pre-clone hook for `ivpm clone`.** Extensions
+  register through the new `ivpm.clone_preparers` entry-point group. Once the
+  target directory is known, and before the clone writes anything, every
+  installed preparer runs `check()`, which may refuse the clone or warn. If none
+  refuses, each runs `prepare()`, which may create the workspace directory and
+  set its group, mode or default ACL, so the clone and the post-clone update
+  inherit them. IVPM ships none, so a stock install behaves as before.
+  - IVPM enforces the generic rules: no prepare runs if any check refused; a
+    prepared directory must reach the provider empty; and directories a
+    preparer created are removed again, if still empty, when the clone fails.
+  - Preparers fail closed. One that raises refuses the clone, and one that is
+    installed but fails to import stops `ivpm clone`.
+  - A preparer can read the source's `ivpm.yaml` at the requested
+    branch, tag or revision before cloning: `req.load_root_package()`,
+    `req.selected_dep_sets()`, and `req.config()` for its own `with:` block as
+    the post-clone update will see it. `include:` files are followed.
+  - `ivpm show clone-preparers` lists what is installed, its order and its
+    stages, and `ivpm clone --help` names them. Bare `ivpm show` gains "Package
+    Preparers" and "Clone Preparers" sections.
+  - See "Contributing a Clone Preparer" in the extending-IVPM docs.
+- **New: clone providers can serve single files before cloning.**
+  `CloneProvider.read_source_file()` and `end_source_reads()` are optional. The
+  git provider implements them with a shallow, blob-less fetch into a scratch
+  repository, so only the files read are downloaded. Each git command has a
+  timeout, set by `IVPM_CLONE_READ_TIMEOUT` (seconds, default 120).
+- **Change: clone-preparer names are valid `with:` keys** in `ivpm.yaml`,
+  alongside handler and package-preparer names.
+
 # 2.40.2
 - **Fix: Python 3.9 development bootstrap.** ivpm's own `ivpm.yaml` took
   fusesoc from upstream git, whose 2.4.7 requires Python >= 3.10. It now comes

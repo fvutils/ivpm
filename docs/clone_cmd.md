@@ -24,7 +24,14 @@ Options:
 ## Clone extension mechanism
 Implementations provide a class with lifecycle methods to implement `clone` for a specific
 source type. Lifecycle methods are:
-- pre-clone -- enables checking
+- pre-clone -- enables checking. Implemented as *clone preparers* (the
+  `ivpm.clone_preparers` entry-point group), which are separate from the
+  provider: any installed preparer can refuse a clone, or set up the
+  workspace directory, whichever provider runs. A provider takes part only
+  by letting preparers read the source before the clone
+  (`read_source_file()`). See "Contributing a Clone Preparer" in
+  `docs/source/extending_ivpm.rst` and "Supporting clone preparers" in
+  `docs/source/clone_providers.rst`.
 - clone
 - post-clone
 

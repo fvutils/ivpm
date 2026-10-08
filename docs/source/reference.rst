@@ -308,6 +308,14 @@ fetched.  Its recorded dep-set(s) would conflict with ``clone``'s ``-d``.  Run
 ``ivpm update`` in that workspace instead (``-d <name> --force`` changes its
 dep-sets), or ``ivpm destroy`` it first.
 
+If *clone preparers* are installed (``ivpm show clone-preparers``), they run
+once the target directory is known and before anything is written.  Each can
+refuse the clone -- an export-restricted source in the wrong area, say -- and
+can create the workspace directory with a group, mode or default ACL that the
+clone and the post-clone update inherit.  A refusal names the preparer and its
+reason; a directory a preparer created is removed again, if still empty, when
+the clone fails.  IVPM ships none.  See :ref:`clone-preparers`.
+
 The following three flags belong to the **git** provider (see
 :doc:`clone_providers`); they remain accepted here during the deprecation
 window and are also listed by ``ivpm show clone-providers git``.
@@ -703,6 +711,8 @@ the current project's resolved dependency graph.
     ivpm show type    [--json] [--no-rich] [<name>]
     ivpm show handler [--json] [--no-rich] [<name>]
     ivpm show clone-providers [--json] [--no-rich] [<name>]
+    ivpm show preparers       [--json] [--no-rich] [<name>]
+    ivpm show clone-preparers [--json] [--no-rich] [<name>]
     ivpm show site-config [--json] [--no-rich] [<name>]
     ivpm show config      [--json] [--no-rich] [<name>]   # alias for site-config
     ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [<name>]
@@ -727,6 +737,18 @@ the current project's resolved dependency graph.
     flagged, and each provider's owned URL schemes are shown), or show the full
     option table for a specific provider (e.g. ``ivpm show clone-providers
     git``).  See :doc:`clone_providers`.
+
+``preparers`` / ``preparer`` *[name]*
+    List the installed package preparers -- hooks that configure, or refuse, a
+    dependency's directory before ``ivpm update`` populates it -- in the order
+    they run, or show the detail for one.  See :doc:`extending_ivpm`.
+
+``clone-preparers`` / ``clone-preparer`` *[name]*
+    List the installed clone preparers -- hooks that check, refuse or set up
+    the workspace directory before ``ivpm clone`` writes anything -- with their
+    order and the stages each implements (``check``, ``prepare``), or show the
+    detail for one.  A preparer whose plugin fails to load is reported, and the
+    command exits 1.  See :ref:`clone-preparers`.
 
 ``site-config`` / ``config`` *[name]*
     List all registered site configurations (the active one is flagged) and the

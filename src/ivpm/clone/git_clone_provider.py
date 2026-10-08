@@ -22,10 +22,16 @@ This is the default provider and the fallback for generic URLs.  The git
 mechanics here were extracted from ``ivpm.cmds.cmd_clone.CmdClone`` so that
 ``clone`` dispatch is provider-agnostic; behavior is unchanged.
 """
+import atexit
+import dataclasses as dc
 import logging
 import os
+import posixpath
+import shutil
 import subprocess
+import tempfile
 import time
+from typing import Dict, Optional, Tuple
 
 from ..msg import note
 from .. import git_auth
@@ -47,6 +53,31 @@ _SELF_CLONE_ERR = "<ivpm: clone resolved to the destination directory itself>"
 # successfully and we rejected the result).  Such text is reported as the
 # "detected by" explanation rather than quoted as git's own output.
 _IVPM_ERR = "<ivpm> "
+
+# Seconds allowed for each git command run by a pre-clone source read.
+_READ_TIMEOUT_ENV = "IVPM_CLONE_READ_TIMEOUT"
+_READ_TIMEOUT_DEFAULT = 120.0
+
+# Scratch repositories created by read_source_file(), removed by
+# end_source_reads(); the atexit hook is a backstop for an interrupted run.
+_LIVE_READ_DIRS = set()
+
+
+@atexit.register
+def _remove_live_read_dirs():
+    for d in list(_LIVE_READ_DIRS):
+        shutil.rmtree(d, ignore_errors=True)
+    _LIVE_READ_DIRS.clear()
+
+
+@dc.dataclass
+class _SrcRead:
+    """One fetched source state: a scratch repo holding the commit's trees
+    (blobs arrive lazily from the promisor remote), or a failed attempt."""
+    url: str = ""
+    tmpdir: Optional[str] = None
+    commit: Optional[str] = None
+    failed: bool = False
 
 
 class GitCloneProvider(CloneProvider):
@@ -151,29 +182,7 @@ class GitCloneProvider(CloneProvider):
         event_dispatcher = req.event_dispatcher
         suppress_output = req.suppress_output
 
-        # Effective flags come from EITHER the provider form
-        # (`ivpm clone --provider git <url> --ssh`, parsed into provider_args)
-        # OR the top-level compat form (`ivpm clone <url> --ssh`, on args).
-        ssh, anonymous, auth_order = self._effective_flags(req)
-
-        # Explicit --ssh / --anonymous force a transport; otherwise the
-        # configured git auth order decides.
-        ssh_pref = None
-        ssh_pref_source = None
-        if ssh:
-            ssh_pref, ssh_pref_source = True, "cli:--ssh"
-        elif anonymous:
-            ssh_pref, ssh_pref_source = False, "cli:--anonymous"
-        # Only the first candidate is used here: a root clone is interactive
-        # and creates a workspace directory, so a silent transport retry would
-        # be harder to reason about than the reported failure plus the probe's
-        # verdict. The dependency-fetch path (PackageGit._clone_to_dir) does
-        # walk the remaining candidates.
-        _candidates, decision = git_auth.clone_url_candidates_ex(
-            src, ssh_pref, auth_order, ssh_pref_source=ssh_pref_source)
-        url = decision.effective_url
-        self._decision = decision
-
+        url, decision, ssh_pref, auth_order = self._resolve_transport(req)
         self._log_auth_debug(decision)
 
         clone_start_time = time.time()
@@ -217,6 +226,223 @@ class GitCloneProvider(CloneProvider):
             raise
 
         return CloneResult(ok=True, resolved_revision=self._head(target_dir))
+
+    def _resolve_transport(self, req: CloneRequest):
+        """Decide the URL and credentials for *req*: ``(url, decision,
+        ssh_pref, auth_order)``.  Shared by clone() and read_source_file(), so a
+        pre-clone read goes where the clone will go, authenticated the same
+        way.  Sets ``self._decision``, which _git_cmd() consults."""
+        # Effective flags come from EITHER the provider form
+        # (`ivpm clone --provider git <url> --ssh`, parsed into provider_args)
+        # OR the top-level compat form (`ivpm clone <url> --ssh`, on args).
+        ssh, anonymous, auth_order = self._effective_flags(req)
+
+        # Explicit --ssh / --anonymous force a transport; otherwise the
+        # configured git auth order decides.
+        ssh_pref = None
+        ssh_pref_source = None
+        if ssh:
+            ssh_pref, ssh_pref_source = True, "cli:--ssh"
+        elif anonymous:
+            ssh_pref, ssh_pref_source = False, "cli:--anonymous"
+        # Only the first candidate is used here: a root clone is interactive
+        # and creates a workspace directory, so a silent transport retry would
+        # be harder to reason about than the reported failure plus the probe's
+        # verdict. The dependency-fetch path (PackageGit._clone_to_dir) does
+        # walk the remaining candidates.
+        _candidates, decision = git_auth.clone_url_candidates_ex(
+            req.src, ssh_pref, auth_order, ssh_pref_source=ssh_pref_source)
+        self._decision = decision
+        return decision.effective_url, decision, ssh_pref, auth_order
+
+    # ------------------------------------------------------------------ #
+    # Pre-clone source reads
+    # ------------------------------------------------------------------ #
+    def read_source_file(self, req: CloneRequest, path: str) -> Optional[str]:
+        """Text of *path* at the requested branch/tag/revision, read without
+        a checkout: a depth-1, blob-less fetch into a scratch repository
+        outside ``req.target_dir``, then one blob.  Works with any git server;
+        one that ignores ``--filter`` just sends that commit's blobs too.
+
+        Returns None when the path is absent, is not a regular file (directory,
+        symlink, submodule), or the source cannot be fetched."""
+        rel = self._normalize_read_path(path)
+        if rel is None:
+            return None
+        state = self._source_state(req)
+        if state.failed:
+            return None
+        url = state.url
+        rc, out, _ = self._run_read(
+            ["git", "ls-tree", "-z", state.commit, "--", rel], state.tmpdir)
+        if rc != 0 or not out:
+            return None
+        meta, _, _name = out.partition("\t")
+        parts = meta.split()
+        if len(parts) != 3 or parts[1] != "blob" or parts[0] == "120000":
+            return None
+        # The blob is not local yet: cat-file fetches it from the promisor
+        # remote, so it needs the same credentials as the fetch did.
+        rc, data, _ = self._run_read(
+            self._git_cmd(["git", "cat-file", "blob", parts[2]], url),
+            state.tmpdir, binary=True)
+        if rc != 0:
+            return None
+        return data.decode("utf-8", errors="replace")
+
+    def end_source_reads(self, req: CloneRequest) -> None:
+        for state in getattr(self, "_src_reads", {}).values():
+            if state.tmpdir:
+                shutil.rmtree(state.tmpdir, ignore_errors=True)
+                _LIVE_READ_DIRS.discard(state.tmpdir)
+        self._src_reads = {}
+
+    @staticmethod
+    def _normalize_read_path(path) -> Optional[str]:
+        """A source-relative POSIX path, or None for one that is absolute,
+        escapes the source root, or names the root itself."""
+        if not isinstance(path, str) or not path.strip():
+            return None
+        p = path.replace("\\", "/")
+        if p.startswith("/"):
+            return None
+        p = posixpath.normpath(p)
+        if p in (".", "..") or p.startswith("../"):
+            return None
+        return p
+
+    def _source_state(self, req: CloneRequest) -> _SrcRead:
+        """The fetched state for *req*'s source and ref, fetching on first use.
+        Later reads (an ivpm.yaml and its include:s, say) reuse it."""
+        url, _decision, _ssh_pref, _auth_order = self._resolve_transport(req)
+        kind, ref = self._requested_ref(req)
+        key = (url, kind, ref)
+        cache: Dict[Tuple, _SrcRead] = self.__dict__.setdefault("_src_reads", {})
+        if key not in cache:
+            cache[key] = self._fetch_source_state(url, kind, ref)
+        return cache[key]
+
+    def _fetch_source_state(self, url, kind, ref) -> _SrcRead:
+        start = time.time()
+        tmpdir = tempfile.mkdtemp(prefix="ivpm-clone-src-")
+        _LIVE_READ_DIRS.add(tmpdir)
+        state = _SrcRead(url=url, tmpdir=tmpdir)
+
+        fetch_url = url
+        if self._git_reads_as_path(url) and not url.startswith("file://") \
+                and not os.path.isabs(url) and os.path.exists(url):
+            # git runs in the scratch repo, so a relative path must be made
+            # absolute first (as _run_clone does).
+            fetch_url = os.path.abspath(url)
+
+        setup = [
+            ["git", "init", "-q"],
+            ["git", "remote", "add", "origin", fetch_url],
+            ["git", "config", "remote.origin.promisor", "true"],
+            ["git", "config", "remote.origin.partialclonefilter", "blob:none"],
+        ]
+        for cmd in setup:
+            rc, _, err = self._run_read(cmd, tmpdir)
+            if rc != 0:
+                _logger.debug("source read: '%s' failed: %s", " ".join(cmd), err)
+                state.failed = True
+                return state
+
+        commit = self._fetch_ref_for_read(url, kind, ref, tmpdir)
+        if commit is None:
+            state.failed = True
+        else:
+            state.commit = commit
+        _logger.debug("source read: %s %s=%s -> %s (%.2fs)",
+                      url, kind or "default", ref, commit or "<failed>",
+                      time.time() - start)
+        return state
+
+    def _fetch_ref_for_read(self, url, kind, ref, tmpdir) -> Optional[str]:
+        """Fetch the commit `ivpm clone` would check out for (kind, ref) and
+        return its full sha, or None.  Mirrors the clone's --branch rules:
+        a remote branch, else a tag of that name, else the default branch
+        (the clone then creates the new branch from it)."""
+        shallow = ["--depth", "1", "--filter=blob:none"]
+
+        def fetch(*refspecs, opts=shallow):
+            rc, _, err = self._run_read(
+                self._git_cmd(["git", "fetch", "-q"] + list(opts)
+                              + ["origin"] + list(refspecs), url), tmpdir)
+            if rc != 0:
+                _logger.debug("source read: fetch %s failed: %s",
+                              " ".join(refspecs), err)
+            return rc == 0
+
+        if kind == "branch":
+            where = self._ls_remote_for_read(url, ref, tmpdir)
+            if where is None:
+                return None
+            target = where or "HEAD"
+            if not fetch(target):
+                return None
+        elif kind == "tag":
+            if not fetch("refs/tags/%s" % ref):
+                return None
+        elif kind == "revision":
+            if not fetch(ref):
+                # An abbreviated sha (or a server refusing a by-sha want):
+                # fetch every commit, without trees or blobs, and resolve it.
+                if not fetch("+refs/heads/*:refs/remotes/origin/*",
+                             "+refs/tags/*:refs/tags/*",
+                             opts=["--filter=tree:0"]):
+                    return None
+                return self._rev_parse_read("%s^{commit}" % ref, tmpdir)
+        else:
+            if not fetch("HEAD"):
+                return None
+        return self._rev_parse_read("FETCH_HEAD^{commit}", tmpdir)
+
+    def _ls_remote_for_read(self, url, branch, tmpdir):
+        """For --branch: ``refs/heads/B``, ``refs/tags/B``, or ``""`` (neither
+        exists, so the clone will start a new branch).  None when the remote
+        cannot be listed."""
+        heads, tags = "refs/heads/%s" % branch, "refs/tags/%s" % branch
+        rc, out, err = self._run_read(
+            self._git_cmd(["git", "ls-remote", "origin", heads, tags], url),
+            tmpdir)
+        if rc != 0:
+            _logger.debug("source read: ls-remote failed: %s", err)
+            return None
+        names = {ln.split("\t", 1)[1].strip()
+                 for ln in out.splitlines() if "\t" in ln}
+        if heads in names:
+            return heads
+        if tags in names:
+            return tags
+        return ""
+
+    def _rev_parse_read(self, rev, tmpdir) -> Optional[str]:
+        rc, out, _ = self._run_read(
+            ["git", "rev-parse", "--verify", "--quiet", rev], tmpdir)
+        return out.strip() if rc == 0 and out.strip() else None
+
+    @staticmethod
+    def _run_read(cmd, cwd, binary=False):
+        """Run a git command for a source read: ``(rc, stdout, stderr)``.
+        Output is always captured; a hang is cut off by the read timeout."""
+        try:
+            timeout = float(os.environ.get(_READ_TIMEOUT_ENV,
+                                           _READ_TIMEOUT_DEFAULT))
+        except ValueError:
+            timeout = _READ_TIMEOUT_DEFAULT
+        try:
+            r = subprocess.run(cmd, cwd=cwd, capture_output=True,
+                               timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return 1, (b"" if binary else ""), \
+                "timed out after %gs (%s)" % (timeout, _READ_TIMEOUT_ENV)
+        except OSError as e:
+            return 1, (b"" if binary else ""), "%s: %s" % (cmd[0], e)
+        err = (r.stderr or b"").decode("utf-8", errors="replace").strip()
+        out = r.stdout if binary else (r.stdout or b"").decode(
+            "utf-8", errors="replace")
+        return r.returncode, out, err
 
     # ------------------------------------------------------------------ #
     # Error reporting

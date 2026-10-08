@@ -225,6 +225,24 @@ class CloneProvider:
         its basename heuristic."""
         return None
 
+    # --- pre-clone source reads (optional) ------------------------------- #
+    def read_source_file(self, req: CloneRequest, path: str) -> Optional[str]:
+        """Text of *path* (relative to the source root) at the requested
+        branch/tag/revision, without materializing the tree.
+
+        Lets clone preparers inspect the source (e.g. its ``ivpm.yaml``) before
+        anything is written.  Return ``None`` when the file does not exist, the
+        source cannot be reached, or the provider cannot read remotely -- do not
+        raise, so the calling preparer decides between WARN and DENY.  MUST NOT
+        write into ``req.target_dir``."""
+        return None
+
+    def end_source_reads(self, req: CloneRequest) -> None:
+        """Release any state ``read_source_file()`` kept for *req* (temporary
+        directories, say).  Called by CmdClone once the clone preparers have
+        finished, whatever their outcome."""
+        pass
+
     # --- work ----------------------------------------------------------- #
     def clone(self, req: CloneRequest) -> CloneResult:
         """Materialize the working tree at ``req.target_dir``.  Emit

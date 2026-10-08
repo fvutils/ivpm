@@ -58,6 +58,9 @@ class CmdShow:
         elif sub in ("preparers", "preparer"):
             from .show_preparers import ShowPreparers
             ShowPreparers()(args)
+        elif sub in ("clone-preparers", "clone-preparer"):
+            from .show_clone_preparers import ShowClonePreparers
+            ShowClonePreparers()(args)
         else:
             # No sub-command: show all categories
             _show_all(args)
@@ -73,11 +76,17 @@ def _show_all(args):
     from .show_handler import _get_all_handler_infos, _rich_list as handler_rich, _plain_list as handler_plain
     from .show_clone_providers import _get_all_infos as _get_all_clone_infos, \
         _rich_list as clone_rich, _plain_list as clone_plain
+    from .show_preparers import _get_all_infos as _get_all_preparer_infos, \
+        _rich_list as prep_rich, _plain_list as prep_plain
+    from .show_clone_preparers import _get_all_infos_or_report as _get_all_clone_prep_infos, \
+        _rich_list as clone_prep_rich, _plain_list as clone_prep_plain
 
     src_infos = _get_all_source_infos()
     type_infos = _get_all_type_infos()
     handler_infos = _get_all_handler_infos()
     clone_infos = _get_all_clone_infos()
+    prep_infos = _get_all_preparer_infos()
+    clone_prep_infos = _get_all_clone_prep_infos()
 
     if as_json:
         import dataclasses
@@ -86,6 +95,8 @@ def _show_all(args):
             "types":   [dataclasses.asdict(i) for i in type_infos],
             "handlers":[dataclasses.asdict(i) for i in handler_infos],
             "clone_providers": [dataclasses.asdict(i) for i in clone_infos],
+            "preparers": [dataclasses.asdict(i) for i in prep_infos],
+            "clone_preparers": [dataclasses.asdict(i) for i in clone_prep_infos],
         }, indent=2))
         return
 
@@ -98,6 +109,10 @@ def _show_all(args):
         handler_plain(handler_infos)
         print("\n=== Clone Providers ===")
         clone_plain(clone_infos)
+        print("\n=== Package Preparers ===")
+        prep_plain(prep_infos)
+        print("\n=== Clone Preparers ===")
+        clone_prep_plain(clone_prep_infos)
     else:
         console = make_console()
         console.print("\n[bold underline]Package Sources[/]  [label](ivpm show source <name> for details)[/]")
@@ -108,6 +123,10 @@ def _show_all(args):
         handler_rich(handler_infos)
         console.print("[bold underline]Clone Providers[/]  [label](ivpm show clone-providers <name> for details)[/]")
         clone_rich(clone_infos)
+        console.print("[bold underline]Package Preparers[/]  [label](ivpm show preparers <name> for details)[/]")
+        prep_rich(prep_infos)
+        console.print("[bold underline]Clone Preparers[/]  [label](ivpm show clone-preparers <name> for details)[/]")
+        clone_prep_rich(clone_prep_infos)
 
 
 def _emit_schema():

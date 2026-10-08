@@ -131,6 +131,16 @@ class PreparerInfo(RegistryEntryInfo):
 
 
 @dc.dataclass
+class ClonePreparerInfo(RegistryEntryInfo):
+    """Self-description for a clone preparer (registered in
+    ClonePreparerRgy).  ``order`` is the dispatch position (lower runs first,
+    ties broken by name); ``stages`` lists which of ``check``/``prepare`` the
+    preparer implements -- only a ``prepare`` stage may write anything."""
+    order: int = 100
+    stages: List[str] = dc.field(default_factory=list)
+
+
+@dc.dataclass
 class CloneProviderInfo(RegistryEntryInfo):
     """Self-description for a clone-source provider (registered in
     CloneProviderRgy).  ``schemes`` are the dedicated URL schemes the provider

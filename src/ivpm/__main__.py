@@ -202,7 +202,22 @@ def _clone_providers_epilog():
     lines.append("")
     lines.append("Run 'ivpm clone <scheme> --help' or 'ivpm show clone-providers' "
                  "for provider options.")
+    preparers = _clone_preparer_names()
+    if preparers:
+        lines.append("")
+        lines.append("Clone preparers: %s (see 'ivpm show clone-preparers')"
+                     % ", ".join(preparers))
     return "\n".join(lines)
+
+
+def _clone_preparer_names():
+    """Installed clone preparers, in dispatch order; [] if none or unloadable."""
+    try:
+        from .clone.clone_preparer_rgy import ClonePreparerRgy
+        infos = ClonePreparerRgy.inst().preparer_infos()
+    except Exception:
+        return []
+    return [i.name for i in sorted(infos, key=lambda i: (i.order, i.name))]
 
 
 def get_parser(parser_ext : List = None, options_ext : List = None):
@@ -777,6 +792,17 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_preparers_cmd.add_argument("--json", action="store_true", default=False,
         help="Emit JSON output")
     show_preparers_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output")
+
+    show_clone_prep_cmd = show_subparser.add_parser("clone-preparers",
+        aliases=["clone-preparer"],
+        help="List clone preparers (hooks that check, refuse or set up the "
+             "workspace directory before 'ivpm clone' writes anything)")
+    show_clone_prep_cmd.add_argument("name", nargs="?",
+        help="Show detailed info for this clone preparer (omit to list all)")
+    show_clone_prep_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_clone_prep_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
         help="Plain-text output")
 
     show_handler_cmd = show_subparser.add_parser("handler",

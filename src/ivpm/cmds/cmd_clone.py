@@ -23,6 +23,7 @@ default; see clone-source-provider-design.md), lets the provider materialize the
 working tree, then runs `ivpm update` if the result is an IVPM project.  The
 git-specific mechanics live in ivpm.clone.git_clone_provider.
 """
+import functools
 import logging
 import os
 
@@ -35,6 +36,7 @@ from ..update_tui import create_update_tui, RichUpdateTUI
 from ..site_config import apply_git_url_map
 from ..clone.clone_provider_rgy import CloneProviderRgy
 from ..clone.clone_provider import CloneRequest
+from ..install_spec import flatten_dep_sets
 
 _logger = logging.getLogger("ivpm.cmd_clone")
 
@@ -58,8 +60,8 @@ class CmdClone(object):
         # and the workspace name / root record stay tied to what the user
         # asked for.
         forced = getattr(args, 'provider', None)
-        provider = CloneProviderRgy.inst().resolve(
-            apply_git_url_map(src), forced=forced)
+        mapped_src = apply_git_url_map(src)
+        provider = CloneProviderRgy.inst().resolve(mapped_src, forced=forced)
 
         # Parse provider-specific args from the leftover tokens.  These were
         # partitioned out of argv in __main__ so the common parser never saw
@@ -72,23 +74,12 @@ class CmdClone(object):
         # Resolve the target/workspace directory.
         target_dir = self._resolve_target_dir(args, src, provider)
 
-        # Progress plumbing.
-        log_level = getattr(args, 'log_level', 'NONE')
+        dep_set = flatten_dep_sets(getattr(args, 'dep_set', None))
+        cli_overrides = parse_definitions(getattr(args, 'definitions', []))
+
+        # The request exists before the progress TUI does, so clone preparers
+        # can read the source through the provider; the TUI is attached below.
         event_dispatcher = UpdateEventDispatcher()
-        tui = create_update_tui(log_level)
-        event_dispatcher.add_listener(tui)
-        suppress_output = isinstance(tui, RichUpdateTUI)
-
-        if isinstance(tui, RichUpdateTUI):
-            tui.start()
-
-        # A provider that shells out to an interactive tool can surface a
-        # password prompt through this callback, mirroring how `ivpm update`
-        # does it.
-        prompt_callback = None
-        if hasattr(tui, "make_prompt_callback"):
-            prompt_callback = tui.make_prompt_callback()
-
         req = CloneRequest(
             src=src,
             target_dir=target_dir,
@@ -97,18 +88,43 @@ class CmdClone(object):
             revision=getattr(args, 'revision', None),
             provider_args=provider_args,
             event_dispatcher=event_dispatcher,
-            suppress_output=suppress_output,
+            suppress_output=False,
             args=args,
-            prompt_callback=prompt_callback,
         )
+
+        # Clone preparers check (and may set up) the location before anything
+        # is written. A refusal is fatal here and leaves no trace.
+        snap = self._run_clone_preparers(
+            args, src, mapped_src, provider, req, dep_set, cli_overrides)
+
+        # Progress plumbing.
+        log_level = getattr(args, 'log_level', 'NONE')
+        tui = create_update_tui(log_level)
+        event_dispatcher.add_listener(tui)
+        req.suppress_output = isinstance(tui, RichUpdateTUI)
+
+        if isinstance(tui, RichUpdateTUI):
+            tui.start()
+
+        # A provider that shells out to an interactive tool can surface a
+        # password prompt through this callback, mirroring how `ivpm update`
+        # does it.
+        if hasattr(tui, "make_prompt_callback"):
+            req.prompt_callback = tui.make_prompt_callback()
 
         try:
             result = provider.clone(req)
+        except BaseException:
+            snap.rollback()
+            raise
         finally:
             if isinstance(tui, RichUpdateTUI):
                 tui.stop()
 
         if result is None or not result.ok:
+            # Remove what the clone preparers created, if the failed clone
+            # left it empty.
+            snap.rollback()
             msg = (result.message if result is not None and result.message
                    else "clone failed")
             # A provider that reports a detailed, multi-line explanation owns
@@ -123,7 +139,8 @@ class CmdClone(object):
         # are fetched according to options provided.  The provider's result may
         # carry a root_config (handler overlay and/or synthesized package) that
         # the update must honor.
-        self._post_clone_update(args, target_dir, result)
+        self._post_clone_update(args, target_dir, result, dep_set=dep_set,
+                                cli_overrides=cli_overrides)
 
         # Record which clone provider produced this workspace so `ivpm status`
         # can describe the root project (design: root-status-design.md §3.1).
@@ -171,6 +188,49 @@ class CmdClone(object):
                   "there (add '-d <set> --force' to change dep-sets), or "
                   "'ivpm destroy' first." % (target_dir, existing))
         return target_dir
+
+    def _run_clone_preparers(self, args, src, url, provider, clone_req,
+                             dep_set, cli_overrides):
+        """Run the installed clone preparers: every check, then every prepare.
+
+        Returns a snapshot whose ``rollback()`` removes directories the
+        preparers created, for use should the clone itself fail.  With no
+        preparers installed this is a no-op.
+        """
+        from ..clone.clone_preparer import ClonePrepareRequest, CloneDenied
+        from ..clone.clone_preparer_list import NullSnapshot
+        from ..clone.clone_preparer_rgy import (
+            ClonePreparerRgy, ClonePreparerLoadError)
+
+        try:
+            preparers = ClonePreparerRgy.inst().mkPreparerList()
+        except ClonePreparerLoadError as e:
+            fatal(str(e))
+        if not len(preparers):
+            return NullSnapshot()
+
+        target_dir = clone_req.target_dir
+        preq = ClonePrepareRequest(
+            src=src,
+            url=url,
+            provider=provider.provider_info().name,
+            target_dir=target_dir,
+            target_nonempty=(os.path.isdir(target_dir)
+                             and bool(os.listdir(target_dir))),
+            branch=clone_req.branch,
+            tag=clone_req.tag,
+            revision=clone_req.revision,
+            dep_set=dep_set,
+            cli_overrides=cli_overrides,
+            args=args,
+            read_file=functools.partial(provider.read_source_file, clone_req),
+        )
+        try:
+            return preparers.run(preq)
+        except CloneDenied as e:
+            fatal(e.format())
+        finally:
+            provider.end_source_reads(clone_req)
 
     @staticmethod
     def _existing_ivpm_state(target_dir):
@@ -271,15 +331,17 @@ class CmdClone(object):
             out["handler_overlay"] = rc.handler_overlay
         return out or None
 
-    def _post_clone_update(self, args, target_dir, result=None):
+    def _post_clone_update(self, args, target_dir, result=None,
+                           dep_set=None, cli_overrides=None):
         rc = result.root_config if result is not None else None
         handler_overlay = rc.handler_overlay if rc is not None else None
         default_package = rc.default_package if rc is not None else None
 
-        from ..install_spec import flatten_dep_sets
-        dep_set = flatten_dep_sets(getattr(args, 'dep_set', None))
+        if dep_set is None:
+            dep_set = flatten_dep_sets(getattr(args, 'dep_set', None))
+        if cli_overrides is None:
+            cli_overrides = parse_definitions(getattr(args, 'definitions', []))
         ivpm_yaml_path = os.path.join(target_dir, "ivpm.yaml")
-        cli_overrides = parse_definitions(getattr(args, 'definitions', []))
 
         if os.path.isfile(ivpm_yaml_path):
             # A real ivpm.yaml drives the update; the provider's overlay is
