@@ -108,6 +108,29 @@ class TestPublishedEntryCarriesItsGroup(_Base):
             self.assertEqual(os.stat(node).st_gid, policy.gid,
                              "%s carries the wrong group" % node)
 
+    def test_staging_is_beside_the_partition_not_inside_it(self):
+        """The partition name contains ``@``; fetch tools that name things
+        after their cwd (Perforce clients) refuse to run under it."""
+        policy = ProtectionPolicy(gid=os.getgid())
+        staging = self.store.new_staging("libX", policy)
+        pkg_dir = self.store.get_package_cache_dir("libX")
+        private = os.path.dirname(staging)
+
+        self.assertEqual(os.path.dirname(private), pkg_dir)
+        self.assertNotIn("@", os.path.relpath(staging, self.cache_dir))
+        # The partition is still created up front, so a policy problem is
+        # reported before the fetch rather than after it.
+        self.assertTrue(os.path.isdir(
+            self.store.get_partition_dir("libX", policy)))
+        st = os.stat(private)
+        self.assertEqual(stat.S_IMODE(st.st_mode), 0o2700)
+
+    @needs_group
+    def test_staging_parent_carries_the_policy_group(self):
+        policy = self._policy()
+        private = os.path.dirname(self.store.new_staging("libX", policy))
+        self.assertEqual(os.stat(private).st_gid, policy.gid)
+
     @needs_group
     def test_cross_filesystem_copy_uses_the_policy_group(self):
         """shutil's copy2 never touches ownership, so a copy out of the cache

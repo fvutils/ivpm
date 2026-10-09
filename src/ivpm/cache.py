@@ -480,14 +480,20 @@ class DirectoryCacheStore:
                     policy: Optional[ProtectionPolicy] = None) -> str:
         """A unique, not-yet-created staging path on the CACHE filesystem.
 
-        Returned from *inside* the package's protection partition, so a tree
-        built here and handed to :meth:`store_version` publishes with a
-        same-filesystem ``rename`` instead of a cross-device copy, **and**
-        inherits the partition's group as every file is written.  Group
-        ownership is therefore correct by construction on the ordinary fetch
-        path -- which is exactly where it used to be wrong, because staging
-        sat directly under a package directory that is setgid to the cache's
-        own group.
+        Returned from the package directory, beside (not inside) the
+        protection partition, so a tree built here and handed to
+        :meth:`store_version` publishes with a same-filesystem ``rename``
+        instead of a cross-device copy.  The private parent carries the
+        policy's group and is setgid, so every file the fetch writes inherits
+        the policy group: group ownership is correct by construction, exactly
+        as if the tree were built inside the partition.
+
+        Not inside the partition, because the partition's name contains ``@``
+        and the fetch tools derive identities from their working directory:
+        Perforce rejects client names containing ``@``, and ``p4_mkwa`` (which
+        names its client after ``cwd``) refuses to run under such a path at
+        all.  The partition is still created (and verified) here, so a policy
+        problem is reported before the fetch rather than after it.
 
         The returned path does not exist, but its *parent* does and is 0700:
         content is unreadable by other cache users while it is being fetched
@@ -499,8 +505,9 @@ class DirectoryCacheStore:
         (:meth:`get_cache_info`, :meth:`clean_older_than`) and makes it
         eligible for the stale-staging sweep if a build crashes.
         """
-        partition = self.ensure_partition_dir(package_name, policy)
-        private = os.path.join(partition, "build.staging." + uuid.uuid4().hex)
+        self.ensure_partition_dir(package_name, policy)
+        private = os.path.join(self.get_package_cache_dir(package_name),
+                               "build.staging." + uuid.uuid4().hex)
         self._mk_private(private, policy)
         return os.path.join(private, "tree")
 
@@ -626,9 +633,9 @@ class DirectoryCacheStore:
         #    never nest ``source_path`` inside a stale staging dir.
         #
         # GROUP OWNERSHIP is handled by construction, not by correction.  The
-        # staging tree is created inside the partition directory, which is
-        # setgid to the policy's group, so content carries the right group as
-        # it is written.  A cross-filesystem transfer cannot rely on that (the
+        # staging tree is created under ``new_staging``'s private parent, which
+        # is setgid to the policy's group, so content carries the right group
+        # as it is written.  A cross-filesystem transfer cannot rely on that (the
         # bytes are created by a copy, not inherited), so it applies the policy
         # per node and verifies -- see ``_transfer``.  Either way the tree is
         # correct *before* the seal runs, which is the only ordering that
@@ -938,9 +945,9 @@ class DirectoryCacheStore:
             raise
         if policy is not None:
             # A rename carries the source's group, which is right when the
-            # source was built inside this partition.  Cheap to confirm; a
-            # mismatch is corrected by the seal walk, which is already about
-            # to touch every node.
+            # source was built under ``new_staging``'s setgid parent.  Cheap to
+            # confirm; a mismatch is corrected by the seal walk, which is
+            # already about to touch every node.
             self._retag_root(staging_dir, policy)
 
     def _retag_root(self, path: str, policy: ProtectionPolicy):
@@ -1916,8 +1923,8 @@ class DirectoryCacheStore:
                 continue
 
             # Sweep orphaned sidecars, stale staging and undeleted tombstones,
-            # in the package directory and in every partition under it -- a
-            # partition is where staging and tombstones now live.
+            # in the package directory (fetch staging) and in every partition
+            # under it (publish staging and tombstones).
             for d in [pkg_dir] + self._partition_dirs(pkg_dir):
                 self._sweep_orphan_meta(d)
                 self._sweep_stale_staging(d)
