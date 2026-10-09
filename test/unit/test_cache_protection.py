@@ -439,14 +439,15 @@ class TestPartitioning(_Base):
 
         With a `p.` prefix, a tag named `p.1.0` -- which `safe_version_key`
         passes through untouched -- was rejected by `_is_populated` forever:
-        published on every run, never read back, never reported.  The prefix
-        now starts with a character no version key can contain.
+        published on every run, never read back, never reported.  Now no key
+        is ever stored under a partition-shaped name.
         """
         from ivpm.utils import safe_version_key
-        for tag in ("p.1.0", "protect.9", "p.abc"):
+        from ivpm.protection import is_partition_name
+        for tag in ("p.1.0", "protect.9", "p.abc", "_protect.9", "@protect.9",
+                    "protect_p0123456789ab", "@protect.0123456789ab"):
             with self.subTest(tag=tag):
-                self.assertFalse(safe_version_key(tag).startswith(
-                    PARTITION_PREFIX))
+                self.assertFalse(is_partition_name(safe_version_key(tag)))
 
         policy = self._policy()
         self.store.store_version("libX", "p.1.0", self._src(), policy=policy)
@@ -589,8 +590,247 @@ class TestScansTolerateUnreadablePartitions(_Base):
         self.assertTrue(self.store.touch_linked_target(link))
 
 
+# --- naming for a cache shared with older releases ---------------------------
+
+class TestCacheNames(_Base):
+    """Names a shared cache's older readers can never compute for anything else.
+
+    See cache-naming-design.md.  Every name is ``[A-Za-z0-9._-]``; the names
+    only 2.41+ creates avoid every key shape 2.33-2.40 produce (all-hex,
+    ``_<12 hex>`` at the end, ``+patch.``), so those releases cannot reach them.
+    """
+
+    #: The key shapes 2.33-2.40 can compute (git, http, gh-rls, patched).
+    _OLD_SHAPES = (r"^[0-9a-f]+$", r"_[0-9a-f]{12}$", r"\+patch\.")
+
+    def _own_policy(self):
+        # The invoking user's own group: no secondary group needed.
+        return ProtectionPolicy(gid=os.getgid())
+
+    def _new_forms(self):
+        from ivpm import cache_names as cn
+        from ivpm.utils import safe_version_key
+        return {
+            "partition": self._own_policy().partition_key(),
+            "escaped": safe_version_key('W/"abc/def"'),
+            "escaped-long": safe_version_key("x" * 300),
+            "patched": "0123456789abcdef0123456789abcdef01234567"
+                       + cn.PATCH_SEP + "0123456789abcdef",
+            "divergent": cn.divergent_name("v1", "0" * 32),
+        }
+
+    def test_new_forms_use_only_portable_characters(self):
+        for what, name in self._new_forms().items():
+            with self.subTest(what=what):
+                self.assertRegex(name, r"^[A-Za-z0-9._-]+$")
+                self.assertLessEqual(len(name), 128)
+
+    def test_no_older_release_can_compute_a_new_form(self):
+        import re
+        for what, name in self._new_forms().items():
+            for shape in self._OLD_SHAPES:
+                with self.subTest(what=what, shape=shape):
+                    self.assertIsNone(re.search(shape, name), name)
+
+    def test_new_forms_are_recognised_as_such(self):
+        from ivpm import cache_names as cn
+        for what, name in self._new_forms().items():
+            with self.subTest(what=what):
+                self.assertTrue(cn.is_new_form(name), name)
+                # A patched key is stored as itself; every other new form is
+                # a name no version can be stored under.
+                if what != "patched":
+                    self.assertFalse(cn.is_plain_key(name), name)
+
+    def test_common_keys_stay_plain_and_shared(self):
+        from ivpm.utils import safe_version_key
+        for k in ("0123456789abcdef0123456789abcdef01234567",
+                  "v1.2.3_0123456789ab",
+                  "Wed_21_Oct_2015_07-28-00_GMT_0123456789ab"):
+            with self.subTest(key=k):
+                self.assertEqual(safe_version_key(k), k)
+
+    def test_machinery_shaped_keys_are_escaped(self):
+        """A key spelling a machinery name was swept (``.staging.``, ``.gc.``)
+        or deleted by repair (``.meta.json``) while workspaces used it."""
+        from ivpm import cache_names as cn
+        from ivpm.utils import safe_version_key
+        for k in ("v1.staging.2", "rel.gc.3", "x.meta.json", ".hidden",
+                  "policy.json", "-rf", "_tag", "1.0+build", "a~b", "a%3Ab",
+                  "a@b"):
+            with self.subTest(key=k):
+                key = safe_version_key(k)
+                self.assertNotEqual(key, k)
+                self.assertRegex(key, r"^[A-Za-z0-9][A-Za-z0-9_-]*_k[0-9a-f]{24}$")
+                self.assertFalse(self.store._is_transient(key))
+                self.assertFalse(cn.is_partition_name(key))
+
+    def test_machinery_shaped_keys_survive_the_sweep(self):
+        import time
+        self.store.store_version("libX", "v1.staging.2", self._src())
+        later = time.time() + 2 * 86400
+        with patch("ivpm.cache.time.time", lambda: later):
+            self.store.ensure_cache_dir("libX")
+        self.assertTrue(self.store.has_version("libX", "v1.staging.2"))
+        versions = self.store.get_cache_info()["packages"][0]["versions"]
+        self.assertEqual(len(versions), 1, "the entry is invisible to GC")
+
+    def test_escaped_entries_verify_and_repair_clean(self):
+        from ivpm import cache_verify as cv
+        self.store.store_version("libX", "x.meta.json", self._src())
+        self.store.store_version("libX", "a:b", self._src(name="s2"))
+        res = cv.verify_cache(self.store, level="shape")
+        self.assertTrue(res.ok, [f.__dict__ for f in res.findings])
+        cv.repair_cache(self.store, level="shape")
+        self.assertTrue(self.store.has_version("libX", "x.meta.json"))
+        self.assertTrue(self.store.has_version("libX", "a:b"))
+
+    def test_raw_version_is_recorded_and_compared(self):
+        from ivpm import cache_verify as cv
+        entry = self.store.store_version("libX", "a:b", self._src())
+        self.assertEqual(self.store.read_entry_manifest(entry)["raw_version"],
+                         "a:b")
+        # Simulate two versions sharing one escaped name.
+        res = cv.verify_entry(self.store, "libX", "a:b", "off")
+        self.assertTrue(res.ok)
+        from unittest.mock import patch as _patch
+        with _patch("ivpm.cache.DirectoryCacheStore.get_version_cache_dir",
+                    lambda st, p, v, pol=None: entry):
+            res = cv.verify_entry(self.store, "libX", "c:d", "off")
+        self.assertEqual([f.problem for f in res.findings],
+                         [cv.Problem.MANIFEST_MISMATCH])
+
+    def test_a_manifestless_entry_at_a_new_form_name_is_not_served(self):
+        """Only 2.41+ writes these names, always with a manifest."""
+        from ivpm import cache_verify as cv
+        from ivpm.utils import safe_version_key
+        key = safe_version_key("a:b")
+        bare = os.path.join(self.store.get_package_cache_dir("libX"), key)
+        os.makedirs(bare)
+        _tree(bare, {"f": "not ivpm's"})
+        self.assertFalse(self.store.has_version("libX", "a:b"))
+        res = cv.verify_entry(self.store, "libX", "a:b", "off")
+        self.assertEqual([f.problem for f in res.findings],
+                         [cv.Problem.MANIFEST_MISMATCH])
+
+    def test_a_manifestless_entry_at_a_plain_name_is_still_shared(self):
+        """Pre-2.33 releases wrote no manifest; at a plain name every release
+        agrees on what the entry is."""
+        path = self.store.store_version("libX", "v1", self._src())
+        os.chmod(path, 0o755)
+        os.remove(self.store.entry_manifest_path(path))
+        self.assertTrue(self.store.has_version("libX", "v1"))
+
+    # -- what older releases left behind --------------------------------
+
+    def _legacy_entry(self):
+        """A partitioned entry as 2.36-2.40 left it: under ``@protect.``."""
+        policy = self._own_policy()
+        entry = self.store.store_version("libX", "v1", self._src(),
+                                         policy=policy)
+        part = os.path.dirname(entry)
+        legacy = os.path.join(os.path.dirname(part),
+                              "@protect.0123456789ab")
+        os.rename(part, legacy)
+        return policy, os.path.join(legacy, "v1")
+
+    def test_a_legacy_partition_is_never_served(self):
+        policy, _ = self._legacy_entry()
+        self.assertFalse(self.store.has_version("libX", "v1", policy))
+
+    def test_a_legacy_partition_is_scanned_as_a_partition(self):
+        self._legacy_entry()
+        versions = self.store.get_cache_info()["packages"][0]["versions"]
+        self.assertEqual([v["version"] for v in versions], ["v1"])
+        self.assertTrue(versions[0]["partition"].startswith("@protect."))
+
+        from ivpm import cache_verify as cv
+        res = cv.verify_cache(self.store, level="shape")
+        self.assertTrue(res.ok, [f.__dict__ for f in res.findings])
+
+    def test_a_legacy_link_is_still_touched(self):
+        """Workspaces made by 2.36-2.40 link into ``@protect.``; while they
+        are in use their entries must not look abandoned."""
+        _, entry = self._legacy_entry()
+        self.assertTrue(self.store.touch_linked_target(entry))
+
+    def test_legacy_entries_age_out_through_gc(self):
+        _, entry = self._legacy_entry()
+        self.assertEqual(self.store.clean_older_than(0), 1)
+        self.assertFalse(os.path.exists(entry))
+
+    def test_a_legacy_divergent_copy_is_recognised(self):
+        from ivpm import cache_names as cn
+        self.assertTrue(cn.is_divergent("v1~alt~0123"))
+        self.assertEqual(cn.canonical_key("v1~alt~0123"), "v1")
+        self.assertEqual(cn.canonical_key(cn.divergent_name("v1", "0" * 32)),
+                         "v1")
+
+    def test_an_old_percent_escaped_entry_is_scanned_not_served(self):
+        """2.33-2.40 stored ``a:b`` as ``a%3Ab``; 2.41 never looks there."""
+        from ivpm import cache_verify as cv
+        with patch("ivpm.utils.safe_version_key", lambda v: "a%3Ab"):
+            self.store.store_version("libX", "a:b", self._src())
+        self.assertFalse(self.store.has_version("libX", "a:b"))
+        res = cv.verify_cache(self.store, level="shape")
+        self.assertTrue(res.ok, [f.__dict__ for f in res.findings])
+
+
 if __name__ == "__main__":
     unittest.main()
+
+
+# --- a partitioned entry is checked and repaired where it actually is -------
+
+class TestPartitionedVerifyAndRepair(_Base):
+    """Both used to rebuild a path from (package, version) without the
+    partition, so they looked at -- or evicted -- the unprotected entry."""
+
+    def _unseal(self, path):
+        os.chmod(path, 0o755)
+        for root, dirs, files in os.walk(path):
+            for d in dirs:
+                os.chmod(os.path.join(root, d), 0o755)
+            for f in files:
+                os.chmod(os.path.join(root, f), 0o644)
+
+    def _both(self):
+        policy = ProtectionPolicy(gid=os.getgid())
+        plain = self.store.store_version("libX", "v1", self._src(name="a"))
+        prot = self.store.store_version("libX", "v1", self._src(name="b"),
+                                        policy=policy)
+        self.assertNotEqual(plain, prot)
+        return policy, plain, prot
+
+    def test_lookup_verification_checks_the_protected_entry(self):
+        import json
+        from ivpm import cache_verify as cv
+        policy, plain, prot = self._both()
+        self._unseal(prot)
+        mpath = self.store.entry_manifest_path(prot)
+        with open(mpath) as fp:
+            m = json.load(fp)
+        m["version"] = "v2"
+        with open(mpath, "w") as fp:
+            json.dump(m, fp)
+
+        res = cv.verify_entry(self.store, "libX", "v1", "off", policy=policy)
+        self.assertEqual([f.problem for f in res.findings],
+                         [cv.Problem.MANIFEST_MISMATCH])
+        self.assertEqual(res.findings[0].path, prot)
+        self.assertTrue(cv.verify_entry(self.store, "libX", "v1", "off").ok,
+                        "the unprotected entry was blamed")
+
+    def test_repair_evicts_the_damaged_partitioned_entry_only(self):
+        from ivpm import cache_verify as cv
+        policy, plain, prot = self._both()
+        self._unseal(prot)
+        os.remove(os.path.join(prot, "a.txt"))
+
+        cv.repair_cache(self.store, level="shape")
+        self.assertFalse(os.path.exists(prot))
+        self.assertTrue(self.store.has_version("libX", "v1"),
+                        "repair evicted the healthy unprotected entry")
 
 
 # --- concurrency around the partition directory ------------------------------

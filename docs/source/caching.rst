@@ -186,7 +186,7 @@ a full editable clone and is reported in the update summary, exactly as before.
 Entry Layout
 ============
 
-Everything IVPM writes under a package's cache directory falls into one of four
+Everything IVPM writes under a package's cache directory falls into a few
 categories. Knowing which is which is what lets an administrator look at a
 shared cache and tell content from residue::
 
@@ -195,9 +195,12 @@ shared cache and tell content from residue::
             .ivpm-cache-entry.json        the entry's seal — see below
             ...package content...
         <version>.meta.json               mutable sidecar: stored / last_linked
+        <version>_alt_<id>/               a divergent copy (see below)
         <version>.staging.<uuid>/         a publish in flight, or crash residue
         build.staging.<uuid>/             a fetch in flight, or crash residue
         .gc.<uuid>/                       evicted, awaiting deletion
+        protect_p<digest>/                a protection partition: the same
+                                          layout again, for one policy
 
 Only ``<version>/`` directories are entries. The rest is transient and is
 skipped by every cache listing; stale staging directories are reclaimed after
@@ -206,10 +209,24 @@ skipped by every cache listing; stale staging directories are reclaimed after
 Both ``<package>`` and ``<version>`` are single path components, and IVPM
 enforces that. A package name must match ``[A-Za-z0-9._+-]+`` or the manifest
 is rejected at parse time. A version key is machine-made — an ETag, a commit
-hash, a release tag — so rather than refusing to cache the package, any
-character outside that set is percent-escaped: an ``ETag`` of ``W/"a/b"``
-becomes ``W%2F%22a%2Fb%22``. Keys that are already safe are stored unchanged,
-so no existing entry moves.
+hash, a release tag — so rather than refusing to cache the package, IVPM
+stores it under a safe name:
+
+- A key made of ``[A-Za-z0-9._-]`` that starts with a letter or digit is stored
+  as itself. That covers commit hashes and the ``<tag>_<digest>`` and
+  ``<etag>_<digest>`` keys of release and HTTP dependencies, so these entries
+  are shared with older IVPM releases using the same cache.
+- Anything else becomes ``<stem>_k<digest>``: a readable stem with every other
+  character replaced by ``-``, plus a digest of the full key. An ``ETag`` of
+  ``W/"a/b"`` is stored as ``W--a-b-_k<digest>``. So is any key that would
+  collide with one of the names above (``v1.staging.2``, ``x.meta.json``),
+  or that is longer than 128 characters.
+
+No cache name contains ``@``, ``%``, ``+`` or ``~``, which Perl, Perforce, make
+and Verilog ``+incdir+`` each treat specially. Releases before 2.41 used
+``@protect.<digest>`` partitions, ``%``-escaped keys and ``<version>~alt~<id>``
+copies; IVPM still recognises those when it lists, verifies or cleans a cache,
+but never creates them or looks entries up under them.
 
 The seal (``.ivpm-cache-entry.json``)
 -------------------------------------
@@ -615,7 +632,7 @@ If the entry becomes usable, the loser discards its copy and links the shared
 entry, as before.
 
 If it does not, the run publishes its own copy beside the shared entry as
-``<version>~alt~<id>``, links the workspace to that, and prints a warning naming
+``<version>_alt_<id>``, links the workspace to that, and prints a warning naming
 it. Nothing fails. Inside the copy, ``.ivpm-cache-divergence.json`` records why
 it exists: the host, user, how long it waited and against what budget, and
 every check it made. Lookups always go to the shared entry, so the next run
@@ -1226,7 +1243,7 @@ Options:
 - ``-d, --days``: Remove entries unused (last-linked, see above) for more than
   this many days (default: 7)
 - ``-n, --dry-run``: List entries that would be removed without deleting
-- ``--divergent``: Also remove every divergent copy (``<version>~alt~<id>``)
+- ``--divergent``: Also remove every divergent copy (``<version>_alt_<id>``)
   regardless of age. A workspace still linked to one needs an ``ivpm update``,
   which relinks it to the shared entry.
 

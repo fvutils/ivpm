@@ -26,6 +26,41 @@
   timeout, set by `IVPM_CLONE_READ_TIMEOUT` (seconds, default 120).
 - **Change: clone-preparer names are valid `with:` keys** in `ivpm.yaml`,
   alongside handler and package-preparer names.
+- **Change: cache names contain only `[A-Za-z0-9._-]`.** `@`, `%`, `+` and
+  `~` broke tools that handle cached paths: Perl interpolates `@`, Perforce
+  rejects `@` and `%`, make treats `%` as a pattern, and Verilog `+incdir+`
+  splits paths on `+`.
+  - Protection partitions are `protect_p<digest>` (was `@protect.<digest>`).
+  - A version key that is not already safe is stored as
+    `<stem>_k<digest>` (was `%`-escaped). Commit hashes and the
+    `<tag>_<digest>` / `<etag>_<digest>` keys of release and HTTP dependencies
+    are unchanged, so those entries stay shared with older releases.
+  - Patched variants are `<base>_patch_<id>` (was `<base>+patch.<id>`), and
+    divergent copies `<version>_alt_<id>` (was `<version>~alt~<id>`).
+  - Older releases sharing the cache cannot compute any of the new names, so
+    neither side is ever served the other's entry; protected, escaped and
+    patched entries are fetched once more and kept separately until every
+    client upgrades. The old names are still recognised when listing,
+    verifying or cleaning a cache, never created, and age out through
+    `ivpm cache clean`.
+  - Fetches are built in a private directory beside the partition rather than
+    inside it, and still carry the policy's group as they are written.
+  - `test/stress/cache_interop.py <tags>` runs older releases' cache code
+    against a cache shared with this one and checks no wrong entry is served.
+- **Fix: a version key that spelled a cache-internal name was deleted.** A tag
+  containing `.staging.` or `.gc.` was removed by the stale-staging sweep a
+  day after it was cached, even while workspaces used it, and one ending in
+  `.meta.json` was removed by `ivpm cache verify --repair`. Such keys are now
+  stored under an escaped name.
+- **Fix: lookup verification and repair now find protected entries.** Both
+  rebuilt the entry path without the protection partition: lookup skipped its
+  identity check for a protected entry (or blamed an unprotected copy's faults
+  on it), and `--repair` evicted nothing, or the unprotected entry of the same
+  version. Repair now evicts by path.
+- **Change: the entry manifest records the raw version** (`raw_version`), and
+  lookup compares it, so two versions sharing an escaped name can never be
+  served for each other. A manifest-less directory under a name only 2.41+
+  creates is rejected.
 
 # 2.40.2
 - **Fix: Python 3.9 development bootstrap.** ivpm's own `ivpm.yaml` took

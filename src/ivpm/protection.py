@@ -56,20 +56,11 @@ from typing import Optional
 #: location, it does not choose content (pkg-prepare-design §2).
 _PKG_ATTR = "_ivpm_protection"
 
-#: Reserved prefix for a partition directory.
-#:
-#: Leads with ``@`` deliberately.  ``safe_version_key`` percent-escapes every
-#: character outside ``[-A-Za-z0-9._+%]``, and ``package_name_problem`` rejects
-#: the same set, so no package name and no version key -- however exotic the
-#: upstream tag or ETag -- can ever produce a path component starting with
-#: ``@``.  The partition namespace is therefore disjoint from content by
-#: construction.
-#:
-#: A plain ``p.`` prefix was not: a release tag literally named ``p.1.0``
-#: survives ``safe_version_key`` unchanged, so that entry would have been
-#: rejected by ``_is_populated`` forever -- an entry that is published on every
-#: run, never read back, and never reported.
-PARTITION_PREFIX = "@protect."
+#: Partition naming lives with every other cache name in
+#: :mod:`ivpm.cache_names`; re-exported here for existing importers.
+from .cache_names import (  # noqa: E402
+    LEGACY_PARTITION_PREFIXES, PARTITION_PREFIX, is_partition_name,
+    partition_name)
 
 #: Every write bit.  Sealing is defined as removing exactly these, so a sealed
 #: mode can always be derived from the mode the site asked for.
@@ -163,12 +154,12 @@ class ProtectionPolicy:
         keeps group names out of that listing.
         """
         blob = json.dumps(self.identity(), sort_keys=True).encode()
-        return PARTITION_PREFIX + hashlib.sha256(blob).hexdigest()[:12]
+        return partition_name(hashlib.sha256(blob).hexdigest())
 
     def describe(self) -> dict:
         """The ``policy.json`` written into the partition, for humans.
 
-        A partition directory named ``@protect.7f3a91c2`` is otherwise unexplainable
+        A partition directory named ``protect_p7f3a91c2e5d4`` is otherwise unexplainable
         without an index; this makes ``ls`` plus one ``cat`` enough.
         """
         d = dict(self.identity())

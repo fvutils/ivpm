@@ -111,7 +111,7 @@ cache entry:
 - On a miss, the pristine source is fetched straight into staging on the cache
   filesystem, the patch set is applied there, and the result is published by
   rename. Nothing is copied: content goes from the network to the cache once.
-- The variant is keyed by ``<base_version>+patch.<id>`` (the first 16 hex
+- The variant is keyed by ``<base_version>_patch_<id>`` (the first 16 hex
   characters of the patch-set id) and is symlinked read-only into
   ``packages/`` exactly like any other cached package.
 - No separate pristine base entry is kept. A dependency with an **empty**
@@ -123,8 +123,8 @@ Worked example -- two consumers, same base:
 - Project A pins ``somelib`` at commit ``abc123`` with patch set *P*.
 - Project B pins the same commit with a **different** patch set *Q*.
 
-The cache ends up with two variant entries (``abc123+patch.<idP>`` and
-``abc123+patch.<idQ>``). Each was fetched once, and each is reused by every
+The cache ends up with two variant entries (``abc123_patch_<idP>`` and
+``abc123_patch_<idQ>``). Each was fetched once, and each is reused by every
 consumer that requests the same ``(base, patch set)`` pair.
 
 Editable Patched Checkouts

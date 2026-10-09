@@ -287,7 +287,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     cache_clean_cmd.add_argument("-n", "--dry-run", dest="dry_run", action="store_true",
         help="List entries that would be removed without deleting anything")
     cache_clean_cmd.add_argument("--divergent", dest="divergent", action="store_true",
-        help="Also remove every divergent copy (<version>~alt~<id>) left by a "
+        help="Also remove every divergent copy (<version>_alt_<id>) left by a "
              "lost publish race, regardless of age")
 
     # 'verify' has two modes with different guarantees: without --repair it is

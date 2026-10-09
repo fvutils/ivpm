@@ -33,20 +33,12 @@ def sha256_file(path: str, _bufsize: int = 65536) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-#: The characters a package name or a cache version key may contain.  Both are
-#: joined straight into a filesystem path, so anything outside this set is
-#: either a path traversal or a directory separator that silently changes the
-#: shape of the cache.
+#: The characters a package name may contain.  It is joined straight into a
+#: filesystem path, so anything outside this set is either a path traversal or
+#: a directory separator that silently changes the shape of the cache.  (Cache
+#: version keys follow the stricter rules in :mod:`ivpm.cache_names`.)
 _SAFE_NAME_CHARS = "-A-Za-z0-9._+"   # '-' first: it is a literal, not a range
 _SAFE_PATH_COMPONENT = re.compile("^[%s]+$" % _SAFE_NAME_CHARS)
-
-#: The same set plus ``%``, which is what :func:`safe_version_key` escapes
-#: *with*.  Including it makes escaping idempotent, and that matters: a lookup
-#: arrives with the raw version while a cache scan reads the already-escaped
-#: name off the directory, and both go through the same function.  Without
-#: this, the scan would escape a second time and every escaped entry would
-#: report as a key collision against itself.
-_SAFE_VERSION_KEY = re.compile("^[%s%%]+$" % _SAFE_NAME_CHARS)
 
 
 def package_name_problem(name) -> Optional[str]:
@@ -69,28 +61,14 @@ def package_name_problem(name) -> Optional[str]:
 
 
 def safe_version_key(version: str) -> str:
-    """A version key that is safe to use as a single path component.
+    """The directory name a cache entry for *version* is stored under.
 
     Version keys are not authored by hand -- they come from an ETag, a commit
     hash, a release tag -- so mangling one is better than refusing to cache.
-    An ``ETag`` may legally contain ``/``, which used to produce
-    ``<cache>/<pkg>/abc/def``: the fetch died with a confusing ``ENOENT`` from
-    ``shutil.move``, and a cache listing reported ``abc`` as a version.
-
-    Escaping is percent-style and applied only to characters outside the safe
-    set, so every key that works today is returned unchanged -- the only keys
-    this alters are ones that are already broken.
+    See :func:`ivpm.cache_names.version_key` for the rules.
     """
-    if not isinstance(version, str) or not version:
-        raise ValueError("a cache version key must be a non-empty string")
-    if version in (".", ".."):
-        return "".join("%%%02X" % b for b in version.encode("utf-8"))
-    if _SAFE_VERSION_KEY.match(version):
-        return version
-    return "".join(
-        c if _SAFE_VERSION_KEY.match(c)
-        else "".join("%%%02X" % b for b in c.encode("utf-8"))
-        for c in version)
+    from .cache_names import version_key
+    return version_key(version)
 
 
 def is_filesystem_root(path):

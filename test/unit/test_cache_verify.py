@@ -756,18 +756,21 @@ class TestRepairLoop(_Base):
         self._unseal(bad)
         os.remove(os.path.join(bad, "a.txt"))
 
-        real_evict = DirectoryCacheStore._evict
+        real_evict = DirectoryCacheStore._evict_at
 
-        def _evict_then_republish(store, package, version):
-            ok = real_evict(store, package, version)
+        def _evict_then_republish(store, path):
+            ok = real_evict(store, path)
             if ok:
                 src = os.path.join(self.test_dir, "republished")
                 os.makedirs(src, exist_ok=True)
                 _tree(src, {"a.txt": "fresh"})
-                store.store_version(package, version, src)
+                store.store_version("libX", "v1", src)
             return ok
 
-        with patch.object(DirectoryCacheStore, "_evict", _evict_then_republish):
+        # Repair evicts by path (a version name alone does not say which
+        # partition the entry is in).
+        with patch.object(DirectoryCacheStore, "_evict_at",
+                          _evict_then_republish):
             report = cv.repair_cache(self.store, max_passes=3)
 
         self.assertIs(report.outcome, cv.Outcome.CONVERGED)

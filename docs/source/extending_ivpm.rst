@@ -662,10 +662,11 @@ return a ``ProtectionPolicy`` with the result:
         return PrepareResult.ok(policy=policy)
 
 The policy is part of the cache path: entries live under
-``<cache>/<pkg>/@protect.<digest>/<version>``, where the digest covers the gid,
-both modes and any default ACL. Two users who resolve to different policies
-get separate copies instead of evicting, or being locked out of, each other's.
-Use the same modes for everyone who shares a group; different modes mean
+``<cache>/<pkg>/protect_p<digest>/<version>``, where the digest covers the gid,
+both modes and any default ACL. (Releases 2.36–2.40 named these
+``@protect.<digest>``; IVPM still recognises those but no longer writes them.) Two users who resolve to
+different policies get separate copies instead of evicting, or being locked out
+of, each other's. Use the same modes for everyone who shares a group; different modes mean
 different partitions.
 
 Directories get ``dir_mode`` plus setgid. Files get ``file_mode``, with execute

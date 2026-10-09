@@ -45,6 +45,7 @@ import json
 import os
 import platform
 import random
+import re
 import shutil
 import socket
 import subprocess
@@ -60,7 +61,15 @@ SENTINEL = ".ivpm-stress-run"
 SCENARIOS = ("S1", "S2", "S3", "S4", "S5")
 ENTRY_MANIFEST = ".ivpm-cache-entry.json"
 DIVERGENCE_RECORD = ".ivpm-cache-divergence.json"
-ALT_MARKER = "~alt~"
+# Divergent copies are <key>_alt_<32 hex> (2.41+) or <key>~alt~<id> (2.40);
+# mirrors ivpm.cache_names.is_divergent without importing ivpm here.
+_ALT_RE = re.compile(r"_alt_[0-9a-f]{32}$")
+
+
+def _is_alt(name):
+    return bool(_ALT_RE.search(name)) or "~alt~" in name
+
+
 S2_METHODS = ("none", "listdir", "opendir_fstat", "stat_parent",
               "open_manifest", "listdir_manifest")
 
@@ -904,14 +913,14 @@ def cmd_analyze(cfg):
     # --- cache-side checks: I5, I6, I7 ---------------------------------
     cache_dir = os.path.join(rd, "cache")
     alt_events = {e.get("path"): e for e in results
-                  if e.get("path") and ALT_MARKER in os.path.basename(e["path"])}
+                  if e.get("path") and _is_alt(os.path.basename(e["path"]))}
     for root, dirs, files in os.walk(cache_dir):
         for n in list(dirs):
             p = os.path.join(root, n)
             if ".staging." in n or ".gc." in n:
                 violations["I5"].append(p)
                 dirs.remove(n)
-            elif ALT_MARKER in n:
+            elif _is_alt(n):
                 dirs.remove(n)
                 try:
                     with open(os.path.join(p, DIVERGENCE_RECORD)) as f:

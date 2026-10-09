@@ -47,7 +47,8 @@ from .utils import sha256_file
 
 # Separator joining a base version and a patch-set id in an effective version.
 # Part of the on-disk cache key -- changing it invalidates patched variants.
-PATCH_SEP = "+patch."
+# Was ``+patch.`` before 2.41; ``+`` splits paths in Verilog ``+incdir+``.
+from .cache_names import PATCH_SEP  # noqa: E402
 
 # Location of the manifest within a patched tree (relative to the tree root).
 PATCH_MANIFEST_REL = os.path.join(".ivpm", "patch-manifest.json")
@@ -156,7 +157,7 @@ def effective_version(base_version: str, patchset: PatchSet) -> str:
     An empty patch set returns the base version *byte-for-byte*, so a build that
     merely *could* be patched shares pristine cache entries with every existing
     consumer (full back-compat, no fragmentation). A non-empty set appends
-    ``+patch.`` and the first 16 hex chars of the patch-set id -- collision-safe
+    ``_patch_`` and the first 16 hex chars of the patch-set id -- collision-safe
     within one package's variant set; the full id lives in the manifest.
     """
     if patchset.is_empty:

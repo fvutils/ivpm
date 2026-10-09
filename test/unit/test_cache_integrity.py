@@ -489,23 +489,24 @@ class TestPathComponentSafety(unittest.TestCase):
         self.assertIsNotNone(self.store._read_meta("libX", 'W/"abc/def"'))
 
     def test_an_already_safe_key_is_byte_identical(self):
-        # The guard against re-keying every existing entry: escaping must be a
-        # no-op for every key that works today.
+        # The guard against re-keying the common case: every key shape a git,
+        # http, gh-rls or patched dependency produces is stored as itself, so
+        # it stays shared with older IVPM releases using the same cache.
         from ivpm.utils import safe_version_key
-        for k in ("abc123", "Wed_21_Oct_2015_07-28-00_GMT",
-                  "v1.2.3_9f2c1ab34de0", "base1+patch"):
+        for k in ("abc123", "9f2c1ab34de09f2c1ab34de09f2c1ab34de0abcd",
+                  "Wed_21_Oct_2015_07-28-00_GMT_9f2c1ab34de0",
+                  "v1.2.3_9f2c1ab34de0", "base1_patch_0123456789abcdef"):
             self.assertEqual(safe_version_key(k), k)
 
-    def test_escaping_is_idempotent(self):
-        # A lookup arrives with the raw version; a cache scan reads the
-        # already-escaped name off the directory. Both go through this
-        # function, so escaping twice must equal escaping once -- otherwise
-        # every escaped entry reports as a key collision against itself.
+    def test_an_escaped_name_is_never_itself_a_plain_key(self):
+        # Escaping is not idempotent, so it is never applied to a name read
+        # off disk.  What must hold instead is that no raw version can be
+        # stored under an escaped name: re-escaping one moves it elsewhere.
         from ivpm.utils import safe_version_key
-        for k in ('W/"abc/def"', "a b", "..", ".", "v1:2", "naïve"):
+        for k in ('W/"abc/def"', "a b", "..", ".", "v1:2", "naïve", "1+2"):
             once = safe_version_key(k)
             with self.subTest(key=k):
-                self.assertEqual(safe_version_key(once), once)
+                self.assertNotEqual(safe_version_key(once), once)
 
 
 class TestConcurrentSidecarWrites(unittest.TestCase):
@@ -772,12 +773,13 @@ class TestEntryManifest(_Base):
         os.chmod(staging, 0o755)
         with open(os.path.join(staging, "patched.txt"), "w") as f:
             f.write("p")
-        entry = self.store.store_version("libX", "base1+patch", staging)
+        eff = "base1_patch_0123456789abcdef"
+        entry = self.store.store_version("libX", eff, staging)
 
         m = self.store.read_entry_manifest(entry)
-        self.assertEqual(m["version"], "base1+patch")
+        self.assertEqual(m["version"], eff)
         self.assertEqual(m["content"]["files"], 2)      # not 3 — no stale seal
-        self.assertTrue(self.store.has_version("libX", "base1+patch"))
+        self.assertTrue(self.store.has_version("libX", eff))
 
     def test_legacy_entry_is_a_hit_while_permitted(self):
         path = self._store_entry("libX", "v1")

@@ -25,10 +25,11 @@ import uuid
 import shutil
 from typing import Optional, Tuple
 from .msg import note, warning
+from . import cache_names
 from .cache_adopt import ALT_MARKER, DIVERGENCE_RECORD, DIVERGENCE_SCHEMA
 from .site_config import get_site_config
 from .protection import (
-    PARTITION_PREFIX, ProtectionError, ProtectionPolicy,
+    ProtectionError, ProtectionPolicy, is_partition_name,
     apply_to_dir, dir_seal_mode, file_seal_mode, verify_dir,
 )
 
@@ -124,8 +125,8 @@ class DirectoryCacheStore:
 
         With no policy this is the package directory itself, so a site with no
         registered preparer keeps the historical two-level layout byte for byte
-        and needs no migration.  With a policy, a ``p.<digest>`` level is
-        inserted: two workspaces wanting the same package under different
+        and needs no migration.  With a policy, a ``protect_p<digest>`` level
+        is inserted: two workspaces wanting the same package under different
         protection then get separate entries instead of evicting each other's
         on every run (see cache-protection-policy-design.md §2).
         """
@@ -141,9 +142,9 @@ class DirectoryCacheStore:
         The version key is *escaped* rather than rejected: it is machine-made
         (an ETag, a commit hash, a release tag), and refusing to cache a
         package because its server returned a validator with a ``/`` in it
-        would be a worse answer than storing it under an escaped name. Keys
-        that are already safe pass through byte-identical, so no existing entry
-        moves. Every caller reaches the cache through here, so publishing,
+        would be a worse answer than storing it under an escaped name. Plain
+        keys pass through byte-identical, so they are shared with every older
+        release (see :mod:`ivpm.cache_names`). Every caller reaches the cache through here, so publishing,
         lookup and eviction cannot disagree about where an entry lives --
         including about which protection partition an entry belongs to.
         """
@@ -252,7 +253,7 @@ class DirectoryCacheStore:
 
     def _write_policy_file(self, partition_dir: str,
                            policy: ProtectionPolicy) -> None:
-        """Record what ``p.<digest>`` means, beside the entries it governs.
+        """Record what ``protect_p<digest>`` means, beside its entries.
 
         A digest is unexplainable from a directory listing alone; this makes
         ``ls`` plus one ``cat`` enough to audit a shared cache.  Best-effort:
@@ -309,7 +310,7 @@ class DirectoryCacheStore:
             # a partition holds version directories, so it is a non-empty
             # manifest-less directory, and ``_legacy_entries_ok`` would
             # therefore serve the partition itself as a cache hit.
-            if os.path.basename(version_dir).startswith(PARTITION_PREFIX):
+            if is_partition_name(os.path.basename(version_dir)):
                 return False
             if not os.path.isdir(version_dir):
                 return False
@@ -317,9 +318,20 @@ class DirectoryCacheStore:
                 return False
             if os.path.isfile(self.entry_manifest_path(version_dir)):
                 return True
-            return self._legacy_entries_ok
+            return self._legacy_ok_at(version_dir)
         except OSError:
             return False
+
+    def _legacy_ok_at(self, version_dir: str) -> bool:
+        """May a manifest-less entry at *version_dir* be served?
+
+        Only at a name older releases also use with the same meaning.  A name
+        only 2.41+ creates (:func:`cache_names.is_new_form`) always carries a
+        manifest when IVPM published it, so a bare directory there is
+        something else -- whatever wrote it, it is not this entry.
+        """
+        return self._legacy_entries_ok and \
+            not cache_names.is_new_form(os.path.basename(version_dir))
 
     def has_version(self, package_name: str, version: str,
                     policy: Optional[ProtectionPolicy] = None) -> bool:
@@ -363,8 +375,8 @@ class DirectoryCacheStore:
         return self._STAGING_MARKER in name or self._TOMB_MARKER in name
 
     # A divergent entry is this run's own copy, published under
-    # ``<key>~alt~<uuid32>`` when a lost race could not use the winner's entry
-    # (see cache_adopt).  It is content -- linked into a workspace -- but never
+    # ``<key>_alt_<uuid32>`` (``~alt~`` before 2.41) when a lost race could
+    # not use the winner's entry (see cache_adopt).  It is content -- linked into a workspace -- but never
     # the answer to a lookup, which only ever goes to the canonical key.
     _ALT_MARKER = ALT_MARKER
     _DIVERGENCE_RECORD = DIVERGENCE_RECORD
@@ -375,11 +387,11 @@ class DirectoryCacheStore:
     _ENTRY_SKIP = (".ivpm-cache-entry.json", DIVERGENCE_RECORD)
 
     def _is_divergent(self, name: str) -> bool:
-        return self._ALT_MARKER in name
+        return cache_names.is_divergent(name)
 
     def canonical_key(self, name: str) -> str:
         """The canonical version key a (possibly divergent) entry name is for."""
-        return name.split(self._ALT_MARKER, 1)[0]
+        return cache_names.canonical_key(name)
 
     def read_divergence_record(self, entry_dir: str) -> Optional[dict]:
         """A divergent entry's record, or None if absent/unreadable."""
@@ -580,7 +592,7 @@ class DirectoryCacheStore:
         Returns:
             Path to the entry the caller should use.  Normally the canonical
             entry.  When this run lost the publish race and could not use the
-            winner's entry, a divergent ``<key>~alt~<uuid>`` entry holding this
+            winner's entry, a divergent ``<key>_alt_<uuid>`` entry holding this
             run's own copy -- or, if even that could not be published, the
             sealed staging tree itself (see :meth:`copy_to_deps`).
         """
@@ -728,7 +740,8 @@ class DirectoryCacheStore:
             result = ca.await_winner(
                 version_dir, package_name, safe_version_key(version), budget,
                 manifest_name=self._ENTRY_MANIFEST,
-                legacy_ok=self._legacy_entries_ok, monitor=monitor)
+                legacy_ok=self._legacy_ok_at(version_dir), monitor=monitor,
+                raw_version=version)
             if result.adopted:
                 if result.outcome == ca.ADOPTED_AFTER_WAIT:
                     note("%s: the cache entry another process published became "
@@ -752,14 +765,14 @@ class DirectoryCacheStore:
                            cause: OSError, result,
                            policy: Optional[ProtectionPolicy],
                            context: Optional[dict]) -> str:
-        """Publish our sealed staging tree as ``<key>~alt~<uuid>``, with a record.
+        """Publish our sealed staging tree as ``<key>_alt_<uuid>``, with a record.
 
         Returns the divergent entry.  If even that rename fails, returns the
         staging tree itself; the caller then copies it into the workspace
         uncached (:meth:`copy_to_deps`) and it ages out via the staging sweep.
         """
         from . import cache_adopt as ca
-        alt_dir = version_dir + self._ALT_MARKER + uuid.uuid4().hex
+        alt_dir = cache_names.divergent_name(version_dir, uuid.uuid4().hex)
         record = self._divergence_record(package_name, version, version_dir,
                                          alt_dir, cause, result, context)
         self._write_divergence_record(staging_dir, record, policy)
@@ -1146,6 +1159,10 @@ class DirectoryCacheStore:
             "schema": self._ENTRY_SCHEMA,
             "package": package_name,
             "version": safe_version_key(version),
+            # The key is a lossy function of the version once escaped; the raw
+            # version is what a lookup compares, so two versions that escape
+            # alike can never be served for each other.
+            "raw_version": version,
             "created": time.time(),
             "creator": {"ivpm": _ivpm_version(), "host": _hostname()},
             "content": {
@@ -1516,10 +1533,11 @@ class DirectoryCacheStore:
                      ) -> Optional[Tuple[str, Optional[str], str]]:
         """``(package, partition, version)`` for a path into this cache.
 
-        *partition* is the ``@protect.<digest>`` directory name, or None for
-        the unpartitioned layout.  Returns None when the path does not resolve
-        to a version directory inside this cache -- an editable clone, a
-        deps-source link elsewhere, or no cache at all.
+        *partition* is the ``protect_p<digest>`` directory name (or a legacy
+        ``@protect.<digest>`` one), or None for the unpartitioned layout.
+        Returns None when the path does not resolve to a version directory
+        inside this cache -- an editable clone, a deps-source link elsewhere,
+        or no cache at all.
         """
         if self.cache_dir is None:
             return None
@@ -1529,13 +1547,13 @@ class DirectoryCacheStore:
         if rel.startswith(".."):
             return None
         # Two shapes now: <pkg>/<version> when no policy is in force, and
-        # <pkg>/@protect.<digest>/<version> when one is.  The caller has a
+        # <pkg>/protect_p<digest>/<version> when one is.  The caller has a
         # symlink and no policy object, so the partition is read back off the
         # path rather than recomputed -- which is also the only way this works
         # for a link created by a *different* workspace's policy.
         if len(parts) == 2:
             return parts[0], None, parts[1]
-        if len(parts) == 3 and parts[1].startswith(PARTITION_PREFIX):
+        if len(parts) == 3 and is_partition_name(parts[1]):
             return parts[0], parts[1], parts[2]
         return None
 
@@ -1543,7 +1561,7 @@ class DirectoryCacheStore:
                         version: str) -> bool:
         """Touch an entry identified by its *path*, not by a policy object.
 
-        *version* may be a divergent ``<key>~alt~<uuid>`` name: the path is
+        *version* may be a divergent ``<key>_alt_<uuid>`` name: the path is
         what identifies the entry, so a workspace linked to a divergent copy
         keeps that copy's last-used time fresh exactly like a normal entry.
         """
@@ -1718,11 +1736,11 @@ class DirectoryCacheStore:
         """Yield ``(partition, version, path)`` for every entry of a package.
 
         Flattens the two possible layouts -- ``<pkg>/<version>`` and
-        ``<pkg>/p.<digest>/<version>`` -- so that scanning code (info, GC,
-        verification) has exactly one shape to handle and cannot accidentally
+        ``<pkg>/protect_p<digest>/<version>`` -- so that scanning code (info,
+        GC, verification) has exactly one shape to handle and cannot accidentally
         treat a partition directory as an entry.
 
-        Divergent ``~alt~`` entries are *not* versions: by default they are
+        Divergent ``_alt_`` entries are *not* versions: by default they are
         skipped, and with *divergent* only they are yielded (``version`` is
         then the entry's full name).
         """
@@ -1736,7 +1754,7 @@ class DirectoryCacheStore:
                 continue          # sidecars and other non-dir siblings
             if self._is_transient(name):
                 continue          # staging residue, or an awaiting-delete tomb
-            if name.startswith(PARTITION_PREFIX):
+            if is_partition_name(name):
                 for sub in sorted(self._listdir(path, report)):
                     spath = os.path.join(path, sub)
                     if not os.path.isdir(spath) or os.path.islink(spath):
@@ -1806,7 +1824,7 @@ class DirectoryCacheStore:
     def _partition_dirs(self, pkg_dir: str) -> list:
         return [os.path.join(pkg_dir, n)
                 for n in sorted(self._listdir(pkg_dir))
-                if n.startswith(PARTITION_PREFIX)
+                if is_partition_name(n)
                 and os.path.isdir(os.path.join(pkg_dir, n))]
 
     def _last_used_at(self, version_dir: str) -> float:
@@ -1851,7 +1869,7 @@ class DirectoryCacheStore:
         even if it was first cached long ago.  With no sidecar this collapses
         to the directory mtime (legacy behavior).
 
-        Divergent ``~alt~`` copies age by the same rule.  With *divergent*,
+        Divergent ``_alt_`` copies age by the same rule.  With *divergent*,
         every divergent copy is removed regardless of age (a workspace still
         linked to one then needs an ``ivpm update``, which relinks it to the
         shared entry).  Nothing else ever removes them.

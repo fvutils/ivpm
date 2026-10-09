@@ -45,10 +45,10 @@ from typing import Callable, List, Optional
 
 from .msg import note
 
-#: Divergent-entry marker: ``<key>~alt~<uuid32>``.  ``~`` is outside the
-#: version-key safe set, so ``safe_version_key`` escapes it and no real key
-#: can ever contain this marker.
-ALT_MARKER = "~alt~"
+#: Divergent-entry marker: ``<key>_alt_<uuid32>``.  ``version_key`` never
+#: returns a key ending in that shape, so no real key can be mistaken for a
+#: divergent copy (see :mod:`ivpm.cache_names`; 2.40 spelled it ``~alt~``).
+from .cache_names import ALT_SEP as ALT_MARKER  # noqa: E402
 
 #: The record written inside a divergent entry explaining why it exists.
 DIVERGENCE_RECORD = ".ivpm-cache-divergence.json"
@@ -267,7 +267,8 @@ def _errname(e: OSError) -> str:
 
 
 def probe_entry(version_dir: str, package_name: str, version_key: str,
-                manifest_name: str, legacy_ok: bool) -> str:
+                manifest_name: str, legacy_ok: bool,
+                raw_version: Optional[str] = None) -> str:
     """Can this host use the entry at *version_dir* right now?
 
     Returns :data:`USABLE`, or a short reason it is not.  The manifest is
@@ -300,6 +301,11 @@ def probe_entry(version_dir: str, package_name: str, version_key: str,
         return "manifest-unparseable"
     if manifest.get("package") not in (None, package_name) or \
             manifest.get("version") not in (None, version_key):
+        return "manifest-mismatch"
+    # Recorded since 2.41.  Two versions can share an escaped key only by a
+    # digest collision, but the raw version settles it rather than the odds.
+    if raw_version is not None and \
+            manifest.get("raw_version") not in (None, raw_version):
         return "manifest-mismatch"
     return USABLE
 
@@ -352,6 +358,7 @@ def await_winner(version_dir: str, package_name: str, version_key: str,
                  budget: AdoptBudget, *, manifest_name: str,
                  legacy_ok: bool = True,
                  monitor: Optional[AdoptMonitor] = None,
+                 raw_version: Optional[str] = None,
                  clock: Optional[Callable[[], float]] = None,
                  sleep: Optional[Callable[[float], None]] = None,
                  probe: Optional[Callable[[], str]] = None) -> AdoptResult:
@@ -368,7 +375,7 @@ def await_winner(version_dir: str, package_name: str, version_key: str,
     if probe is None:
         def probe():
             return probe_entry(version_dir, package_name, version_key,
-                               manifest_name, legacy_ok)
+                               manifest_name, legacy_ok, raw_version)
 
     observations: List[dict] = []
     start = clock()

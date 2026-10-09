@@ -512,7 +512,7 @@ class DirectoryCacheProvider(CacheProvider):
         with span_or_null(getattr(self.session, "perf", None), "cache.verify",
                           package=pkg.name) as s:
             result = cv.verify_entry(self._store, pkg.name, version, level,
-                                     source=source)
+                                     source=source, policy=policy_for(pkg))
             if s is not None:
                 s.meta["level"] = level
                 s.meta["problems"] = len(result.findings)

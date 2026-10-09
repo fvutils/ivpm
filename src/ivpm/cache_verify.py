@@ -43,7 +43,7 @@ import dataclasses as dc
 from typing import Dict, List, Optional
 
 from .diagnostics import Severity
-from .protection import PARTITION_PREFIX
+from .protection import is_partition_name
 from .site_config import (CACHE_VERIFY_LEVELS, DEFAULT_CACHE_VERIFY_LEVEL,
                           resolve_cache_verify_level)
 from .utils import sha256_file
@@ -480,7 +480,8 @@ def entry_merkle(path: str, skip_name=None) -> str:
 
 def verify_entry(store, package_name: str, version: str,
                  level: str = LEVEL_SHAPE,
-                 source: Optional[dict] = None) -> VerifyResult:
+                 source: Optional[dict] = None,
+                 policy=None) -> VerifyResult:
     """Check one cache entry.  Pure: never creates, removes, or touches.
 
     *source*, when given, is the resolved source of the dependency currently
@@ -488,14 +489,26 @@ def verify_entry(store, package_name: str, version: str,
     cache-key collision that :data:`Problem.SOURCE_MISMATCH` names.  It is
     omitted by a whole-cache scan, which has no requester to compare against.
     """
+    from .utils import safe_version_key
     result = VerifyResult(level=level, cache_dir=store.cache_dir)
-    path = store.get_version_cache_dir(package_name, version)
-    _verify_one(store, result, package_name, version, path, level, source)
+    # The policy picks the partition.  Without it, a protected entry's check
+    # looked at the *unprotected* path: nothing there passed it unexamined,
+    # and an unprotected copy's faults were charged to the protected entry.
+    path = store.get_version_cache_dir(package_name, version, policy)
+    _verify_one(store, result, package_name, safe_version_key(version), path,
+                level, source, raw_version=version)
     return result
 
 
 def _verify_one(store, result: VerifyResult, package_name: str, version: str,
-                path: str, level: str, source: Optional[dict]):
+                path: str, level: str, source: Optional[dict],
+                raw_version: Optional[str] = None):
+    """Check the entry at *path*, stored under the key *version*.
+
+    *version* is always the on-disk key, never re-derived from a name read off
+    disk: escaping is not idempotent.  *raw_version* is known only to a lookup
+    (a scan has just the name) and is compared when the manifest records it.
+    """
     add = result.findings.append
 
     if os.path.islink(path):
@@ -532,6 +545,16 @@ def _verify_one(store, result: VerifyResult, package_name: str, version: str,
                 "entry holds cannot be established",
                 reclaimable=_size(store, path)))
             return
+        from .cache_names import is_new_form
+        if is_new_form(os.path.basename(path)):
+            # Identity, so checked at every level: only 2.41+ publishes under
+            # this name, and it always writes a manifest.
+            add(make_finding(
+                Problem.MANIFEST_MISMATCH, package_name, version, path,
+                "the entry has no manifest, but IVPM always writes one under "
+                "this name; it was not published by IVPM",
+                reclaimable=_size(store, path)))
+            return
         if level != LEVEL_OFF:
             add(make_finding(
                 Problem.MANIFEST_MISSING, package_name, version, path,
@@ -544,19 +567,24 @@ def _verify_one(store, result: VerifyResult, package_name: str, version: str,
     if manifest is not None:
         claimed_pkg = manifest.get("package")
         claimed_ver = manifest.get("version")
-        # Compare against the *escaped* key: a lookup arrives with the raw
-        # version, a cache scan reads it off the directory name, and the
-        # manifest records the escaped form -- so normalize before comparing
-        # or an escaped entry reads as a collision from one side only.
-        from .utils import safe_version_key
-        want_ver = safe_version_key(version) if version else version
+        claimed_raw = manifest.get("raw_version")
+        # Both sides are the stored key: the manifest records the key it was
+        # sealed for, and *version* is the key this entry is stored under.
         if (claimed_pkg is not None and claimed_pkg != package_name) or \
-                (claimed_ver is not None and claimed_ver != want_ver):
+                (claimed_ver is not None and claimed_ver != version):
             add(make_finding(
                 Problem.MANIFEST_MISMATCH, package_name, version, path,
                 "the entry says it is %s/%s but is stored as %s/%s; it was "
                 "moved or hand-edited"
                 % (claimed_pkg, claimed_ver, package_name, version),
+                reclaimable=_size(store, path)))
+            return
+        if raw_version is not None and claimed_raw is not None \
+                and claimed_raw != raw_version:
+            add(make_finding(
+                Problem.MANIFEST_MISMATCH, package_name, version, path,
+                "the entry holds version %r but %r was requested; the two "
+                "share a cache name" % (claimed_raw, raw_version),
                 reclaimable=_size(store, path)))
             return
         if source:
@@ -687,7 +715,7 @@ def _verify_package(store, result: VerifyResult, pkg_name: str, pkg_dir: str,
             _check_residue(store, result, pkg_name, name, path)
             continue
 
-        if name.startswith(PARTITION_PREFIX):
+        if is_partition_name(name):
             continue          # a protection partition; verified in its own pass
 
         if name == store._POLICY_FILE:
@@ -998,12 +1026,12 @@ def _apply_one(store, f: Finding) -> bool:
     run against a cache with active updates.
     """
     if f.repair == REPAIR_EVICT:
-        if store._is_divergent(os.path.basename(f.path)):
-            # By path: a divergent copy is not reachable by (package, version)
-            # -- that lookup names the canonical entry, which must not be the
-            # one evicted for a fault in the copy.
-            return bool(store._evict_at(f.path))
-        return bool(store._evict(f.package, f.version))
+        # Always by path.  A finding's version is the on-disk name, and
+        # rebuilding a path from (package, version) loses what the name alone
+        # does not say: the protection partition the entry sits in (that used
+        # to evict the *unprotected* entry of the same version instead), and
+        # whether it is a divergent copy rather than the canonical entry.
+        return bool(store._evict_at(f.path))
 
     if f.repair == REPAIR_RESEAL:
         # Shape was already verified before we got here (a tree that failed a
