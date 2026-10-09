@@ -53,8 +53,15 @@ def _with_entry_points(eps, fn):
 
 class TestClonePreparerRgy(TestBase):
 
-    def tearDown(self):
+    def setUp(self):
+        super().setUp()
+        # Any earlier test that ran the clone command left a registry loaded
+        # from the real entry points cached here.
+        self._saved_inst = ClonePreparerRgy._inst
         ClonePreparerRgy._inst = None
+
+    def tearDown(self):
+        ClonePreparerRgy._inst = self._saved_inst
         super().tearDown()
 
     def test_empty_by_default(self):
