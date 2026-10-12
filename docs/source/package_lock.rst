@@ -516,7 +516,7 @@ The resulting states:
    * - ``PREPARED_EMPTY``
      - fetch
      - The directory exists but is empty — not a loaded package.  This is what
-       a :ref:`package preparer <extending_ivpm:Contributing a Package Preparer>`
+       a :ref:`package preparer <package-preparers>`
        leaves behind.
    * - ``PATCHED``
      - reconcile

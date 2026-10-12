@@ -232,7 +232,7 @@ logging in again does not fix it.
 token with ``gh auth refresh -h github.com -s repo``.
 
 Private Repository: ``Invalid username or token``
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 **Problem:** an https clone fails with ``Invalid username or token`` or
 ``Password authentication is not supported``.

@@ -521,6 +521,8 @@ by IVPM's own test suite:
             self.assertEqual(pkg.pkg_type, "my-type")
 
 
+.. _package-preparers:
+
 Contributing a Package Preparer
 ===============================
 
