@@ -225,7 +225,7 @@ Notes:
 - Patch file paths are resolved relative to the `ivpm.yaml` that declares them;
   keep patch files alongside the project.
 - Patches apply in declaration order; the first that fails aborts the update.
-- Cached patched deps get a base entry plus a `<base>+patch.<id>` variant.
+- Cached patched deps get a base entry plus a `<base>_patch_<id>` variant.
 - If you edit a patched checkout *and* change the declared patch set, `ivpm
   update` refuses to clobber your edits and stops with an error. To
   re-establish: remove the package directory and re-run `ivpm update`.
