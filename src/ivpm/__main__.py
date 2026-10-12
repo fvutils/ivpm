@@ -323,7 +323,7 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
     # 'perf' command — inspect persisted performance records
     perf_cmd = subparser.add_parser("perf",
-        help="Inspect update performance records (deps/.ivpm/perf-*.json)")
+        help="Inspect update performance records (deps/.ivpm/perf-<runid>.json)")
     perf_subparser = perf_cmd.add_subparsers(dest="perf_cmd")
     perf_subparser.required = True
 
@@ -355,8 +355,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 
     perf_diff_cmd = perf_subparser.add_parser("diff",
         help="Compare two records (runids or file paths)")
-    perf_diff_cmd.add_argument("run_a", help="Baseline runid or perf-*.json path")
-    perf_diff_cmd.add_argument("run_b", help="Comparison runid or perf-*.json path")
+    perf_diff_cmd.add_argument("run_a", help="Baseline runid or perf-<runid>.json path")
+    perf_diff_cmd.add_argument("run_b", help="Comparison runid or perf-<runid>.json path")
     _add_project_dir(perf_diff_cmd)
 
     perf_cmd.set_defaults(func=CmdPerf())
