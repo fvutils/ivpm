@@ -161,3 +161,29 @@ class SiteConfigInfo(RegistryEntryInfo):
     """
     active: bool = False
     settings: dict = dc.field(default_factory=dict)
+
+
+@dc.dataclass
+class ShadowedTemplateInfo:
+    """A lower-precedence init template hidden by one with the same name."""
+    origin: str
+    src: str
+    provider: Optional[str] = None
+
+
+@dc.dataclass
+class InitTemplateInfo(RegistryEntryInfo):
+    """Self-description for an ``ivpm init`` template (in InitTemplateRgy).
+
+    ``params`` holds the template's copier questions (``type_hint`` is the
+    copier type, ``description`` its help).  They are read best-effort from
+    ``copier.yml`` without copier, and only for local templates in detail
+    views.
+    """
+    category: str = ""
+    src: str = ""
+    ref: Optional[str] = None
+    trusted: bool = False
+    hidden: bool = False
+    next_steps: str = ""
+    shadowed: List[ShadowedTemplateInfo] = dc.field(default_factory=list)

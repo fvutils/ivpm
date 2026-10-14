@@ -918,6 +918,8 @@ twice: once for the pre-clone read, once for the clone. With ssh, a
 credential helper or ``gh auth login``, it does not ask.
 
 
+.. _contributing-a-site-configuration:
+
 Contributing a Site Configuration
 =================================
 
@@ -998,6 +1000,146 @@ loaded. ``ivpm show site-config <name>`` shows the detail for one config, and
 ``--json`` emits the same information for tooling.
 
 
+.. _contributing-init-templates:
+
+Contributing Init Templates
+===========================
+
+``ivpm init -t <name>`` renders a copier template (see :doc:`init_templates`).
+A Python distribution can add templates to the list by declaring an
+``ivpm.init_templates`` entry point. The entry point is loaded only when
+``ivpm init`` or ``ivpm show init-templates`` runs; other commands never
+import it.
+
+Shipping templates in a package
+-------------------------------
+
+Most template packs only need to return a directory:
+
+.. code-block:: toml
+
+    [project.entry-points."ivpm.init_templates"]
+    acme = "acme_templates:get_templates"
+
+.. code-block:: python
+
+    # src/acme_templates/__init__.py
+    import os
+
+    def get_templates():
+        # A collection: each immediate subdirectory holding a copier.yml is
+        # one template.
+        return [os.path.join(os.path.dirname(__file__), "templates")]
+
+The target is a zero-argument callable (or a plain list). It returns any mix
+of:
+
+* **paths**: a template directory, or a collection whose immediate
+  subdirectories are templates;
+* :class:`~ivpm.init_template.InitTemplate` **descriptors**, for a template
+  the pack does not ship as files (a git URL), or to add metadata or
+  suggested answers:
+
+  .. code-block:: python
+
+      from ivpm.init_template import InitTemplate
+
+      def get_templates():
+          return [InitTemplate(
+              name="acme-ip",
+              src="https://git.acme.com/tmpl/ip.git",
+              ref="v2.1.0",
+              description="ACME IP block skeleton",
+              category="hdl",
+              defaults={"license": "Proprietary"})]
+
+Remember to include the template files in your package data, including
+dotfiles such as ``.gitignore.jinja`` and ``{{ ... }}``-named files.
+Templates from an entry point are trusted by default (see the trust table in
+:doc:`init_templates`). Pass ``trusted=False`` to opt out. ``ivpm show
+init-templates`` reports each template's distribution and version.
+
+Writing a template for IVPM
+---------------------------
+
+A template is an ordinary copier template. IVPM reads an optional ``_ivpm``
+block in ``copier.yml`` to describe it; copier ignores the block:
+
+.. code-block:: yaml
+
+    _ivpm:
+      name: python-lib            # registry name (default: the directory name)
+      description: Python library with pyproject.toml and ivpm-managed deps
+      category: python            # groups the listing
+      next_steps: "Run 'ivpm update' to fetch dependencies."
+      hidden: false               # true: listed only with --all
+    _subdirectory: template       # keep copier.yml out of the rendered output
+
+    project_name:
+      type: str
+      help: Project name
+    author_name:
+      type: str
+      help: Author
+
+Recommendations:
+
+* **Use the well-known question names** (``project_name``,
+  ``project_version``, ``author_name``, ``author_email``, ``year``) so IVPM's
+  suggested defaults and ``NAME``/``-v`` reach them.
+* **Read IVPM facts from** ``ivpm.*``: ``{{ ivpm.version }}``,
+  ``{{ ivpm.python }}`` (the interpreter running IVPM),
+  ``{{ ivpm.python_version }}``, ``{{ ivpm.platform }}`` (e.g.
+  ``linux-x86_64``), ``{{ ivpm.template }}`` and ``{{ ivpm.origin }}``.
+  ``ivpm`` is reserved: it is not a question, it is never written to the
+  answers file, and ``-D ivpm=...`` is rejected.
+* **Prefer** ``next_steps`` **to** ``_tasks``. The usual follow-up is
+  ``ivpm update``. Suggesting it keeps ``ivpm init`` fast, and it works for
+  templates that are not trusted. A template that uses ``_tasks`` is refused
+  unless the user trusts it.
+* **Write an answers file** (a ``{{_copier_conf.answers_file}}.jinja`` file
+  containing ``{{ _copier_answers|to_nice_yaml }}``) for anything beyond a
+  single file. It records the answers so ``copier update`` can be used
+  later. The built-in ``default`` template omits it on purpose, so that it
+  writes only ``ivpm.yaml``.
+* **Give every question a default**, or document it, so non-interactive use
+  (``--defaults``, CI, agents) can succeed with ``-D``.
+
+Site-configuration hooks
+------------------------
+
+A site configuration (see :ref:`contributing-a-site-configuration` above)
+can also own templates and defaults. These optional methods all default to
+empty:
+
+.. code-block:: python
+
+    class AcmeSiteConfig(SiteConfig):
+        def get_init_templates(self):
+            # Paths and/or InitTemplate descriptors, ranked above entry points
+            return ["/opt/acme/ivpm-templates"]
+
+        def get_init_defaults(self):
+            # Suggested answers for every template
+            return {"license": "Proprietary", "author_email": "eng@acme.com"}
+
+        def get_default_init_template(self):
+            # Used when -t is not given (IVPM_INIT_TEMPLATE and the
+            # default-init-template: config key take priority)
+            return "acme-ip"
+
+Testing your template
+---------------------
+
+Render the template directly with copier first, then check how IVPM sees it:
+
+.. code-block:: bash
+
+    $ copier copy ./my-template /tmp/out
+    $ IVPM_INIT_TEMPLATE_PATH=$PWD ivpm show init-templates my-template
+    $ IVPM_INIT_TEMPLATE_PATH=$PWD ivpm init -t my-template --pretend -p /tmp/out2 demo
+
+
 Handlers That Install Content
 =============================
 
@@ -1033,3 +1175,4 @@ See Also
 - :doc:`package_lock` -- The lock file, and the load decision that reads it
 - :doc:`caching` -- Customizing the cache through a site configuration
 - :doc:`git_integration` -- Site-managed git authentication defaults
+- :doc:`init_templates` -- Choosing, configuring and trusting ``ivpm init`` templates

@@ -210,6 +210,38 @@ def _clone_providers_epilog():
     return "\n".join(lines)
 
 
+def _init_templates_epilog():
+    """The 'Available templates' block for `ivpm init --help`; never raises."""
+    hint = "Run 'ivpm init --list' or 'ivpm show init-templates' for details."
+    try:
+        from .init_template.template_rgy import InitTemplateRgy
+        templates = InitTemplateRgy.inst().templates()
+    except Exception:
+        return hint
+    if not templates:
+        return hint
+    lines = ["Available templates:"]
+    for t in templates:
+        lines.append("  %-16s %s" % (t.name, t.description))
+    lines.append("")
+    lines.append(hint)
+    return "\n".join(lines)
+
+
+def _lazy_init_epilog(init_cmd):
+    """Build the init epilog only when help is printed.
+
+    The parser is built for every command, and discovering templates scans
+    entry points and the filesystem; only `ivpm init --help` should pay.
+    """
+    format_help = init_cmd.format_help
+
+    def _format_help():
+        init_cmd.epilog = _init_templates_epilog()
+        return format_help()
+    init_cmd.format_help = _format_help
+
+
 def _clone_preparer_names():
     """Installed clone preparers, in dispatch order; [] if none or unloadable."""
     try:
@@ -634,11 +666,46 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
 #    update_cmd.add_argument("-r", "--requirements", dest="requirements")
     
     init_cmd = subparser.add_parser("init",
-        help="Creates an initial ivpm.yaml file")
+        help="Creates a new project (an initial ivpm.yaml) from a template",
+        description="Create a project from a template. Without -t this writes the "
+            "'default' template's ivpm.yaml into the project directory (the "
+            "current directory unless -p is given; NAME does not create a "
+            "subdirectory). Templates other than 'default' need copier: "
+            "pip install 'ivpm[init]'.",
+        formatter_class=argparse.RawDescriptionHelpFormatter)
     init_cmd.set_defaults(func=CmdInit())
-    init_cmd.add_argument("-v", "--version", default="0.0.1")
-    init_cmd.add_argument("-f", "--force", default=False, action='store_const', const=True)
-    init_cmd.add_argument("name")
+    init_cmd.add_argument("name", nargs="?", default=None,
+        help="Project name (the template's project_name answer; default: the "
+             "project directory's name)")
+    init_cmd.add_argument("-t", "--template", dest="template", default=None,
+        metavar="TEMPLATE",
+        help="Template name (see --list), template directory, or git URL "
+             "(default: IVPM_INIT_TEMPLATE, else the configured default, else 'default')")
+    init_cmd.add_argument("-p", "--project-dir", dest="project_dir", default=None,
+        help="Directory to create the project in; created if missing (default: cwd)")
+    init_cmd.add_argument("-D", dest="definitions", action="append",
+        default=[], metavar="KEY=VALUE",
+        help="Answer template question KEY (VALUE is read as YAML: true, 3, text)")
+    init_cmd.add_argument("-v", "--version", dest="version", default=None,
+        help="Project version; short for -D project_version=VERSION (default: 0.0.1)")
+    init_cmd.add_argument("--defaults", dest="defaults", action="store_true", default=False,
+        help="Accept default answers instead of prompting (implied when stdin "
+             "is not a terminal)")
+    init_cmd.add_argument("-f", "--force", dest="force", action="store_true", default=False,
+        help="Overwrite existing files, including ivpm.yaml")
+    init_cmd.add_argument("--pretend", dest="pretend", action="store_true", default=False,
+        help="Show what would be written, and write nothing")
+    init_cmd.add_argument("--ref", dest="ref", default=None,
+        help="Git ref (tag, branch, commit) of a git-hosted template")
+    init_cmd.add_argument("--trust", dest="trust", action="store_true", default=False,
+        help="Allow this template's tasks and other copier 'unsafe' features")
+    init_cmd.add_argument("--skip-tasks", dest="skip_tasks", action="store_true",
+        default=False, help="Do not run the template's tasks")
+    init_cmd.add_argument("--list", dest="list", action="store_true", default=False,
+        help="List available templates (same as 'ivpm show init-templates')")
+    init_cmd.add_argument("--all", dest="all", action="store_true", default=False,
+        help="With --list, include hidden templates")
+    _lazy_init_epilog(init_cmd)
     subcommands["init"] = init_cmd
     
     git_status_cmd = subparser.add_parser("git-status",
@@ -893,6 +960,18 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     show_config_cmd.add_argument("--json", action="store_true", default=False,
         help="Emit JSON output")
     show_config_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
+        help="Plain-text output without Rich formatting")
+
+    show_init_cmd = show_subparser.add_parser("init-templates",
+        aliases=["init-template"],
+        help="List templates for 'ivpm init' and where each comes from")
+    show_init_cmd.add_argument("name", nargs="?",
+        help="Show details (source, trust, questions) for this template")
+    show_init_cmd.add_argument("--all", dest="all", action="store_true", default=False,
+        help="Include hidden templates")
+    show_init_cmd.add_argument("--json", action="store_true", default=False,
+        help="Emit JSON output")
+    show_init_cmd.add_argument("--no-rich", dest="no_rich", action="store_true", default=False,
         help="Plain-text output without Rich formatting")
 
     _finalize_subparser_help(show_subparser)

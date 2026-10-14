@@ -113,6 +113,24 @@ class TestPythonFloor(unittest.TestCase):
             "entry_points(group=) requires Python 3.10; "
             "use ivpm._compat.entry_points")
 
+    def test_copier_is_imported_only_by_the_runner(self):
+        """copier is the optional ``ivpm[init]`` extra (and needs 3.10+ after
+        9.10). One module may import it, lazily; anything else would make a
+        bare install fail outside 'ivpm init'."""
+        pat = re.compile(r"^\s*(import copier\b|from copier\b)")
+        allowed = os.path.join("init_template", "copier_runner.py")
+        offenders = []
+        for path in _iter_sources():
+            rel = os.path.relpath(path, SRC_DIR)
+            for line in open(path).read().splitlines():
+                if pat.match(line) and rel != allowed:
+                    offenders.append(rel)
+        self.assertEqual([], sorted(set(offenders)))
+
+    def test_init_extra_is_declared(self):
+        extras = self._pyproject()["project"].get("optional-dependencies", {})
+        self.assertTrue(any(r.startswith("copier") for r in extras.get("init", [])))
+
     def test_ci_matrix_covers_the_floor(self):
         """The declared floor is only real if a CI row actually runs on it.
 

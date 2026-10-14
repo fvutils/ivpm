@@ -80,7 +80,14 @@
     "refspec",
     "refspecs",
     "shlex",
-    "lru"
+    "lru",
+    "copier",
+    "jinja",
+    "fspath",
+    "pathsep",
+    "tmpl",
+    "uvx",
+    "pipx"
   ],
   "ignorePaths": [
     "packages/**",

@@ -1,3 +1,38 @@
+# 2.42.0
+- **New: template-driven `ivpm init`.** `ivpm init -t <template>` creates a
+  project from a [copier](https://copier.readthedocs.io) template, chosen by
+  name, local path or git URL. `ivpm init --list` lists the available
+  templates. Questions are answered interactively, with `-D KEY=VALUE`, or by
+  `--defaults`, which is implied without a terminal. A question with no
+  default and no answer is an error that names it, so the command never
+  hangs. `--pretend`, `--ref`, `--trust`, `--skip-tasks` and `-p DIR` are also
+  new.
+  - copier is the optional extra `ivpm[init]`. A bare install keeps working
+    for the built-in `default` template, and other templates report how to
+    install copier.
+  - Template packs register through the new `ivpm.init_templates` entry-point
+    group. The target returns template directories, collections, or
+    `ivpm.init_template.InitTemplate` descriptors.
+  - Without Python: `IVPM_INIT_TEMPLATE_PATH` (template dirs, collections,
+    and YAML index files for git-hosted templates), and the config-file keys
+    `init-templates:`, `default-init-template:` and `init-defaults:`.
+    `IVPM_INIT_TEMPLATE` picks the template used when `-t` is not given.
+  - `SiteConfig` gains `get_init_templates()`, `get_init_defaults()` and
+    `get_default_init_template()`.
+  - The first template found with a name wins: the env var, then the user
+    config, the site config, the `SiteConfig`, entry points, and the
+    built-in templates. Templates hidden by a winner are listed rather than
+    lost.
+  - Tasks and other copier "unsafe" features run only for built-in,
+    entry-point and `SiteConfig` templates, and for config entries marked
+    `trust: true`. `--trust` allows them for one run.
+  - `ivpm show init-templates [name]` lists templates by category, with
+    origin, what each shadows, questions, and discovery warnings. Bare
+    `ivpm show` gains an "Init Templates" section.
+  - Unchanged: `ivpm init NAME [-v VER] [-f]` writes the same `ivpm.yaml`
+    into the current directory, with or without copier, and never prompts.
+    `NAME` is now optional and defaults to the directory's name.
+
 # 2.41.0
 - **New: clone preparers, a pre-clone hook for `ivpm clone`.** Extensions
   register through the new `ivpm.clone_preparers` entry-point group. Once the

@@ -23,6 +23,9 @@ Starting a New Project
     $ git init
     $ ivpm init my-project -v 0.1.0
 
+(To start from a template other than the minimal default, see
+:doc:`init_templates`.)
+
 **Step 2: Configure Dependencies**
 
 Edit ``ivpm.yaml``:

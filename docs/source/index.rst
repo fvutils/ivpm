@@ -21,6 +21,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    
    introduction
    getting_started
+   init_templates
    core_concepts
    handlers
    agent_plugins

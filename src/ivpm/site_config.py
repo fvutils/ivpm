@@ -53,7 +53,7 @@ import fnmatch
 import logging
 import os
 import re
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Iterable, List, Optional, Tuple, Union, TYPE_CHECKING
 
 import yaml
 
@@ -62,6 +62,7 @@ _logger = logging.getLogger("ivpm.site_config")
 if TYPE_CHECKING:
     from .cache_provider import CacheContext, CacheProvider
     from .show.info_types import SiteConfigInfo
+    from .init_template import InitTemplate
 
 
 # Ordered git auth methods tried for an https URL that has no explicit
@@ -192,6 +193,35 @@ class SiteConfig:
         """
         return []
 
+    def get_init_templates(self) -> Iterable[Union[str, 'InitTemplate']]:
+        """Templates this site contributes to ``ivpm init``.
+
+        Each item is a path (a template directory, or a collection whose
+        immediate subdirectories are templates) or an
+        :class:`~ivpm.init_template.InitTemplate`.  These rank above
+        ``ivpm.init_templates`` entry points and below the config files and
+        ``IVPM_INIT_TEMPLATE_PATH``, and are trusted by default.  Empty by
+        default.
+        """
+        return ()
+
+    def get_init_defaults(self) -> Dict[str, Any]:
+        """Suggested answers applied to every ``ivpm init`` template.
+
+        They pre-fill copier questions of the same name and are overridden by
+        the ``init-defaults:`` config-file key and by explicit ``-D`` answers.
+        Empty by default.
+        """
+        return {}
+
+    def get_default_init_template(self) -> Optional[str]:
+        """Template ``ivpm init`` uses when ``-t`` is not given.
+
+        ``IVPM_INIT_TEMPLATE`` and the ``default-init-template:`` config-file
+        key take priority.  ``None`` (the default) means IVPM's ``default``.
+        """
+        return None
+
     def site_config_info(self) -> 'SiteConfigInfo':
         """Return this config's self-description for ``ivpm show site-config``.
 
@@ -265,6 +295,14 @@ def parse_git_auth_order(value) -> List[str]:
 #       order: [ssh]
 #     - host: "github.com"
 #       order: [gh, ssh]
+#   default-init-template: acme-ip     # template 'ivpm init' uses without -t
+#   init-templates:                    # templates for 'ivpm init'
+#     - path: /tools/acme/templates    #   a template dir or collection
+#     - name: acme-ip                  #   or a descriptor
+#       src: https://git.acme.com/tmpl/ip.git
+#       trust: true
+#   init-defaults:                     # suggested answers for every template
+#     author_name: Jane Doe
 #
 # Files are consulted user-first, then site: a user rule overrides a site rule,
 # and the first git-auth-order found wins.
@@ -385,6 +423,42 @@ def _file_site_config_name() -> Optional[str]:
         if name:
             return str(name).strip()
     return None
+
+
+def _file_init_templates_ex() -> List[Tuple[Any, str]]:
+    """``init-templates`` values with the file each came from, user first.
+
+    Values are returned as found; the init-template registry validates them
+    and reports problems as warnings.
+    """
+    return [(data["init-templates"], path) for path, data in _load_config_files()
+            if data.get("init-templates") is not None]
+
+
+def _file_default_init_template() -> Optional[str]:
+    """First ``default-init-template`` name found across the config files."""
+    for path, data in _load_config_files():
+        name = data.get("default-init-template")
+        if name is None:
+            continue
+        if isinstance(name, str) and name.strip():
+            return name.strip()
+        _logger.warning("ignoring 'default-init-template' in %s: not a name", path)
+    return None
+
+
+def _file_init_defaults_ex() -> List[Tuple[Dict[str, Any], str]]:
+    """``init-defaults`` mappings with the file each came from, user first."""
+    ret = []
+    for path, data in _load_config_files():
+        val = data.get("init-defaults")
+        if val is None:
+            continue
+        if not isinstance(val, dict):
+            _logger.warning("ignoring 'init-defaults' in %s: not a mapping", path)
+            continue
+        ret.append((val, path))
+    return ret
 
 
 def parse_cache_verify_level(value, origin: str = "") -> Optional[str]:

@@ -540,44 +540,106 @@ Investigate how IVPM would fetch a package, and why it fails.  See
 init
 ----
 
-Create a new ``ivpm.yaml`` file.
+Create a new project from a template. See :doc:`init_templates`.
 
 **Synopsis:**
 
 .. code-block:: text
 
-    ivpm init [-v|--version <ver>] [-f|--force] <name>
+    ivpm init [NAME] [-t|--template TEMPLATE] [-p|--project-dir DIR]
+              [-D KEY=VALUE]... [-v|--version VER]
+              [--defaults] [-f|--force] [--pretend]
+              [--ref REF] [--trust] [--skip-tasks]
+    ivpm init --list [--all]
 
 **Arguments:**
 
-``name``
-    Package name
+``NAME``
+    Project name: the template's ``project_name`` answer. Defaults to the
+    project directory's name. It does **not** create a subdirectory.
 
 **Options:**
 
-``-v, --version <ver>``
-    Initial version (default: 0.0.1)
+``-t, --template TEMPLATE``
+    Template name (see ``--list``), template directory (``./x``, ``/x``,
+    ``~/x``, or an existing template directory), or git URL / copier
+    shorthand (``gh:org/repo``, ``https://...``, ``git@host:x.git``).
+    Default: ``IVPM_INIT_TEMPLATE``, else ``default-init-template:`` from a
+    config file, else the site configuration's default, else ``default``.
+
+``-p, --project-dir DIR``
+    Directory to create the project in, created if missing. Default: the
+    current directory.
+
+``-D KEY=VALUE``
+    Answer the template question ``KEY``. ``VALUE`` is read as YAML
+    (``true``, ``3``, text). Repeatable.
+
+``-v, --version VER``
+    Short for ``-D project_version=VER``. The built-in ``default`` template
+    accepts it for compatibility but does not write a version.
+
+``--defaults``
+    Accept defaults instead of prompting. Implied when standard input is not
+    a terminal. An unanswered question with no default is then an error that
+    names it.
 
 ``-f, --force``
-    Overwrite existing ``ivpm.yaml``
+    Overwrite an existing ``ivpm.yaml`` and any other existing file the
+    template writes.
+
+``--pretend``
+    Show what would be written, and write nothing.
+
+``--ref REF``
+    Tag, branch or commit of a git-hosted template.
+
+``--trust``
+    Allow this template's ``_tasks`` and other copier *unsafe* features for
+    this invocation (see :doc:`init_templates` for the trust rules).
+
+``--skip-tasks``
+    Do not run the template's tasks.
+
+``--list [--all]``
+    List the available templates, the same as ``ivpm show init-templates``.
+    ``--all`` includes hidden templates.
+
+Templates other than the built-in ``default`` need copier:
+``pip install 'ivpm[init]'``.
 
 **Examples:**
 
 .. code-block:: bash
 
-    $ ivpm init my-project
+    $ ivpm init my-project                  # the default template, in the cwd
     $ ivpm init my-project -v 1.0.0
-    $ ivpm init my-project -f  # Overwrite existing
+    $ ivpm init my-project -f               # overwrite an existing ivpm.yaml
+    $ ivpm init --list
+    $ ivpm init -t python-lib -p my-lib my-lib -D license=MIT
+    $ ivpm init -t gh:org/template --ref v2.0 --defaults
 
-**Output:**
-
-Creates ``ivpm.yaml`` with:
+**Output (default template):**
 
 .. code-block:: yaml
 
+    #*****************************************************************************
+    #* ivpm.yaml
+    #*****************************************************************************
     package:
-      name: my-project
-      version: "0.0.1"
+       name: my-project
+
+       dep-sets:
+
+       - name: default
+         deps: []
+
+       - name: default-dev
+         deps: []
+
+**Compatibility:** ``ivpm init NAME [-v VER] [-f]`` behaves as it did before
+templates were added. It writes the same ``ivpm.yaml``, never prompts, and
+works without copier installed.
 
 perf
 ----
@@ -713,6 +775,7 @@ the current project's resolved dependency graph.
     ivpm show clone-providers [--json] [--no-rich] [<name>]
     ivpm show preparers       [--json] [--no-rich] [<name>]
     ivpm show clone-preparers [--json] [--no-rich] [<name>]
+    ivpm show init-templates  [--json] [--no-rich] [--all] [<name>]
     ivpm show site-config [--json] [--no-rich] [<name>]
     ivpm show config      [--json] [--no-rich] [<name>]   # alias for site-config
     ivpm show deps    [-p DIR] [-d DEP-SET] [--tree] [--json] [--no-rich] [<name>]
@@ -749,6 +812,16 @@ the current project's resolved dependency graph.
     order and the stages each implements (``check``, ``prepare``), or show the
     detail for one.  A preparer whose plugin fails to load is reported, and the
     command exits 1.  See :ref:`clone-preparers`.
+
+``init-templates`` / ``init-template`` *[name]*
+    List the templates ``ivpm init`` can use, grouped by category, with where
+    each came from; ``(shadows N)`` marks a template that overrides others of
+    the same name. ``--all`` includes hidden templates. With *name*, show the
+    template's source, ref, trust, the copier questions it asks and what it
+    shadows. Problems found while looking for templates (a missing
+    ``IVPM_INIT_TEMPLATE_PATH`` entry, a template pack that fails to load)
+    are listed under *Warnings*. Does not need copier. See
+    :doc:`init_templates`.
 
 ``site-config`` / ``config`` *[name]*
     List all registered site configurations (the active one is flagged) and the
@@ -1169,6 +1242,28 @@ How thoroughly a cache hit is checked before it is trusted: ``off``, ``shape``
 
 Overridden by ``ivpm update --verify <level>``; overrides the ``cache-verify:``
 key in the user and site config files. See :doc:`caching`.
+
+IVPM_INIT_TEMPLATE
+------------------
+
+The template ``ivpm init`` uses when ``-t`` is not given. Overrides the
+``default-init-template:`` config-file key. See :doc:`init_templates`.
+
+.. code-block:: bash
+
+    export IVPM_INIT_TEMPLATE=acme-ip
+
+IVPM_INIT_TEMPLATE_PATH
+-----------------------
+
+Extra templates for ``ivpm init``, as an ``os.pathsep``-separated list
+(``:`` on Linux and macOS). Each entry is a template directory, a collection
+of templates, or a YAML template index file. These rank above every other
+source, and are not trusted to run template tasks. See :doc:`init_templates`.
+
+.. code-block:: bash
+
+    export IVPM_INIT_TEMPLATE_PATH=/tools/acme/ivpm-templates:$HOME/templates/index.yaml
 
 IVPM_PERF_KEEP
 --------------

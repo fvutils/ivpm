@@ -34,6 +34,13 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 
+[project.optional-dependencies]
+# 'ivpm init -t <template>' renders templates with copier. Only the built-in
+# 'default' template works without it (see ivpm/init_template). A single bound
+# suffices: on Python 3.9, pip's Requires-Python filtering selects 9.10.3, the
+# last copier release supporting 3.9; 9.10 is also the oldest version tested.
+init = ["copier>=9.10"]
+
 [tool.setuptools.dynamic]
 version = {attr = "ivpm.__version__._pkg_version"}
 
@@ -41,7 +48,7 @@ version = {attr = "ivpm.__version__._pkg_version"}
 ivpm = "ivpm.__main__:main"
 
 [tool.setuptools.package-data]
-ivpm = ['scripts/*', 'templates/*', 'share/*', 'share/*.md', 'share/cmake/*', 'share/skills/*/*',
+ivpm = ['scripts/*', 'templates/*', 'templates/init/**/*', 'templates/init/**/.*', 'share/*', 'share/*.md', 'share/cmake/*', 'share/skills/*/*',
         'agent_plugins/schemas/*/*.json']
 
 [dependency-groups]

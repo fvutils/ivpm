@@ -1,0 +1,24 @@
+# The template 'ivpm init' uses when -t is not given.
+#
+# It must stay within what ivpm's copier-less fallback renderer understands:
+# only {{ project_name }} and {{ project_version }}, in template/ivpm.yaml.jinja,
+# and no other files. test_init_builtin_templates.py enforces this.
+#
+# There is deliberately no answers file, so the output is exactly the single
+# ivpm.yaml that 'ivpm init' has always written.
+_ivpm:
+  name: default
+  description: Minimal ivpm.yaml with default and default-dev dep-sets
+  category: general
+  next_steps: "Add dependencies to ivpm.yaml, then run 'ivpm update'."
+
+_subdirectory: template
+
+project_name:
+  type: str
+  help: Package name
+
+project_version:
+  type: str
+  default: "0.0.1"
+  help: Initial version (accepted for compatibility; not used by this template)

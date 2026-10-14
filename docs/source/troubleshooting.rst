@@ -266,6 +266,72 @@ Python Version Mismatch
     $ python3 -m pip install --user ivpm
     $ python3 -m ivpm update
 
+Project Creation (``ivpm init``) Issues
+---------------------------------------
+
+Template Needs copier
+~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``ivpm init -t <template>`` fails with
+``Template '<template>' needs copier, which is not installed.``
+
+**Cause:** copier is an optional extra. Only the built-in ``default``
+template works without it.
+
+**Solution:**
+
+.. code-block:: bash
+
+    $ pip install 'ivpm[init]'
+    # or, for one run:
+    $ uvx --with copier ivpm init -t <template> ...
+
+Unknown Template
+~~~~~~~~~~~~~~~~
+
+**Problem:** ``Unknown template '<name>'``.
+
+**Solution:** run ``ivpm init --list`` to see the names IVPM found. The error
+suggests close matches, and lists any problems IVPM ran into while looking
+for templates. A template pack must be installed in the **same** environment
+as the ``ivpm`` you are running.
+
+Template From ``IVPM_INIT_TEMPLATE_PATH`` Not Found
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** a template you added through the environment variable is not
+listed.
+
+**Solution:** run ``ivpm show init-templates`` and read its *Warnings*
+section. An entry that does not exist, a directory with no ``copier.yml``
+(a collection is scanned only one level deep), and an index file that does
+not parse are all reported there.
+
+Unsafe Template Refused
+~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``Template '<name>' is not trusted: Template uses potentially
+unsafe feature: tasks.``
+
+**Cause:** the template runs commands (``_tasks``, ``_migrations``) or loads
+Jinja extensions, and IVPM does not trust templates from ``-t <path or URL>``,
+``IVPM_INIT_TEMPLATE_PATH``, or a config-file entry without ``trust: true``.
+Nothing has been written.
+
+**Solution:** if you trust the template, pass ``--trust`` (or
+``--trust --skip-tasks`` to render it without running its tasks). For a
+config-file entry, add ``trust: true`` to it. See :doc:`init_templates`.
+
+``ivpm init`` Fails Under CI With a Question Name
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``question '<q>' has no default and was not answered``.
+
+**Cause:** without a terminal ``ivpm init`` cannot prompt, so it accepts
+defaults, and this question has none.
+
+**Solution:** answer it on the command line with ``-D <q>=VALUE``.
+
 Update Issues
 -------------
 

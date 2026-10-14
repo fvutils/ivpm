@@ -138,13 +138,25 @@ Step 1: Initialize the Project
     $ cd my-project
     $ ivpm init my-project -v 0.1.0
 
-This creates a basic ``ivpm.yaml`` file:
+This creates a basic ``ivpm.yaml`` file in the current directory, with empty
+``default`` and ``default-dev`` dependency sets:
 
 .. code-block:: yaml
 
     package:
-      name: my-project
-      version: "0.1.0"
+       name: my-project
+
+       dep-sets:
+
+       - name: default
+         deps: []
+
+       - name: default-dev
+         deps: []
+
+``ivpm init`` can also start a project from a richer template, such as a
+Python library or an HDL block, from IVPM, your site, or a template pack.
+See :doc:`init_templates`.
 
 **JSON Schema Support**
 

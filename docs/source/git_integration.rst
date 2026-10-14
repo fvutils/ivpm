@@ -137,6 +137,8 @@ A matching host rule beats the flat ``IVPM_GIT_AUTH_ORDER`` -- the env var is
 the default for *unmatched* hosts.  ``--git-auth-order`` is flat and bypasses
 host matching for that one command.
 
+.. _git-auth-config-files:
+
 Config files
 ~~~~~~~~~~~~
 
@@ -172,6 +174,10 @@ wins):
 
 Missing files are ignored.  A malformed file (bad YAML, or a top level that is
 not a mapping) is logged at ``WARNING`` and skipped -- it never aborts a clone.
+
+The same files also hold the ``ivpm init`` template keys
+(``init-templates:``, ``default-init-template:`` and ``init-defaults:``); see
+:doc:`init_templates`.
 
 URL remapping
 ~~~~~~~~~~~~~

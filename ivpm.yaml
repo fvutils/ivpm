@@ -59,6 +59,9 @@ package:
       src: pypi
     - name: pytest
       src: pypi
+    # The ivpm[init] extra, so the copier-backed init tests run in CI
+    - name: copier
+      src: pypi
 
   with:
     env:

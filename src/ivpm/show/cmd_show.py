@@ -61,6 +61,9 @@ class CmdShow:
         elif sub in ("clone-preparers", "clone-preparer"):
             from .show_clone_preparers import ShowClonePreparers
             ShowClonePreparers()(args)
+        elif sub in ("init-templates", "init-template"):
+            from .show_init_templates import ShowInitTemplates
+            ShowInitTemplates()(args)
         else:
             # No sub-command: show all categories
             _show_all(args)
@@ -80,6 +83,8 @@ def _show_all(args):
         _rich_list as prep_rich, _plain_list as prep_plain
     from .show_clone_preparers import _get_all_infos_or_report as _get_all_clone_prep_infos, \
         _rich_list as clone_prep_rich, _plain_list as clone_prep_plain
+    from .show_init_templates import _get_all_infos_or_report as _get_all_init_template_infos, \
+        _rich_list as init_rich, _plain_list as init_plain
 
     src_infos = _get_all_source_infos()
     type_infos = _get_all_type_infos()
@@ -87,6 +92,7 @@ def _show_all(args):
     clone_infos = _get_all_clone_infos()
     prep_infos = _get_all_preparer_infos()
     clone_prep_infos = _get_all_clone_prep_infos()
+    init_infos = _get_all_init_template_infos()
 
     if as_json:
         import dataclasses
@@ -97,6 +103,7 @@ def _show_all(args):
             "clone_providers": [dataclasses.asdict(i) for i in clone_infos],
             "preparers": [dataclasses.asdict(i) for i in prep_infos],
             "clone_preparers": [dataclasses.asdict(i) for i in clone_prep_infos],
+            "init_templates": [dataclasses.asdict(i) for i in init_infos],
         }, indent=2))
         return
 
@@ -113,6 +120,8 @@ def _show_all(args):
         prep_plain(prep_infos)
         print("\n=== Clone Preparers ===")
         clone_prep_plain(clone_prep_infos)
+        print("\n=== Init Templates ===")
+        init_plain(init_infos)
     else:
         console = make_console()
         console.print("\n[bold underline]Package Sources[/]  [label](ivpm show source <name> for details)[/]")
@@ -127,6 +136,8 @@ def _show_all(args):
         prep_rich(prep_infos)
         console.print("[bold underline]Clone Preparers[/]  [label](ivpm show clone-preparers <name> for details)[/]")
         clone_prep_rich(clone_prep_infos)
+        console.print("[bold underline]Init Templates[/]  [label](ivpm show init-templates <name> for details)[/]")
+        init_rich(init_infos)
 
 
 def _emit_schema():

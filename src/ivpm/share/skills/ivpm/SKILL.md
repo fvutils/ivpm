@@ -54,6 +54,22 @@ ivpm init my-project -v 0.1.0
 ivpm update
 ```
 
+To start from a template instead of the minimal `ivpm.yaml`:
+
+```bash
+ivpm init --list                        # available templates (or: ivpm show init-templates --json)
+ivpm show init-templates <template>     # its questions and defaults
+ivpm init -t <template> -p my-lib my-lib --defaults -D license=MIT
+```
+
+- `ivpm init` writes into the current directory unless `-p DIR` is given.
+  `NAME` is the project name, not a directory.
+- Answer every question without a default with `-D KEY=VALUE` (values are
+  YAML: `true`, `3`, text). Without a terminal `--defaults` is implied, and an
+  unanswered question fails with its name rather than hanging.
+- Templates other than `default` need copier: `pip install 'ivpm[init]'`.
+- Do not pass `--trust` to run a template's tasks unless the user asked for it.
+
 ## ivpm.yaml Configuration
 
 The `ivpm.yaml` file defines project dependencies. Add `$schema` for IDE
@@ -456,7 +472,7 @@ change report.
 | Command | Description |
 |---------|-------------|
 | `ivpm clone` | Clone a project and automatically run update |
-| `ivpm init` | Create initial ivpm.yaml |
+| `ivpm init` | Create a project (ivpm.yaml) from a template: `-t`, `--list`, `-D`, `--defaults` |
 | `ivpm update` | Fetch dependencies and create venv |
 | `direnv allow` | Load the project environment (IVPM delegates env to direnv) |
 | `ivpm status` | Check status of Git dependencies |
