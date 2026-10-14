@@ -251,6 +251,37 @@ class TestFailureReport(unittest.TestCase):
         self.assertIn("type: raw", out)
         self.assertIn("/w/packages/bar/ivpm.yaml:17:1", out)
 
+    def _probe_report_with_pyproject(self, text):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "pyproject.toml"), "w") as fp:
+                fp.write(text)
+            bar = _pkg("bar", loc=("/w/ivpm.yaml", 42))
+            foo = _pkg("foo", scope_key="bar/foo", resolved_by_key="bar",
+                       loc=("/w/packages/bar/ivpm.yaml", 17), path=d)
+            origin = ContentOrigin(pkg=foo, spec="-e %s" % d,
+                                   group="python_pkgs_4.txt",
+                                   enrolled_by=ENROLLED_PROBE,
+                                   evidence="pyproject.toml")
+            return format_content_failure(
+                "python", [origin], {"bar": bar, "bar/foo": foo})
+
+    def test_a_declared_python_project_is_not_told_to_go_raw(self):
+        """A pyproject.toml naming the project and its backend is the author
+        saying 'this is Python'. A failure there is a build failure, and
+        'type: raw' would only swap it for a missing package."""
+        out = self._probe_report_with_pyproject(
+            '[build-system]\nbuild-backend = "ivpm_build.backend"\n'
+            '[project]\nname = "foo"\n')
+        self.assertNotIn("type: raw", out)
+        self.assertIn("next step:", out)
+        self.assertIn("built by ivpm_build.backend", out)
+
+    def test_a_tool_config_pyproject_still_offers_the_escape_hatch(self):
+        """A pyproject.toml that only configures a linter proves nothing."""
+        out = self._probe_report_with_pyproject('[tool.ruff]\nline-length = 100\n')
+        self.assertIn("type: raw", out)
+
     def test_a_deliberate_declaration_is_not_told_to_retract_itself(self):
         """The user already said what they meant. The fix is in the package."""
         for reason in (ENROLLED_EXPLICIT, ENROLLED_PROVIDES, ENROLLED_SRC_TYPE):

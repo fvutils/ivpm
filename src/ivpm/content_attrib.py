@@ -35,6 +35,7 @@ import dataclasses as dc
 import logging
 import os
 import re
+import textwrap
 import threading
 from typing import Dict, List, Optional
 
@@ -600,6 +601,38 @@ def enrollment_reason(language: str, enrolled_by: str,
     return text % {"language": language}
 
 
+def declared_build_backend(language: str, pkg) -> Optional[str]:
+    """The build backend *pkg*'s pyproject.toml names, if it is unambiguously
+    a Python project: one with both ``[project] name`` and
+    ``[build-system] build-backend``.
+
+    A bare pyproject.toml is not enough -- plenty of non-Python repositories
+    carry one only to configure a linter, and those are exactly the packages
+    the ``type: raw`` escape hatch exists for. Returns None when *language* is
+    not Python, or when the file is missing, unreadable or short of either key.
+    """
+    if language != "python":
+        return None
+    path = getattr(pkg, "path", None)
+    if not path:
+        return None
+    try:
+        import tomllib
+    except ImportError:
+        import tomli as tomllib  # type: ignore[no-redef]
+    try:
+        with open(os.path.join(path, "pyproject.toml"), "rb") as fp:
+            data = tomllib.load(fp)
+    except Exception:
+        return None
+    name = (data.get("project") or {}).get("name")
+    backend = (data.get("build-system") or {}).get("build-backend")
+    if not (isinstance(name, str) and name.strip()
+            and isinstance(backend, str) and backend.strip()):
+        return None
+    return backend.strip()
+
+
 def next_step(language: str, origin: 'ContentOrigin') -> str:
     """What the user can actually do about it, at a named file and line.
 
@@ -609,11 +642,44 @@ def next_step(language: str, origin: 'ContentOrigin') -> str:
     """
     if origin.enrolled_by != ENROLLED_PROBE:
         return None
+    backend = declared_build_backend(language, origin.pkg)
+    if backend is not None:
+        # The probe guessed, but the package's own metadata confirms it: a
+        # pyproject.toml naming both the project and its build backend is a
+        # Python package by its author's say-so. Telling the user to mark it
+        # 'type: raw' would trade a build error for a missing package.
+        return ("'%s' declares a Python project built by %s in its "
+                "pyproject.toml, so the failure is in that build: see the "
+                "installer output below" % (origin.name, backend))
     loc = loc_of(origin.pkg)
     where = ("at %s" % loc) if loc else "at its dependency entry"
     return ("if '%s' does not provide %s content, say so %s:\n"
             "        - name: %s\n"
             "          type: raw" % (origin.name, language, where, origin.name))
+
+
+# Above this many origins, a report lists each one on a single line instead of
+# giving each its own import chain. Attribution that could not be narrowed is
+# a means that failed, not the message; forty chains bury everything else.
+_COMPACT_ORIGINS = 4
+
+
+def _is_pypi(pkg) -> bool:
+    try:
+        from .pkg_types.package_pypi import PackagePyPi
+    except Exception:
+        return False
+    return isinstance(pkg, PackagePyPi)
+
+
+def _says_why(language: str, origin: 'ContentOrigin') -> bool:
+    """Whether the enrollment reason tells the user anything.
+
+    A package fetched from PyPI being handed to the Python installer is
+    self-evident; saying it was "declared with an explicit source type" only
+    adds a line to read.
+    """
+    return not (origin.enrolled_by == ENROLLED_SRC_TYPE and _is_pypi(origin.pkg))
 
 
 def format_content_failure(language: str,
@@ -623,7 +689,11 @@ def format_content_failure(language: str,
                            output: str = None,
                            identified_by: str = None,
                            installer: str = None,
-                           note_text: str = None) -> str:
+                           note_text: str = None,
+                           why: List[str] = None,
+                           steps: List[str] = None,
+                           log_path: str = None,
+                           rerun: str = None) -> str:
     """Render the attribution report.
 
     *origins* is who is being reported. One entry is the common case; several
@@ -643,27 +713,35 @@ def format_content_failure(language: str,
     else:
         parts.append("failed to install %s content" % language)
 
-    for o in origins:
-        chain = import_chain(o.pkg, pkgs_by_key)
+    if why:
         parts.append("")
-        if len(origins) > 1:
-            parts.append("  '%s' imported by:" % o.name)
-        else:
-            parts.append("  imported by:")
-        parts.append(render_chain(chain, indent="    "))
-        parts.append("")
-        parts.append("  '%s' was treated as a %s package because %s"
-                     % (o.name, language,
-                        enrollment_reason(language, o.enrolled_by, o.evidence)))
+        parts.append("  why: %s" % why[0])
+        for line in why[1:]:
+            parts.append("       %s" % line)
 
-    if group:
+    if len(origins) > _COMPACT_ORIGINS:
+        # One line each: where it was requested. Enough to find any of them;
+        # the full chains are one isolation run away, not worth a screenful.
         parts.append("")
-        parts.append("  installer input: %s" % group)
-
-    if installer:
-        # The exact command and exit code. Not decoration: it is what the user
-        # re-runs by hand when they want to see the failure for themselves.
-        parts.append("  installer: %s" % installer)
+        parts.append("  imported at:")
+        width = max(len(o.name) for o in origins)
+        for o in sorted(origins, key=lambda o: o.name.lower()):
+            parts.append("    %-*s  %s" % (width, o.name, loc_of(o.pkg) or ""))
+    else:
+        for o in origins:
+            chain = import_chain(o.pkg, pkgs_by_key)
+            parts.append("")
+            if len(origins) > 1:
+                parts.append("  '%s' imported by:" % o.name)
+            else:
+                parts.append("  imported by:")
+            parts.append(render_chain(chain, indent="    "))
+            if _says_why(language, o):
+                parts.append("")
+                parts.append("  '%s' was treated as a %s package because %s"
+                             % (o.name, language,
+                                enrollment_reason(language, o.enrolled_by,
+                                                  o.evidence)))
 
     if identified_by:
         parts.append("")
@@ -673,18 +751,38 @@ def format_content_failure(language: str,
         parts.append("")
         parts.append("  note: %s" % note_text)
 
-    if output:
-        parts.append("")
-        parts.append("  installer output:")
-        for line in output.strip().splitlines():
-            parts.append("    %s" % line)
-
-    steps = [s for s in (next_step(language, o) for o in origins) if s]
-    if steps:
+    all_steps = list(steps or [])
+    all_steps.extend(s for s in (next_step(language, o) for o in origins) if s)
+    if all_steps:
         parts.append("")
         parts.append("  next step:")
-        for s in steps:
-            parts.append("    %s" % s)
+        for s in all_steps:
+            parts.append("    - %s" % s)
+
+    if output:
+        parts.append("")
+        if log_path:
+            parts.append("  installer output (excerpt; full log: %s):" % log_path)
+        else:
+            parts.append("  installer output:")
+        # Dedented as a block: installers indent nested build output (uv by
+        # six columns), and a per-line strip would misalign it.
+        for line in textwrap.dedent(output.strip("\n")).splitlines():
+            parts.append("    %s" % line)
+    elif log_path:
+        parts.append("")
+        parts.append("  installer log: %s" % log_path)
+
+    # The exact command, last: it is what the user re-runs by hand when they
+    # want to see the failure for themselves.
+    if rerun or installer or group:
+        parts.append("")
+    if group and not rerun:
+        parts.append("  installer input: %s" % group)
+    if installer:
+        parts.append("  installer: %s" % installer)
+    if rerun:
+        parts.append("  re-run just this package: %s" % rerun)
 
     return "\n".join(parts)
 
@@ -696,7 +794,11 @@ def report_content_failure(language: str,
                            output: str = None,
                            identified_by: str = None,
                            installer: str = None,
-                           note_text: str = None) -> None:
+                           note_text: str = None,
+                           why: List[str] = None,
+                           steps: List[str] = None,
+                           log_path: str = None,
+                           rerun: str = None) -> None:
     """Report an attributed content-install failure and raise.
 
     Located at the culprit's dependency entry when there is exactly one, so
@@ -706,7 +808,8 @@ def report_content_failure(language: str,
     text = format_content_failure(
         language, origins, pkgs_by_key, group=group, output=output,
         identified_by=identified_by, installer=installer,
-        note_text=note_text)
+        note_text=note_text, why=why, steps=steps, log_path=log_path,
+        rerun=rerun)
     loc = None
     if len(origins) == 1:
         loc = getattr(origins[0].pkg, "srcinfo", None)

@@ -111,6 +111,44 @@ class TestFormatOutputTail(unittest.TestCase):
         """Callers concatenate it onto a message, so it must break the line."""
         self.assertTrue(format_output_tail(["a"]).startswith("\n"))
 
+    def test_installer_trace_lines_do_not_consume_the_budget(self):
+        """uv --verbose ends a failed build with a run of DEBUG lock-release
+        lines; a tail of those says nothing about the failure."""
+        lines = ["real0", "real1"] + ["DEBUG Released lock %d" % i for i in range(10)]
+        self.assertEqual(["real0", "real1"],
+                         format_output_tail(lines, tail=3).strip().splitlines())
+
+    def test_an_error_before_the_tail_is_shown_ahead_of_it(self):
+        """A native build states its cause, then unwinds through a traceback
+        long enough to push the cause out of the tail."""
+        lines = (["-- configuring"]
+                 + ["CMake Error at x.cmake:3 (message):", "  sources not found"]
+                 + ["  File frame%d" % i for i in range(30)]
+                 + ["RuntimeError: cmake configure failed"])
+        out = format_output_tail(lines, tail=5).strip().splitlines()
+        self.assertEqual("CMake Error at x.cmake:3 (message):", out[0])
+        self.assertEqual("  sources not found", out[1])
+        self.assertIn("...", [l.strip() for l in out])
+        self.assertEqual("RuntimeError: cmake configure failed", out[-1])
+        self.assertNotIn("-- configuring", out)
+
+    def test_an_error_inside_the_tail_is_not_repeated(self):
+        lines = ["a", "b", "error: boom", "c"]
+        self.assertEqual(lines, format_output_tail(lines, tail=20).strip().splitlines())
+
+    def test_the_first_error_is_the_one_shown(self):
+        """The first error is the cause; later ones are usually its fallout."""
+        lines = (["x.c:1: error: first"] + ["n%d" % i for i in range(40)]
+                 + ["x.c:9: error: second"] + ["t%d" % i for i in range(5)])
+        out = format_output_tail(lines, tail=5).strip().splitlines()
+        self.assertEqual("x.c:1: error: first", out[0])
+
+    def test_error_context_stops_at_the_tail(self):
+        """No line is shown twice, and no '...' when the two runs meet."""
+        lines = ["error: e"] + ["l%d" % i for i in range(6)]
+        out = format_output_tail(lines, tail=4).strip().splitlines()
+        self.assertEqual(["error: e", "l0", "l1", "l2", "l3", "l4", "l5"], out)
+
 
 if __name__ == "__main__":
     unittest.main()

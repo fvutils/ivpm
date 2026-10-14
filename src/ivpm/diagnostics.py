@@ -108,7 +108,11 @@ class Diagnostic(object):
         """Render ``file:line:col: severity: message`` (+ optional excerpt and
         ``note:`` sub-lines)."""
         loc = ("%s: " % self.srcinfo) if _has_loc(self.srcinfo) else ""
-        out = "%s%s: %s" % (loc, self.severity.name.lower(), self.message)
+        # The excerpt belongs under the line that names the location. A
+        # multi-line message (an install-failure report) keeps its body
+        # below the excerpt rather than leaving the caret dangling at the end.
+        head, sep, body = str(self.message).partition("\n")
+        out = "%s%s: %s" % (loc, self.severity.name.lower(), head)
         if excerpt and self.srcinfo is not None:
             ex = None
             try:
@@ -117,6 +121,8 @@ class Diagnostic(object):
                 ex = None
             if ex:
                 out += "\n" + ex
+        if sep:
+            out += "\n" + body
         for n in self.notes:
             out += "\n" + n.format(excerpt=False)
         return out

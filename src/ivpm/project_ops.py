@@ -324,6 +324,11 @@ class ProjectOps(object):
             )
             handler_update_info._tui_ref = tui
             handler_update_info.perf = perf
+            # Shared, not copied: the updater registers every loaded package
+            # here, and a root-phase handler reporting an install failure walks
+            # it to render the import chain. A separate (empty) dict cut every
+            # chain down to its last link.
+            handler_update_info.all_pkgs_by_key = updater.update_info.all_pkgs_by_key
 
             # Load previous handler state from ivpm.json (for stale-entry cleanup)
             _ivpm_json_path = os.path.join(deps_dir, "ivpm.json")

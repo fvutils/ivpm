@@ -34,6 +34,7 @@ from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import (note, fatal, get_venv_python, setup_venv, resolve_pkg_path,
                      venv_install_env)
 from ..installer_run import run_installer, format_output_tail
+from ..wheel_hint import split_requirement, explain_source_build
 from ..content_attrib import (
     ENROLLED_EXPLICIT, ENROLLED_PROBE, ENROLLED_PROVIDES, ENROLLED_SRC_TYPE,
     OriginMap, isolate, isolation_identified_by,
@@ -1341,12 +1342,21 @@ class PackageHandlerPython(PackageHandler):
         identified_by = None
         note_text = None
 
+        why = None
+        steps = None
+        rerun = None
+
+        spec = _installer_failed_spec(lines)
         dist = _installer_failed_dist(lines)
         if dist is not None:
             origin = self._origins.resolve_dist(dist, group=requirements_file)
             if origin is not None:
                 origins = [origin]
-                identified_by = "the installer named '%s' in its output" % dist
+                identified_by = "the installer named '%s' in its output" % spec
+                rerun = _rerun_one(result.cmd, spec, python_dir)
+                if _is_pypi_pkg(origin.pkg):
+                    name, version = split_requirement(spec)
+                    why, steps = explain_source_build(name, version, python_dir)
 
         if not origins and len(contributors) > 1 and python_dir:
             iso = isolate(
@@ -1366,8 +1376,10 @@ class PackageHandlerPython(PackageHandler):
             # Nothing was recorded for this file -- it was written by a path
             # that does not record provenance (the site-config ivpm spec).
             # Report what there is rather than inventing an owner.
-            fatal("failed to install Python packages%s"
-                  % _format_installer_error(lines))
+            log_path = _save_installer_log(requirements_file, result)
+            fatal("failed to install Python packages%s%s"
+                  % (_format_installer_error(lines),
+                     ("\n  full log: %s" % log_path) if log_path else ""))
             return
 
         report_content_failure(
@@ -1376,7 +1388,11 @@ class PackageHandlerPython(PackageHandler):
             installer=installer,
             output=output,
             identified_by=identified_by,
-            note_text=note_text)
+            note_text=note_text,
+            why=why,
+            steps=steps,
+            log_path=_save_installer_log(requirements_file, result),
+            rerun=rerun)
 
     def _retry_one(self, origin, python_dir, use_uv, use_pre, env) -> bool:
         """Install a single requirement by itself; True if it succeeds.
@@ -1892,6 +1908,20 @@ def _installer_failed_dist(captured_lines: list):
     fall back to a mechanism that cannot come up empty -- never as a reason to
     give up on attribution.
     """
+    spec = _installer_failed_spec(captured_lines)
+    if spec is None:
+        return None
+    return split_requirement(spec)[0] or None
+
+
+def _installer_failed_spec(captured_lines: list):
+    """The requirement the installer said it choked on, as it wrote it --
+    with the version it picked (uv: ``pkg==1.2.3``) -- or None.
+
+    The version is kept here so a report can say exactly what was built; it
+    must be stripped (see :func:`_installer_failed_dist`) before the name is
+    compared with anything, or the lookup silently misses.
+    """
     for line in reversed(captured_lines or []):
         m = re.search(r'Failed to build `([^`@\s]+)', line)
         if m:
@@ -1900,6 +1930,61 @@ def _installer_failed_dist(captured_lines: list):
         if stripped.startswith("Building "):
             return stripped[len("Building "):].split(" @ ")[0].split(" ")[0]
     return None
+
+
+def _is_pypi_pkg(pkg) -> bool:
+    from ..pkg_types.package_pypi import PackagePyPi
+    return isinstance(pkg, PackagePyPi)
+
+
+def _rerun_one(cmd, spec: str, python_dir: str = None):
+    """The failing installer command narrowed to *spec*: what the user runs to
+    see this one failure without re-running the whole phase. None when the
+    command does not have the expected ``-r <file>`` shape.
+
+    ivpm points uv at the venv through ``VIRTUAL_ENV``, which the user's shell
+    does not have; the command names the venv's interpreter explicitly so it
+    reproduces the failure in the same environment.
+    """
+    cmd = list(cmd or [])
+    if "-r" not in cmd or not spec:
+        return None
+    i = cmd.index("-r")
+    if i + 1 >= len(cmd):
+        return None
+    narrowed = cmd[:i] + [spec] + cmd[i + 2:]
+    if (python_dir and narrowed[1:3] == ["pip", "install"]
+            and "--python" not in narrowed):
+        try:
+            narrowed[3:3] = ["--python", get_venv_python(python_dir)]
+        except Exception:
+            # Part of a failure report: never let it replace the failure.
+            pass
+    return " ".join(narrowed)
+
+
+def _save_installer_log(requirements_file: str, result):
+    """Write the installer's complete output beside its input file and return
+    the path, or None if it could not be written.
+
+    The report shows an excerpt; this is where the rest lives, so a user who
+    needs line 200 of a build log does not have to re-run the install.
+    """
+    # Only beside an input that exists: the log goes in the deps-dir, never
+    # into whatever directory a relative or synthetic name would resolve to.
+    if (not requirements_file or not result.lines
+            or not os.path.isfile(requirements_file)):
+        return None
+    base, _ = os.path.splitext(requirements_file)
+    path = base + ".log"
+    try:
+        with open(path, "w") as fp:
+            fp.write("$ %s\n" % " ".join(result.cmd))
+            fp.write("\n".join(result.lines))
+            fp.write("\n(exit %d)\n" % result.returncode)
+    except OSError:
+        return None
+    return path
 
 
 def _format_installer_error(captured_lines: list, tail: int = 20) -> str:

@@ -51,6 +51,21 @@ class HandlerFatalError(Exception):
         self.reported = reported
 
 
+def task_error_text(e: Exception) -> str:
+    """What a HANDLER_TASK_ERROR event carries for *e*.
+
+    An error that went through the diagnostics reporter (a ``SrcLoaderError``
+    with ``diagnostics``) has already been rendered in full -- inline, or
+    deferred to the end of the run -- so the event carries only its first
+    line. Repeating a multi-line report on the task's ``<<`` line printed it
+    twice, and the second copy pushed the first off-screen.
+    """
+    text = str(e)
+    if getattr(e, "diagnostics", None):
+        return text.strip().splitlines()[0] if text.strip() else text
+    return text
+
+
 class ToolchainSupport(enum.Enum):
     """Whether a handler can run when the deps-dir is the root.
 
@@ -110,7 +125,7 @@ class TaskHandle:
                     task_id=task_id,
                     task_name=task_name,
                     parent_task_id=self._task_id,
-                    task_message=str(e),
+                    task_message=task_error_text(e),
                     duration=time.monotonic() - child._start,
                 ))
                 # Rendered now, so the top-level handler must not print it again.
@@ -273,7 +288,7 @@ class PackageHandler(object):
                     event_type=UpdateEventType.HANDLER_TASK_ERROR,
                     task_id=task_id,
                     task_name=task_name,
-                    task_message=str(e),
+                    task_message=task_error_text(e),
                     duration=time.monotonic() - handle._start,
                 ))
                 # See TaskHandle.task_context: mark as already-rendered so the

@@ -31,6 +31,8 @@ installer's output along.  It identifies which dependency contributed the
 failing input, and where that dependency was imported from::
 
     packages/bar/ivpm.yaml:17:1: fatal: failed to install python content for package 'foo'
+    - name: foo
+      ^
 
       imported by:
         ivpm.yaml:42:1                            ->  bar
@@ -38,31 +40,78 @@ failing input, and where that dependency was imported from::
 
       'foo' was treated as a python package because IVPM found pyproject.toml in it and enrolled it automatically
 
-      installer input: packages/python_pkgs_4.txt
-      installer: uv pip install -r packages/python_pkgs_4.txt (exit 2)
-
       identified by: a diagnostic re-run of 3 packages, installed one at a time
 
-      installer output:
-        x Failed to build `foo @ file:///w/packages/foo`
-        error: missing header
-
       next step:
-        if 'foo' does not provide python content, say so at packages/bar/ivpm.yaml:17:1:
+        - if 'foo' does not provide python content, say so at packages/bar/ivpm.yaml:17:1:
             - name: foo
               type: raw
 
+      installer output (excerpt; full log: packages/python_pkgs_4.log):
+        x Failed to build `foo @ file:///w/packages/foo`
+        error: missing header
+
+      installer input: packages/python_pkgs_4.txt
+      installer: uv pip install -r packages/python_pkgs_4.txt (exit 2)
+
+When the failing package comes from PyPI and had to be built from source, the
+report also says *why* it was built from source -- almost always because the
+package publishes no wheel for your Python version or platform::
+
+    packages/pyvsc/ivpm.yaml:17:7: fatal: failed to install python content for package 'pyboolector'
+        - name: pyboolector
+          ^
+
+      why: no prebuilt wheel of 'pyboolector' matched this environment (CPython 3.14, linux x86_64),
+           so the installer built it from source, and that build failed.
+           pypi.org has linux x86_64 wheels of pyboolector 3.2.4.19342042739 for CPython 3.8-3.13.
+
+      imported by:
+        ivpm.yaml:23:7                            ->  pyvsc
+        packages/pyvsc/ivpm.yaml:17:7             ->  pyboolector
+
+      identified by: the installer named 'pyboolector==3.2.4.19342042739' in its output
+
+      next step:
+        - recreate the Python environment with a Python that 'pyboolector' publishes wheels for (3.8-3.13)
+        - or pin 'pyboolector' to a release that has a wheel for CPython 3.14
+
+      installer output (excerpt; full log: packages/python_pkgs_4.log):
+        x Failed to build `pyboolector==3.2.4.19342042739`
+        |-> The build backend returned an error
+        `-> Call to `setuptools.build_meta:__legacy__.build_wheel` failed (exit status: 1)
+            ...
+        Cython.Compiler.Errors.InternalError: Internal compiler error:
+        'pyboolector_enums.pxd' not found
+
+      installer: uv pip install --verbose --no-build-isolation -r packages/python_pkgs_4.txt (exit 1)
+      re-run just this package: uv pip install --python packages/python/bin/python --verbose --no-build-isolation pyboolector==3.2.4.19342042739
+
+The full report is printed once, at the end; the progress line for the failed
+step carries only its first line.
+
 Each block answers a different question:
+
+**why**
+    Present when the installer built a PyPI package from source and that build
+    failed.  It names the interpreter and platform the venv uses and, when
+    pypi.org can be reached, which CPython versions the release has wheels for
+    on this platform.  The query is skipped when another package index is
+    configured (``UV_INDEX_URL``, ``UV_DEFAULT_INDEX``, ``PIP_INDEX_URL``) or
+    when ``IVPM_NO_INDEX_QUERY`` is set.
 
 **imported by**
     The chain from your ``ivpm.yaml`` down to the failing package, one hop per
     line, each with the file and line that named the next.  This is what you
     edit.  A dependency three levels down is not something you declared, but
-    the top line of the chain always is.
+    the top line of the chain always is.  When a failure could not be narrowed
+    and more than a few packages are reported, each is listed on one line
+    (``imported at:``) with the place it was declared.
 
 **was treated as ... because**
     Why IVPM believed this package carried Python or Node content.  Four
-    answers are possible, and they differ in who decided:
+    answers are possible, and they differ in who decided.  The first is
+    self-evident for a PyPI package, so it is not printed for one:
 
     .. list-table::
        :header-rows: 1
@@ -109,10 +158,32 @@ Each block answers a different question:
            limit to narrow it further.
 
 **next step**
-    Offered only when IVPM guessed.  If the package genuinely is not a
-    Python/Node package, ``type: raw`` at the named line stops the guessing.
-    When you or the package declared the content type deliberately, no such
-    suggestion appears -- the fix is in the package, not in the declaration.
+    What you can do about it.  For a source build of a PyPI package with no
+    matching wheel, that is a different Python or a different release.
+    Otherwise it is offered only when IVPM guessed: if the package genuinely is
+    not a Python/Node package, ``type: raw`` at the named line stops the
+    guessing.  When you or the package declared the content type deliberately,
+    no such suggestion appears -- the fix is in the package, not in the
+    declaration.  The same holds when the guess is confirmed by the package
+    itself: a ``pyproject.toml`` with both ``[project] name`` and
+    ``[build-system] build-backend`` is a Python project, and the next step
+    points at its build failure instead.
+
+**installer output**
+    An excerpt of what the installer printed, in output order: the
+    installer's own summary of the failure (the ``x Failed to build ...``
+    block uv and pip print before the build log), the build's first error
+    when it came earlier than the tail -- a CMake or compiler error followed by
+    a long backend traceback, typically -- and the last lines of output.  Gaps
+    are marked ``...``.  Installer trace lines (``DEBUG``/``TRACE`` from
+    ``uv --verbose``) are left out.  The complete output is saved beside the
+    installer input (``packages/python_pkgs_<N>.log``), and the header names
+    it.
+
+**installer / re-run just this package**
+    The exact command that failed and, when the installer named the package,
+    the same command narrowed to that one package and pointed at the project's
+    venv -- run it to reproduce the failure without the rest of the phase.
 
 Four Kinds of Content Failure
 -----------------------------

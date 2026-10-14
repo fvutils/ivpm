@@ -27,6 +27,7 @@
 #****************************************************************************
 import dataclasses as dc
 import logging
+import re
 import subprocess
 import sys
 from typing import Callable, List, Optional
@@ -120,17 +121,110 @@ def run_installer(cmd,
     return InstallerResult(returncode=returncode, lines=lines, cmd=cmd)
 
 
-def format_output_tail(lines, tail: int = 20) -> str:
-    """Return the last *tail* non-blank lines, newline-prefixed, or "".
+# Installer trace lines. ``uv --verbose`` interleaves these with the build's
+# own output and, on a failed build, ends with a run of lock-release lines, so
+# a plain tail is mostly trace and loses the error that explains the failure.
+_TRACE_RE = re.compile(r"^(DEBUG|TRACE) ")
 
-    Blank lines are dropped before the tail is taken: installers pad their
-    output generously, and a tail of mostly blanks wastes the budget the user
-    actually reads.
+# The first line of a build's explanation of why it failed. Used only to choose
+# which lines to show -- never to decide who is at fault (see content_attrib).
+# Case-sensitive on purpose: ``error:`` is how gcc/clang/ld/rustc/uv/npm
+# introduce an error, and ``RuntimeError:`` at the end of a backend traceback
+# is a consequence of the error, not the error.
+_ERROR_RE = re.compile(
+    r"(CMake Error|\berror:|\bfatal error\b|^\s*ERROR[: ]|npm ERR!)")
+
+# Lines shown from the first error onward, when it falls outside the tail.
+_ERROR_CONTEXT = 12
+
+# The installer's own one-paragraph summary of the failure. uv and pip both
+# open it with ``×`` and continue it with tree glyphs (``├─▶``, ``│``,
+# ``╰─▶`` / ``╰─>``) up to the first blank line. It is the best summary the
+# output contains -- uv names the distribution and the failing step in it --
+# and it comes *before* the build log, so a tail never reaches it.
+_HEADLINE_RE = re.compile(r"^\s*\u00d7 ")
+
+# Longest headline kept. uv's is 3-4 lines; the cap stops a headline with no
+# blank line after it from swallowing the build log.
+_HEADLINE_MAX = 8
+
+# Tail kept alongside a headline.
+_HEADLINE_TAIL = 10
+
+
+def _headline_span(lines):
+    """``(first, last)`` raw indices of the installer's summary, or None."""
+    for i, l in enumerate(lines):
+        if _HEADLINE_RE.match(l):
+            j = i
+            while (j + 1 < len(lines) and j + 1 - i < _HEADLINE_MAX
+                   and lines[j + 1].strip()):
+                j += 1
+            return (i, j)
+    return None
+
+
+def format_output_tail(lines, tail: int = 20) -> str:
+    """Return an excerpt of installer output, newline-prefixed, or "".
+
+    The excerpt is, in output order:
+
+    - the installer's own failure summary (uv's/pip's ``×`` block), which
+      names what failed and comes before the build log;
+    - up to ``_ERROR_CONTEXT`` lines from the first error line (a CMake or
+      compiler error), which a native build reports and then unwinds through
+      a traceback long enough to push it out of any fixed-size tail;
+    - the last *tail* lines (at most ``_HEADLINE_TAIL`` when there is a
+      summary).
+
+    Gaps between the pieces are marked ``...``. Blank lines and installer
+    trace lines (``DEBUG``/``TRACE``) are dropped: installers pad their output
+    generously, and a budget spent on padding or lock-release chatter is one
+    the user cannot read.
     """
     if not lines:
         return ""
-    relevant = [l for l in lines if l.strip()]
-    if not relevant:
+    raw = list(lines)
+    keep = [i for i, l in enumerate(raw)
+            if l.strip() and not _TRACE_RE.match(l)]
+    if not keep:
         return ""
-    snippet = relevant[-tail:] if len(relevant) > tail else relevant
+    pos = {ri: k for k, ri in enumerate(keep)}
+    relevant = [raw[i] for i in keep]
+
+    span = _headline_span(raw)
+    if span is not None:
+        # The installer has already said what failed; the tail only has to
+        # show how the build ended, and the full log is a path away.
+        tail = min(tail, _HEADLINE_TAIL)
+
+    # Each piece is a half-open [start, end) range over *relevant*.
+    pieces = [(max(0, len(relevant) - tail), len(relevant))]
+
+    if span is not None:
+        idx = [pos[i] for i in range(span[0], span[1] + 1) if i in pos]
+        if idx:
+            pieces.append((idx[0], idx[-1] + 1))
+
+    first_err = next((i for i, l in enumerate(relevant) if _ERROR_RE.search(l)),
+                     None)
+    if first_err is not None:
+        pieces.append((first_err, min(first_err + _ERROR_CONTEXT, len(relevant))))
+
+    pieces.sort()
+    merged = []
+    for s, e in pieces:
+        if merged and s <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], e))
+        else:
+            merged.append((s, e))
+
+    snippet = []
+    for k, (s, e) in enumerate(merged):
+        if k > 0:
+            # Indented like the line it precedes, so a caller that dedents the
+            # excerpt as a block is not stopped by an unindented marker.
+            nxt = relevant[s]
+            snippet.append(nxt[:len(nxt) - len(nxt.lstrip())] + "...")
+        snippet.extend(relevant[s:e])
     return "\n" + "\n".join(snippet)
