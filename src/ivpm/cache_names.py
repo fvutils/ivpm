@@ -71,6 +71,52 @@ def canonical_key(name: str) -> str:
     return name.split(LEGACY_ALT_MARKER, 1)[0]
 
 
+# --- reserved names ------------------------------------------------------
+
+#: Substrings and suffixes that mark a name as one IVPM made for itself.
+_TRANSIENT_MARKERS = (".staging.", ".gc.")
+_META_SUFFIX = ".meta.json"
+_POLICY_NAME = "policy.json"
+
+
+def is_machinery_name(name: str) -> bool:
+    """Is *name* one IVPM creates for its own bookkeeping, now or formerly?
+
+    A partition, a divergent copy, a staging or tombstone directory, an entry
+    sidecar or a partition policy.  These are the only names a package may not
+    take: everything else is the package author's to choose.
+    """
+    return (is_partition_name(name) or is_divergent(name)
+            or any(m in name for m in _TRANSIENT_MARKERS)
+            or name.endswith(_META_SUFFIX) or name == _POLICY_NAME)
+
+
+# --- package keys --------------------------------------------------------
+
+#: The names releases 2.33-2.40 accepted, and stored under their own name.
+_LEGACY_PACKAGE_RE = re.compile(r"^[-A-Za-z0-9._+]+$")
+
+
+def package_key(name: str) -> str:
+    """The directory name a package's cache entries are stored under.
+
+    Package names are not restricted to a character set (an npm scope such as
+    ``@marp-team/marp-cli`` carries a ``/``), but a package must own exactly
+    one directory at the cache root, or the cache scan reads its scope as a
+    package and its name as a version.  A name older releases could store is
+    returned unchanged, so their entries stay shared; anything else becomes
+    ``<stem>_k<24 hex>``, which is itself such a name -- so this is
+    idempotent, and a key read back off disk maps to itself.
+    """
+    if not isinstance(name, str) or not name:
+        raise ValueError("a package name must be a non-empty string")
+    if _LEGACY_PACKAGE_RE.match(name) and name not in (".", ".."):
+        return name
+    stem = _STEM_UNSAFE.sub("-", name)[:_STEM_MAX].strip("-_")
+    digest = hashlib.sha256(name.encode("utf-8")).hexdigest()[:24]
+    return "%s_k%s" % (stem, digest)
+
+
 # --- version keys --------------------------------------------------------
 
 #: Patched variants are ``<base key>_patch_<16 hex>`` (see ivpm.patch).
@@ -87,9 +133,9 @@ _STEM_UNSAFE = re.compile(r"[^A-Za-z0-9_-]")
 
 #: Cache machinery is named by these; a key containing one would be swept,
 #: or read as a sidecar, by this release or an older one.
-_MACHINERY_SUBSTRINGS = (".staging.", ".gc.")
-_MACHINERY_SUFFIXES = (".meta.json",)
-_MACHINERY_NAMES = ("policy.json",)
+_MACHINERY_SUBSTRINGS = _TRANSIENT_MARKERS
+_MACHINERY_SUFFIXES = (_META_SUFFIX,)
+_MACHINERY_NAMES = (_POLICY_NAME,)
 
 
 def is_plain_key(version: str) -> bool:

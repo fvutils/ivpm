@@ -1116,5 +1116,27 @@ class TestFailedInstallReporting(TestBase):
         self.assertIn("tsc: not found", msg)
 
 
+class TestInstallerFailedDep(unittest.TestCase):
+    """npm's error prose names a scoped package with a leading '@', which is
+    part of the name, not the '<name>@<version>' separator."""
+
+    def test_names_are_read_from_npm_errors(self):
+        from ivpm.handlers.package_handler_node import _installer_failed_dep
+        cases = [
+            ("npm error notarget No matching version found for lodash@^99.0.0",
+             "lodash"),
+            ("npm error notarget No matching version found for "
+             "@marp-team/marp-cli@^99.0.0", "@marp-team/marp-cli"),
+            ("npm error 404  'no-such-pkg@1.0.0' is not in this registry",
+             "no-such-pkg"),
+            ("npm error 404  '@acme/no-such@1.0.0' is not in this registry",
+             "@acme/no-such"),
+            ("npm error While resolving: @acme/app@1.0.0", "@acme/app"),
+        ]
+        for line, want in cases:
+            with self.subTest(line=line):
+                self.assertEqual(_installer_failed_dep([line]), want)
+
+
 if __name__ == "__main__":
     unittest.main()

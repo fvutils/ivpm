@@ -192,13 +192,17 @@ def _read_package_name(pkg_path: str, pkg=None) -> Optional[str]:
     return name if isinstance(name, str) and name else None
 
 
+#: A package name as npm prints it before ``@<version>``: the leading ``@`` of
+#: a scope (``@marp-team/marp-cli``) is part of the name, not the separator.
+_NPM_NAME = r"((?:@[^@\s'/]+/)?[^@\s']+)"
+
 _NPM_NAMED_DEP_RE = (
     # "npm error notarget No matching version found for lodash@^99.0.0"
-    r"No matching version found for (\S+?)@",
+    r"No matching version found for " + _NPM_NAME + "@",
     # "npm error 404  'no-such-pkg@1.0.0' is not in this registry"
-    r"404\s+'([^'@]+)@",
+    r"404\s+'" + _NPM_NAME + "@",
     # "npm error While resolving: my-pkg@1.0.0"
-    r"While resolving:\s+(\S+?)@",
+    r"While resolving:\s+" + _NPM_NAME + "@",
 )
 
 

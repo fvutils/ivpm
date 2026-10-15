@@ -43,6 +43,7 @@ import dataclasses as dc
 from typing import Dict, List, Optional
 
 from .diagnostics import Severity
+from .cache_names import package_key
 from .protection import is_partition_name
 from .site_config import (CACHE_VERIFY_LEVELS, DEFAULT_CACHE_VERIFY_LEVEL,
                           resolve_cache_verify_level)
@@ -679,8 +680,11 @@ def verify_cache(store, level: Optional[str] = None,
         result.elapsed_s = time.time() - started
         return result
 
+    # Directories are named by package key, which is the name itself unless
+    # the name needed escaping (an npm scope, say).
+    want = package_key(package) if package is not None else None
     for pkg_name in sorted(_listdir(store.cache_dir)):
-        if package is not None and pkg_name != package:
+        if want is not None and pkg_name != want:
             continue
         pkg_dir = os.path.join(store.cache_dir, pkg_name)
         if not os.path.isdir(pkg_dir) or os.path.islink(pkg_dir):

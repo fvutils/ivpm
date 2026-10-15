@@ -717,6 +717,17 @@ class PackageUpdater(object):
         # workspace it IS the bare name.
         pkg.scope_key = scope_path(scope, pkg.name)
 
+        # A scoped name (``@acme/lib``) lives one level down.  Providers build
+        # their own paths and assume deps/ is the parent, so the scope
+        # directory is made here, once, for all of them -- and removed again
+        # below if the package did not land there (an npm package never does).
+        scope_parent = os.path.dirname(pkg_dir)
+        made_scope_parent = (os.path.normpath(scope_parent)
+                             != os.path.normpath(scope.deps_dir)
+                             and not os.path.isdir(scope_parent))
+        if made_scope_parent:
+            os.makedirs(scope_parent)
+
         try:
             # What is about to happen to this package, and why. Memoized, so
             # the source provider below observes the same decision -- in
@@ -753,6 +764,12 @@ class PackageUpdater(object):
             _dispatch_leaf(self.pkg_handler.on_leaf_pre_load, pkg, update_info)
 
             pkg.proj_info = pkg.update(update_info)
+
+            if made_scope_parent:
+                try:
+                    os.rmdir(scope_parent)     # fails, as wanted, unless empty
+                except OSError:
+                    pass
 
             # Merge self-declared types from the dep's own ivpm.yaml into pkg.type_data.
             # Caller-specified types take priority; self-declared ones are appended only

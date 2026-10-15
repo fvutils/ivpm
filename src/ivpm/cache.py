@@ -108,16 +108,18 @@ class DirectoryCacheStore:
 
         The name is checked here, not only at manifest-parse time, because this
         is the choke point every path in the cache goes through and the store
-        is also a public API. A name containing a separator escapes the cache
-        layout; ``.`` and ``..`` are worse, because they resolve to a directory
-        that already exists and everything downstream then succeeds against the
-        wrong tree.
+        is also a public API. ``..`` escapes the cache layout; ``.`` is worse,
+        because it resolves to a directory that already exists and everything
+        downstream then succeeds against the wrong tree.  A name with a
+        separator in it (an npm scope) is legitimate, and is stored under an
+        escaped key so the package still owns exactly one directory.
         """
+        from .cache_names import package_key
         from .utils import package_name_problem
         problem = package_name_problem(package_name)
         if problem is not None:
             raise ValueError("invalid package name for the cache: %s" % problem)
-        return os.path.join(self.cache_dir, package_name)
+        return os.path.join(self.cache_dir, package_key(package_name))
 
     def get_partition_dir(self, package_name: str,
                           policy: Optional[ProtectionPolicy]) -> str:
@@ -1351,6 +1353,8 @@ class DirectoryCacheStore:
         # over an existing symlink is atomic: the path names the old target or
         # the new one, never nothing.
         tmp_link = "%s.ivpm-link.%s" % (link_path, uuid.uuid4().hex)
+        # A scoped name (``@scope/name``) links one level down.
+        os.makedirs(os.path.dirname(link_path), exist_ok=True)
         try:
             os.symlink(version_dir, tmp_link)
             os.replace(tmp_link, link_path)
@@ -1381,7 +1385,7 @@ class DirectoryCacheStore:
         content, and a later run must be able to replace it), and discarded.
         """
         link_path = os.path.join(deps_dir, package_name)
-        os.makedirs(deps_dir, exist_ok=True)
+        os.makedirs(os.path.dirname(link_path), exist_ok=True)
         tmp = "%s.ivpm-copy.%s" % (link_path, uuid.uuid4().hex)
         try:
             shutil.copytree(tree, tmp, symlinks=True)

@@ -87,17 +87,21 @@ Missing required ``name`` on a dependency::
             - src: pypi
             ^
 
-A dependency name that cannot be a directory name::
+A dependency name that would escape its own directory::
 
-    ivpm.yaml:6:15: fatal: Invalid package name: '../../etc' contains characters
-     that are not allowed in a package name; use letters, digits, and '. _ + -'
+    ivpm.yaml:6:15: fatal: Invalid package name: '../../etc' would place the
+     package outside its own directory (an empty, '.' or '..' path component)
             - name: ../../etc
               ^
 
-A dependency's name becomes a directory in the deps directory and in the shared
-cache, so it must match ``[A-Za-z0-9._+-]+``. ``.`` and ``..`` are rejected for
-the same reason even though they contain no unusual characters: they name a
-directory that already exists.
+Dependency names are not limited to a character set: an npm scoped name such as
+``@marp-team/marp-cli`` is fine, and a ``/`` makes a nested directory in the
+deps directory, as npm itself does.  (In the shared cache such a name is
+stored under an escaped key, so each package still owns one directory.)  What
+is rejected is an absolute path, an empty, ``.`` or ``..`` path component, and
+a name IVPM reserves for its own cache bookkeeping -- ``protect_p<hex>``,
+``@protect.*``, ``*.staging.*``, ``*.gc.*``, ``*_alt_<hex>``, ``*~alt~*``,
+``*.meta.json`` and ``policy.json``.
 
 A dependency with neither ``src`` nor ``url``::
 

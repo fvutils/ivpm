@@ -33,6 +33,21 @@
     into the current directory, with or without copier, and never prompts.
     `NAME` is now optional and defaults to the directory's name.
 
+- **Fix: npm scoped names (`@scope/name`) are accepted as dependency names.**
+  Since 2.33.0, every dependency name had to match `[A-Za-z0-9._+-]+`, so
+  `- name: "@marp-team/marp-cli"` with `src: npm` failed with "Invalid package
+  name". Names are no longer limited to a character set. Only names that
+  would escape the package's own directory (absolute paths, and empty, `.` or
+  `..` components) and names IVPM reserves for its cache bookkeeping
+  (`protect_p…`, `@protect.…`, `.staging.`, `.gc.`, `_alt_…`, `.meta.json`,
+  `policy.json`) are rejected.
+  - A non-npm dependency with a `/` in its name lands in a nested directory,
+    `packages/@scope/name`. In the shared cache it is stored under an escaped
+    `<stem>_k<hex>` key, so it still owns one directory. Names older releases
+    accepted keep their existing cache directories.
+  - Failed npm installs now name the scoped dependency that npm reported,
+    where before the leading `@` stopped the name from being matched.
+
 # 2.41.0
 - **New: clone preparers, a pre-clone hook for `ivpm clone`.** Extensions
   register through the new `ivpm.clone_preparers` entry-point group. Once the

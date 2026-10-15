@@ -446,10 +446,34 @@ class TestPathComponentSafety(unittest.TestCase):
         return src
 
     def test_a_traversing_package_name_is_refused(self):
-        for bad in ("..", ".", "../../etc", "a/b", "", "a\0b"):
+        for bad in ("..", ".", "../../etc", "a/../../etc", "/abs", "a//b",
+                    "", "a\0b"):
             with self.subTest(name=bad):
                 with self.assertRaises(ValueError):
                     self.store.get_package_cache_dir(bad)
+
+    def test_a_name_ivpm_reserves_is_refused(self):
+        # A package named like a partition would be read as one, under the
+        # package whose name is its scope.
+        for bad in ("protect_p0123456789ab", "@protect.x", "acme/policy.json",
+                    "x.staging.y", "x.gc.y", "x.meta.json"):
+            with self.subTest(name=bad):
+                with self.assertRaises(ValueError):
+                    self.store.get_package_cache_dir(bad)
+
+    def test_a_scoped_name_owns_exactly_one_directory(self):
+        # '@marp-team/marp-cli' is a valid npm name.  Stored under its own
+        # name it would make '@marp-team' a package and 'marp-cli' a version.
+        for name in ("@marp-team/marp-cli", "a/b", "caf\u00e9"):
+            with self.subTest(name=name):
+                d = self.store.get_package_cache_dir(name)
+                self.assertEqual(os.path.dirname(d), self.cache_dir)
+                key = os.path.basename(d)
+                self.assertRegex(key, r"^[A-Za-z0-9_-]*_k[0-9a-f]{24}$")
+                # Read back off disk, the key maps to itself.
+                self.assertEqual(self.store.get_package_cache_dir(key), d)
+        self.assertNotEqual(self.store.get_package_cache_dir("a/b"),
+                            self.store.get_package_cache_dir("a-b"))
 
     def test_an_ordinary_name_is_untouched(self):
         for good in ("libX", "my.pkg", "a_b-c", "v1+2"):

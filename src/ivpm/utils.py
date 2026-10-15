@@ -33,30 +33,34 @@ def sha256_file(path: str, _bufsize: int = 65536) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-#: The characters a package name may contain.  It is joined straight into a
-#: filesystem path, so anything outside this set is either a path traversal or
-#: a directory separator that silently changes the shape of the cache.  (Cache
-#: version keys follow the stricter rules in :mod:`ivpm.cache_names`.)
-_SAFE_NAME_CHARS = "-A-Za-z0-9._+"   # '-' first: it is a literal, not a range
-_SAFE_PATH_COMPONENT = re.compile("^[%s]+$" % _SAFE_NAME_CHARS)
-
-
 def package_name_problem(name) -> Optional[str]:
     """Why *name* is unusable as a package name, or ``None`` if it is fine.
 
-    A package name is a directory name in ``deps/`` and in the cache, and
-    nothing validated it before it got there. ``../../etc`` is the obvious
-    case; ``.`` and ``..`` are the quiet ones, because they name a directory
-    that already exists and every subsequent operation succeeds against the
-    wrong tree.
+    Names are not limited to a character set: an npm scope
+    (``@marp-team/marp-cli``) is as good a name as ``libX``.  A ``/`` makes a
+    nested directory in ``deps/``, which is what npm itself does, and the cache
+    stores such a name under an escaped key (:func:`ivpm.cache_names.package_key`).
+
+    What is refused is a name that would land the package somewhere other than
+    below its own directory -- ``../../etc``, an absolute path, and the quiet
+    ones, ``.`` and ``..``, which name a directory that already exists so every
+    subsequent operation succeeds against the wrong tree -- and a name IVPM
+    reserves for its own bookkeeping (``protect_p...``, ``@protect.``, ...).
     """
+    from .cache_names import is_machinery_name
     if not isinstance(name, str) or not name:
         return "a package name must be a non-empty string"
-    if name in (".", ".."):
-        return "'%s' names a directory that already exists" % name
-    if not _SAFE_PATH_COMPONENT.match(name):
-        return ("'%s' contains characters that are not allowed in a package "
-                "name; use letters, digits, and '. _ + -'" % name)
+    if "\0" in name:
+        return "'%s' contains a NUL character" % name.replace("\0", "\\0")
+    if name.startswith(("/", "\\")):
+        return "'%s' is an absolute path, not a package name" % name
+    for part in re.split(r"[/\\]", name):
+        if part in ("", ".", ".."):
+            return ("'%s' would place the package outside its own directory "
+                    "(an empty, '.' or '..' path component)" % name)
+        if is_machinery_name(part):
+            return ("'%s' uses '%s', a name IVPM reserves for its own cache "
+                    "bookkeeping" % (name, part))
     return None
 
 

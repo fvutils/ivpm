@@ -130,6 +130,26 @@ package:
       url: https://example.com/x.tar.gz
 """
 
+_SCOPED_NAME = """\
+package:
+  name: root
+  dep-sets:
+  - name: use
+    deps:
+    - name: "@marp-team/marp-cli"
+      src: npm
+"""
+
+_RESERVED_NAME = """\
+package:
+  name: root
+  dep-sets:
+  - name: use
+    deps:
+    - name: "@protect.0123/lib"
+      url: https://example.com/x.tar.gz
+"""
+
 
 class TestPackageNameValidation(unittest.TestCase):
     """K3: a dependency name becomes a directory in deps/ and in the shared
@@ -159,6 +179,16 @@ class TestPackageNameValidation(unittest.TestCase):
         with self.assertRaises(SrcLoaderError):
             _parse(_DOTDOT_NAME, "dotdot.yaml")
         self.assertIn("Invalid package name", self._fatals()[0].message)
+
+    def test_a_scoped_npm_name_parses(self):
+        info = _parse(_SCOPED_NAME, "scoped.yaml")
+        self.assertIn("@marp-team/marp-cli", info.get_dep_set("use").packages)
+        self.assertEqual(self._fatals(), [])
+
+    def test_a_name_ivpm_reserves_is_rejected(self):
+        with self.assertRaises(SrcLoaderError):
+            _parse(_RESERVED_NAME, "reserved.yaml")
+        self.assertIn("reserves", self._fatals()[0].message)
 
     def test_an_ordinary_name_still_parses(self):
         info = _parse(_ORDINARY_NAME, "ok.yaml")
