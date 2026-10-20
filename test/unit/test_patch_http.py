@@ -19,7 +19,7 @@ SRCDIR = os.path.join(ROOTDIR, 'src')
 sys.path.insert(0, SRCDIR)
 
 from ivpm.pkg_types.package_http import PackageHttp
-from ivpm.patch import PatchSpec, md5_file, read_manifest
+from ivpm.patch import PatchSet, PatchSpec, md5_file, read_manifest
 from ivpm.cache import DirectoryCacheStore
 from ivpm.cache_provider import CacheContext, DirectoryCacheProvider
 
@@ -154,6 +154,91 @@ class TestHttpPatchedUpdate(_HttpPatchBase):
         self.assertTrue(os.access(hello, os.W_OK))
         # Archive retained for tier-2 retain_base().
         self.assertTrue(os.path.isfile(pkg._pristine_archive))
+
+
+class TestHttpEditableBase(_HttpPatchBase):
+    """An editable (uncached) archive dep keeps a base to check its tree
+    against, even when it is first patched after it was fetched; and a patched
+    tree that an older ivpm left with no base is checked by recovering one,
+    rather than refused as drift."""
+
+    def setUp(self):
+        super().setUp()
+        self.pdir = os.path.join(self.deps_dir, "somelib")
+
+    def _update(self, patches):
+        pkg = self._pkg(patches, cache=None)
+        pkg.update(self.ui())
+        return pkg
+
+    def _reconcile(self, patches):
+        from ivpm.patch import PatchSet, classify, reconcile
+        pkg = self._pkg(patches, cache=None)
+        ps = PatchSet(tuple(patches))
+        st = classify(self.pdir, "v1", ps, pkg, self.ui())
+        reconcile(st, self.ui(), pkg, self.pdir, "v1", ps)
+        return st
+
+    def _bases(self):
+        d = os.path.join(self.pdir, ".ivpm")
+        return sorted(f for f in os.listdir(d) if f.startswith("base.")) \
+            if os.path.isdir(d) else []
+
+    def _legacy_patched(self, patches):
+        # A patched tree as an older ivpm left it: manifest, no retained base.
+        self._update([])
+        self._reconcile(patches)
+        for f in self._bases():
+            os.unlink(os.path.join(self.pdir, ".ivpm", f))
+
+    def test_first_patched_after_fetch_retains_base(self):
+        self._update([])
+        self.assertIsNone(read_manifest(self.pdir))
+        self._reconcile([mkspec("fix.patch")])
+        self.assertEqual(self._bases(), ["base.tar.gz"])
+        self.assertEqual(self._read("hello.txt"), "hello patched\n")
+
+    def test_patchset_change_after_first_patch_reestablishes(self):
+        self._update([])
+        self._reconcile([mkspec("fix.patch")])
+        two = [mkspec("fix.patch"), mkspec("sub.patch", directory="src")]
+        self._reconcile(two)
+        self.assertEqual(read_manifest(self.pdir)["patchset_id"],
+                         PatchSet(tuple(two)).patchset_id)
+
+    def test_legacy_tree_recovers_base_and_reestablishes(self):
+        from ivpm.patch import PatchState
+        self._legacy_patched([mkspec("fix.patch")])
+        self.assertEqual(self._bases(), [])
+        two = [mkspec("fix.patch"), mkspec("sub.patch", directory="src")]
+        st = self._reconcile(two)
+        self.assertEqual(st.kind, PatchState.PATCHED_CLEAN)
+        self.assertEqual(self._bases(), ["base.tar.gz"])
+        self.assertEqual(read_manifest(self.pdir)["patchset_id"],
+                         PatchSet(tuple(two)).patchset_id)
+        self.assertEqual(self._read("hello.txt"), "hello patched\n")
+
+    def test_legacy_tree_with_edits_still_refused(self):
+        self._legacy_patched([mkspec("fix.patch")])
+        with open(os.path.join(self.pdir, "ctx.txt"), "w") as fp:
+            fp.write("dev work\n")
+        with self.assertRaises(Exception) as ctx:
+            self._reconcile([mkspec("fix.patch"), mkspec("sub.patch", directory="src")])
+        self.assertIn("local modifications beyond its applied patches", str(ctx.exception))
+        self.assertEqual(self._read("ctx.txt"), "dev work\n")
+        self.assertEqual(self._bases(), [])      # an unexplaining base is not kept
+
+    def test_unrecoverable_base_says_so(self):
+        self._legacy_patched([mkspec("fix.patch")])
+        pkg_cls = PackageHttp
+        orig = pkg_cls.recover_base
+        pkg_cls.recover_base = lambda self, *a: False
+        try:
+            with self.assertRaises(Exception) as ctx:
+                self._reconcile([mkspec("fix.patch"), mkspec("sub.patch", directory="src")])
+        finally:
+            pkg_cls.recover_base = orig
+        self.assertIn("cannot be checked for local modifications", str(ctx.exception))
 
 
 if __name__ == "__main__":

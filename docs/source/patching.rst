@@ -12,11 +12,11 @@ records exactly what it did so that re-running ``ivpm update`` is idempotent.
 
 .. note::
 
-   Patching is currently supported for **git** dependencies (both cached and
-   editable). Archive sources (``http``, ``gh-rls``, ``tgz``/``txz``/``zip``/
-   ``jar``) declare patch capability but are **not yet wired** to the patch
-   pipeline -- ``patches:`` on those sources is silently ignored for now. Apply
-   patches only to ``git`` dependencies until archive support lands.
+   Patching is supported for **git** dependencies and for **archive**
+   dependencies fetched by URL (``.tar.gz``/``.tgz``, ``.tar.xz``/``.txz``,
+   ``.zip``, ``.jar``), cached and editable alike; see `Archive Dependencies`_.
+   ``gh-rls`` dependencies cannot be patched yet: ``patches:`` on one is a
+   located error.
 
 Declaring Patches
 =================
@@ -68,6 +68,47 @@ Patch-entry options (mapping form):
 A patch file that does not exist (at parse time) or an unknown option is a hard,
 located error. Declaring ``patches:`` on a source type that cannot be patched
 (``dir``, ``file``, ...) is also an error.
+
+Archive Dependencies
+====================
+
+A dependency fetched from an archive URL takes ``patches:`` the same way a git
+dependency does:
+
+.. code-block:: yaml
+
+   - name: slang
+     url: https://github.com/MikePopoloski/slang/archive/refs/tags/v11.0.tar.gz
+     type: raw
+     patches:
+       - patches/slang/0001-fix.patch
+
+Patch paths are relative to the package directory as IVPM unpacks it. A tar
+archive (``.tar.gz``, ``.tar.xz``, ``.tar.bz2``) loses its leading directory
+when unpacked, so the default ``strip: 1`` fits a ``git diff`` or
+``diff -u a/... b/...`` made from an unpacked copy. A ``.zip`` or ``.jar`` is
+unpacked as is, keeping any top-level directory: include it in the patch paths,
+or point ``directory:`` at it.
+
+- **Identity.** The base version of a patched archive is the server's
+  ``ETag`` (``W/`` and quotes removed), else its ``Last-Modified``. A patched
+  archive with neither is still patched, in place, but never cached: the update
+  notes ``Not caching patched <name>``, because a shared entry with no stable
+  identity could never be invalidated.
+- **Editable** (the default, no ``cache: true``). IVPM unpacks the archive into
+  ``packages/<name>`` and keeps a copy of the downloaded archive at
+  ``.ivpm/base<ext>``. That copy is what IVPM re-extracts, offline, when the
+  declared patch set changes, and what it compares the tree with to detect your
+  own edits (`Idempotency and Change Detection`_). An archive first fetched
+  unpatched, and given ``patches:`` later, is downloaded again then to keep that
+  copy. A patched tree with no copy (left by an older IVPM) gets one the next
+  time its patch set changes: IVPM downloads the base, and re-establishes the
+  tree only if the tree is that base plus the recorded patches. Otherwise it
+  stops with the drift error and drops the download.
+- **Cached** (``cache: true`` with ``IVPM_CACHE`` set). As for git: a base
+  entry plus a ``<base>_patch_<id>`` variant, shared between projects.
+- The lock file records the archive's ``etag``/``last_modified`` and the patch
+  set, as for git.
 
 How Patches Are Applied
 =======================
@@ -164,6 +205,10 @@ stops with an error instead:
      - to discard the changes and re-establish: remove 'packages/somelib', then
        re-run 'ivpm update'
 
+A variant, ``package somelib cannot be checked for local modifications``, means
+IVPM had no base to compare the tree with and could not recover one, so it
+cannot tell whether you edited it. It is handled the same way.
+
 The tree is never modified in this case. To re-establish cleanly, remove the
 package directory and re-run ``ivpm update``; IVPM will re-fetch the base and
 apply the current declared patch set. (This is the intended escape hatch under
@@ -173,7 +218,10 @@ later.)
 Limitations
 ===========
 
-- Patching applies to **git** dependencies only today; archive sources are not
-  yet wired (see the note at the top).
+- ``gh-rls`` dependencies cannot be patched yet: their pristine bytes come from
+  a platform-specific release asset rather than the declared URL, so IVPM
+  rejects ``patches:`` on them rather than fetch the wrong archive.
+- An archive whose server sends neither ``ETag`` nor ``Last-Modified`` is
+  patched in place and not cached (`Archive Dependencies`_).
 - A patched git dependency is resolved through the patch pipeline and does not
   consult a :doc:`deps-source <deps_source>`.

@@ -45,9 +45,13 @@ class PackageHttp(PackageFile):
     def retain_base(self, pkg_dir, base_version, update_info):
         """Retain the downloaded archive at .ivpm/base<ext> so the pristine tree
         can be re-extracted offline. ``self._pristine_archive`` is the path to
-        the archive that was just downloaded (set by the editable fetch)."""
+        the archive that was just downloaded (set by the editable fetch). When
+        the tree was fetched by an earlier update (first patched now), there is
+        none, so the archive is downloaded again."""
         src = getattr(self, "_pristine_archive", None)
         if src is None or not os.path.isfile(src):
+            src = self._download_base(update_info)
+        if src is None:
             return                       # nothing to retain; restore returns False
         ext = self.resolve_archive_ext() or os.path.splitext(src)[1]
         ivpm_dir = os.path.join(pkg_dir, ".ivpm")
@@ -61,6 +65,35 @@ class PackageHttp(PackageFile):
             "file": os.path.join(".ivpm", "base" + ext),
             "md5": md5_file(dest),
         }
+
+    def _download_base(self, update_info):
+        """Download the archive into the deps .download dir; its path, or None
+        for a dep that is not an unpacked archive."""
+        if not self.unpack:
+            return None
+        download_dir = os.path.join(update_info.deps_dir, ".download")
+        os.makedirs(download_dir, exist_ok=True)
+        path = os.path.join(download_dir, os.path.basename(self.url))
+        self._download_file(self.url, path)
+        self._pristine_archive = path
+        return path
+
+    def recover_base(self, pkg_dir, base_version, update_info):
+        """Retain a base for a patched tree that has none. base_version is the
+        one the manifest records (the caller checked), i.e. the server's
+        current validator, so a fresh download is that base; the caller then
+        checks the tree against it, and discards it if it does not match."""
+        if self._find_retained_base(pkg_dir) is not None:
+            return False
+        note("Recovering the base archive of patched %s, to check its tree" % self.name)
+        self.retain_base(pkg_dir, base_version, update_info)
+        return self._find_retained_base(pkg_dir) is not None
+
+    def discard_recovered_base(self, pkg_dir):
+        base_file = self._find_retained_base(pkg_dir)
+        if base_file is not None:
+            os.unlink(base_file)
+        self._base_ref = None
 
     def _find_retained_base(self, pkg_dir):
         ivpm_dir = os.path.join(pkg_dir, ".ivpm")

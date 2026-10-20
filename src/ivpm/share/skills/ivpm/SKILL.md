@@ -222,7 +222,7 @@ ivpm update --no-cache        # disable the cache for a single run
 
 ## Patching Dependencies
 
-Apply patch files to a **git** dependency without forking it. Patches are
+Apply patch files to a **git** or **archive** dependency without forking it. Patches are
 applied deterministically and recorded, so re-running `ivpm update` is
 idempotent.
 
@@ -245,7 +245,13 @@ Notes:
 - If you edit a patched checkout *and* change the declared patch set, `ivpm
   update` refuses to clobber your edits and stops with an error. To
   re-establish: remove the package directory and re-run `ivpm update`.
-- Patching currently applies to **git** deps only (archive support is pending).
+- Archive deps fetched by URL (`.tar.gz`, `.tar.xz`, `.zip`, `.jar`) take
+  `patches:` too. A tar archive's leading directory is stripped on unpack, so
+  `strip: 1` fits a diff of an unpacked copy; a zip keeps its top directory.
+  The base identity is the server's ETag or Last-Modified; with neither, the
+  dep is patched in place and not cached. An editable archive keeps its
+  pristine copy at `.ivpm/base<ext>` for rollback and drift checks.
+- `gh-rls` deps cannot be patched yet (`patches:` there is an error).
 
 ## Deps-Source (derivative workspaces)
 

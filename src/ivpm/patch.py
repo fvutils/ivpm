@@ -482,7 +482,7 @@ class PatchAwareResolver:
         """Editable (cache-disabled) patching: classify the on-disk tree and run
         the reconciliation state machine (design sec. 5.12)."""
         patchset = pkg.patchset
-        state = classify(pkg_dir, base_version, patchset, pkg)
+        state = classify(pkg_dir, base_version, patchset, pkg, update_info)
         return reconcile(state, update_info, pkg, pkg_dir, base_version, patchset)
 
 
@@ -568,29 +568,51 @@ class PatchState(enum.Enum):
 class _State:
     kind: PatchState
     manifest: Optional[dict] = None
+    # PATCHED_DRIFT only: the tree could not be checked (no base to compare
+    # with), rather than found to deviate.
+    unverifiable: bool = False
 
 
-def _is_patched_clean(pkg, pkg_dir: str, base_version: str, manifest: dict) -> bool:
-    """A patched tree is clean iff (a) every recorded result[] path still matches
-    its recorded fingerprint, (b) no path outside the recorded set deviates from
-    base (type-specific), and (c) the recorded base equals the desired base."""
+def _patched_status(pkg, pkg_dir: str, base_version: str, manifest: dict,
+                    update_info=None) -> str:
+    """'clean', 'drift' or 'unknown' for a patched tree. It is clean iff (a)
+    every recorded result[] path still matches its recorded fingerprint, (b) no
+    path outside the recorded set deviates from base (type-specific), and (c)
+    the recorded base equals the desired base.
+
+    (b) is 'unknown' when the source cannot tell, e.g. an archive tree patched
+    without a retained base (first patched after it was fetched, by an ivpm
+    that did not retain one then). Given ``update_info``, the source may then
+    recover the base (``pkg.recover_base``) and (b) is checked again."""
     if manifest.get("base_version") != base_version:
-        return False                                   # (c)
+        return "drift"                                 # (c)
     result = manifest.get("result", [])
     for r in result:                                   # (a)
         p = os.path.join(pkg_dir, r["path"])
         if r.get("op") == "deleted":
             if os.path.exists(p):
-                return False
+                return "drift"
         else:
             if not os.path.isfile(p) or _sha256_file(p) != r.get("sha256"):
-                return False
+                return "drift"
     allowed = set(r["path"] for r in result)           # (b)
-    return pkg.patch_tree_status(pkg_dir, base_version, allowed) == "clean"
+    status = pkg.patch_tree_status(pkg_dir, base_version, allowed)
+    if (status == "unknown" and update_info is not None
+            and pkg.recover_base(pkg_dir, base_version, update_info)):
+        status = pkg.patch_tree_status(pkg_dir, base_version, allowed)
+        if status != "clean":
+            # The recovered base does not explain the tree: do not keep it as
+            # this tree's base.
+            pkg.discard_recovered_base(pkg_dir)
+    return status
 
 
-def classify(pkg_dir: str, base_version: str, patchset: PatchSet, pkg) -> _State:
-    """Report the on-disk state of an editable pkg_dir (design sec. 5.12)."""
+def classify(pkg_dir: str, base_version: str, patchset: PatchSet, pkg,
+             update_info=None) -> _State:
+    """Report the on-disk state of an editable pkg_dir (design sec. 5.12).
+
+    ``update_info`` lets a source recover a missing base to check a patched
+    tree (see ``_patched_status``); without it such a tree is drift."""
     if not (os.path.exists(pkg_dir) or os.path.islink(pkg_dir)):
         return _State(PatchState.ABSENT)
     manifest = read_manifest(pkg_dir)
@@ -600,9 +622,10 @@ def classify(pkg_dir: str, base_version: str, patchset: PatchSet, pkg) -> _State
         if pkg.working_tree_dirty(pkg_dir) is True:
             return _State(PatchState.DIRTY_PRISTINE)
         return _State(PatchState.PRISTINE)
-    if _is_patched_clean(pkg, pkg_dir, base_version, manifest):
+    status = _patched_status(pkg, pkg_dir, base_version, manifest, update_info)
+    if status == "clean":
         return _State(PatchState.PATCHED_CLEAN, manifest)
-    return _State(PatchState.PATCHED_DRIFT, manifest)
+    return _State(PatchState.PATCHED_DRIFT, manifest, unverifiable=(status == "unknown"))
 
 
 def _delete_ivpm(pkg_dir: str) -> None:
@@ -631,6 +654,14 @@ _DRIFT_ERROR = (
     "'ivpm update'")
 
 
+_UNVERIFIABLE_ERROR = (
+    "package %s cannot be checked for local modifications: it has no retained "
+    "base to compare with, and the base could not be recovered; refusing to "
+    "re-establish. Your tree is left untouched.\n"
+    "  - to discard any changes and re-establish: remove '%s', then re-run "
+    "'ivpm update'")
+
+
 def reconcile(state, update_info, pkg, pkg_dir, base_version, patchset):
     """Apply the editable transition matrix (design sec. 5.12, rows 1-12)."""
     from .utils import fatal
@@ -646,6 +677,8 @@ def reconcile(state, update_info, pkg, pkg_dir, base_version, patchset):
         return ProjInfo.mkFromProj(pkg_dir)
 
     def drift_error():
+        if state.unverifiable:
+            fatal(_UNVERIFIABLE_ERROR % (pkg.name, pkg_dir))
         fatal(_DRIFT_ERROR % (pkg.name, pkg_dir))
 
     if kind == PatchState.ABSENT:

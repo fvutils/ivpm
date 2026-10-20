@@ -272,6 +272,18 @@ class Package(object):
         then errors rather than destroying work). Default: False."""
         return False
 
+    def recover_base(self, pkg_dir: str, base_version: str, update_info) -> bool:
+        """For a patched tree whose patch_tree_status is 'unknown' because no
+        base was retained: obtain and retain base_version now, so the tree can
+        be checked against it. Return True if a base was retained. Default:
+        False."""
+        return False
+
+    def discard_recovered_base(self, pkg_dir: str) -> None:
+        """Undo recover_base when the recovered base does not explain the tree.
+        Default: no-op."""
+        pass
+
     def working_tree_dirty(self, pkg_dir: str) -> Optional[bool]:
         """For a tree with NO patch manifest: does it have user modifications
         vs. its base? True/False, or None when cleanliness cannot be determined
