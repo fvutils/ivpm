@@ -131,7 +131,7 @@ class PackageHandlerAgents(PackageHandler):
     def on_leaf_post_load(self, pkg: Package, update_info: ProjectUpdateInfo):
         if not hasattr(pkg, "path") or pkg.path is None:
             return
-        if getattr(pkg, "src_type", None) == "pypi":
+        if not getattr(pkg, "occupies_dir", True):
             return
 
         # Plugins first: a plugin is a strictly more informative answer than a

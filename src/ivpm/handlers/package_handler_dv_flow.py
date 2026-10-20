@@ -79,6 +79,8 @@ class PackageHandlerDvFlow(PackageHandler):
     def on_leaf_post_load(self, pkg: Package, update_info: ProjectUpdateInfo):
         if not getattr(pkg, "path", None):
             return
+        if not getattr(pkg, "occupies_dir", True):
+            return
         flow_path = os.path.join(pkg.path, FLOW_FILENAME)
         if not os.path.isfile(flow_path):
             return

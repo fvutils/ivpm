@@ -200,6 +200,15 @@ class Package(object):
     # (Plain class attribute, not a dataclass field -- it is identity, not data.)
     virtual = False
 
+    # False for registry sources (src: pypi, src: npm) whose content a handler
+    # installs into its own environment (packages/python, packages/node). Such
+    # a package has no tree at deps_dir/<name> even though pkg.path names it,
+    # so whatever happens to sit there -- typically a checkout left by an
+    # earlier source-based spec of the same name -- is not this package and
+    # must be neither read (ivpm.yaml, probed content) nor refreshed.
+    # (Plain class attribute, like 'virtual'.)
+    occupies_dir = True
+
     # The set of content types this package's own ivpm.yaml declared via
     # 'provides:', or None when it declared no 'provides:' at all. The
     # difference matters: an empty set is the package saying "I provide

@@ -74,7 +74,7 @@ class PackageHandlerDirenv(PackageHandler):
         """
         if not hasattr(pkg, "path") or pkg.path is None:
             return
-        if getattr(pkg, "src_type", None) == "pypi":
+        if not getattr(pkg, "occupies_dir", True):
             return
 
         # Check whether the package's own ivpm.yaml declares an explicit envrc.

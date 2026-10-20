@@ -589,7 +589,8 @@ class PackageUpdater(object):
             # preparer's name and so which 'with:' block belongs to it.
             config={},
             cache_dir=cache_dir,
-            is_virtual=getattr(pkg, "virtual", False))
+            is_virtual=(getattr(pkg, "virtual", False)
+                        or not getattr(pkg, "occupies_dir", True)))
 
         perf = getattr(update_info, "perf", None)
         with span_or_null(perf, "prepare.pkg", package=pkg.name):
@@ -747,7 +748,8 @@ class PackageUpdater(object):
             # just clear it, or the provider would try to write through it.
             # Keyed on the filesystem rather than decision.state so that a
             # patched package (state PATCHED) is covered as well.
-            if (pkg.path is not None and os.path.islink(pkg.path)
+            if (getattr(pkg, "occupies_dir", True)
+                    and pkg.path is not None and os.path.islink(pkg.path)
                     and not os.path.exists(pkg.path)):
                 note("re-fetching %s: link target %s is missing" % (
                     pkg.name, os.readlink(pkg.path)))

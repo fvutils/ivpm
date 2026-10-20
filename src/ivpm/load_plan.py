@@ -241,6 +241,15 @@ class LoadPlanner(object):
     def _classify(self, pkg) -> LoadDecision:
         path = getattr(pkg, "path", None)
 
+        # (0) A registry package (pypi, npm) has no tree here; its handler
+        # installs it elsewhere. A directory at its path belongs to something
+        # else -- usually a checkout from an earlier spec of the same name --
+        # and must never be reused, patched or refreshed on its behalf.
+        if not getattr(pkg, "occupies_dir", True):
+            return LoadDecision(LoadAction.FETCH, LoadState.ABSENT,
+                                "installed by its handler; occupies no "
+                                "directory in the deps dir")
+
         # (1) Patched trees first, before any residency test.  A patched
         # package is reconciled whether or not it is already on disk, so that a
         # changed patch set is picked up rather than skipped.  Ordering this

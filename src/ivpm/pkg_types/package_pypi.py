@@ -29,6 +29,8 @@ class PackagePyPi(Package):
     resolved_version : str = None  # actual installed version after pip install
     extras : list = None  # PEP 508 extras, e.g. ["litellm"] -> package[litellm]
 
+    occupies_dir = False
+
     @classmethod
     def dep_keys(cls):
         # 'pypi' is the selector key the reader uses to pick this source.
@@ -54,6 +56,15 @@ class PackagePyPi(Package):
         pkg = PackagePyPi(name)
         pkg.process_options(opts, si)
         return pkg
+
+    def update(self, update_info):
+        """PyPI packages are installed by the python handler,
+        not fetched into the deps dir, so there is no source project to load.
+        Reading ``packages/<name>/ivpm.yaml`` here would pick up a same-named
+        leftover checkout's manifest -- its dep-sets, deps and self-declared
+        types -- as if it described this package."""
+        update_info.report_package(cacheable=False)
+        return None
 
     def remove(self, remove_info):
         """PyPI packages live inside the managed venv (packages/python), not as

@@ -30,6 +30,8 @@ class PackageNpm(Package):
     dev: bool = False
     optional: bool = False
 
+    occupies_dir = False
+
     @classmethod
     def dep_keys(cls):
         return super().dep_keys() | {"version", "dev", "optional"}
@@ -44,6 +46,15 @@ class PackageNpm(Package):
             self.dev = bool(opts["dev"])
         if "optional" in opts:
             self.optional = bool(opts["optional"])
+
+    def update(self, update_info):
+        """npm packages are installed by the node handler,
+        not fetched into the deps dir, so there is no source project to load.
+        Reading ``packages/<name>/ivpm.yaml`` here would pick up a same-named
+        leftover checkout's manifest -- its dep-sets, deps and self-declared
+        types -- as if it described this package."""
+        update_info.report_package(cacheable=False)
+        return None
 
     @staticmethod
     def create(name, opts, si) -> 'Package':
