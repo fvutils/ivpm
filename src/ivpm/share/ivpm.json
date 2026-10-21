@@ -84,6 +84,26 @@
 					"type": "string",
 					"description": "Default dependency set to use if not specified on command line. If not set, uses the first dep-set in the file"
 				},
+				"submodules": {
+					"$ref": "#/defs/submodules",
+					"description": "Submodules of this (root) repository to initialize on 'ivpm clone' and 'ivpm update'"
+				},
+				"dep-defaults": {
+					"type": "object",
+					"description": "Defaults for the dependencies this manifest declares, by source type",
+					"properties": {
+						"git": {
+							"type": "object",
+							"properties": {
+								"submodules": {
+									"$ref": "#/defs/submodules"
+								}
+							},
+							"additionalProperties": false
+						}
+					},
+					"additionalProperties": false
+				},
 				"dep-sets": {
 					"type": "array",
 					"title": "List of named dependency sets",
@@ -367,6 +387,9 @@
 					"type": "integer",
 					"title": "Git clone depth (number of commits to fetch)"
 				},
+				"submodules": {
+					"$ref": "#/defs/submodules"
+				},
 				"dep-set": {
 					"type": ["string", "array"],
 					"items": {
@@ -420,6 +443,53 @@
 					"default": false
 				}
 			}
+		},
+		"submodules": {
+			"title": "Git submodules to initialize: true (all, recursively), false (none), or a mapping",
+			"type": ["boolean", "object"],
+			"oneOf": [
+				{
+					"type": "boolean"
+				},
+				{
+					"type": "object",
+					"properties": {
+						"recursive": {
+							"type": "boolean",
+							"title": "Also initialize nested submodules (default true)"
+						},
+						"paths": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"title": "Top-level submodule paths to initialize (default: all)"
+						},
+						"depth": {
+							"oneOf": [
+								{
+									"type": "integer",
+									"minimum": 1
+								},
+								{
+									"const": "recommended"
+								}
+							],
+							"title": "Submodule fetch depth, or 'recommended' to honor 'shallow' in .gitmodules (default: 1 with cache: true, else full history)"
+						},
+						"jobs": {
+							"type": "integer",
+							"minimum": 1,
+							"title": "Parallel submodule fetches"
+						},
+						"required": {
+							"type": "boolean",
+							"title": "A failure is an error (default true); false warns and continues"
+						}
+					},
+					"additionalProperties": false
+				}
+			]
 		},
 		"env-spec": {
 			"title": "Environment variable specification",

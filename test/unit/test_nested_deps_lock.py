@@ -48,7 +48,7 @@ class TestLockV2(TestBase):
         self.ivpm_update(skip_venv=True)
 
         lock = self._lock()
-        self.assertEqual(lock["ivpm_lock_version"], 2)
+        self.assertEqual(lock["ivpm_lock_version"], LOCK_VERSION)
         self.assertEqual(sorted(lock["packages"].keys()),
                          ["nested_libC", "nested_libD"])
         for key, entry in lock["packages"].items():

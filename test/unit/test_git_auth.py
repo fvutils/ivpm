@@ -330,8 +330,56 @@ class TestGhCredentialArgs(unittest.TestCase):
     def test_authenticated_https_host_gets_reset_then_helper(self):
         args = self._args(self.URL)
         self.assertEqual(args, [
-            "-c", "credential.helper=",
-            "-c", "credential.helper=!/usr/bin/gh auth git-credential"])
+            "-c", "credential.https://github.com.helper=",
+            "-c", "credential.https://github.com.helper="
+                  "!/usr/bin/gh auth git-credential"])
+
+    def test_helper_is_scoped_to_the_url_host(self):
+        # An unscoped 'credential.helper=' reset the user's helpers for every
+        # host -- including other hosts a submodule fetch may reach.
+        args = self._args("https://ghe.example.com/o/r.git")
+        self.assertEqual(args[1], "credential.https://ghe.example.com.helper=")
+        self.assertNotIn("credential.helper=", args)
+
+    def test_port_is_part_of_the_context(self):
+        # git matches the port: a context without it would not apply to
+        # https://host:8443/..., and the gh token would never be offered.
+        args = self._args("https://user@GHE.example.com:8443/o/r.git")
+        self.assertEqual(args[1],
+                         "credential.https://ghe.example.com:8443.helper=")
+
+    def test_scoped_helper_with_real_git(self):
+        # End to end through `git credential fill`: the scoped pair replaces
+        # the generic helper for its host (port included) and only there.
+        import subprocess
+        import tempfile
+
+        def fill(url_host, cfg):
+            proto, host = url_host.split("://")
+            r = subprocess.run(
+                ["git"] + cfg + ["credential", "fill"],
+                input="protocol=%s\nhost=%s\n\n" % (proto, host),
+                capture_output=True, text=True, cwd=tempfile.gettempdir(),
+                env=dict(os.environ, GIT_TERMINAL_PROMPT="0",
+                         GIT_CONFIG_NOSYSTEM="1", HOME=tempfile.gettempdir()))
+            return [l for l in r.stdout.splitlines() if l.startswith("username=")]
+
+        generic = ["-c", "credential.helper=!f(){ echo username=generic; "
+                         "echo password=g; }; f"]
+        for url in ("https://ghe.example.com:8443/o/r.git",
+                    "https://github.com/o/r.git"):
+            with self.subTest(url=url):
+                ctx = git_auth.credential_context(url)
+                cfg = generic + ["-c", "credential.%s.helper=" % ctx,
+                                 "-c", "credential.%s.helper=!f(){ echo "
+                                       "username=scoped; echo password=s; }; f" % ctx]
+                self.assertEqual(fill(ctx, cfg), ["username=scoped"])
+                self.assertEqual(fill("https://other.example.com", cfg),
+                                 ["username=generic"])
+
+    def test_http_scheme_is_kept_in_the_context(self):
+        args = self._args("http://git.example.com/o/r.git")
+        self.assertTrue(args[1].startswith("credential.http://git.example.com."))
 
     def test_gh_path_is_absolute(self):
         # The helper runs via /bin/sh, whose PATH may differ from IVPM's.
@@ -373,7 +421,8 @@ class TestGitCmd(unittest.TestCase):
         cmd = self._cmd(["git", "clone", "--depth", "1", "-b", "main",
                          self.URL, "/dst"])
         self.assertEqual(cmd[0], "git")
-        self.assertEqual(cmd[1:3], ["-c", "credential.helper="])
+        self.assertEqual(cmd[1:3],
+                         ["-c", "credential.https://github.com.helper="])
         # The subcommand and all of its flags survive, in order.
         self.assertEqual(cmd[5:], ["clone", "--depth", "1", "-b", "main",
                                    self.URL, "/dst"])
@@ -388,7 +437,8 @@ class TestGitCmd(unittest.TestCase):
 
     def test_gh_method_injects(self):
         cmd = self._cmd(["git", "fetch", "origin"], method="gh")
-        self.assertIn("credential.helper=!/usr/bin/gh auth git-credential", cmd)
+        self.assertIn("credential.https://github.com.helper="
+                      "!/usr/bin/gh auth git-credential", cmd)
 
     def test_does_not_mutate_the_input(self):
         base = ["git", "clone", self.URL]

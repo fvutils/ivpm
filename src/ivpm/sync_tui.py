@@ -46,15 +46,19 @@ _ICONS = {
     SyncOutcome.DRY_WOULD_SYNC:      ("→",  "cyan"),
     SyncOutcome.DRY_WOULD_CONFLICT:  ("?",  "yellow"),
     SyncOutcome.DRY_DIRTY:           ("?",  "yellow"),
+    SyncOutcome.SUBMODULE_CONFLICT:  ("↑?", "bold yellow"),
+    SyncOutcome.DRY_SUBMODULES:      ("→",  "cyan"),
 }
 
 _DRY_OUTCOMES = {
     SyncOutcome.DRY_WOULD_SYNC,
     SyncOutcome.DRY_WOULD_CONFLICT,
     SyncOutcome.DRY_DIRTY,
+    SyncOutcome.DRY_SUBMODULES,
 }
 
 _ATTENTION_OUTCOMES = {
+    SyncOutcome.SUBMODULE_CONFLICT,
     SyncOutcome.CONFLICT,
     SyncOutcome.DIRTY,
     SyncOutcome.AHEAD,
@@ -75,8 +79,17 @@ def _row_status(r: PkgSyncResult):
     """Return (delta_Text, status_Text) for a completed result row."""
     from rich.text import Text
     if r.outcome == SyncOutcome.SYNCED:
-        status = Text("%s→%s" % (r.old_commit or "?", r.new_commit or "?"), style="green")
+        if r.new_commit:
+            status = Text("%s→%s" % (r.old_commit or "?", r.new_commit), style="green")
+        else:
+            status = Text(r.old_commit or "", style="green")
+        if r.detail:
+            status.append("  %s" % r.detail, style=S_SECONDARY)
         delta  = Text("↓%d" % r.commits_behind, style="green") if r.commits_behind else Text("")
+    elif r.outcome == SyncOutcome.SUBMODULE_CONFLICT:
+        status = Text("%s→%s  submodule conflict" % (
+            r.old_commit or "?", r.new_commit or "?"), style="bold yellow")
+        delta  = Text("↓%d" % r.commits_behind, style="yellow") if r.commits_behind else Text("")
     elif r.outcome == SyncOutcome.UP_TO_DATE:
         status = Text("up-to-date  %s" % (r.old_commit or ""), style=S_SECONDARY)
         delta  = Text("=", style=S_PLACEHOLDER)
@@ -256,6 +269,14 @@ class RichSyncTUI(SyncProgressListener):
                 elif r.outcome == SyncOutcome.ERROR:
                     lines.append("    %s" % (r.error or ""))
 
+                elif r.outcome == SyncOutcome.SUBMODULE_CONFLICT:
+                    lines.append("    Submodules with local work, not moved "
+                                 "to their new commit:")
+                    for f in r.submodules:
+                        lines.append("      %s" % f)
+                    for step in r.next_steps:
+                        lines.append("    %s" % step)
+
                 elif r.outcome == SyncOutcome.DRY_WOULD_CONFLICT:
                     lines.append("    diverged — git diff HEAD..origin/%s"
                                  % (r.branch or ""))
@@ -279,6 +300,9 @@ class RichSyncTUI(SyncProgressListener):
                 parts.append("%d would conflict" % counts[SyncOutcome.DRY_WOULD_CONFLICT])
             if counts[SyncOutcome.DRY_DIRTY]:
                 parts.append("%d dirty" % counts[SyncOutcome.DRY_DIRTY])
+            if counts[SyncOutcome.DRY_SUBMODULES]:
+                parts.append("%d would update submodules"
+                             % counts[SyncOutcome.DRY_SUBMODULES])
             if counts[SyncOutcome.UP_TO_DATE]:
                 parts.append("%d up-to-date" % counts[SyncOutcome.UP_TO_DATE])
         else:
@@ -288,6 +312,9 @@ class RichSyncTUI(SyncProgressListener):
                 parts.append("%d up-to-date" % counts[SyncOutcome.UP_TO_DATE])
             if counts[SyncOutcome.CONFLICT]:
                 parts.append("%d conflict" % counts[SyncOutcome.CONFLICT])
+            if counts[SyncOutcome.SUBMODULE_CONFLICT]:
+                parts.append("%d submodule conflict"
+                             % counts[SyncOutcome.SUBMODULE_CONFLICT])
             if counts[SyncOutcome.DIRTY]:
                 parts.append("%d dirty" % counts[SyncOutcome.DIRTY])
             if counts[SyncOutcome.AHEAD]:
@@ -306,6 +333,7 @@ class RichSyncTUI(SyncProgressListener):
         if counts[SyncOutcome.ERROR] or counts[SyncOutcome.CONFLICT]:
             border = "red"
         elif (counts[SyncOutcome.DIRTY] or counts[SyncOutcome.AHEAD]
+              or counts[SyncOutcome.SUBMODULE_CONFLICT]
               or counts[SyncOutcome.DRY_WOULD_CONFLICT]
               or counts[SyncOutcome.DRY_DIRTY]):
             border = "yellow"
@@ -383,6 +411,13 @@ class TranscriptSyncTUI(SyncProgressListener):
                         print("       %s" % f)
             elif r.outcome == SyncOutcome.ERROR:
                 print("     %s" % (r.error or ""))
+            elif r.outcome == SyncOutcome.SUBMODULE_CONFLICT:
+                print("     Submodules with local work, not moved to their "
+                      "new commit:")
+                for f in r.submodules:
+                    print("       %s" % f)
+                for step in r.next_steps:
+                    print("     %s" % step)
             elif r.outcome == SyncOutcome.DRY_WOULD_CONFLICT:
                 print("     diverged — git diff HEAD..origin/%s" % (r.branch or ""))
 
@@ -395,6 +430,9 @@ class TranscriptSyncTUI(SyncProgressListener):
                 parts.append("%d would conflict" % counts[SyncOutcome.DRY_WOULD_CONFLICT])
             if counts[SyncOutcome.DRY_DIRTY]:
                 parts.append("%d dirty" % counts[SyncOutcome.DRY_DIRTY])
+            if counts[SyncOutcome.DRY_SUBMODULES]:
+                parts.append("%d would update submodules"
+                             % counts[SyncOutcome.DRY_SUBMODULES])
             if counts[SyncOutcome.UP_TO_DATE]:
                 parts.append("%d up-to-date" % counts[SyncOutcome.UP_TO_DATE])
         else:
@@ -404,6 +442,9 @@ class TranscriptSyncTUI(SyncProgressListener):
                 parts.append("%d up-to-date" % counts[SyncOutcome.UP_TO_DATE])
             if counts[SyncOutcome.CONFLICT]:
                 parts.append("%d conflict" % counts[SyncOutcome.CONFLICT])
+            if counts[SyncOutcome.SUBMODULE_CONFLICT]:
+                parts.append("%d submodule conflict"
+                             % counts[SyncOutcome.SUBMODULE_CONFLICT])
             if counts[SyncOutcome.DIRTY]:
                 parts.append("%d dirty" % counts[SyncOutcome.DIRTY])
             if counts[SyncOutcome.AHEAD]:

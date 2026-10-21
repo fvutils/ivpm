@@ -80,6 +80,15 @@ class _SrcRead:
     failed: bool = False
 
 
+def _with_progress_before_paths(cmd):
+    """*cmd* with ``--progress`` ahead of any ``--`` pathspec separator."""
+    cmd = list(cmd)
+    if "--" in cmd:
+        i = cmd.index("--")
+        return cmd[:i] + ["--progress"] + cmd[i:]
+    return cmd + ["--progress"]
+
+
 class GitCloneProvider(CloneProvider):
     """Clone a git/GitHub repository.  Default provider; also the fallback for
     generic https/file locators (claimed WEAK so a purpose-built provider wins)."""
@@ -119,6 +128,21 @@ class GitCloneProvider(CloneProvider):
                 flags=["--git-auth-order"], dest="git_auth_order", metavar="ORDER",
                 help="Comma-separated git auth order to try (gh,ssh,https); "
                      "overrides IVPM_GIT_AUTH_ORDER and site config"),
+            CloneOption(
+                flags=["--recurse-submodules"], dest="recurse_submodules",
+                is_flag=True,
+                help="Initialize all of the cloned repository's submodules, "
+                     "recursively (overrides 'package: submodules:')"),
+            CloneOption(
+                flags=["--submodule-depth"], dest="submodule_depth",
+                metavar="N",
+                help="Fetch submodules at this depth (implies "
+                     "--recurse-submodules)"),
+            CloneOption(
+                flags=["--no-recurse-submodules"], dest="no_recurse_submodules",
+                is_flag=True,
+                help="Initialize none of the cloned repository's submodules, "
+                     "even those 'package: submodules:' requests"),
         ]
 
     def options(self):
@@ -214,6 +238,11 @@ class GitCloneProvider(CloneProvider):
                     return CloneResult(ok=False, message=self._ref_error_message(
                         kind, ref, src, url, rc, err, ssh_pref))
 
+            msg = self._clone_submodules(req, url, target_dir,
+                                         event_dispatcher, suppress_output)
+            if msg is not None:
+                return CloneResult(ok=False, message=msg)
+
             event_dispatcher.dispatch(UpdateEvent(
                 event_type=UpdateEventType.PACKAGE_COMPLETE,
                 package_name="[clone]",
@@ -226,6 +255,51 @@ class GitCloneProvider(CloneProvider):
             raise
 
         return CloneResult(ok=True, resolved_revision=self._head(target_dir))
+
+    def _clone_submodules(self, req, url, target_dir, event_dispatcher,
+                          suppress_output):
+        """``--recurse-submodules`` / ``--submodule-depth``: initialize the
+        clone's submodules now. Returns an error message, or None.
+
+        Without a flag nothing happens here: the post-clone ``ivpm update``
+        initializes what ``package: submodules:`` asks for.
+        ``--no-recurse-submodules`` tells that update not to."""
+        from .. import git_submodules as gsm
+        pa = req.provider_args
+        args = req.args
+        if getattr(pa, "no_recurse_submodules", False):
+            if getattr(pa, "recurse_submodules", False) or \
+                    getattr(pa, "submodule_depth", None):
+                return ("--no-recurse-submodules conflicts with "
+                        "--recurse-submodules/--submodule-depth")
+            if args is not None:
+                setattr(args, "root_submodules", False)
+            return None
+        depth = getattr(pa, "submodule_depth", None)
+        if not getattr(pa, "recurse_submodules", False) and depth is None:
+            return None
+        if depth is not None:
+            try:
+                depth = int(depth)
+                if depth < 1:
+                    raise ValueError()
+            except ValueError:
+                return "--submodule-depth must be a positive integer, not %r" % (
+                    getattr(pa, "submodule_depth", None),)
+        if not gsm.has_gitmodules(target_dir):
+            return None
+        spec = gsm.SubmoduleSpec(enabled=True, depth=depth)
+
+        def run(cmd, cwd, progress=False):
+            return self._run_git(cmd if not progress else
+                                 _with_progress_before_paths(cmd),
+                                 event_dispatcher, suppress_output, cwd=cwd)
+        result = gsm.fetch(target_dir, spec, False, label=req.src,
+                           run=run, wrap=lambda c: self._git_cmd(c, url))
+        if not result.ok:
+            return gsm.failure_message(req.src, self._head(target_dir),
+                                       result, url)
+        return None
 
     def _resolve_transport(self, req: CloneRequest):
         """Decide the URL and credentials for *req*: ``(url, decision,

@@ -50,6 +50,10 @@ _logger = logging.getLogger("ivpm.git_auth")
 #: config so gh's is the only one consulted.  Without it a stale helper (or a
 #: ``~/.netrc`` fallback) can still win and present a credential that is not
 #: gh's token -- the failure mode that motivated this module.
+#:
+#: This unscoped form is no longer injected: it reset the helpers for *every*
+#: host, so a submodule on another host lost the user's own credentials.  See
+#: :func:`credential_context` for the scoped form.
 GH_HELPER_RESET = "credential.helper="
 
 #: Auth-order tokens that name "use the URL as written".
@@ -74,15 +78,38 @@ def gh_path() -> Optional[str]:
     return shutil.which("gh")
 
 
+def credential_context(url: str) -> Optional[str]:
+    """``<scheme>://<host>`` of an http(s) *url*: the URL context the gh
+    helper is scoped to (``credential.<context>.helper``).
+
+    Scoping matters for everything that runs under the injected config,
+    submodule fetches above all: an empty ``credential.<ctx>.helper`` resets
+    the helper list for that host only, so the user's own helpers keep
+    working for every other host a submodule may live on."""
+    if not _is_http_url(url):
+        return None
+    delim = url.find("://")
+    scheme = url[:delim].lower()
+    rest = url[delim + 3:]
+    hostport = rest.split("/", 1)[0]
+    if "@" in hostport:
+        hostport = hostport.rsplit("@", 1)[1]
+    if not hostport:
+        return None
+    # The port is part of git's URL match: a context without it does not
+    # apply to https://host:8443/... at all.
+    return "%s://%s" % (scheme, hostport.lower())
+
+
 def gh_credential_args(url: str) -> List[str]:
     """``-c`` arguments that make git authenticate with gh's token, or ``[]``.
 
-    Returns ``['-c', 'credential.helper=', '-c',
-    'credential.helper=!<gh> auth git-credential']`` when *url* is an http(s)
-    URL on a host ``gh`` is authenticated for.  Returns ``[]`` when ``gh`` is
-    not installed, is not authenticated for the host, or the URL is not
-    http(s) -- ssh, ``file://``, ``git://`` and local paths never carry an
-    https credential.
+    Returns ``['-c', 'credential.https://<host>.helper=', '-c',
+    'credential.https://<host>.helper=!<gh> auth git-credential']`` when *url*
+    is an http(s) URL on a host ``gh`` is authenticated for.  Returns ``[]``
+    when ``gh`` is not installed, is not authenticated for the host, or the
+    URL is not http(s) -- ssh, ``file://``, ``git://`` and local paths never
+    carry an https credential.
     """
     if not _is_http_url(url):
         return []
@@ -93,8 +120,10 @@ def gh_credential_args(url: str) -> List[str]:
     path = gh_path()
     if path is None:
         return []
-    return ["-c", GH_HELPER_RESET,
-            "-c", "credential.helper=!%s auth git-credential" % shlex.quote(path)]
+    ctx = credential_context(url)
+    return ["-c", "credential.%s.helper=" % ctx,
+            "-c", "credential.%s.helper=!%s auth git-credential"
+            % (ctx, shlex.quote(path))]
 
 
 def auth_method_for(url: str, auth_order: List[str]) -> Optional[str]:
@@ -123,8 +152,9 @@ def git_cmd(base: List[str], url: str, method: Optional[str] = None) -> List[str
 
     ``git_cmd(["git", "clone", ...], url)`` ->
     ``["git", "-c", ..., "-c", ..., "clone", ...]``.  Config passed with ``-c``
-    also propagates to submodule operations, so a submodule over https
-    authenticates the same way its superproject did.
+    also propagates to submodule operations, so a submodule over https on the
+    same host authenticates the same way its superproject did; the helper is
+    scoped to that host, so submodules elsewhere keep the user's own.
 
     *method* is advisory: when given and not ``gh``, no injection happens even
     for an https URL, so an explicit ``https``/``anonymous`` choice keeps

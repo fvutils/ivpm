@@ -68,6 +68,18 @@ Lock File Format
           "commit_requested": null,
           "commit_resolved": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
           "cache": null,
+          "depth": null,
+          "submodules": {
+            "spec": {"enabled": true, "recursive": true, "paths": null,
+                     "depth": null, "required": true},
+            "spec_id": "sm1-9a3e5c0d2b7f4e11",
+            "modules": [
+              {"path": "ext/mid", "name": "ext/mid",
+               "url": "https://github.com/org/mid.git",
+               "commit": "77ab...", "initialized": true, "status": "ok",
+               "shallow": false}
+            ]
+          },
           "resolved_by": "root",
           "dep_set": "default",
           "reproducible": true
@@ -427,7 +439,12 @@ In this mode:
 * Every package is fetched at its pinned resolved version:
 
   * **git** — shallow clone at ``commit_resolved``; falls back to full clone
-    if the server does not support arbitrary commit fetch.
+    if the server does not support arbitrary commit fetch.  Submodules are
+    fetched as the recorded ``submodules.spec`` says, and each one must land
+    on the recorded ``commit`` (the superproject pins it, so a mismatch means
+    a damaged tree and is an error).  A lock without ``submodules`` (written
+    before version 3) reproduces the old behavior: every submodule,
+    recursively.
   * **gh-rls** — fetches the exact ``version_resolved`` tag; platform binary
     selection still occurs at fetch time.
   * **http** — fetches the same URL; warns if the ETag/Last-Modified header
@@ -607,13 +624,21 @@ Format Versioning
 =================
 
 The ``ivpm_lock_version`` field guards against schema changes.  IVPM writes
-version **2** and reads versions 1 and 2; anything else is rejected with a
+version **3** and reads versions 1, 2 and 3; anything else is rejected with a
 clear error:
 
 .. code-block:: text
 
     ValueError: package-lock.json version 99 is not supported (expected one
-    of: 1, 2). Please regenerate the lock file with this version of ivpm.
+    of: 1, 2, 3). Please regenerate the lock file with this version of ivpm.
+
+Version 3 adds two fields to git entries: ``depth`` (the declared clone depth)
+and ``submodules`` -- the submodule spec and, for every declared submodule
+(recursively, with superproject-relative paths), its ``name``, ``url``,
+pinned ``commit``, whether it is ``initialized``, and a ``status`` of ``ok``,
+``failed``, ``moved``, ``conflict``, ``not-requested`` or ``update-none``.  A
+v3 git entry always has ``submodules``; in a v1/v2 lock its absence means "written
+before the setting existed", and is reproduced the way that release behaved.
 
 Version 2 keys the ``packages`` map by **scope path** rather than by bare
 package name, and records the package name in an explicit ``name`` field.  In

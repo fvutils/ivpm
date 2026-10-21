@@ -21,6 +21,22 @@ from typing import List, Optional
 
 
 @dc.dataclass
+class SubmoduleStatus:
+    """One submodule of a git package, as ``ivpm status`` reports it.
+
+    *state* is ``ok``, ``uninitialized``, ``moved`` (checked out at a commit
+    other than the gitlink), ``conflict`` (unmerged gitlink), ``failed`` (the
+    lock recorded a failed fetch, and it is still not initialized) or
+    ``not-requested`` (not initialized, and the spec does not ask for it)."""
+    path: str
+    state: str
+    commit: Optional[str] = None     # gitlink (what the superproject pins)
+    head: Optional[str] = None       # checked-out commit, when initialized
+    dirty: bool = False              # the submodule's own tree has changes
+    in_scope: bool = False
+
+
+@dc.dataclass
 class PkgVcsStatus:
     """Per-package VCS status returned by Package.status()."""
     name: str
@@ -45,9 +61,82 @@ class PkgVcsStatus:
     # detached HEAD the user produced by hand -- the two look identical on
     # disk, and only the former means sync will leave it alone.
     pinned_commit: Optional[str] = None
+    # Every declared submodule, recursively; empty for a repo without any.
+    submodules: List[SubmoduleStatus] = dc.field(default_factory=list)
+    # The spec in force, in SubmoduleSpec.describe() form ("off", "legacy",
+    # "recursive,depth:1", ...), or None when nothing is declared.
+    submodules_spec: Optional[str] = None
+
+    @property
+    def submodule_problems(self) -> List[SubmoduleStatus]:
+        """In-scope submodules that are not cleanly at their gitlink."""
+        return [m for m in self.submodules
+                if m.state not in ("ok", "not-requested") or m.dirty]
+
+    def submodule_summary(self) -> str:
+        """``submodules 3/5 (2 uninitialized: ext/a, ext/b)``, or ``""``."""
+        if not self.submodules:
+            return ""
+        scope = [m for m in self.submodules if m.in_scope]
+        if not scope:
+            initialized = [m for m in self.submodules if m.head]
+            n = len(self.submodules)
+            if initialized:
+                return "submodules %d/%d initialized (not requested)" % (
+                    len(initialized), n)
+            return "submodules: %d not initialized (not requested)" % n
+        ok = [m for m in scope if m.state == "ok"]
+        out = "submodules %d/%d" % (len(ok), len(scope))
+        groups = {}
+        for m in self.submodules:
+            if m.state not in ("ok", "not-requested"):
+                groups.setdefault(m.state, []).append(m.path)
+            if m.dirty:
+                groups.setdefault("dirty", []).append(m.path)
+        if groups:
+            out += " (" + "; ".join(
+                "%d %s: %s" % (len(v), k, ", ".join(v[:3]) +
+                               (", ..." if len(v) > 3 else ""))
+                for k, v in sorted(groups.items())) + ")"
+        return out
 
 
-def git_working_tree_status(path: str, name: str) -> Optional["PkgVcsStatus"]:
+def submodule_statuses(path: str, spec=None, locked_modules=None):
+    """``[SubmoduleStatus]`` for the git tree at *path* (local only).
+
+    *spec* (a SubmoduleSpec) decides what is in scope; without one nothing
+    is.  *locked_modules* is the lock entry's ``modules`` list: a submodule
+    the lock recorded as failed, and still not initialized, reports
+    ``failed`` rather than plain ``uninitialized``."""
+    from . import git_submodules as gsm
+    if not gsm.has_gitmodules(path):
+        return []
+    records = gsm.walk(path, spec if spec is not None else gsm.OFF)
+    failed = set(m.get("path") for m in (locked_modules or [])
+                 if m.get("status") == "failed")
+    out = []
+    for r in records:
+        if r.update_none:
+            continue
+        state = r.state
+        if state == "uninitialized":
+            if not r.in_scope:
+                state = "not-requested"
+            elif r.path in failed:
+                state = "failed"
+        if state == "missing":
+            continue
+        dirty = False
+        if r.state in ("ok", "moved"):
+            dirty = bool(gsm.submodule_dirty(path, r))
+        out.append(SubmoduleStatus(path=r.path, state=state, commit=r.commit,
+                                   head=r.head, dirty=dirty,
+                                   in_scope=r.in_scope))
+    return out
+
+
+def git_working_tree_status(path: str, name: str, spec=None,
+                            locked_modules=None) -> Optional["PkgVcsStatus"]:
     """Return the local git status of the working tree at *path*, or ``None``
     if *path* is not a git repository.
 
@@ -87,7 +176,19 @@ def git_working_tree_status(path: str, name: str) -> Optional["PkgVcsStatus"]:
     all_lines = [line for line in porcelain.splitlines() if line.strip()]
     untracked = [line for line in all_lines if line.startswith("??")]
     modified = [line for line in all_lines if not line.startswith("??")]
-    is_dirty = len(modified) > 0
+
+    # Submodules are reported per submodule (moved / dirty / ...), so their
+    # one-line " M <path>" entries come out of 'modified'. They still make the
+    # package dirty: a moved or modified submodule is work in this tree.
+    submodules = submodule_statuses(path, spec, locked_modules)
+    if submodules:
+        # Parse the path from "XY <path>" without trusting the column: the
+        # output was stripped, which eats a leading blank status column.
+        sm_paths = set(m.path for m in submodules)
+        modified = [line for line in modified
+                    if line.strip().split(" ", 1)[-1].strip() not in sm_paths]
+    is_dirty = len(modified) > 0 or any(
+        m.dirty or m.state in ("moved", "conflict") for m in submodules)
 
     # Ahead / behind upstream (silenced if no upstream)
     ahead: Optional[int] = None
@@ -115,4 +216,7 @@ def git_working_tree_status(path: str, name: str) -> Optional["PkgVcsStatus"]:
         untracked=untracked,
         ahead=ahead,
         behind=behind,
+        submodules=submodules,
+        submodules_spec=(spec.describe() if spec is not None and submodules
+                         else None),
     )

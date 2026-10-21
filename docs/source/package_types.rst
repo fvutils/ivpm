@@ -20,7 +20,8 @@ Source types determine how IVPM obtains a package.
 Git (``git``)
 -------------
 
-Clone from a Git repository. Supports branches, tags, commits, and submodules.
+Clone from a Git repository. Supports branches, tags, commits, and submodules
+(``submodules:``).
 
 **Basic usage:**
 
@@ -119,7 +120,21 @@ which YAML reads as the float ``1.1``).
       patches:
         - patches/my-lib-fix.patch
 
-**Submodules:** Automatically initialized if ``.gitmodules`` is present.
+**Submodules:** Set with ``submodules:`` -- ``true`` (all, recursively),
+``false`` (none), or a mapping of ``recursive``, ``paths``, ``depth``,
+``jobs`` and ``required``:
+
+.. code-block:: yaml
+
+    - name: soc
+      url: https://github.com/org/soc.git
+      submodules:
+        paths: [ext/uvm]
+        depth: 1
+
+Without the key, no submodules are initialized, as with ``git clone`` (IVPM
+notes the ones it skipped). Releases before 2.42 initialized all of them. See
+:doc:`git_integration` (Git Submodules).
 
 **URL transport:** By default IVPM picks the transport per host via the *auth
 order* -- it clones an ``https://`` URL as-is when ``gh`` is authenticated for

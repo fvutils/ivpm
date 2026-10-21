@@ -64,12 +64,15 @@ When the ``gh`` method wins, IVPM hands git that bridge explicitly, adding
 
 .. code-block:: bash
 
-    git -c credential.helper= -c 'credential.helper=!/path/to/gh auth git-credential' ...
+    git -c credential.https://github.com.helper= \
+        -c 'credential.https://github.com.helper=!/path/to/gh auth git-credential' ...
 
 to every git network operation for that URL -- ``clone``, ``ls-remote``,
-``fetch``, and ``submodule update`` (``-c`` config propagates into the
-submodule operations git spawns).  The empty first entry resets any inherited
-helper, so ``gh``'s is the only one consulted.
+``fetch`` (including ``ivpm sync``'s), and ``submodule update`` (``-c`` config
+propagates into the submodule operations git spawns).  The empty first entry
+resets any inherited helper for that host, so ``gh``'s is the only one
+consulted there; both entries are scoped to the URL's host, so helpers you
+configured for other hosts -- which a submodule may live on -- are untouched.
 
 This means an https clone of a private repository works whether or not you
 have run ``gh auth setup-git``.  Nothing is injected when ``gh`` is not on
@@ -490,44 +493,179 @@ When to Use Each
 Git Submodules
 ==============
 
-Automatic Support
------------------
-
-IVPM automatically initializes submodules when ``.gitmodules`` is present:
+What a dependency's submodules get is set by its ``submodules:`` key.  Like
+``git clone``, a fetch initializes submodules only when asked to: a dependency
+without the key gets none.
 
 .. code-block:: yaml
 
     deps:
-      - name: repo-with-submodules
-        url: https://github.com/org/repo.git
+      - name: soc
+        url: https://github.com/org/soc.git
+        submodules: true            # all of them, recursively
+      - name: big-ip
+        url: https://github.com/org/big-ip.git
+        submodules: false           # none (and no reminder about them)
 
-**What happens:**
+The long form selects what to fetch and how:
 
-1. Clone main repository
-2. Detect ``.gitmodules``
-3. Run ``git submodule update --init --recursive``
-4. All submodules ready to use
+.. code-block:: yaml
 
-No Configuration Needed
------------------------
+      - name: soc
+        url: https://github.com/org/soc.git
+        submodules:
+          recursive: true           # default true; false = top level only
+          paths: [ext/uvm, ext/cmn] # top-level submodule paths; default all
+          depth: 1                  # integer, or "recommended"; see below
+          jobs: 4                   # parallel fetches; default min(4, count)
+          required: true            # default true; false = warn and continue
 
-Submodule initialization is automatic - no special configuration required.
+.. list-table::
+   :header-rows: 1
+   :widths: 20 80
 
-Nested Submodules
------------------
+   * - Key
+     - Meaning
+   * - ``recursive``
+     - Also initialize the submodules of the selected submodules, all the way
+       down (``git submodule update --recursive``).
+   * - ``paths``
+     - Only these **top-level** submodules (and, with ``recursive``,
+       everything under them).  A path that is not a submodule at the fetched
+       commit is an error, so a typo is never silently skipped.  Selecting a
+       nested submodule on its own is not supported.
+   * - ``depth``
+     - Fetch submodule history to this depth.  ``"recommended"`` honors
+       ``shallow = true`` in ``.gitmodules`` (``--recommend-shallow``).  The
+       default is ``1`` for a ``cache: true`` dependency (a cached entry is a
+       read-only snapshot, exactly like the superproject) and full history
+       otherwise.  With ``cache: true`` only ``1`` and ``"recommended"`` are
+       accepted.
+   * - ``jobs``
+     - How many submodules to fetch in parallel.  Does not change the result.
+   * - ``required``
+     - When ``false``, a submodule that cannot be fetched is a warning, not an
+       error -- for optional extras such as documentation.
 
-The ``--recursive`` flag handles nested submodules automatically.
+A submodule is always checked out at the commit its superproject records (its
+*gitlink*); there is no way to pin it elsewhere.  ``update = none`` in
+``.gitmodules`` is honored.
 
-Example Structure::
+Packages that do not say
+------------------------
 
-    repo/
-    ├── .gitmodules
-    ├── submodule1/
-    │   └── .gitmodules
-    │       └── nested-submodule/
-    └── submodule2/
+A git dependency with no ``submodules:`` key gets **no** submodules, as with
+``git clone``.  (Releases before 2.42 initialized all of them, recursively,
+whenever ``.gitmodules`` was present.)  IVPM prints a note for each such
+package that has submodules::
 
-All levels initialized automatically.
+    note: soc has 3 submodules (not initialized; add 'submodules: true' to fetch them)
+
+``submodules: false`` says the same thing explicitly and silences the note.
+A lock file written before 2.42 (version 1 or 2) is still reproduced the way
+it was made -- every submodule, recursively -- by ``ivpm update --lock-file``.
+
+For a manifest with many dependencies that need their submodules, set a
+default for the dependencies it declares (sub-packages' own manifests are not
+affected):
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      dep-defaults:
+        git:
+          submodules: true
+
+Failures
+--------
+
+A submodule that cannot be fetched is an error that names it, its URL and
+git's own output:
+
+.. code-block:: text
+
+    Failed to initialize submodules of soc (4f1c2ab):
+      ext/mid -> https://gitlab.example.com/ip/mid.git (not initialized)
+    git reported:
+      fatal: could not read Username for 'https://gitlab.example.com': terminal prompts disabled
+    hint: submodule host gitlab.example.com differs from soc's host github.com; ...
+
+After the update, every requested submodule is checked to be at its gitlink,
+so a partial failure that git itself reports as success is caught too.  A tree
+whose submodules failed is **never stored in the shared cache**: the workspace
+gets a private copy and the next ``ivpm update`` tries again.  (With
+``required: false`` the failure is a warning and the package loads without
+those submodules.)
+
+If a server refuses to serve the pinned commit of a shallow submodule (common
+for self-hosted servers, which do not allow fetching unadvertised commits),
+IVPM re-fetches just that submodule with full history and says so::
+
+    note: soc: ext/mid: the server would not serve the pinned commit
+    shallowly; fetched its full history instead
+
+Credentials and URLs
+--------------------
+
+Submodule fetches carry the same credential injection as the superproject
+(see `Authentication and Transport`_).  The ``gh`` helper is scoped to the superproject's
+host, so your own credential helpers keep working for submodules on other
+hosts; a submodule on another host that ``gh`` is authenticated for gets its
+own scoped helper.
+
+Absolute submodule URLs get IVPM's URL handling too: a ``git-url-map`` rule
+applies to them as it does to dependency URLs, and when the superproject was
+fetched over SSH, https submodule URLs **on the same host** are rewritten to
+SSH (as relative URLs already follow).  Submodules on other hosts are fetched
+as written, so a public https submodule never requires SSH keys.
+
+``file://`` submodule URLs are refused by git >= 2.38.1 unless you allow them
+(``git config --global protocol.file.allow always``); IVPM does not change
+that setting.
+
+Updates, sync and status
+------------------------
+
+* ``ivpm update`` on an already-loaded editable package initializes requested
+  submodules that are not initialized -- a spec widened since the clone, or an
+  earlier failure.  It never moves a submodule you have checked out at
+  another commit, and never deinitializes one that is no longer requested (it
+  says how).  A ``cache: true`` package whose spec changes is re-linked from a
+  matching cache entry.
+* ``ivpm sync`` updates a submodule whose gitlink the merge changed when the
+  submodule was clean at its old gitlink; one holding local work is left where
+  it is and the package is reported as ``submodule-conflict``.  Sync also
+  initializes requested submodules that are missing.  ``--dry-run`` reports
+  ``dry:submodules``.
+* ``ivpm status`` prints a summary line for each package with submodules
+  (``submodules 3/5 (2 uninitialized: ext/a, ext/b)``); ``-v`` lists each one.
+* ``ivpm destroy`` / removal refuses to delete a package whose submodules hold
+  uncommitted changes, commits no remote has, or stashes.
+* Patches may not modify files inside a submodule; such a patch is rejected.
+
+The lock file records the submodule spec and every submodule's path, URL and
+commit (see :doc:`package_lock`), so ``ivpm update --lock-file`` reproduces --
+and verifies -- the same tree.
+
+The root project
+----------------
+
+``package: submodules:`` in the root ``ivpm.yaml`` says what the **root
+repository itself** needs, with the same schema.  ``ivpm update`` initializes
+those that are not initialized (before resolving dependencies, so a ``dir``
+dependency may live in one), and leaves alone any you have checked out
+elsewhere.  ``ivpm clone`` runs that update after cloning, and also accepts:
+
+.. code-block:: bash
+
+    $ ivpm clone https://github.com/org/proj.git --recurse-submodules
+    $ ivpm clone https://github.com/org/proj.git --submodule-depth 1
+    $ ivpm clone https://github.com/org/proj.git --no-recurse-submodules
+
+``--recurse-submodules`` initializes all submodules (recursively), whatever
+the manifest says; ``--submodule-depth N`` does so shallowly;
+``--no-recurse-submodules`` initializes none, even those the manifest asks for.
 
 Status Command
 ==============
@@ -966,15 +1104,12 @@ Cannot Push Changes
 Submodule Issues
 ----------------
 
-**Symptom:** Submodules not initialized
+**Symptom:** Submodule directories are empty
 
-**Solution:**
-
-.. code-block:: bash
-
-    $ cd packages/repo-with-submodules
-    $ git submodule update --init --recursive
-    $ cd ../..
+**Solution:** Add ``submodules: true`` (or the long form) to the dependency
+and re-run ``ivpm update``; an already-loaded editable package is completed
+in place.  If the update reports ``Failed to initialize submodules``, the
+message names the submodule and its host -- see :doc:`troubleshooting`.
 
 Worktrees
 =========

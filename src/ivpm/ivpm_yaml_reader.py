@@ -25,6 +25,7 @@ _KNOWN_PACKAGE_KEYS = {
     "dep-sets", "setup-deps",
     "paths", "env",
     "vars", "include",
+    "submodules", "dep-defaults",
     # old-style keys – detected and rejected with a friendlier message
     "deps", "dev-deps",
 }
@@ -454,7 +455,24 @@ class IvpmYamlReader(object):
 
         if "default-dep-set" in pkg.keys():
             ret.default_dep_set = pkg["default-dep-set"]
-        
+
+        # What the root repository itself needs initialized (ivpm clone /
+        # ivpm update). Same schema as a git dependency's 'submodules:'.
+        if "submodules" in pkg.keys():
+            from .git_submodules import parse_spec, SubmoduleSpecError
+            try:
+                ret.submodules_spec = parse_spec(pkg["submodules"])
+            except SubmoduleSpecError as e:
+                fatal("package %s: %s" % (ret.name, e),
+                      _keyloc(pkg, "submodules", pkg["submodules"]))
+
+        # Defaults for the dependencies this manifest declares (not inherited
+        # by sub-packages' own manifests).
+        self._dep_defaults = {}
+        if "dep-defaults" in pkg.keys():
+            self._dep_defaults = self._read_dep_defaults(
+                pkg["dep-defaults"], ret.name, pkg)
+
         if "deps" in pkg.keys() or "dev-deps" in pkg.keys():
             # old-style format
             fatal("Package %s uses old-style ivpm.yaml format" % ret.name)
@@ -875,6 +893,57 @@ class IvpmYamlReader(object):
             resolve(ds_name, set())
         
 
+    #: Per-source keys 'dep-defaults:' may set.
+    _DEP_DEFAULT_KEYS = {"git": {"submodules"}}
+
+    def _read_dep_defaults(self, raw, pkg_name, node):
+        """Validate ``package: dep-defaults:``: ``{<src>: {<key>: <value>}}``.
+
+        Only keys listed in :attr:`_DEP_DEFAULT_KEYS` are accepted; anything
+        else is fatal, consistent with key enforcement everywhere else."""
+        loc = _keyloc(node, "dep-defaults", raw)
+        if not isinstance(raw, dict):
+            fatal("package %s: 'dep-defaults' must be a mapping of source type "
+                  "to defaults, not %s" % (pkg_name, type(raw).__name__), loc)
+        out = {}
+        for src, vals in raw.items():
+            if src not in self._DEP_DEFAULT_KEYS:
+                fatal("package %s: 'dep-defaults' does not support source type "
+                      "'%s' (supported: %s)" % (
+                          pkg_name, src,
+                          ", ".join(sorted(self._DEP_DEFAULT_KEYS))), loc)
+            if not isinstance(vals, dict):
+                fatal("package %s: 'dep-defaults.%s' must be a mapping, not %s"
+                      % (pkg_name, src, type(vals).__name__), loc)
+            allowed = self._DEP_DEFAULT_KEYS[src]
+            for key in vals.keys():
+                if key not in allowed:
+                    fatal("package %s: 'dep-defaults.%s' does not support '%s' "
+                          "(supported: %s)" % (pkg_name, src, key,
+                                               ", ".join(sorted(allowed))), loc)
+            if "submodules" in vals:
+                from .git_submodules import parse_spec, SubmoduleSpecError
+                try:
+                    parse_spec(vals["submodules"], origin="defaults")
+                except SubmoduleSpecError as e:
+                    fatal("package %s: dep-defaults.%s: %s" % (pkg_name, src, e),
+                          loc)
+            out[src] = dict(vals)
+        return out
+
+    def _apply_dep_defaults(self, pkg, src, d):
+        """Give *pkg* the manifest's ``dep-defaults`` for keys its own entry
+        does not set."""
+        defaults = (getattr(self, "_dep_defaults", None) or {}).get(src)
+        if not defaults:
+            return
+        if "submodules" in defaults and "submodules" not in d.keys() \
+                and hasattr(pkg, "submodules_spec"):
+            from .git_submodules import parse_spec
+            pkg.submodules_spec = parse_spec(defaults["submodules"],
+                                             origin="defaults")
+            pkg._validate_options(d)
+
     def read_deps(self, ret : PackagesInfo, deps, default_dep_set):
         from .pkg_types.pkg_type_rgy import PkgTypeRgy
         from .pkg_content_type_rgy import PkgContentTypeRgy
@@ -946,6 +1015,7 @@ class IvpmYamlReader(object):
                         d["name"], src, getlocstr(d),
                         ", ".join(pt_rgy.getSrcTypes())), d)
             pkg = PkgTypeRgy.inst().mkPackage(src, str(d["name"]), d, si)
+            self._apply_dep_defaults(pkg, src, d)
 
             # Which environment-derived variables this entry's fields read.
             # Non-empty means the resolved artifact is platform-specific, so

@@ -1146,22 +1146,68 @@ Merge Conflicts
 Submodule Not Initialized
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Problem:** Submodule directories empty
+**Problem:** A dependency's submodule directories are empty.
 
-**Cause:** Submodules not initialized
+**Cause:** Submodules are initialized only when the dependency asks for them
+(``submodules:``).  ``ivpm status`` shows ``submodules: N not initialized (not
+requested)`` for such a package.
 
-**Solutions:**
+**Solution:** Add ``submodules: true`` (or the long form, to choose paths or a
+depth) to the dependency entry and run ``ivpm update`` again.  An editable
+package is completed in place -- nothing is re-cloned -- and a ``cache: true``
+one is re-linked from a cache entry that holds them.  See
+:doc:`git_integration` (Git Submodules).
 
-.. code-block:: bash
+Failed to Initialize Submodules
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    # Manual initialization
-    $ cd packages/repo-with-submodules
-    $ git submodule update --init --recursive
-    $ cd ../..
-    
-    # Or re-fetch with IVPM
-    $ rm -rf packages/repo-with-submodules
-    $ ivpm update
+**Problem:** ``ivpm update`` fails with ``Failed to initialize submodules of
+<pkg>``, naming a submodule and its URL.
+
+**Common causes:**
+
+* **Authentication to another host.**  A submodule often lives on a different
+  host from its superproject, and the credentials IVPM supplies (``gh``'s
+  helper) are scoped to the hosts ``gh`` is authenticated for.  The hint says
+  which host differs.  Configure a credential helper for that host, or rewrite
+  the URL to one you can reach with a ``git-url-map`` rule or
+  ``git config --global url.<base>.insteadOf <declared-base>``.
+* **file:// URLs.**  git >= 2.38.1 refuses ``file://`` submodule URLs
+  (``fatal: transport 'file' not allowed``).  If you trust the repository,
+  ``git config --global protocol.file.allow always``.
+* **The URL is wrong or gone.**  The URL comes from the superproject's
+  ``.gitmodules`` at the fetched commit; a ``git-url-map`` rule can redirect
+  it to a mirror.
+
+If the submodules are not essential, ``submodules: {required: false}`` turns
+the error into a warning.  A failed tree is never stored in the shared cache,
+so simply re-running ``ivpm update`` retries it.
+
+Shallow Submodule Fetched With Full History
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``note: <pkg>: <path>: the server would not serve the pinned
+commit shallowly; fetched its full history instead``.
+
+**Cause:** The superproject pins a submodule commit that is not a branch tip,
+and the server does not allow fetching an unadvertised commit (the default
+for many self-hosted servers, and for git protocol v0).
+
+**Solution:** None needed -- the result is correct, only larger.  To avoid the
+extra transfer, enable ``uploadpack.allowReachableSHA1InWant`` on the server,
+or pin submodules at branch tips.
+
+Submodule Left Out of Date After Sync
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Problem:** ``ivpm sync`` reports ``submodule-conflict`` for a package.
+
+**Cause:** The merge changed a submodule's gitlink, but the submodule held
+local work, so IVPM did not move it.
+
+**Solution:** ``cd`` into the submodule (the command is printed), commit or
+stash your work, then ``git submodule update -- <path>`` from the package
+directory.
 
 Cannot Push Changes
 ~~~~~~~~~~~~~~~~~~~

@@ -223,6 +223,11 @@ class ProjectOps(object):
 
             _logger.info("Processing root package %s", proj_info.name)
 
+            # The root's own submodules come first: a 'dir' dependency may
+            # live inside one.
+            with perf.span("root.submodules"):
+                self._init_root_submodules(proj_info, args)
+
             if self.debug:
                 for self.dep_set in proj_info.dep_set_m.keys():
                     _logger.debug("DepSet: %s", self.dep_set)
@@ -651,6 +656,53 @@ class ProjectOps(object):
             note("Reproducing workspace configuration from package-lock.json "
                  "root record")
         return dc, ho
+
+    def _init_root_submodules(self, proj_info, args):
+        """Initialize the root repository's requested submodules that are not
+        initialized yet (``package: submodules:``, design §4.2).
+
+        Only uninitialized ones are touched, each named explicitly: a bare
+        ``git submodule update`` would move a submodule the user has checked
+        out elsewhere back to its gitlink. ``ivpm clone
+        --no-recurse-submodules`` turns this off for the post-clone update."""
+        from . import git_submodules as gsm
+        from . import git_auth
+        spec = getattr(proj_info, "submodules_spec", None)
+        if spec is None or not spec.enabled:
+            return
+        if args is not None and getattr(args, "root_submodules", True) is False:
+            return
+        root = self.root_dir
+        if not os.path.exists(os.path.join(root, ".git")) or \
+                not gsm.has_gitmodules(root):
+            return
+        try:
+            gsm.validate_paths(root, spec, proj_info.name)
+        except gsm.SubmoduleSpecError as e:
+            fatal(str(e))
+        records = gsm.walk(root, spec)
+        for r in records:
+            if r.in_scope and r.state in ("moved", "conflict"):
+                note("root submodule %s is %s; left as is" % (
+                    r.path, gsm._state_phrase(r)))
+        todo = gsm.missing(records)
+        if not todo:
+            return
+        note("initializing %d root submodule%s: %s" % (
+            len(todo), "s" if len(todo) > 1 else "",
+            ", ".join(r.path for r in todo)))
+        rc, out, _ = gsm._git(root, "remote", "get-url", "origin")
+        origin = out.strip() if rc == 0 else None
+        result = gsm.init_missing(
+            root, spec, False, records=records, label=proj_info.name,
+            wrap=(lambda c: git_auth.git_cmd(c, origin)) if origin else None)
+        if not result.ok:
+            msg = gsm.failure_message(proj_info.name, gsm._head(root),
+                                      result, origin)
+            if spec.required:
+                fatal(msg)
+            from .utils import warning
+            warning(msg)
 
     def status(self, dep_set: str = None, args=None, walk: bool = False):
         from .pkg_status import PkgVcsStatus

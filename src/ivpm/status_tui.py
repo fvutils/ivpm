@@ -78,6 +78,20 @@ def _provenance_label(s: PkgVcsStatus) -> str:
     return "(deps-source)"
 
 
+def _submodule_line(m) -> str:
+    """One submodule, for the verbose listing."""
+    if m.state == "moved":
+        what = "moved (at %s, pinned %s)" % ((m.head or "?")[:7],
+                                             (m.commit or "?")[:7])
+    elif m.state == "ok":
+        what = "ok %s" % (m.commit or "?")[:7]
+    else:
+        what = m.state
+    if m.dirty:
+        what += ", modified"
+    return "%-30s %s" % (m.path, what)
+
+
 def _state_label(s: PkgVcsStatus):
     """Return (marker, state_text) for a git status row."""
     if s.error:
@@ -177,6 +191,20 @@ class RichStatusTUI:
                 name_text.append(" " + prov, style=S_SECONDARY)
             table.add_row(Text(""), name_text, branch_text, commit_text, state, up_text)
 
+            # Submodules: one summary line per package that has any, then one
+            # line per submodule with -v.
+            sm = s.submodule_summary() if s.vcs == "git" else ""
+            if sm:
+                style = "yellow" if s.submodule_problems else S_SECONDARY
+                table.add_row(Text(""), Text(""), Text("  " + sm, style=style),
+                              Text(""), Text(""), Text(""))
+                if verbose >= 1:
+                    for m in s.submodules:
+                        table.add_row(
+                            Text(""), Text(""),
+                            Text("    " + _submodule_line(m), style=S_DETAIL),
+                            Text(""), Text(""), Text(""))
+
             # Dirty file details — only with -v
             if verbose >= 1 and s.vcs == "git":
                 for line in s.modified:
@@ -230,6 +258,15 @@ class RichStatusTUI:
             line.append(s.src_type or "unknown", style=S_SECONDARY)
         console.print(line)
 
+        sm = s.submodule_summary() if s.vcs == "git" else ""
+        if sm:
+            console.print(Text("    " + sm, style="yellow" if s.submodule_problems
+                               else S_SECONDARY))
+            if verbose >= 1:
+                for m in s.submodules:
+                    console.print(Text("      " + _submodule_line(m),
+                                       style=S_DETAIL))
+
         # Modified/untracked file details — only with -v, mirroring packages.
         if verbose >= 1 and s.vcs == "git":
             for fline in s.modified:
@@ -281,6 +318,13 @@ class TranscriptStatusTUI:
                 print("  %s  %-30s  %-25s  %s  %-9s  upstream:%s" % (
                     marker, name, branch, commit, state, upstream))
 
+                sm = s.submodule_summary()
+                if sm:
+                    print("       %s" % sm)
+                    if verbose >= 1:
+                        for m in s.submodules:
+                            print("         %s" % _submodule_line(m))
+
                 if verbose >= 1:
                     for line in s.modified:
                         print("       %s" % line)
@@ -318,6 +362,12 @@ class TranscriptStatusTUI:
             upstream = _upstream_label(s)
             print("%s  %s  %s  %s  %s  upstream:%s" % (
                 head, marker, _branch_label(s), s.commit or "?", state, upstream))
+            sm = s.submodule_summary()
+            if sm:
+                print("       %s" % sm)
+                if verbose >= 1:
+                    for m in s.submodules:
+                        print("         %s" % _submodule_line(m))
             # Modified/untracked file details — only with -v, mirroring packages.
             if verbose >= 1:
                 for fline in s.modified:

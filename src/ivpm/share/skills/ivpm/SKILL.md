@@ -159,7 +159,14 @@ Read them back with `ivpm show deps <name>`, `ivpm show deps --json`, and
 - name: my-library
   url: https://github.com/org/my-library.git
   branch: main    # or tag: v1.0, or commit: abc123
+  submodules: true   # only if the repo's submodules are needed
 ```
+
+Submodules are initialized only when asked for, as with `git clone`: without
+`submodules:` a dependency gets none (IVPM prints a note naming it). The long
+form selects what and how: `submodules: {paths: [ext/uvm], depth: 1,
+recursive: true, required: true}`. A submodule that cannot be fetched is an
+error naming it and its URL.
 
 ### Local Development (symlinked)
 ```yaml

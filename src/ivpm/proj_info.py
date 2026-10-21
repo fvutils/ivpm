@@ -121,6 +121,8 @@ class ProjInfo():
         # ("flatten" | "nested"). None means the manifest declared nothing, so
         # the enclosing scope's mode is inherited. See dep_scope.effective_mode.
         self.deps_mode : Optional[str] = None
+        # The root repository's own 'submodules:' (a SubmoduleSpec), or None.
+        self.submodules_spec = None
 
         self.process_deps = True
         self.paths : Dict[str, Dict[str, List[str]]] = {}

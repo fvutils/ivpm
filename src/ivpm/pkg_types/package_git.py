@@ -39,6 +39,27 @@ from ..perf import span_or_null
 _logger = logging.getLogger("ivpm.pkg_types.package_git")
 
 
+def _is_remote_url(url: str) -> bool:
+    """An absolute URL naming a remote host (not relative, not local)."""
+    if url.startswith(("./", "../", "/")) or url.startswith("file://"):
+        return False
+    if "://" in url:
+        return True
+    # scp-like git@host:path
+    head = url.split("/", 1)[0]
+    return ":" in head and not (len(head) >= 2 and head[1] == ":")
+
+
+def _with_progress(git_cmd):
+    """*git_cmd* with ``--progress`` added -- before a ``--`` pathspec
+    separator when there is one, where it would otherwise be read as a path."""
+    cmd = list(git_cmd)
+    if "--" in cmd:
+        i = cmd.index("--")
+        return cmd[:i] + ["--progress"] + cmd[i:]
+    return cmd + ["--progress"]
+
+
 @dc.dataclass
 class PackageGit(PackageURL):
     branch : str = None
@@ -60,6 +81,19 @@ class PackageGit(PackageURL):
     # how the transport and credentials were chosen without re-deriving them.
     _auth_decision_emitted = False
     _auth_decision = None
+
+    # Submodule handling (git_submodules.py). Unannotated for the same reason.
+    # submodules_spec is the declared (or lock-recorded) SubmoduleSpec; None
+    # means the manifest did not say, and submodule_spec() supplies the
+    # implicit one. _sm_records is the tree walked after the last fetch into
+    # this package's directory, for the lock entry. _sm_cache_unsafe marks a
+    # tree whose (optional) submodules failed: it must never be stored.
+    submodules_spec = None
+    _sm_records = None
+    _sm_cache_unsafe = False
+    # The lock's recorded 'modules' list, when this package was rebuilt from a
+    # lock for reproduction; the fetched tree is verified against it.
+    locked_submodules = None
 
     def patch_capability(self):
         # Editable patchable: cache-mode plus in-place rollback via the git
@@ -88,8 +122,11 @@ class PackageGit(PackageURL):
             for r in manifest.get("result", []):
                 recorded.add(r.get("path"))
 
+        # Content inside a submodule (untracked build output, edits) is not a
+        # deviation of this tree: reset/clean below never touch it. A moved
+        # gitlink still shows, and still refuses.
         status = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "status", "--porcelain", "--ignore-submodules=dirty"],
             cwd=pkg_dir, capture_output=True, text=True)
         if status.returncode != 0:
             return False
@@ -113,8 +150,10 @@ class PackageGit(PackageURL):
 
     def _porcelain_paths(self, pkg_dir):
         """Dirty paths (excluding .ivpm/) from git status --porcelain, or None
-        if git status fails."""
-        status = subprocess.run(["git", "status", "--porcelain"],
+        if git status fails. Content inside submodules is ignored (see
+        restore_pristine); a submodule moved off its gitlink is not."""
+        status = subprocess.run(["git", "status", "--porcelain",
+                                 "--ignore-submodules=dirty"],
                                 cwd=pkg_dir, capture_output=True, text=True)
         if status.returncode != 0:
             return None
@@ -289,8 +328,80 @@ class PackageGit(PackageURL):
             names = [s for s in stash_raw.splitlines() if s.strip()]
             reasons.append(SafetyReason("stash", items=names, count=len(names)))
 
+        # --- work inside initialized submodules ------------------------- #
+        # Their repositories live under .git/modules and go with the tree, so
+        # anything that exists only there is destroyed with it.
+        sm_items, sm_paths = self._submodule_work(path)
+        if sm_items:
+            reasons.append(SafetyReason(
+                "submodule", items=sm_items, count=len(sm_paths),
+                data={"paths": sm_paths}, label="submodule work"))
+
         level = SafetyLevel.BLOCKED if reasons else SafetyLevel.SAFE
         return RemovalSafety(level, reasons)
+
+    def _submodule_work(self, path):
+        """``(items, paths)``: evidence of local work in each initialized
+        submodule under *path* -- uncommitted changes, commits no remote has,
+        stashes.
+
+        Commits up to the gitlink are not counted: the superproject pins
+        them, and a submodule fetched by commit (shallow, or a commit off
+        every branch) has them on no remote-tracking ref at all."""
+        from .. import git_submodules as gsm
+        if not gsm.has_gitmodules(path):
+            return [], []
+        items, paths = [], []
+        for r in gsm.walk(path, gsm.OFF):
+            sub = os.path.join(path, r.path)
+            if r.state == "uninitialized":
+                # Deinitialized, but its repository may still be under
+                # .git/modules -- and goes with the tree.
+                gd = gsm.module_gitdir(path, r)
+                if gd is None:
+                    continue
+                found = []
+                rc, out, _ = gsm._git(path, "--git-dir=%s" % gd, "rev-list",
+                                      "--branches", "--not", "--remotes",
+                                      *([r.commit] if r.commit else []))
+                shas = [x for x in out.splitlines() if x.strip()] if rc == 0 else []
+                if shas:
+                    found.append("%s: %d commit%s not on any remote (deinitialized)"
+                                 % (r.path, len(shas), "" if len(shas) == 1 else "s"))
+                rc, out, _ = gsm._git(path, "--git-dir=%s" % gd, "stash", "list")
+                if rc == 0 and out.strip():
+                    n = len([x for x in out.splitlines() if x.strip()])
+                    found.append("%s: %d stash entr%s (deinitialized)" % (
+                        r.path, n, "y" if n == 1 else "ies"))
+                if found:
+                    paths.append(r.path)
+                    items.extend(found)
+                continue
+            if r.state not in ("ok", "moved") or \
+                    not os.path.exists(os.path.join(sub, ".git")):
+                continue
+            found = []
+            dirty = gsm.submodule_dirty(path, r)
+            if dirty:
+                found.append("%s: %d modified file%s" % (
+                    r.path, len(dirty), "" if len(dirty) == 1 else "s"))
+            args = ["rev-list", "HEAD", "--branches", "--not", "--remotes"]
+            if r.commit:
+                args.append(r.commit)
+            rc, out, _ = gsm._git(sub, *args)
+            shas = [x for x in out.splitlines() if x.strip()] if rc == 0 else []
+            if shas:
+                found.append("%s: %d commit%s not on any remote" % (
+                    r.path, len(shas), "" if len(shas) == 1 else "s"))
+            rc, out, _ = gsm._git(sub, "stash", "list")
+            stashes = [x for x in out.splitlines() if x.strip()] if rc == 0 else []
+            if stashes:
+                found.append("%s: %d stash entr%s" % (
+                    r.path, len(stashes), "y" if len(stashes) == 1 else "ies"))
+            if found:
+                paths.append(r.path)
+                items.extend(found)
+        return items, paths
 
     def update(self, update_info : ProjectUpdateInfo) -> ProjInfo:
         pkg_dir = os.path.join(update_info.deps_dir, self.name)
@@ -319,6 +430,8 @@ class PackageGit(PackageURL):
             with span_or_null(getattr(update_info, "perf", None), "pkg.fast_path", package=self.name):
                 note("package %s is already loaded" % self.name)
                 self._capture_resolved_commit(pkg_dir)
+                self._reconcile_resident_submodules(update_info, pkg_dir,
+                                                    decision)
                 # Refresh the cache entry's last-referenced timestamp when this
                 # dep is a cache symlink (no-op otherwise), so stale-GC sees it
                 # as used.
@@ -491,7 +604,12 @@ class PackageGit(PackageURL):
 
         provider = update_info.get_cache_provider()
         with span_or_null(getattr(update_info, "perf", None), "cache.lookup", package=self.name) as s:
-            result = provider.lookup(self, commit_hash)
+            # The submodule spec is part of what an entry holds, so it is part
+            # of the key (see _cache_versions).
+            for version in self._cache_versions(commit_hash):
+                result = provider.lookup(self, version)
+                if not result.is_miss:
+                    break
             s.meta["state"] = ("disabled" if result.is_disabled
                                else "hit" if result.is_hit else "miss")
 
@@ -505,7 +623,7 @@ class PackageGit(PackageURL):
         if result.is_hit:
             note("Cache hit for %s at %s" % (self.name, commit_hash[:12]))
             with span_or_null(getattr(update_info, "perf", None), "cache.materialize", package=self.name):
-                provider.materialize(self, commit_hash)
+                provider.materialize(self, version)
             update_info.report_cache_hit()
             return ProjInfo.mkFromProj(pkg_dir)
 
@@ -528,12 +646,38 @@ class PackageGit(PackageURL):
             discard_staging(temp_dir)
             raise
 
-        # Store in cache and link
-        with span_or_null(getattr(update_info, "perf", None), "cache.store", package=self.name):
-            provider.store(self, commit_hash, temp_dir)
-        with span_or_null(getattr(update_info, "perf", None), "cache.materialize", package=self.name):
-            provider.materialize(self, commit_hash)
+        if self._sm_cache_unsafe:
+            # Optional submodules failed. A partial tree must never be sealed
+            # into the cache -- every later workspace would get it, and a hit
+            # runs no git command that could repair it. This workspace gets a
+            # private copy instead, whose missing submodules the next update
+            # retries in place (_reconcile_resident_submodules).
+            note("%s: not caching this tree (its submodules are incomplete)"
+                 % self.name)
+            return self._adopt_private(temp_dir, pkg_dir)
 
+        # Store in cache and link
+        version = self._cache_store_version(commit_hash, temp_dir)
+        with span_or_null(getattr(update_info, "perf", None), "cache.store", package=self.name):
+            provider.store(self, version, temp_dir)
+        with span_or_null(getattr(update_info, "perf", None), "cache.materialize", package=self.name):
+            provider.materialize(self, version)
+
+        return ProjInfo.mkFromProj(pkg_dir)
+
+    def _adopt_private(self, staging: str, pkg_dir: str) -> ProjInfo:
+        """Move a staging tree into the deps dir as this workspace's own,
+        uncached copy."""
+        import shutil
+        from ..cache_provider import discard_staging
+        if os.path.lexists(pkg_dir):
+            if os.path.islink(pkg_dir) or not os.path.isdir(pkg_dir):
+                os.unlink(pkg_dir)
+            else:
+                shutil.rmtree(pkg_dir)
+        os.makedirs(os.path.dirname(pkg_dir), exist_ok=True)
+        shutil.move(staging, pkg_dir)
+        discard_staging(staging)
         return ProjInfo.mkFromProj(pkg_dir)
 
     def _resolve_commit(self, update_info: ProjectUpdateInfo) -> str:
@@ -749,14 +893,14 @@ class PackageGit(PackageURL):
             on_progress = None
             if progress and dispatcher is not None:
                 on_progress = lambda m: self._emit_progress(update_info, m)
-                git_cmd = list(git_cmd) + ["--progress"]
+                git_cmd = _with_progress(git_cmd)
             rc = run_git_with_progress(
                 git_cmd, cwd=cwd, on_progress=on_progress, stderr_sink=captured)
             return rc, "\n".join(captured)
         # Non-TUI: tee git's stderr to the terminal while capturing it. Ask for
         # --progress so the in-place progress display survives the pipe.
         rc = run_git_with_progress(
-            list(git_cmd) + (["--progress"] if progress else []),
+            _with_progress(git_cmd) if progress else list(git_cmd),
             cwd=cwd, stderr_sink=captured, echo=True)
         return rc, "\n".join(captured)
 
@@ -789,7 +933,7 @@ class PackageGit(PackageURL):
             rc, err, base_msg = self._clone_attempt(
                 update_info, target_dir, depth, url)
             if rc == 0:
-                self._update_submodules(update_info, target_dir, url)
+                self._fetch_submodules(update_info, target_dir, url)
                 return
             attempts.append((url, method, base_msg, err))
 
@@ -958,22 +1102,375 @@ class PackageGit(PackageURL):
                     return False, err
         return True, ""
 
-    def _update_submodules(self, update_info: ProjectUpdateInfo, target_dir: str,
-                           url: str = None):
-        # TODO: Existence of .gitmodules should trigger this
-        if os.path.isfile(os.path.join(target_dir, ".gitmodules")):
+    # ------------------------------------------------------------------ #
+    # Submodules (see git_submodules.py, git-submodules-design.md)        #
+    # ------------------------------------------------------------------ #
+
+    def submodule_spec(self):
+        """The SubmoduleSpec in force: the declared one, else the implicit
+        default (``git_submodules.IMPLICIT_DEFAULT``)."""
+        from ..git_submodules import implicit_spec
+        if self.submodules_spec is not None:
+            return self.submodules_spec
+        return implicit_spec()
+
+    def _sm_cached(self) -> bool:
+        """Whether the cache-mode submodule defaults apply (depth 1).
+
+        Keyed on the *declared* mode, not on whether a cache turned out to be
+        configured, so the recorded spec -- and with it drift detection --
+        does not change with the machine's cache setup."""
+        return self.cache is True
+
+    def _sm_wrap(self, url, update_info=None, repo_dir=None):
+        """Command wrapper giving submodule fetches the superproject's
+        credentials and ivpm's URL mapping (design §8)."""
+        # Computed on first use: an off spec runs no command, and the args
+        # may probe gh for each submodule host.
+        extra = []
+
+        def wrap(cmd):
+            if not extra:
+                extra.append(self._sm_config_args(url, update_info, repo_dir))
+            cmd = self._git_cmd(cmd, url) if url else list(cmd)
+            if extra[0]:
+                cmd = [cmd[0]] + extra[0] + list(cmd[1:])
+            return cmd
+        return wrap
+
+    def _sm_config_args(self, url, update_info, repo_dir):
+        """``-c`` pairs that apply ivpm's URL handling to submodule URLs.
+
+        Relative submodule URLs resolve against the superproject's origin --
+        already the transport-selected URL -- so they need nothing. For each
+        absolute one declared in *repo_dir*/.gitmodules:
+
+        * a ``git-url-map`` rule applies exactly as it does to a dependency;
+        * on the superproject's own host, the superproject's transport
+          applies -- fetched over SSH, an https submodule URL there is
+          rewritten to SSH too, as a relative one would follow;
+        * on another host the URL is otherwise left as written (the auth
+          order is *not* applied there: a public https submodule must keep
+          working without SSH keys), but gets a host-scoped gh helper when gh
+          is authenticated for that host.
+
+        A rewrite becomes ``url.<target>.insteadOf=<declared>``. Nested
+        submodules are not known until their parent is checked out, so they
+        get only the host-level helpers set up here."""
+        from .. import git_submodules as gsm
+        from ..site_config import apply_git_url_map
+        from ..utils import url_host, gh_auth_available, https_to_ssh_url
+        if repo_dir is None:
+            return []
+        mods = gsm.read_gitmodules(repo_dir)
+        if not mods:
+            return []
+        sp_host = gsm._host(url) if url else None
+        sp_ssh = bool(url) and "://" not in url and "@" in url
+        dec = getattr(self, "_auth_decision", None)
+        sp_method = dec.chosen_method if dec is not None else None
+        gh_ok = sp_method in (None, "gh")
+        args = []
+        helped = set([sp_host]) if sp_host and not sp_ssh else set()
+        for m in mods:
+            u = (m.url or "").strip()
+            if not u or not _is_remote_url(u):
+                continue
+            target = apply_git_url_map(u)
+            host = gsm._host(target)
+            if sp_ssh and host == sp_host and target.startswith("https://"):
+                target = https_to_ssh_url(target)
+            if target != u:
+                args += ["-c", "url.%s.insteadOf=%s" % (target, u)]
+            if gh_ok and target.startswith(("https://", "http://")):
+                h = url_host(target)
+                if h and h not in helped and gh_auth_available(h):
+                    helped.add(h)
+                    args += git_auth.gh_credential_args(target)
+        return args
+
+    def _sm_runner(self, update_info):
+        def run(cmd, cwd, progress=False):
+            if update_info is None:
+                from ..git_submodules import _default_runner
+                return _default_runner(cmd, cwd, progress)
+            return self._run_git(cmd, update_info, cwd=cwd, progress=progress)
+        return run
+
+    def _fetch_submodules(self, update_info, target_dir: str, url: str = None):
+        """Initialize the submodules this package asks for in *target_dir*
+        (a fresh clone), verify them, and record the tree for the lock.
+
+        A failure is fatal when the spec is ``required`` (the default for an
+        explicit spec).  Otherwise -- an optional spec, or the implicit legacy
+        one -- it is a warning, and the tree is marked so that it is never
+        stored in the shared cache."""
+        from .. import git_submodules as gsm
+        from ..utils import warning
+
+        spec = self.submodule_spec()
+        cached = self._sm_cached()
+        self._sm_cache_unsafe = False
+
+        if spec.enabled and gsm.has_gitmodules(target_dir):
             sys.stdout.flush()
             self._emit_progress(update_info, "updating submodules")
-            git_cmd = ["git", "submodule", "update", "--init", "--recursive"]
-            # Submodules are fetched by this one command, so the credentials
-            # have to travel with it: -c config propagates into the submodule
-            # operations git spawns.
-            if url is None:
-                url = self._get_effective_url(update_info)
-            git_cmd = self._git_cmd(git_cmd, url)
-            _logger.debug("git_cmd: %s", str(git_cmd))
-            with span_or_null(getattr(update_info, "perf", None), "git.submodule", package=self.name):
-                rc, err = self._run_git(git_cmd, update_info, cwd=target_dir, progress=True)
+        if url is None and spec.enabled and gsm.has_gitmodules(target_dir):
+            url = self._get_effective_url(update_info)
+
+        with span_or_null(getattr(update_info, "perf", None), "git.submodule",
+                          package=self.name,
+                          depth=spec.resolved_depth(cached)) as s:
+            try:
+                result = gsm.fetch(target_dir, spec, cached, label=self.name,
+                                   run=self._sm_runner(update_info),
+                                   wrap=self._sm_wrap(url, update_info,
+                                                      target_dir))
+            except gsm.SubmoduleSpecError as e:
+                fatal("Package '%s': %s" % (self.name, e))
+            s.meta["count"] = result.count
+            if result.retried:
+                s.meta["retry"] = len(result.retried)
+
+        self._sm_records = result.records
+        self._note_submodules(spec, result.records)
+        self._verify_locked_submodules(result.records)
+
+        for path in result.retried:
+            if result.ok or path not in [r.path for r in result.problems]:
+                note("%s: %s: the server would not serve the pinned commit "
+                     "shallowly; fetched its full history instead"
+                     % (self.name, path))
+
+        if not result.ok:
+            self._handle_submodule_failure(result, target_dir, url)
+        return result
+
+    def _handle_submodule_failure(self, result, target_dir, url):
+        from .. import git_submodules as gsm
+        from ..utils import warning
+        spec = result.spec
+        head = gsm._head(target_dir) or self.resolved_commit or self.commit
+        msg = gsm.failure_message(self.name, head, result, url)
+        if spec.required:
+            fatal(msg)
+        warning(msg + "\n%s is loaded without these submodules%s." % (
+            self.name, " (they are optional)" if not spec.legacy else ""))
+        self._sm_cache_unsafe = True
+
+    def _reconcile_resident_submodules(self, update_info, pkg_dir, decision):
+        """Bring an already-loaded editable tree up to its submodule spec
+        (design §9.2).
+
+        Initializes in-scope submodules that are not initialized -- a spec
+        widened since the clone, or an earlier failure -- by naming each one,
+        so nothing already checked out moves. A submodule the user moved
+        (``+``) or left conflicted is reported, never touched, and one that is
+        no longer requested is left in place: deinit is never automatic,
+        because it may hold work.
+
+        A cache link is read-only and keyed by the spec, so a changed spec
+        re-materializes it instead (drift). The legacy implicit spec never
+        touched a loaded tree, and still does not."""
+        from .. import git_submodules as gsm
+        if os.path.islink(pkg_dir) or \
+                not os.path.exists(os.path.join(pkg_dir, ".git")) or \
+                not gsm.has_gitmodules(pkg_dir):
+            return
+        spec = self.submodule_spec()
+        if spec.legacy and self.cache is not True:
+            return
+        # (A real directory for a cache: true package is the private copy a
+        # failed optional fetch left; completing it is the retry, legacy or
+        # not.)
+        records = gsm.walk(pkg_dir, spec)
+        self._sm_records = records
+
+        locked = (getattr(decision, "lock_entry", None) or {}).get("submodules")
+        if isinstance(locked, dict):
+            was = set(m.get("path") for m in (locked.get("modules") or [])
+                      if m.get("status") == "ok")
+            dropped = [r.path for r in records
+                       if not r.in_scope and not r.update_none
+                       and r.state in ("ok", "moved") and r.path in was]
+            if dropped:
+                note("%s: submodule%s %s no longer requested; left in place "
+                     "(remove with 'git submodule deinit <path>')" % (
+                         self.name, "s" if len(dropped) > 1 else "",
+                         ", ".join(dropped)))
+        for r in records:
+            if r.in_scope and r.state in ("moved", "conflict"):
+                note("%s: submodule %s is %s; left as is" % (
+                    self.name, r.path, gsm._state_phrase(r)))
+
+        todo = gsm.missing(records)
+        if not todo:
+            return
+        note("%s: initializing %d submodule%s: %s" % (
+            self.name, len(todo), "s" if len(todo) > 1 else "",
+            ", ".join(r.path for r in todo)))
+        url = self._get_effective_url(update_info)
+        with span_or_null(getattr(update_info, "perf", None), "git.submodule",
+                          package=self.name, resident=True) as s:
+            result = gsm.init_missing(pkg_dir, spec, self._sm_cached(),
+                                      records=records, label=self.name,
+                                      run=self._sm_runner(update_info),
+                                      wrap=self._sm_wrap(url, update_info,
+                                                         pkg_dir))
+            s.meta["count"] = len(todo)
+        self._sm_records = result.records
+        if not result.ok:
+            self._handle_submodule_failure(result, pkg_dir, url)
+
+    def _verify_locked_submodules(self, records):
+        """``ivpm update --lock-file``: the reproduced submodules must be at
+        the commits the lock recorded.
+
+        Gitlinks are content-addressed by the superproject commit, so a
+        mismatch cannot come from upstream movement -- only from a damaged or
+        tampered tree (or an ivpm bug), which is why it is fatal. A changed
+        URL is legitimate (the URL mapping may differ here) and only noted."""
+        locked = self.locked_submodules
+        if not locked:
+            return
+        by_path = dict((r.path, r) for r in records)
+        bad = []
+        for m in locked:
+            rec = by_path.get(m.get("path"))
+            if rec is None or not rec.in_scope or rec.state != "ok":
+                continue
+            if m.get("commit") and rec.commit != m.get("commit"):
+                bad.append("  %s: lock records %s, tree pins %s" % (
+                    rec.path, m["commit"][:12], (rec.commit or "?")[:12]))
+            elif m.get("url") and rec.url and m["url"] != rec.url:
+                note("%s: submodule %s is fetched from %s (the lock recorded "
+                     "%s)" % (self.name, rec.path, rec.url, m["url"]))
+        if bad:
+            fatal("Package '%s': submodule commits differ from the lock file:\n"
+                  "%s\nThe superproject commit pins its submodules, so this "
+                  "tree is not what was locked. Remove %s and re-run." % (
+                      self.name, "\n".join(bad), self.path))
+
+    def matches_lock_entry(self, parent_entry):
+        """deps-source identity (``deps_source._identity_matches``).
+
+        A parent workspace's copy only satisfies this package if it also has
+        the submodules this package asks for. ``None`` defers to the plain
+        commit comparison -- for an off spec, and for the legacy one, whose
+        parents predate the record."""
+        spec = self.submodule_spec()
+        if spec.legacy:
+            # A legacy child expects every submodule. A parent that recorded
+            # an off spec over a tree that has submodules does not have them.
+            rec = parent_entry.get("submodules")
+            if isinstance(rec, dict) and \
+                    not (rec.get("spec") or {}).get("enabled") and \
+                    rec.get("modules"):
+                return False
+            return None
+        if not spec.enabled:
+            return None
+        if self.resolved_commit is None or \
+                parent_entry.get("commit_resolved") != self.resolved_commit:
+            return False
+        rec = parent_entry.get("submodules")
+        if not isinstance(rec, dict):
+            return False
+        mods = rec.get("modules") or []
+        paths = [m.get("path") or "" for m in mods]
+        for m in mods:
+            path = m.get("path") or ""
+            parents = [p for p in paths if p != path and path.startswith(p + "/")]
+            if m.get("status") == "update-none":
+                continue
+            if not parents:
+                wanted = spec.selects_top(path)
+            else:
+                top = min(parents, key=len)
+                wanted = spec.recursive and spec.selects_top(top)
+            if wanted and not (m.get("initialized") and m.get("status") == "ok"):
+                return False
+        return True
+
+    def _note_submodules(self, spec, records):
+        """The migration note (design §4.4) for a package that did not say
+        what it wants done with its submodules."""
+        if spec.origin != "implicit" or not records:
+            return
+        n = len([r for r in records if not r.parent])
+        if n == 0:
+            return
+        plural = "s" if n != 1 else ""
+        if spec.legacy:
+            note("%s has %d submodule%s and no 'submodules:' setting; "
+                 "initializing them (legacy behavior). Add 'submodules: "
+                 "true' (or 'false') to its dependency entry."
+                 % (self.name, n, plural))
+        else:
+            note("%s has %d submodule%s (not initialized; add "
+                 "'submodules: true' to fetch them)" % (self.name, n, plural))
+
+    def submodules_lock_record(self):
+        """The lock entry's ``submodules`` object.
+
+        Built from the walk taken after this run's fetch when there was one;
+        otherwise (a reused tree) the tree on disk is walked now -- local git
+        commands only, safe on a read-only cache entry."""
+        from .. import git_submodules as gsm
+        spec = self.submodule_spec()
+        cached = self._sm_cached()
+        records = self._sm_records
+        if records is None:
+            records = []
+            path = self.path
+            if path and os.path.isdir(path):
+                real = os.path.realpath(path)
+                if os.path.exists(os.path.join(real, ".git")):
+                    records = gsm.walk(real, spec)
+        return gsm.lock_record(spec, records, cached)
+
+    def _cache_versions(self, commit_hash: str):
+        """Cache keys to look this package up under, best first.
+
+        An enabled spec gets its own key (``<sha>_sm_<id>``).  The legacy
+        spec keeps the bare commit, which is what every pre-existing entry
+        holds.  An off spec looks up the bare commit first -- such an entry is
+        either identical (no submodules) or a superset (legacy-initialized),
+        harmless in a read-only snapshot -- then its own off key."""
+        from ..git_submodules import SM_SEP
+        spec = self.submodule_spec()
+        if spec.enabled:
+            return [commit_hash + spec.cache_suffix(True)]
+        return [commit_hash, commit_hash + SM_SEP + "off"]
+
+    def _cache_store_version(self, commit_hash: str, tree: str) -> str:
+        """The key a freshly-fetched *tree* is stored under.
+
+        An off-spec tree that has submodules is *not* what a legacy consumer
+        of the bare key expects, so it goes under the off key instead."""
+        from ..git_submodules import SM_SEP, has_gitmodules
+        spec = self.submodule_spec()
+        if spec.enabled:
+            return commit_hash + spec.cache_suffix(True)
+        if has_gitmodules(tree):
+            return commit_hash + SM_SEP + "off"
+        return commit_hash
+
+    def cache_base_version(self, base_version: str) -> str:
+        """The cache-key base for a patched variant of *base_version*
+        (``PatchAwareResolver``): the submodule spec is part of what the
+        variant holds.
+
+        An off spec gets ``_sm_off`` here unconditionally: whether the base
+        has submodules is not known before the fetch, and a bare
+        ``<sha>_patch_<id>`` is what the legacy spec (and earlier releases)
+        store with every submodule initialized -- an off variant there would
+        hand a legacy consumer a tree without them."""
+        from ..git_submodules import SM_SEP
+        spec = self.submodule_spec()
+        if not spec.enabled:
+            return base_version + SM_SEP + "off"
+        return base_version + spec.cache_suffix(True)
 
     def _augment_git_error(self, base_msg, url, stderr_text, update_info=None,
                            include_git_output=True, probe=True):
@@ -1038,7 +1535,9 @@ class PackageGit(PackageURL):
         # git_working_tree_status is the single source of truth shared with
         # GitCloneProvider.root_status(); it returns None for a non-repo, which
         # we render as the "(not fetched)" placeholder here.
-        st = git_working_tree_status(pkg_dir, self.name)
+        st = git_working_tree_status(
+            pkg_dir, self.name, spec=self.submodule_spec(),
+            locked_modules=getattr(self, "_lock_sm_modules", None))
         if st is None:
             return PkgVcsStatus(
                 name=self.name,
@@ -1074,11 +1573,11 @@ class PackageGit(PackageURL):
 
         # Neither do commit-pinned ones. A pin is a statement about which
         # commit this dependency must be at; advancing it to the branch tip
-        # contradicts the manifest. Note this is NOT covered by the detached-
-        # HEAD check below: _clone_to_dir pins with `git reset --hard`, which
-        # moves the *branch* pointer, so a pinned clone sits on a normal branch
-        # one or more commits behind its upstream and would fast-forward
-        # straight off its pin.
+        # contradicts the manifest. _clone_to_dir pins with a detached HEAD,
+        # which the check below would also catch, but a clone made by an older
+        # ivpm pinned with `git reset --hard` -- leaving it on an ordinary
+        # branch behind its upstream, which would fast-forward straight off
+        # its pin. The declaration is what is authoritative.
         if self.commit is not None:
             return PkgSyncResult(
                 name=self.name, src_type="git", path=pkg_dir,
@@ -1114,6 +1613,24 @@ class PackageGit(PackageURL):
             )
             return r.returncode, r.stdout.strip(), r.stderr.strip()
 
+        # Network commands carry the same credentials a fetch in `ivpm update`
+        # would: without them a gh-authenticated https remote could be cloned
+        # but never synced.
+        _, origin_url, _ = _git("remote", "get-url", "origin")
+
+        def _git_net(*args):
+            cmd = self._git_cmd(["git"] + list(args), origin_url) \
+                if origin_url else ["git"] + list(args)
+            r = subprocess.run(cmd, capture_output=True, text=True,
+                               cwd=pkg_dir, timeout=300)
+            return r.returncode, r.stdout.strip(), r.stderr.strip()
+
+        sm_pre = self._sync_submodule_snapshot(pkg_dir)
+
+        def _finish(res, merged=False):
+            return self._sync_submodules(res, pkg_dir, sm_pre, merged,
+                                         dry_run, origin_url)
+
         # Current branch (detached HEAD → skip).
         rc, branch, _ = _git("rev-parse", "--abbrev-ref", "HEAD")
         if rc != 0:
@@ -1129,12 +1646,14 @@ class PackageGit(PackageURL):
 
         _, old_commit, _ = _git("rev-parse", "--short", "HEAD")
 
-        # Detect dirty working tree.
-        _, porcelain, _ = _git("status", "--porcelain")
+        # Detect dirty working tree. A modified submodule counts (explicitly,
+        # whatever .gitmodules 'ignore' says): merging a gitlink change over
+        # it would strand the work.
+        _, porcelain, _ = _git("status", "--porcelain", "--ignore-submodules=none")
         dirty_files = [ln for ln in porcelain.splitlines() if ln.strip()]
 
         # Fetch from origin (safe in both real and dry-run modes).
-        rc, _, err = _git("fetch", "origin")
+        rc, _, err = _git_net("fetch", "origin")
         if rc != 0:
             return PkgSyncResult(
                 name=self.name, src_type="git", path=pkg_dir,
@@ -1157,19 +1676,19 @@ class PackageGit(PackageURL):
 
         # Nothing to pull and no local commits → up-to-date.
         if behind == 0 and ahead == 0:
-            return PkgSyncResult(
+            return _finish(PkgSyncResult(
                 name=self.name, src_type="git", path=pkg_dir,
                 outcome=SyncOutcome.UP_TO_DATE,
                 branch=branch, old_commit=old_commit,
-            )
+            ))
 
         # Strictly ahead (nothing to pull, but local work exists).
         if behind == 0 and ahead > 0:
-            return PkgSyncResult(
+            return _finish(PkgSyncResult(
                 name=self.name, src_type="git", path=pkg_dir,
                 outcome=SyncOutcome.AHEAD,
                 branch=branch, old_commit=old_commit, commits_ahead=ahead,
-            )
+            ))
 
         # There are upstream commits to pull (behind > 0).
         # Dirty tree blocks a real merge.
@@ -1237,21 +1756,118 @@ class PackageGit(PackageURL):
 
         _, new_commit, _ = _git("rev-parse", "--short", "HEAD")
 
-        # Update submodules if the project uses them.
-        if os.path.isfile(os.path.join(pkg_dir, ".gitmodules")):
-            _git("submodule", "update", "--init", "--recursive")
-
-        return PkgSyncResult(
+        return _finish(PkgSyncResult(
             name=self.name, src_type="git", path=pkg_dir,
             outcome=SyncOutcome.SYNCED,
             branch=branch, old_commit=old_commit, new_commit=new_commit,
-            commits_behind=behind,
-        )
+            commits_behind=behind, merged=True,
+        ), merged=True)
+
+    def _sync_submodule_snapshot(self, pkg_dir):
+        """The submodule tree before sync touches anything (``[]`` before a
+        merge that may add the first submodule), or None when the spec asks
+        for nothing."""
+        from .. import git_submodules as gsm
+        spec = self.submodule_spec()
+        if not spec.enabled:
+            return None
+        return gsm.walk(pkg_dir, spec)
+
+    def _sync_submodules(self, res, pkg_dir, pre, merged, dry_run, origin_url):
+        """Reconcile submodules after the superproject step of ``sync``
+        (design §9.1), and fold the outcome into *res*.
+
+        After a merge, ``.gitmodules`` URL changes are synced and each
+        in-scope submodule is considered against the snapshot taken before:
+
+        * gitlink unchanged, submodule elsewhere -- the user moved it: left;
+        * gitlink changed, submodule was clean at the old gitlink: updated;
+        * gitlink changed, submodule had local work: left, and the outcome is
+          ``SUBMODULE_CONFLICT``.
+
+        In every case (merged or not) in-scope submodules that are not
+        initialized are initialized, which repairs an earlier failure. The
+        legacy implicit spec does only the post-merge part, as before."""
+        from .. import git_submodules as gsm
+        from ..pkg_sync import SyncOutcome
+        if pre is None or not gsm.has_gitmodules(pkg_dir):
+            return res
+        spec = self.submodule_spec()
+        if spec.legacy and not merged:
+            return res
+        if merged and not dry_run:
+            gsm._git(pkg_dir, "submodule", "sync", "--recursive")
+        post = gsm.walk(pkg_dir, spec) if merged else pre
+        pre_by = dict((r.path, r) for r in pre)
+        ok_paths = set(r.path for r in post if r.state == "ok")
+
+        todo, conflicts = [], []
+        for r in post:
+            if not r.in_scope:
+                continue
+            if r.parent and r.parent not in ok_paths:
+                continue
+            if r.state == "uninitialized":
+                todo.append(r)
+            elif r.state == "moved":
+                p = pre_by.get(r.path)
+                if p is None or p.commit == r.commit:
+                    continue        # gitlink unchanged: the user's checkout
+                if p.state == "ok" and not gsm.submodule_dirty(pkg_dir, r):
+                    todo.append(r)
+                else:
+                    conflicts.append(r)
+
+        if dry_run:
+            if todo and res.outcome in (SyncOutcome.UP_TO_DATE,
+                                        SyncOutcome.AHEAD):
+                res.outcome = SyncOutcome.DRY_SUBMODULES
+            res.submodules = [r.path for r in todo]
+            if todo:
+                res.detail = "would initialize %d submodule%s" % (
+                    len(todo), "s" if len(todo) > 1 else "")
+            return res
+
+        if todo:
+            result = gsm.init_missing(
+                pkg_dir, spec, self._sm_cached(), records=post, targets=todo,
+                label=self.name, wrap=self._sm_wrap(origin_url, None, pkg_dir))
+            res.submodules = [r.path for r in todo]
+            if not result.ok:
+                msg = gsm.failure_message(self.name, None, result, origin_url)
+                if spec.required:
+                    res.outcome = SyncOutcome.ERROR
+                    res.error = msg
+                    return res
+                from ..utils import warning
+                warning(msg)
+                res.detail = "submodules incomplete"
+            else:
+                n_init = len([r for r in todo if r.state == "uninitialized"])
+                n_upd = len(todo) - n_init
+                bits = []
+                if n_init:
+                    bits.append("initialized %d" % n_init)
+                if n_upd:
+                    bits.append("updated %d" % n_upd)
+                res.detail = "%s submodule%s" % (
+                    " and ".join(bits), "s" if len(todo) > 1 else "")
+                if res.outcome in (SyncOutcome.UP_TO_DATE, SyncOutcome.AHEAD):
+                    # The tree changed, so the lock entry must be refreshed.
+                    res.outcome = SyncOutcome.SYNCED
+
+        if conflicts:
+            res.outcome = SyncOutcome.SUBMODULE_CONFLICT
+            res.submodules = [r.path for r in conflicts]
+            res.next_steps = ["cd %s && git status" % os.path.join(pkg_dir, r.path)
+                              for r in conflicts]
+        return res
     
     @classmethod
     def dep_keys(cls):
         return super().dep_keys() | {
-            "branch", "commit", "tag", "depth", "anonymous", "ssh"}
+            "branch", "commit", "tag", "depth", "anonymous", "ssh",
+            "submodules"}
 
     def process_options(self, opts, si):
         super().process_options(opts, si)
@@ -1285,6 +1901,26 @@ class PackageGit(PackageURL):
 
         if "tag" in opts.keys():
             self.tag = opts["tag"]
+
+        from .. import git_submodules as gsm
+        if "submodules" in opts.keys():
+            val = opts["submodules"]
+            try:
+                if gsm.is_lock_record(val):
+                    # A package-lock entry (`ivpm sync` / `ivpm status` rebuild
+                    # from these).
+                    self.submodules_spec = gsm.spec_from_lock(val)
+                    self._lock_sm_modules = val.get("modules")
+                else:
+                    self.submodules_spec = gsm.parse_spec(
+                        val, origin=opts.get("_submodules_origin", "explicit"))
+            except gsm.SubmoduleSpecError as e:
+                fatal("Package '%s': %s @ %s" % (self.name, e, getlocstr(opts)),
+                      opts)
+        elif "commit_resolved" in opts.keys():
+            # A lock entry written before the setting existed: reproduce what
+            # that ivpm did.
+            self.submodules_spec = gsm.spec_from_lock(None)
 
         self._validate_options(opts)
 
@@ -1347,6 +1983,16 @@ class PackageGit(PackageURL):
                       "'depth', or use 'cache: false' for an editable clone of "
                       "that depth." % (self.name, self.depth, loc), opts)
 
+        sm = self.submodules_spec
+        if sm is not None and sm.enabled and self.cache is True \
+                and sm.origin in ("explicit", "defaults") \
+                and sm.depth not in (None, 1, "recommended"):
+            fatal("Package '%s': 'submodules.depth' (%s) has no effect with "
+                  "'cache: true' @ %s\n"
+                  "  Cached packages fetch submodules at depth 1; remove "
+                  "'depth', set it to 1 or \"recommended\", or use "
+                  "'cache: false'." % (self.name, sm.depth, loc), opts)
+
         if self.ssh is True and self.anonymous is True:
             fatal("Package '%s': 'ssh: true' and 'anonymous: true' conflict "
                   "@ %s\n"
@@ -1390,6 +2036,10 @@ class PackageGit(PackageURL):
                 ParamInfo("tag", "Tag to pin to; disables sync for this package"),
                 ParamInfo("commit", "Specific commit SHA to check out"),
                 ParamInfo("depth", "Shallow-clone depth (integer)", type_hint="int"),
+                ParamInfo("submodules", "Submodules to initialize: true, false, or a mapping of "
+                          "recursive (default true), paths (top-level submodule paths; default all), "
+                          "depth (integer or \"recommended\"; default 1 with cache: true, else full), "
+                          "jobs (parallel fetches) and required (default true; false warns and continues)"),
                 ParamInfo("cache", "Cache mode: true=shared cache+symlink (read-only), false=editable clone but never cached, omit=full editable clone", type_hint="bool"),
                 ParamInfo("ssh", "Force SSH: rewrite the https URL to git@host:path form (overrides the auth order)", type_hint="bool"),
                 ParamInfo("anonymous", "Legacy knob: anonymous:true clones https as written; anonymous:false defers to the auth order (use 'ssh' to force SSH)", type_hint="bool"),

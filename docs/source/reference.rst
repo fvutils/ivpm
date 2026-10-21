@@ -1372,6 +1372,16 @@ Package Dependency
 
 .. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/package-dep
 
+.. _#/defs/submodules:
+
+Submodules (``submodules``)
+---------------------------
+
+Valid on a git dependency, in ``package: dep-defaults: git:``, and at the
+package level (for the root repository).  See :doc:`git_integration`.
+
+.. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/submodules
+
 Handler Configuration (``with``)
 --------------------------------
 

@@ -753,7 +753,9 @@ Cache Organization
 
 The cache is organized by package name, with version-specific subdirectories:
 
-- For Git packages, the version is the commit hash
+- For Git packages, the version is the commit hash, plus ``_sm_<id>`` when
+  the dependency requests submodules (``<id>`` identifies which ones, and at
+  what depth), so trees with different submodule content never share an entry
 - For HTTP packages, the version is derived from the Last-Modified header or
   ETag, plus a digest of the resolved URL
 - For GitHub Releases, the version is the release tag plus a digest of the
@@ -847,7 +849,13 @@ IVPM supports caching for **any Git repository**, not just GitHub.
        branch: stable
        cache: true
 
-**Cache key:** The full commit hash (40 characters)
+**Cache key:** The full commit hash (40 characters).  A dependency that
+requests submodules (``submodules:``) adds ``_sm_<16 hex>`` identifying the
+submodule selection and depth; its submodules are fetched at depth 1 by
+default.  One that requests none uses the bare commit hash, and also accepts
+an entry stored there by an earlier release (which initialized every
+submodule): the extra content is harmless in a read-only snapshot.  A tree
+whose submodules failed to fetch is never stored.
 
 **Benefits:**
 

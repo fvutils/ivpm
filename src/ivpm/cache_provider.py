@@ -156,6 +156,17 @@ def source_info(pkg) -> Optional[dict]:
         value = getattr(pkg, field, None)
         if value is not None and value != "":
             info[field] = str(value)
+    # Which submodules the entry holds (git): informational, for `ivpm cache`
+    # listings and debugging. The key already carries it (see
+    # PackageGit._cache_versions), so it is never compared.
+    spec_fn = getattr(pkg, "submodule_spec", None)
+    if callable(spec_fn):
+        try:
+            spec = spec_fn()
+            info["submodules"] = ("legacy" if spec.legacy else
+                                  spec.spec_id(True) or "off")
+        except Exception:
+            pass
     return info or None
 
 

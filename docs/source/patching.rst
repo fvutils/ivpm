@@ -158,6 +158,11 @@ cache entry:
 - No separate pristine base entry is kept. A dependency with an **empty**
   patch set resolves to the base version byte-for-byte, so it shares the
   ordinary unpatched entry.
+- For a git dependency that requests submodules, the base already carries the
+  submodule part of the key (``<sha>_sm_<id>``; see :doc:`caching`), so the
+  variant is ``<sha>_sm_<id>_patch_<id>``.
+- A patch may not modify files inside a git submodule (a path under one
+  declared in ``.gitmodules``); such a patch is rejected.
 
 Worked example -- two consumers, same base:
 

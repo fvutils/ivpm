@@ -168,9 +168,10 @@ class TestCloneFallback(unittest.TestCase):
             self._clone({_URL: (0, "")})
         first = self.attempts[0]
         self.assertEqual(first[0], "git")
-        self.assertEqual(first[1:3], ["-c", "credential.helper="])
-        self.assertIn("credential.helper=!/usr/bin/gh auth git-credential",
-                      first)
+        self.assertEqual(first[1:3],
+                         ["-c", "credential.https://github.com.helper="])
+        self.assertIn("credential.https://github.com.helper="
+                      "!/usr/bin/gh auth git-credential", first)
         self.assertEqual(first[5], "clone")
 
     def test_no_injection_when_the_ssh_candidate_runs(self):
@@ -191,27 +192,82 @@ class TestSubmoduleInjection(unittest.TestCase):
         with open(os.path.join(self._dir, ".gitmodules"), "w") as fp:
             fp.write('[submodule "x"]\n\tpath = x\n\turl = %s\n' % _URL)
 
-    def test_submodule_update_carries_the_helper(self):
+    def _fetch(self, spec, gitmodules=None, gh_hosts=("github.com",)):
+        from ivpm import git_submodules as gsm
+        if gitmodules is not None:
+            with open(os.path.join(self._dir, ".gitmodules"), "w") as fp:
+                fp.write(gitmodules)
         seen = []
         pkg = pg.PackageGit("p")
         pkg.url = _URL
+        pkg.submodules_spec = spec
         ui = types.SimpleNamespace(
             args=types.SimpleNamespace(ssh=False, anonymous=False,
                                        git_auth_order=["gh"], no_probe=True),
             suppress_output=False, perf=None, event_dispatcher=None)
 
-        with patch.object(utils, "gh_auth_available", lambda h: True), \
+        with patch.object(utils, "gh_auth_available",
+                          lambda h: h in gh_hosts), \
              patch.object(pg.git_auth.shutil, "which", lambda n: "/usr/bin/gh"), \
              patch.object(pg.PackageGit, "_run_git",
                           lambda s, cmd, u, cwd=None, progress=False:
                               (seen.append(list(cmd)), (0, ""))[1]):
-            pkg._update_submodules(ui, self._dir, _URL)
+            pkg._clone_candidates(ui)       # records the auth decision
+            pkg._fetch_submodules(ui, self._dir, _URL)
+        return [c for c in seen if "submodule" in c]
+
+    def test_submodule_update_carries_the_helper(self):
+        from ivpm.git_submodules import SubmoduleSpec
+        seen = self._fetch(SubmoduleSpec(enabled=True))
 
         self.assertEqual(len(seen), 1)
-        self.assertIn("credential.helper=!/usr/bin/gh auth git-credential",
-                      seen[0])
+        self.assertIn("credential.https://github.com.helper="
+                      "!/usr/bin/gh auth git-credential", seen[0])
         self.assertEqual(seen[0][-4:],
                          ["submodule", "update", "--init", "--recursive"])
+
+    def test_helper_does_not_reset_other_hosts(self):
+        # The reset is scoped to the superproject's host, so a submodule on
+        # another host keeps whatever helper the user configured for it.
+        from ivpm.git_submodules import SubmoduleSpec
+        seen = self._fetch(SubmoduleSpec(enabled=True))
+        self.assertNotIn("credential.helper=", seen[0])
+
+    def test_another_gh_host_gets_its_own_scoped_helper(self):
+        from ivpm.git_submodules import SubmoduleSpec
+        gm = ('[submodule "x"]\n\tpath = x\n\turl = %s\n'
+              '[submodule "y"]\n\tpath = y\n'
+              '\turl = https://ghe.example.com/o/y.git\n' % _URL)
+        seen = self._fetch(SubmoduleSpec(enabled=True), gitmodules=gm,
+                           gh_hosts=("github.com", "ghe.example.com"))
+        cmd = seen[0]
+        self.assertIn("credential.https://ghe.example.com.helper=", cmd)
+        self.assertIn("credential.https://ghe.example.com.helper="
+                      "!/usr/bin/gh auth git-credential", cmd)
+
+    def test_host_without_gh_gets_no_helper(self):
+        from ivpm.git_submodules import SubmoduleSpec
+        gm = ('[submodule "y"]\n\tpath = y\n'
+              '\turl = https://gitlab.example.com/o/y.git\n')
+        seen = self._fetch(SubmoduleSpec(enabled=True), gitmodules=gm)
+        self.assertFalse([a for a in seen[0] if "gitlab.example.com" in a
+                          and a.startswith("credential.")])
+
+    def test_off_spec_runs_no_submodule_command(self):
+        from ivpm.git_submodules import SubmoduleSpec
+        self.assertEqual(self._fetch(SubmoduleSpec(enabled=False)), [])
+
+    def test_depth_and_paths_reach_the_command(self):
+        from ivpm.git_submodules import SubmoduleSpec
+        gm = ('[submodule "x"]\n\tpath = x\n\turl = %s\n'
+              '[submodule "y"]\n\tpath = y\n\turl = %s\n' % (_URL, _URL))
+        # validate_paths reads .gitmodules only, so 'x' is accepted here.
+        seen = self._fetch(SubmoduleSpec(enabled=True, depth=1, paths=("x",),
+                                         recursive=False), gitmodules=gm)
+        cmd = seen[0]
+        i = cmd.index("submodule")
+        self.assertEqual(cmd[i:], ["submodule", "update", "--init",
+                                   "--depth", "1", "--", "x"])
 
 
 class TestLsRemoteErrorRetention(unittest.TestCase):
@@ -272,7 +328,8 @@ class TestLsRemoteErrorRetention(unittest.TestCase):
              patch.object(pg.subprocess, "run", _run):
             pkg._clone_candidates(None)     # records the auth decision
             self.assertEqual(pkg._ls_remote(_URL, "main"), "abc123")
-        self.assertIn("credential.helper=!/usr/bin/gh auth git-credential",
+        self.assertIn("credential.https://github.com.helper="
+                      "!/usr/bin/gh auth git-credential",
                       seen[0])
 
 

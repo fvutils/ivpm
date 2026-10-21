@@ -84,7 +84,9 @@ free to use its own naming conventions (including single-dash long options like
 .. note::
 
    The git-specific flags ``--ssh``, ``--anonymous`` and ``--git-auth-order``
-   belong to the **git** provider (see :doc:`git_integration`).  They remain
+   belong to the **git** provider (see :doc:`git_integration`), as do
+   ``--recurse-submodules``, ``--submodule-depth`` and
+   ``--no-recurse-submodules`` (Git Submodules, "The root project").  They remain
    accepted directly on ``ivpm clone`` for backward compatibility, but their
    documented home is ``ivpm clone --provider git --help`` /
    ``ivpm show clone-providers git``.  ``--branch``, ``--tag`` and

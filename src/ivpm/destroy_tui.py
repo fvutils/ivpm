@@ -45,12 +45,14 @@ _KIND_LABEL = {
     "patch-drift":  "patched-tree drift",
     "unverifiable": "could not verify",
     "symlink":      "symlink",
+    "submodule":    "submodule work",
 }
 
 # kind -> noun used when reporting a count.
 _KIND_NOUN = {
     "unpushed": "commit",
     "stash":    "stash entry",
+    "submodule": "submodule",
 }
 
 

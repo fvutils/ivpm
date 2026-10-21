@@ -34,11 +34,16 @@ class SyncOutcome(str, enum.Enum):
     AHEAD               = "ahead"           # local commits not on origin
     ERROR               = "error"           # network / git command failure
     SKIPPED             = "skipped"         # read-only / non-git / tag-pinned
+    SUBMODULE_CONFLICT  = "submodule-conflict"  # merged, but a submodule with
+                                            # local work was not moved to its
+                                            # new gitlink
 
     # dry-run variants (--dry-run / -n)
     DRY_WOULD_SYNC      = "dry:sync"        # would fast-forward cleanly
     DRY_WOULD_CONFLICT  = "dry:conflict"    # diverged — would produce conflicts
     DRY_DIRTY           = "dry:dirty"       # dirty tree would block merge
+    DRY_SUBMODULES      = "dry:submodules"  # submodules would be initialized
+                                            # or updated
 
 
 class SyncProgressListener:
@@ -71,3 +76,10 @@ class PkgSyncResult:
     next_steps: List[str] = dc.field(default_factory=list)  # shell commands to show
     error: Optional[str] = None
     skipped_reason: Optional[str] = None
+    detail: Optional[str] = None           # extra one-line note for the row
+    merged: bool = False                   # the superproject moved, whatever
+                                           # the final outcome (the lock must
+                                           # follow it)
+    submodules: List[str] = dc.field(default_factory=list)  # submodule paths
+                                           # initialized/updated (or that would
+                                           # be), or left in conflict

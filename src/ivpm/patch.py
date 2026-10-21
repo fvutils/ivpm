@@ -324,6 +324,37 @@ def _reject_path_traversal(spec: PatchSpec, cwd: str, boundary: str, pkg_name: s
                 "package tree (%s)" % (spec.name, pkg_name, raw))
 
 
+def _reject_submodule_paths(spec: PatchSpec, cwd: str, tree: str,
+                            pkg_name: str) -> None:
+    """Raise PatchError if ``spec`` modifies a file inside a submodule.
+
+    A submodule is a separate repository: applying a hunk there would leave
+    the superproject reporting a modified submodule that no gitlink explains,
+    and keeping it would mean committing inside the nested repository. That
+    is out of scope (git-submodules-design.md §10), so it is refused rather
+    than half-supported. Declared submodule paths come from ``.gitmodules``,
+    whether or not they are initialized."""
+    from .git_submodules import read_gitmodules
+    mods = [m.path for m in read_gitmodules(tree)]
+    if not mods:
+        return
+    base = os.path.realpath(tree)
+    for raw in _diff_target_paths(spec.resolved_path):
+        rel = _strip_leading(raw, spec.strip)
+        if rel in ("", ".") or os.path.isabs(rel):
+            continue
+        full = os.path.realpath(os.path.join(cwd, rel))
+        if not full.startswith(base + os.sep):
+            continue
+        tree_rel = os.path.relpath(full, base).replace(os.sep, "/")
+        for sm in mods:
+            if tree_rel.startswith(sm + "/"):
+                raise PatchError(
+                    "patch %s modifies %s inside submodule %s of %s; patching "
+                    "submodule content is not supported" % (
+                        spec.name, tree_rel, sm, pkg_name))
+
+
 def _git_apply(cwd: str, spec: PatchSpec) -> bool:
     """Apply ``spec`` with ``git apply`` in ``cwd``. Return False (do not raise)
     when git cannot apply, so the caller can fall back to GNU ``patch``.
@@ -376,6 +407,7 @@ def apply_patchset(target_dir: str, patchset: PatchSet, base_version: str, pkg) 
     for spec in patchset.specs:
         cwd = os.path.join(target_dir, spec.directory or "")
         _reject_path_traversal(spec, cwd, target_dir, pkg_name)
+        _reject_submodule_paths(spec, cwd, target_dir, pkg_name)
         tool = spec.tool or "auto"
         if tool in ("auto", "git") and _git_apply(cwd, spec):
             continue
@@ -438,7 +470,12 @@ class PatchAwareResolver:
         patchset = pkg.patchset
         deps_dir = update_info.deps_dir
         pkg_dir = os.path.join(deps_dir, pkg.name)
-        eff = effective_version(base_version, patchset)
+        # A source can fold more than the base into the key (a git package's
+        # submodule spec, which decides what the variant's tree holds).
+        key_base = base_version
+        if hasattr(pkg, "cache_base_version"):
+            key_base = pkg.cache_base_version(base_version)
+        eff = effective_version(key_base, patchset)
 
         provider = update_info.get_cache_provider()
         result = (provider.lookup(pkg, eff) if cacheable
@@ -465,6 +502,19 @@ class PatchAwareResolver:
         staging = acquire_staging(provider, pkg, deps_dir)
         try:
             pkg.fetch_pristine(update_info, staging, base_version)
+            if getattr(pkg, "_sm_cache_unsafe", False):
+                # Optional submodules failed: never seal a partial variant.
+                # Patch an editable copy in place instead; the next update
+                # tries the cache again.
+                discard_staging(staging)
+                note("%s: not caching this tree (its submodules are "
+                     "incomplete)" % pkg.name)
+                # A link into the cache (an earlier variant) must not be
+                # reconciled in place: that would reset a shared entry.
+                if os.path.islink(pkg_dir):
+                    os.unlink(pkg_dir)
+                return self._apply_in_place(update_info, pkg, pkg_dir,
+                                            base_version)
             pristine = _snapshot_tree(staging)
             apply_patchset(staging, patchset, base_version, pkg)
             write_manifest(

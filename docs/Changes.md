@@ -1,4 +1,75 @@
 # 2.42.0
+- **Changed: a git dependency's submodules are initialized only when asked
+  for (`submodules:`), and their failures are no longer silent.** Before this release, every git dependency
+  with a `.gitmodules` had `git submodule update --init --recursive` run
+  after its clone, at full depth. The result was ignored, so a failed
+  submodule left a partial tree that loaded as if complete. On a cache miss
+  that tree was also sealed into the shared cache and served to every later
+  workspace.
+  - `submodules: true` initializes all submodules recursively, and
+    `submodules: false` initializes none. The long form takes:
+    - `recursive`
+    - `paths`: a list of top-level submodule paths
+    - `depth`: an integer, or `"recommended"` to honor `shallow` in
+      `.gitmodules`
+    - `jobs`
+    - `required`: `false` turns a failure into a warning
+
+    A `paths` entry that isn't a submodule is an error, and so is an unknown
+    key.
+  - **Depth.** `cache: true` dependencies fetch submodules at depth 1 by
+    default, like the superproject; editable clones fetch full history. If a
+    server won't serve a pinned commit shallowly, that submodule alone is
+    fetched again with full history.
+  - **Failures.** A failure is an error that names the submodule, its URL and
+    git's output, with a hint when the submodule's host differs from the
+    superproject's. Every requested submodule is checked against its pinned
+    commit afterwards, so a partial failure that git reports as success is
+    caught too. A tree whose submodules failed is never stored in the cache.
+  - **Breaking: no key means no submodules**, as with `git clone`. A
+    dependency that relied on implicit initialization needs
+    `submodules: true`; IVPM prints a note naming each package whose
+    submodules it skipped. For all of a manifest's own git dependencies, use
+    `package: dep-defaults: git: submodules: true`. A v1/v2 lock is still
+    reproduced with every submodule (see below).
+  - **Cache key.** The submodule selection is part of the cache key
+    (`<sha>_sm_<id>`), so trees with different submodule content never share
+    an entry. A dependency that requests none keeps the bare commit key, and
+    also accepts an entry an earlier release stored there.
+  - **Lock file version 3.** Git entries record `depth` and `submodules`:
+    the spec, plus every submodule's path, URL, pinned commit and state.
+    `ivpm update --lock-file` reproduces and verifies them. A v1/v2 lock is
+    reproduced the way the release that wrote it behaved. Older releases
+    reject a v3 lock, so everyone sharing a workspace's lock needs this
+    release before it is rewritten.
+  - **Editable packages that are already loaded.** `ivpm update` initializes
+    any requested submodules that are missing, without re-cloning. A
+    submodule you've checked out elsewhere is never moved, and one that is no
+    longer requested is never deinitialized.
+  - **`ivpm sync`.** Sync fetches with ivpm's credentials. It updates a
+    submodule whose pinned commit the merge changed, but only if that
+    submodule was clean at its old commit. One holding local work is left in
+    place and reported as `submodule-conflict`. Missing submodules are
+    initialized, and `--dry-run` reports `dry:submodules`.
+  - **`ivpm status`** shows a per-package submodule summary; `-v` lists each
+    submodule.
+  - **Removing a package** is refused when its submodules hold uncommitted
+    changes, commits no remote has, or stashes.
+  - **Patches** that modify files inside a submodule are rejected.
+  - **The root project.** `package: submodules:` says what the root
+    repository needs; `ivpm update` initializes the missing ones before
+    resolving dependencies. `ivpm clone` takes `--recurse-submodules`,
+    `--submodule-depth N` and `--no-recurse-submodules`.
+  - **Credentials and URLs.**
+    - The injected `gh` credential helper is now scoped to the URL's host
+      (`credential.https://<host>[:<port>].helper`). Before, it reset your own
+      credential helpers for every host, including other hosts a submodule
+      lives on. A submodule on another `gh`-authenticated host gets its own
+      scoped helper.
+    - `git-url-map` rules apply to absolute submodule URLs.
+    - When the superproject is fetched over SSH, https submodule URLs on the
+      same host follow it.
+
 - **New: template-driven `ivpm init`.** `ivpm init -t <template>` creates a
   project from a [copier](https://copier.readthedocs.io) template, chosen by
   name, local path or git URL. `ivpm init --list` lists the available

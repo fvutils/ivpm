@@ -44,12 +44,19 @@ _logger = logging.getLogger("ivpm.package_lock")
 # shape-identical to v1 apart from this number and the added "name" field.
 # Version 1 locks are still read: the key doubles as the name (see
 # _entry_name).
-LOCK_VERSION = 2
+#
+# Version 3 adds ``depth`` and ``submodules`` to git entries. The bump is not
+# for the new keys themselves -- readers ignore keys they do not know -- but
+# because an *absent* ``submodules`` must be read differently in the two: in a
+# v1/v2 lock it means "written before the setting existed", which reproduces
+# the old always-recursive behavior (git_submodules.spec_from_lock(None)); a v3
+# git entry always carries the key.
+LOCK_VERSION = 3
 
 #: Lock versions this build can read. v1 differs only in that the ``packages``
 #: key is the bare package name and there is no ``name`` field, so reading it
 #: costs exactly one fallback (see _entry_name).
-SUPPORTED_LOCK_VERSIONS = frozenset({1, 2})
+SUPPORTED_LOCK_VERSIONS = frozenset({1, 2, 3})
 
 
 # ---------------------------------------------------------------------------
@@ -126,6 +133,27 @@ def _patch_spec_matches(pkg, lock_entry: dict) -> bool:
     ps = getattr(pkg, "patchset", None)
     live_id = None if (ps is None or ps.is_empty) else ps.patchset_id
     return live_id == lock_entry.get("patchset_id")
+
+
+def _submodule_spec_matches(pkg, lock_entry: dict) -> bool:
+    """Does *pkg*'s submodule spec still describe the locked tree?
+
+    Only a ``cache: true`` package can drift on it: there the spec is part of
+    the cache key, so a changed spec names a different entry and the link must
+    be re-materialized. An editable clone is reconciled in place instead --
+    newly requested submodules are initialized on the resident path -- so
+    re-cloning it (with whatever work it holds) would be all cost. The
+    superproject ``depth`` is recorded but is not compared, for the same
+    reason."""
+    if getattr(pkg, "cache", None) is not True:
+        return True
+    if not hasattr(pkg, "submodule_spec"):
+        return True
+    from .git_submodules import spec_from_lock
+    live = pkg.submodule_spec()
+    locked = spec_from_lock(lock_entry.get("submodules"))
+    return (live.enabled == locked.enabled
+            and live.cache_suffix(True) == locked.cache_suffix(True))
 
 
 def _entry_name(key: str, entry: dict) -> str:
@@ -243,6 +271,9 @@ def _entry_from_pkg(pkg) -> dict:
         entry["commit_requested"] = getattr(pkg, "commit", None)
         entry["commit_resolved"] = getattr(pkg, "resolved_commit", None)
         entry["cache"] = getattr(pkg, "cache", None)
+        entry["depth"] = getattr(pkg, "depth", None)
+        if hasattr(pkg, "submodules_lock_record"):
+            entry["submodules"] = pkg.submodules_lock_record()
 
     elif src == "gh-rls":
         entry["url"] = getattr(pkg, "url", None)
@@ -374,6 +405,7 @@ def _spec_matches_lock(pkg, lock_entry: dict) -> bool:
             and getattr(pkg, "tag", None) == lock_entry.get("tag")
             and getattr(pkg, "commit", None) == lock_entry.get("commit_requested")
             and getattr(pkg, "cache", None) == lock_entry.get("cache")
+            and _submodule_spec_matches(pkg, lock_entry)
         )
     elif src == "gh-rls":
         return (
@@ -635,7 +667,11 @@ def patch_lock_after_sync(lock_path: str, sync_results) -> None:
     packages = lock.get("packages", {})
     changed = False
     for result in sync_results:
-        if result.outcome != SyncOutcome.SYNCED:
+        # A merge that was followed by a submodule failure (ERROR) still
+        # moved the superproject: the lock must say where it is now.
+        if result.outcome not in (SyncOutcome.SYNCED,
+                                  SyncOutcome.SUBMODULE_CONFLICT) \
+                and not getattr(result, "merged", False):
             continue
         if result.name not in packages:
             continue
@@ -653,11 +689,33 @@ def patch_lock_after_sync(lock_path: str, sync_results) -> None:
                 changed = True
         except Exception:
             pass
+        rec = _resync_submodules(entry, result.path)
+        if rec is not None:
+            entry["submodules"] = rec
+            changed = True
 
     if changed:
         _write_lock_dict(lock_path, lock)
         _logger.info("Updated package-lock.json after sync")
 
+
+
+def _resync_submodules(entry: dict, path: str):
+    """A fresh ``submodules`` record for a synced git entry, or None.
+
+    Only entries that already carry the key are refreshed: rewriting a
+    legacy entry would turn "written before the setting existed" into a
+    statement it never made."""
+    if "submodules" not in entry or not path or not os.path.isdir(path):
+        return None
+    from .git_submodules import spec_from_lock, walk, lock_record
+    spec = spec_from_lock(entry.get("submodules"))
+    try:
+        records = walk(os.path.realpath(path), spec)
+    except Exception as e:
+        _logger.debug("could not re-walk submodules of %s: %s", path, e)
+        return None
+    return lock_record(spec, records, entry.get("cache") is True)
 
 
 def read_lock(lock_path: str) -> dict:
@@ -846,6 +904,13 @@ class IvpmLockReader:
         packages = self._data.get("packages", {})
         pkgs_info = PackagesInfo("lock")
 
+        if any(_lock_entry_src(e) == "git" and "submodules" not in e
+               for e in packages.values()):
+            from .utils import note
+            note("%s was written before submodules were recorded; git "
+                 "submodules are reproduced as that ivpm did (all of them, "
+                 "recursively)" % self.lock_path)
+
         # Patch files are written relative to the declaring ivpm.yaml. In
         # reproduction mode there is no ivpm.yaml, so locate them best-effort
         # near the lock file: its directory (typically the deps dir), the parent
@@ -870,6 +935,13 @@ class IvpmLockReader:
                 p.commit = entry.get("commit_resolved") or entry.get("commit_requested")
                 p.resolved_commit = entry.get("commit_resolved")
                 p.cache = entry.get("cache")
+                p.depth = entry.get("depth")
+                from .git_submodules import spec_from_lock
+                p.submodules_spec = spec_from_lock(entry.get("submodules"))
+                # What the lock says the tree held, to verify the
+                # reproduction against (PackageGit._verify_locked_submodules).
+                p.locked_submodules = (entry.get("submodules") or {}).get(
+                    "modules")
                 pkg = p
 
             elif src == "gh-rls":
