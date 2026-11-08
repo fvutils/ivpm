@@ -465,19 +465,84 @@ class RichUpdateTUI(UpdateEventListener):
         self.console.print(panel)
 
 
+def _elapsed(secs: float) -> str:
+    secs = int(secs)
+    return "%ds" % secs if secs < 60 else "%dm %02ds" % divmod(secs, 60)
+
+
 class TranscriptUpdateTUI(UpdateEventListener):
     """
     Transcript-based TUI for update operations.
-    
+
     Shows plain text output suitable for non-interactive use or logging.
+
+    A task that is not scoped to one package (installing the Python packages,
+    say) reports its progress at every verbosity, and a line of its own when
+    it has said nothing for ``heartbeat`` seconds, so that whoever reads the
+    output -- a log, a CI job, a dashboard -- can tell a long build from a hang.
     """
-    
-    def __init__(self, verbose: int = 0):
+
+    #: Seconds of silence before a running task prints a "still running" line.
+    HEARTBEAT = 15.0
+    #: At verbosity 0, the least time between a root task's progress lines.
+    RATE = 5.0
+
+    def __init__(self, verbose: int = 0, heartbeat: Optional[float] = None,
+                 clock=time.monotonic, rate: Optional[float] = None):
         self.verbose = verbose
         self.errors: List[tuple] = []
         self._lock = threading.Lock()
         self._task_last_pct: Dict[str, int] = {}
-    
+        self._heartbeat = self.HEARTBEAT if heartbeat is None else heartbeat
+        self._rate = self.RATE if rate is None else rate
+        self._clock = clock
+        self._running: Dict[str, dict] = {}     # root-level task id -> what it last said
+        self._beater: Optional[threading.Thread] = None
+
+    def _said(self, task_id: str, message: Optional[str] = None, printed: bool = True):
+        """Note *task_id*'s latest *message*, and that it just printed it."""
+        t = self._running.get(task_id)
+        if t is None:
+            return
+        now = self._clock()
+        if message and message != t["msg"]:
+            t["msg"], t["msg_at"] = message, now
+        if printed:
+            t["said"] = t["shown"] = now
+
+    def tick(self):
+        """Print a "still running" line for each task quiet for ``heartbeat``
+        seconds. Called by a background thread while tasks run; tests call it."""
+        with self._lock:
+            self._tick()
+
+    def _tick(self):
+        now = self._clock()
+        parents = {t["parent"] for t in self._running.values()}
+        for tid, t in self._running.items():
+            if tid in parents or now - t["said"] < self._heartbeat:
+                continue                        # a running child speaks for it
+            what, since = (t["msg"], t["msg_at"]) if t["msg"] else (t["name"], t["start"])
+            print(f"{t['indent']}   {what} (still running, {_elapsed(now - since)})")
+            t["said"] = now
+        sys.stdout.flush()
+
+    def _beat(self):
+        every = max(0.5, min(5.0, self._heartbeat / 3))
+        while True:
+            time.sleep(every)
+            with self._lock:
+                if not self._running:
+                    self._beater = None
+                    return
+                self._tick()
+
+    def _start_beater(self):
+        if self._heartbeat > 0 and self._beater is None:
+            self._beater = threading.Thread(target=self._beat, name="ivpm-heartbeat",
+                                            daemon=True)
+            self._beater.start()
+
     def make_prompt_callback(self):
         """Return a prompt_callback for non-Rich mode."""
         from .tui_utils import handle_subprocess_prompt_plain
@@ -587,29 +652,54 @@ class TranscriptUpdateTUI(UpdateEventListener):
                 else:
                     indent = "  " if event.parent_task_id else ""
                     print(f"{indent}>> [{event.task_name}]")
+                    now = self._clock()
+                    self._running[event.task_id] = dict(
+                        name=event.task_name, indent=indent, start=now, said=now,
+                        msg=None, msg_at=now, shown=None, parent=event.parent_task_id)
+                    self._start_beater()
                 sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_PROGRESS:
-            if self.verbose < 1:
+            # Per-package progress is detail; a root-level task's is the only
+            # sign of life during a long step, so it shows at every verbosity.
+            if self.verbose < 1 and event.package_name:
                 return
             with self._lock:
-                # Percentage throttling: skip intermediate reports
-                if event.task_step is not None and event.task_total is not None:
-                    last = self._task_last_pct.get(event.task_id, -1)
-                    if event.task_step - last < 10 and event.task_step < event.task_total:
+                # Throttle stepped progress to ~10% of the total: a step that
+                # is a tenth or more of the way (3 of 5, say) always prints.
+                if event.task_step is not None and event.task_total:
+                    pct = event.task_step * 100 // event.task_total
+                    last = self._task_last_pct.get(event.task_id)
+                    if (last is not None and pct - last < 10
+                            and event.task_step < event.task_total):
                         sys.stdout.flush()
                         return
-                    self._task_last_pct[event.task_id] = event.task_step
+                    self._task_last_pct[event.task_id] = pct
+                elif event.task_message and event.task_id in self._running:
+                    t = self._running[event.task_id]
+                    if event.task_message == t["msg"]:
+                        return                  # said already
+                    # An installer reports every dependency and every compile;
+                    # at verbosity 0 a root task prints one line per
+                    # ``rate`` seconds. The latest message is kept, and the
+                    # "still running" line repeats it if nothing follows.
+                    if (self.verbose < 1 and t["shown"] is not None
+                            and self._clock() - t["shown"] < self._rate):
+                        self._said(event.task_id, event.task_message, printed=False)
+                        return
                 pkg_tag = f"[{event.package_name}] " if event.package_name else ""
                 indent = "  " if event.parent_task_id else ""
                 if event.task_step is not None and event.task_total is not None:
                     print(f"{indent}   {pkg_tag}{event.task_message} ({event.task_step}/{event.task_total})")
                 elif event.task_message:
                     print(f"{indent}   {pkg_tag}{event.task_message}")
+                if not event.package_name:
+                    self._said(event.task_id, event.task_message)
                 sys.stdout.flush()
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_END:
             with self._lock:
+                self._running.pop(event.task_id, None)
                 if event.package_name:
                     # Always suppress -- the << package line already signals completion
                     sys.stdout.flush()
@@ -622,6 +712,7 @@ class TranscriptUpdateTUI(UpdateEventListener):
 
         elif event.event_type == UpdateEventType.HANDLER_TASK_ERROR:
             with self._lock:
+                self._running.pop(event.task_id, None)
                 indent = "  " if event.parent_task_id else ""
                 pkg_tag = f"[{event.package_name}] " if event.package_name else ""
                 print(f"{indent}<< [{event.task_name}] {pkg_tag}ERROR: {event.task_message}")

@@ -749,6 +749,12 @@ class IvpmYamlReader(object):
                 fatal("Dependency set must have a 'deps' or 'uses' entry", ds_ent)
 
             ds_name = ds_ent["name"]
+            # A bare 'name:' parses as None; reject it here rather than let a
+            # None key reach dep_set_m (where sorting the names crashes).
+            if ds_name is None or str(ds_name).strip() == "":
+                fatal("Dependency set has an empty 'name'",
+                      ds_ent)
+            ds_name = str(ds_name)
             if str(ds_name) in seen_ds:
                 fatal("Duplicate dep-set '%s' @ %s ; previously defined @ %s" % (
                     ds_name, getlocstr(ds_ent), getlocstr(seen_ds[str(ds_name)])))

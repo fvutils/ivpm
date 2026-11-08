@@ -33,7 +33,7 @@ from typing import ClassVar, Dict, List, Optional, Set
 from ..project_ops_info import ProjectUpdateInfo, ProjectBuildInfo
 from ..utils import (note, fatal, get_venv_python, setup_venv, resolve_pkg_path,
                      venv_install_env)
-from ..installer_run import run_installer, format_output_tail
+from ..installer_run import BuildProgress, run_installer, format_output_tail
 from ..wheel_hint import split_requirement, explain_source_build
 from ..content_attrib import (
     ENROLLED_EXPLICIT, ENROLLED_PROBE, ENROLLED_PROVIDES, ENROLLED_SRC_TYPE,
@@ -1272,7 +1272,7 @@ class PackageHandlerPython(PackageHandler):
                     cmd.extend(["--reinstall-package", dist])
 
             result = run_installer(cmd, env=env, task=task, quiet=quiet,
-                                   line_parser=self._uv_line_parser)
+                                   line_parser=BuildProgress(self._uv_line_parser))
             if not result.ok:
                 self._report_install_failure(
                     requirements_file, result, update_info,
@@ -1303,7 +1303,7 @@ class PackageHandlerPython(PackageHandler):
             for c in cmds:
                 result = run_installer(c, env=env, cwd=python_dir, task=task,
                                        quiet=quiet,
-                                       line_parser=self._pip_line_parser)
+                                       line_parser=BuildProgress(self._pip_line_parser))
 
                 if not result.ok:
                     self._report_install_failure(

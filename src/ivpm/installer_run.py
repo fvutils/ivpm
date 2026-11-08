@@ -27,12 +27,94 @@
 #****************************************************************************
 import dataclasses as dc
 import logging
+import os
 import re
 import subprocess
 import sys
 from typing import Callable, List, Optional
 
 _logger = logging.getLogger("ivpm.installer_run")
+
+
+# What a source build is doing, read from the build backend's own output, which
+# ``uv --verbose`` relays as DEBUG lines. Without this a long build is a single
+# "Building X" and then minutes of silence: one large generated C++ file (a
+# Cython module of 600k lines) takes over a minute to compile.
+_COMPILER_RE = re.compile(
+    r"^(?:[\w.+-]*-)?(?:g\+\+|gcc|c\+\+|cc|clang\+\+|clang|icpx|icx|nvcc)(?:-\d+(?:\.\d+)*)?$")
+_SOURCE_EXT = (".c", ".cc", ".cpp", ".cxx", ".c++", ".C", ".m", ".mm", ".cu", ".s", ".S")
+_CYTHON_RE = re.compile(r"^(?:\[\d+/\d+\] )?Cythonizing (\S+)$")
+_NINJA_RE = re.compile(r"^\[(\d+)/(\d+)\] (Building|Linking) .* (\S+)$")
+_MAKE_RE = re.compile(r"^\[\s*(\d+)%\] (Building|Linking) .* (\S+)$")
+_EXTENSION_RE = re.compile(r"^building '([^']+)' extension$")
+
+
+def _file(path: str) -> str:
+    """``src/CMakeFiles/x.dir/foo.cpp.o`` -> ``foo.cpp``."""
+    name = os.path.basename(path)
+    for ext in (".o", ".obj"):
+        if name.endswith(ext) and name[:-len(ext)].endswith(_SOURCE_EXT):
+            return name[:-len(ext)]
+    return name
+
+
+def build_step(line: str) -> Optional[str]:
+    """The step a build is on, from one relayed line of its output, or None:
+    ``compiling ast.cpp``, ``building foo.cpp (12/80)``, ``linking core.so``."""
+    s = line.strip()
+    if not s.startswith("DEBUG "):
+        return None
+    s = s[len("DEBUG "):].strip()
+    m = _CYTHON_RE.match(s)
+    if m:
+        return "cythonizing %s" % os.path.basename(m.group(1))
+    m = _NINJA_RE.match(s)
+    if m:
+        return "%s %s (%s/%s)" % (m.group(3).lower(), _file(m.group(4)), m.group(1), m.group(2))
+    m = _MAKE_RE.match(s)
+    if m:
+        return "%s %s (%s%%)" % (m.group(2).lower(), _file(m.group(3)), m.group(1))
+    m = _EXTENSION_RE.match(s)
+    if m:
+        return "building extension %s" % m.group(1)
+    if s.startswith("-- Configuring") or s.startswith("cmake config command"):
+        return "configuring (cmake)"
+    tokens = s.split()
+    if len(tokens) > 1 and _COMPILER_RE.match(os.path.basename(tokens[0])):
+        if "-c" in tokens:
+            src = next((t for t in tokens[1:]
+                        if t.endswith(_SOURCE_EXT) and not t.startswith("-")), None)
+            return "compiling %s" % os.path.basename(src) if src else "compiling"
+        if "-o" in tokens[:-1]:
+            return "linking %s" % os.path.basename(tokens[tokens.index("-o") + 1])
+    return None
+
+
+class BuildProgress:
+    """A ``line_parser`` for one install: *base* reads the installer's own
+    lines ("Building X", "Built X", "Resolved N ..."), and between them this
+    adds the step a build is on. Build output never names its package, so the
+    step is put under a package only while that is the one build in flight."""
+
+    def __init__(self, base: Callable[[str], Optional[str]]):
+        self._base = base
+        self._building: List[str] = []
+
+    def __call__(self, line: str) -> Optional[str]:
+        status = self._base(line)
+        if status is not None:
+            word, _, name = status.partition(" ")
+            if word == "Building" and name:
+                self._building.append(name)
+            elif word == "Built" and name in self._building:
+                self._building.remove(name)
+            return status
+        step = build_step(line)
+        if step is None:
+            return None
+        if len(self._building) == 1:
+            return "Building %s: %s" % (self._building[0], step)
+        return step
 
 
 @dc.dataclass

@@ -100,6 +100,38 @@ package:
         self.assertEqual(info.name, "mypkg")
 
 
+class TestDepSetNameValidation(unittest.TestCase):
+
+    def test_empty_dep_set_name_raises(self):
+        """A bare 'name:' (YAML null) on a dep-set must be a located error,
+        not a None key that later crashes sorting the dep-set names."""
+        _assert_fatal(self,
+            """
+package:
+  name: mypkg
+  dep-sets:
+    - name: use
+      deps: []
+    - name:
+      uses: use
+""",
+            "empty 'name'",
+        )
+
+    def test_numeric_dep_set_name_is_string(self):
+        """A non-string dep-set name is normalized to str."""
+        info = _parse("""
+package:
+  name: mypkg
+  dep-sets:
+    - name: 1
+      deps: []
+    - name: dev
+      deps: []
+""")
+        self.assertEqual(sorted(info.dep_set_m.keys()), ["1", "dev"])
+
+
 class TestWithSectionValidation(unittest.TestCase):
 
     def test_unknown_with_handler_raises(self):
