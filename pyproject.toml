@@ -11,7 +11,7 @@ dynamic = ["version"]
 # makes pip refuse the install instead of installing happily and failing at the
 # first 3.10-only stdlib call; see src/ivpm/_compat.py for the shims that keep
 # this floor honest, and the CI version matrix that tests it.
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.28.1,<1.0",
     "pyyaml",
@@ -26,7 +26,6 @@ authors = [
 description = "IVPM (Integrated View Package Manager) is a project-local polyglot package manager."
 license = {file = "LICENSE" }
 classifiers = [
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -36,9 +35,8 @@ classifiers = [
 
 [project.optional-dependencies]
 # 'ivpm init -t <template>' renders templates with copier. Only the built-in
-# 'default' template works without it (see ivpm/init_template). A single bound
-# suffices: on Python 3.9, pip's Requires-Python filtering selects 9.10.3, the
-# last copier release supporting 3.9; 9.10 is also the oldest version tested.
+# 'default' template works without it (see ivpm/init_template). 9.10 is the
+# oldest version tested.
 init = ["copier>=9.10"]
 
 [tool.setuptools.dynamic]

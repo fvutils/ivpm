@@ -173,25 +173,27 @@ See `.github/workflows/ci.yml` for the complete CI configuration.
 
 ## Supported Python Versions
 
-**IVPM supports Python 3.9 and later** (`requires-python = ">=3.9"`), and the
+**IVPM supports Python 3.10 and later** (`requires-python = ">=3.10"`), and the
 `python-matrix` job in both `.github/workflows/ci.yml` and
-`.forgejo/workflows/ci.yml` runs the full suite on 3.9 through 3.14. **Releases
+`.forgejo/workflows/ci.yml` runs the full suite on 3.10 through 3.14. **Releases
 are gated on it**: `publish-pypi` declares `needs: [... python-matrix]` on both
 forges, so a red row in any supported version blocks the PyPI upload.
 
 This floor is easy to break without noticing, because IVPM is usually run by the
 *project's* pinned interpreter rather than by the developer's shell python: a
-3.10-only stdlib call works perfectly on your machine and on most of CI, then
-fails at runtime inside someone else's cp39 build. It has happened twice
-already, with `glob.glob(..., root_dir=)` and
-`importlib.metadata.entry_points(group=)`.
+stdlib call newer than the floor works perfectly on your machine and on most of
+CI, then fails at runtime inside someone else's build. It happened twice while
+the floor was 3.9, with `glob.glob(..., root_dir=)` and
+`importlib.metadata.entry_points(group=)`. The floor moved to 3.10 in 2.43.0;
+the 3.9 shims for those two in `src/ivpm/_compat.py` are now always on their
+stdlib branch.
 
-When you need an API newer than 3.9:
+When you need an API newer than the floor:
 
 - Add a shim to `src/ivpm/_compat.py` and call that, rather than version-testing
   at the use site. Factor the old-version implementation into its own
   `_..._fallback` function so `test/unit/test_compat.py` can exercise it on any
-  interpreter -- otherwise the 3.9 code path is covered only by the 3.9 CI row.
+  interpreter -- otherwise the fallback is covered only by the floor's CI row.
 - Code pushed into a managed venv (a `python -c` script run by a handler) cannot
   import `ivpm._compat`, and runs under a version IVPM does not choose. Those
   carry an inline `sys.version_info` guard instead.

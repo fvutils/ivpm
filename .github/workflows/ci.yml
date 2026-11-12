@@ -54,7 +54,7 @@ jobs:
           echo "authority=$auth" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------- #
-  # THE SUPPORTED-PYTHON MATRIX. `requires-python = ">=3.9"` in pyproject.toml
+  # THE SUPPORTED-PYTHON MATRIX. `requires-python = ">=3.10"` in pyproject.toml
   # is a promise, and this job is the only thing that keeps it true.
   #
   # IVPM is normally run by whatever interpreter the PROJECT pins, not by the
@@ -80,7 +80,7 @@ jobs:
       # WHICH versions break is the whole diagnostic.
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-python@v5
@@ -235,7 +235,7 @@ jobs:
   # matrix rows for no benefit.
   #
   # needs: [gate, ci-linux, python-matrix] -- a red row in ANY supported Python
-  # version blocks the upload, which is the point: `requires-python = ">=3.9"`
+  # version blocks the upload, which is the point: `requires-python = ">=3.10"`
   # is a promise made to installers who cannot check it for themselves.
   #
   # A SKIPPED dependency also blocks this job, which is the behaviour we want in

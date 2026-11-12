@@ -262,8 +262,8 @@ Matrix Testing
 
     strategy:
       matrix:
-        # IVPM itself requires Python 3.9 or later.
-        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+        # IVPM itself requires Python 3.10 or later.
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
         os: [ubuntu-latest, macos-latest, windows-latest]
     
     runs-on: ${{ matrix.os }}

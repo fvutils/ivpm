@@ -81,7 +81,7 @@ jobs:
     # ubuntu-latest maps to catthehacker/ubuntu:act-22.04 on this runner:
     # Python 3.10, git and node, which is everything a pure-Python build needs.
     #
-    # ONE interpreter, by design. The supported-Python matrix (3.9 .. 3.14, the
+    # ONE interpreter, by design. The supported-Python matrix (3.10 .. 3.14, the
     # range `requires-python` in pyproject.toml promises) lives in
     # .github/workflows/ci.yml, because it needs actions/setup-python and a
     # bare `uses:` here resolves against code.forgejo.org -- see item 1 above.
@@ -228,7 +228,7 @@ jobs:
         if-no-files-found: error
 
   # ---------------------------------------------------------------------- #
-  # THE SUPPORTED-PYTHON MATRIX. `requires-python = ">=3.9"` in pyproject.toml
+  # THE SUPPORTED-PYTHON MATRIX. `requires-python = ">=3.10"` in pyproject.toml
   # is a promise, and this job is what keeps it true on the forge that may hold
   # release authority. publish-pypi needs it, so a red row blocks the upload.
   #
@@ -246,7 +246,7 @@ jobs:
       # WHICH versions break is the whole diagnostic.
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v4
@@ -362,7 +362,7 @@ jobs:
       startsWith(github.ref, 'refs/tags/v')
     # python-matrix is in this list deliberately: a release must not go out
     # unless the suite passed on EVERY supported interpreter, not just the one
-    # the build container happens to ship. `requires-python = ">=3.9"` is a
+    # the build container happens to ship. `requires-python = ">=3.10"` is a
     # promise made to installers who cannot check it for themselves, and 2.33.0
     # shipped broken on 3.9 precisely because nothing here tested it.
     needs: [gate, build-linux, docs, python-matrix]

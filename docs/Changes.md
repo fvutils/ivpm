@@ -1,3 +1,10 @@
+# 2.43.0
+- **Changed: IVPM now requires Python 3.10 or later** (`requires-python =
+  ">=3.10"`). Python 3.9 reached end-of-life in October 2025, and GitHub's
+  `ubuntu-latest` runner (Ubuntu 26.04) no longer provides it, so the 3.9 CI
+  row could not run. pip on a 3.9 interpreter keeps installing 2.42.0, the last
+  release that supports it. CI now tests 3.10 through 3.14.
+
 # 2.42.0
 - **Changed: a git dependency's submodules are initialized only when asked
   for (`submodules:`), and their failures are no longer silent.** Before this release, every git dependency

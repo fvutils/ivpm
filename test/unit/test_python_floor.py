@@ -46,7 +46,7 @@ REPO_ROOT = os.path.dirname(os.path.dirname(SRC_DIR))
 
 #: The floor, spelled once. Update all three places together, or not at all:
 #: this constant, `requires-python` in pyproject.toml, and the CI matrix.
-FLOOR = (3, 9)
+FLOOR = (3, 10)
 
 
 def _iter_sources():

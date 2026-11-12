@@ -43,9 +43,6 @@ Without copier:
 * Listing templates (``ivpm init --list``, ``ivpm show init-templates``) works.
 * Any other template fails with a message that says how to install copier.
 
-On Python 3.9, pip installs copier 9.10, the last copier release that
-supports 3.9. On newer interpreters it installs the current release.
-
 Choosing a template
 ===================
 
