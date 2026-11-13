@@ -1,3 +1,36 @@
+# 2.43.0
+- **New: project hooks (`hooks:`).** A project's `ivpm.yaml` can now run
+  Python code once `ivpm update` finishes, for example to generate the root
+  project's `.egg-info`:
+  ```yaml
+  hooks:
+    - name: egg-info
+      event: post-update
+      python: |
+        from setuptools import setup
+        setup(script_args=["egg_info", "-e", "src"])
+  ```
+  - A `python:` hook is Python source. It runs with the project venv's
+    interpreter (`packages/python/bin/python -c <source>`), with no shell,
+    from the project root, with the venv active in its environment. Common
+    indentation is removed first.
+  - `post-update` is the only event. It runs after `update` and `clone`, not
+    after `sync`.
+  - Only the root project's hooks run. Hooks in a dependency's `ivpm.yaml`
+    are ignored, as are hooks in a manifest fetched with `--from`, and
+    `ivpm install` runs none.
+  - Hooks run in the order written; `include:`d files' hooks come after the
+    including file's. The first failure fails the update, naming the hook
+    and quoting its output. `name:` is optional and must be unique.
+  - A project with a `python:` hook gets a venv even when it has no Python
+    dependencies. With Python installation turned off and no venv left
+    from an earlier run, the update fails instead of using the system
+    Python.
+  - `--no-hooks` on `update` and `clone` skips them.
+  - New built-in handler `hooks`, in the `FINALIZE` phase.
+  - Older ivpm releases reject `hooks:` as an unknown key, including in a
+    dependency's `ivpm.yaml`.
+
 # 2.42.0
 - **Changed: a git dependency's submodules are initialized only when asked
   for (`submodules:`), and their failures are no longer silent.** Before this release, every git dependency

@@ -61,6 +61,7 @@ When you run ``ivpm update``, IVPM executes these stages:
         |                  ENVIRONMENT: direnv, modules (built-in)
         |                  INSTALL:     node, python (built-in)
         |                  INTEGRATE:   agents, dv-flow, fusesoc (built-in)
+        |                  FINALIZE:    hooks (built-in)
         |                  (third-party handlers slot into these phases)
         |
         v
@@ -78,12 +79,13 @@ root callback (filtered by ``root_when`` conditions) in the resolved order.
 Built-in Handlers
 =================
 
-IVPM ships seven built-in handlers.  They resolve to the order
-direnv → modules → node → python → agents → dv-flow → fusesoc: the
+IVPM ships eight built-in handlers.  They resolve to the order
+direnv → modules → node → python → agents → dv-flow → fusesoc → hooks: the
 ``ENVIRONMENT`` phase (direnv, modules) configures the environment, the
-``INSTALL`` phase (node, python) installs managed packages, and the
+``INSTALL`` phase (node, python) installs managed packages, the
 ``INTEGRATE`` phase (agents, dv-flow, fusesoc) generates tool-integration
-artifacts.  Because phases are barriers, the Python venv is ready before the
+artifacts, and the ``FINALIZE`` phase (hooks) runs the project's
+``post-update`` hooks once everything else is in place.  Because phases are barriers, the Python venv is ready before the
 agents handler queries ``agent.skills`` entry-points.
 They are registered via entry points in IVPM's own ``pyproject.toml`` and run on every
 ``update`` and ``clone`` invocation.
@@ -698,6 +700,40 @@ optionally ``fusesoc.conf``
 See :doc:`integrations` for FuseSoC integration patterns with CMake and
 other build systems.
 
+.. _handler-hooks:
+
+Hooks Handler (``hooks``)
+-------------------------
+
+Runs the ``post-update`` hooks declared under ``hooks:`` in the root
+project's ``ivpm.yaml``. See :doc:`hooks`.
+
+**Leaf phase**
+
+None. A dependency's hooks are never run.
+
+**Root phase**
+
+Runs in ``FINALIZE``, after the Python venv exists. Runs each hook in the
+order declared, with the venv's interpreter and the project root as working
+directory. The first failure fails the update. Does nothing when the project
+declares no hooks, or with ``--no-hooks``.
+
+**Configuration (``ivpm.yaml``)**
+
+.. code-block:: yaml
+
+    package:
+      name: my-project
+      hooks:
+        - name: egg-info
+          event: post-update
+          python: |
+            from setuptools import setup
+            setup(script_args=["egg_info", "-e", "src"])
+
+**Output:** whatever the hooks write. The handler writes nothing itself.
+
 
 Handler Summary
 ===============
@@ -754,6 +790,12 @@ Handler Summary
      - ``.core`` files (CAPI-2) or ``with.fusesoc.cores``
      - Writes ``fusesoc-cores.envrc``, ``fusesoc-cores.txt``; optionally updates ``fusesoc.conf``
      - ``packages/fusesoc-cores.*``
+   * - ``hooks``
+     - FINALIZE
+     - Runs the root project's ``post-update`` hooks
+     - None
+     - Runs each hook with the venv's interpreter
+     - Whatever the hooks write
 
 
 Toolchain Mode

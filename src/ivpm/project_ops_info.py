@@ -160,6 +160,7 @@ class ProjectUpdateInfo(ProjectOpsInfo):
     # root deps-dir ("" for the root scope). Set on scope views only.
     scope_prefix: str = ""
     handler_state: dict = dc.field(default_factory=dict)  # Loaded from ivpm.json["handlers"]
+    hooks: list = dc.field(default_factory=list)  # Root ivpm.yaml hooks to run (HookSpec); empty when hooks do not apply
     # Every package the resolver has loaded, keyed by scope key. Handlers see
     # only the packages they claim, so this is what lets a Python or Node
     # install failure render the full import chain back to the root -- the

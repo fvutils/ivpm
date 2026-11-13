@@ -434,6 +434,47 @@ def _extract_toml_section(data: dict, section: str) -> list:
     return []
 
 
+def resolve_venv_mode(update_info) -> 'VenvMode':
+    """Determine effective VenvMode from CLI flags, skip_venv, and yaml config.
+
+    Priority (highest first):
+      1. CLI --py-skip-install (py_skip_install)     → SKIP
+      2. update_info.skip_venv                       → SKIP
+      3. yaml with.python.venv == false              → SKIP (cannot be overridden by tool flags)
+      4. CLI --py-uv                                 → UV
+      5. CLI --py-pip                                → PIP
+      6. yaml with.python.venv (uv / pip)            → as specified
+      7. installer recorded in package-lock.json     → UV / PIP
+      8. yaml with.python.venv: true / default       → AUTO
+    """
+    from ..proj_info import VenvMode
+
+    if getattr(update_info.args, "py_skip_install", False):
+        return VenvMode.SKIP
+    if update_info.skip_venv:
+        return VenvMode.SKIP
+    # YAML SKIP wins over tool-selection CLI flags
+    if (update_info.python_config is not None and
+            update_info.python_config.venv == VenvMode.SKIP):
+        return VenvMode.SKIP
+    # Tool-selection CLI flags override yaml tool preference
+    if getattr(update_info.args, "py_uv", False):
+        return VenvMode.UV
+    if getattr(update_info.args, "py_pip", False):
+        return VenvMode.PIP
+    if (update_info.python_config is not None and
+            update_info.python_config.venv in (VenvMode.UV, VenvMode.PIP)):
+        return update_info.python_config.venv
+    # Otherwise keep the installer a previous run selected, so a bare
+    # re-run (e.g. --py-force-install) doesn't silently switch tools.
+    recorded = _recorded_installer(getattr(update_info, "lock_data", None))
+    if recorded == "uv":
+        return VenvMode.UV
+    if recorded == "pip":
+        return VenvMode.PIP
+    return VenvMode.AUTO
+
+
 @dc.dataclass
 class PackageHandlerPython(PackageHandler):
     name:               ClassVar[str]            = "python"
@@ -702,44 +743,7 @@ class PackageHandlerPython(PackageHandler):
         return out
 
     def _resolve_venv_mode(self, update_info: ProjectUpdateInfo):
-        """Determine effective VenvMode from CLI flags, skip_venv, and yaml config.
-
-        Priority (highest first):
-          1. CLI --py-skip-install (py_skip_install)     → SKIP
-          2. update_info.skip_venv                       → SKIP
-          3. yaml with.python.venv == false              → SKIP (cannot be overridden by tool flags)
-          4. CLI --py-uv                                 → UV
-          5. CLI --py-pip                                → PIP
-          6. yaml with.python.venv (uv / pip)            → as specified
-          7. installer recorded in package-lock.json     → UV / PIP
-          8. yaml with.python.venv: true / default       → AUTO
-        """
-        from ..proj_info import VenvMode
-
-        if getattr(update_info.args, "py_skip_install", False):
-            return VenvMode.SKIP
-        if update_info.skip_venv:
-            return VenvMode.SKIP
-        # YAML SKIP wins over tool-selection CLI flags
-        if (update_info.python_config is not None and
-                update_info.python_config.venv == VenvMode.SKIP):
-            return VenvMode.SKIP
-        # Tool-selection CLI flags override yaml tool preference
-        if getattr(update_info.args, "py_uv", False):
-            return VenvMode.UV
-        if getattr(update_info.args, "py_pip", False):
-            return VenvMode.PIP
-        if (update_info.python_config is not None and
-                update_info.python_config.venv in (VenvMode.UV, VenvMode.PIP)):
-            return update_info.python_config.venv
-        # Otherwise keep the installer a previous run selected, so a bare
-        # re-run (e.g. --py-force-install) doesn't silently switch tools.
-        recorded = _recorded_installer(getattr(update_info, "lock_data", None))
-        if recorded == "uv":
-            return VenvMode.UV
-        if recorded == "pip":
-            return VenvMode.PIP
-        return VenvMode.AUTO
+        return resolve_venv_mode(update_info)
 
     def on_destroy(self, remove_info):
         """Remove the managed virtual environment (packages/python). Honors
@@ -777,7 +781,11 @@ class PackageHandlerPython(PackageHandler):
             update_info.python_config is not None
             and update_info.python_config.venv != VenvMode.SKIP
         )
-        if not has_python_pkgs and not has_python_config:
+        # A python hook runs in the project venv, so it needs one even when
+        # nothing else in the project is Python.
+        has_python_hooks = any(
+            h.kind == "python" for h in (getattr(update_info, "hooks", None) or []))
+        if not has_python_pkgs and not has_python_config and not has_python_hooks:
             return
 
         # --- Determine how to install ivpm into the venv ---

@@ -284,6 +284,9 @@ Create a new workspace from a Git repository.
 
 **Options:**
 
+``--no-hooks``
+    Do not run the cloned project's ``post-update`` hooks. See :doc:`hooks`.
+
 ``--provider <name>``
     Force a specific clone provider instead of inferring it from ``src``.
     See ``ivpm show clone-providers`` for the available providers.  Providers
@@ -1095,6 +1098,10 @@ Fetch dependencies and initialize environment.
     (default), or ``content``. Overrides ``IVPM_CACHE_VERIFY`` and the
     ``cache-verify:`` config-file key for this invocation. See :doc:`caching`.
 
+``--no-hooks``
+    Do not run the ``post-update`` hooks declared in ``ivpm.yaml``. See
+    :doc:`hooks`.
+
 ``--py-skip-install``
     Skip Python package installation
 
@@ -1381,6 +1388,14 @@ Valid on a git dependency, in ``package: dep-defaults: git:``, and at the
 package level (for the root repository).  See :doc:`git_integration`.
 
 .. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/submodules
+
+Hooks (``hooks``)
+-----------------
+
+Valid at the package level of the root project's ``ivpm.yaml``; ignored in a
+dependency's. See :doc:`hooks`.
+
+.. jsonschema:: ../../src/ivpm/share/ivpm.json#/defs/hook
 
 Handler Configuration (``with``)
 --------------------------------

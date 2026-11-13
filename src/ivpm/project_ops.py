@@ -354,6 +354,18 @@ class ProjectOps(object):
             # what stops the two from drifting: they previously landed only on
             # handler_update_info, so anything reading handler_configs at leaf
             # time silently saw {}.
+            # Hooks come from the user's own manifest only: not from a
+            # manifest fetched with --from, and not in toolchain mode, which
+            # has no project root to run them in.
+            if source_manifest is None \
+                    and install_mode == InstallMode.WORKSPACE:
+                _hooks = list(proj_info.hooks)
+            else:
+                _hooks = []
+                if proj_info.hooks:
+                    _logger.debug("Not running %d hook(s): manifest is not "
+                                  "the project's own", len(proj_info.hooks))
+
             _apply_effective_settings(
                 (updater.update_info, handler_update_info),
                 python_config=effective_py_config,
@@ -361,6 +373,7 @@ class ProjectOps(object):
                 handler_configs=effective_handler_configs,
                 env_settings=effective_env,
                 root_var=root_var,
+                hooks=_hooks,
                 handler_state=_prev_ivpm.get("handlers", {}))
 
             # Session start for pre-populate preparers. Deliberately ahead of
