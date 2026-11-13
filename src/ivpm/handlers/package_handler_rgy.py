@@ -91,6 +91,7 @@ class PackageHandlerRgy(object):
         from .package_handler_direnv import PackageHandlerDirenv
         from .package_handler_dv_flow import PackageHandlerDvFlow
         from .package_handler_fusesoc import PackageHandlerFuseSoC
+        from .package_handler_hooks import PackageHandlerHooks
         from .package_handler_modules import PackageHandlerModules
         from .package_handler_node import PackageHandlerNode
         from .package_handler_python import PackageHandlerPython
@@ -100,6 +101,7 @@ class PackageHandlerRgy(object):
                 PackageHandlerDirenv,
                 PackageHandlerDvFlow,
                 PackageHandlerFuseSoC,
+                PackageHandlerHooks,
                 PackageHandlerModules,
                 PackageHandlerNode,
                 PackageHandlerPython):

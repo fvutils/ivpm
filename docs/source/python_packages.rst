@@ -712,6 +712,13 @@ Run commands within the virtual environment:
 **Behind the scenes:** the direnv handler emits ``PATH_add bin`` into
 ``packages/python/export.envrc``, putting the venv's ``bin`` on ``PATH``.
 
+Running Code After Update
+-------------------------
+
+To run Python in the venv once ``ivpm update`` has finished, for example to
+generate the root project's ``.egg-info``, declare a ``post-update`` hook.
+See :doc:`hooks`.
+
 Direct Access
 -------------
 

@@ -40,6 +40,7 @@ One YAML file.  One command.  A complete, self-contained workspace.
    patching
    package_lock
    python_packages
+   hooks
    node_packages
    environment_modules
    github_releases

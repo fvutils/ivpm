@@ -424,6 +424,9 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
     # The following flags belong to the git provider (see 'ivpm clone --provider
     # git --help'); they remain accepted at the top level during the deprecation
     # window (design §11).
+    clone_cmd.add_argument("--no-hooks", dest="no_hooks", action="store_true",
+        help="Do not run the hooks declared in the cloned project's "
+             "ivpm.yaml ('hooks:')")
     clone_cmd.add_argument("--ssh", dest="ssh", action="store_true",
         help="(git provider) Force SSH: rewrite an https:// URL to git@host:path form before cloning")
     clone_cmd.add_argument("-a", "--anonymous", dest="anonymous", action="store_true",
@@ -512,6 +515,8 @@ def get_parser(parser_ext : List = None, options_ext : List = None):
              "ivpm.yaml but no 'provides:', or one whose manifest is valid "
              "but is not an install target, fails the run instead of being "
              "noted")
+    update_cmd.add_argument("--no-hooks", dest="no_hooks", action="store_true",
+        help="Do not run the hooks declared in ivpm.yaml ('hooks:')")
     update_cmd.add_argument("--py-skip-install", "--skip-py-install",
         dest="py_skip_install",
         help="Skip installation of Python packages",

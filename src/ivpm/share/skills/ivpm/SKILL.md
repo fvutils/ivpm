@@ -145,6 +145,33 @@ reasoning that would otherwise only exist in a commit message.
 Read them back with `ivpm show deps <name>`, `ivpm show deps --json`, and
 `ivpm show bom`.
 
+### Hooks (run Python after update)
+
+`hooks:` runs code once `ivpm update` (or `ivpm clone`) finishes. A `python:`
+hook is Python source, not a shell command: ivpm runs it with the venv's
+interpreter (`packages/python/bin/python -c <source>`), from the project root,
+and removes the indentation every line shares first.
+
+```yaml
+package:
+  name: my-project
+  dep-sets:
+    - name: default-dev
+      deps:
+        - name: setuptools      # a hook's imports must be dependencies
+          src: pypi
+  hooks:
+    - name: egg-info            # optional; unique
+      event: post-update        # the only event; not run by 'ivpm sync'
+      python: |
+        from setuptools import setup
+        setup(script_args=["egg_info", "-e", "src"])
+```
+
+- Only the root project's hooks run; a dependency's are ignored.
+- Hooks run in the order written. The first failure fails the update.
+- `ivpm update --no-hooks` skips them.
+
 ## Dependency Types
 
 ### PyPI Packages

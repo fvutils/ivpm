@@ -4,7 +4,10 @@ Created on Jun 8, 2021
 @author: mballance
 '''
 import difflib
+import logging
 import os
+import re
+import textwrap
 from typing import Dict, List
 from .yamlsrc import SrcInfo, SrcLoaderError, load as yaml_load
 from .package import Package
@@ -17,13 +20,15 @@ from ivpm.packages_info import PackagesInfo
 from ivpm.pkg_content_type import parse_type_field
 from ivpm.dep_mode import parse_deps_mode
 
+_logger = logging.getLogger("ivpm.ivpm_yaml_reader")
+
 # Valid keys at the ``package:`` level in ivpm.yaml.
 _KNOWN_PACKAGE_KEYS = {
     "name", "description", "doc", "version", "type", "provides", "with",
     "license", "homepage", "documentation", "maintainers",
     "deps-dir", "deps-mode", "default-dep-set",
     "dep-sets", "setup-deps",
-    "paths", "env",
+    "paths", "env", "hooks",
     "vars", "include",
     "submodules", "dep-defaults",
     # old-style keys – detected and rejected with a friendlier message
@@ -41,6 +46,13 @@ _KNOWN_NODE_WITH_KEYS = {"manager", "version", "env", "link-root"}
 # no PackageHandlerEnv, since a no-op handler registered purely to satisfy key
 # validation would show up in 'ivpm show handler' as something configurable.
 _RESERVED_WITH_KEYS = {"env"}
+
+# Valid keys in a ``package.hooks:`` entry, besides the kind key (HOOK_KINDS).
+_KNOWN_HOOK_KEYS = {"name", "event"}
+
+# A hook name: the same character set as package names, so it can be passed
+# on the command line unquoted.
+_HOOK_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 def _keyloc(m, key, fallback=None):
     """Return a location anchor for *key* within mapping *m*.
@@ -487,6 +499,9 @@ class IvpmYamlReader(object):
             for sd in pkg["setup-deps"]:
                 ret.setup_deps.add(sd)
 
+        if "hooks" in pkg.keys():
+            self._read_hooks(ret, pkg["hooks"], name, is_root)
+
         if "paths" in pkg.keys():
             ps = pkg["paths"]
             for ps_kind in ps.keys():
@@ -606,7 +621,7 @@ class IvpmYamlReader(object):
     _MERGE_HANDLED_KEYS = {
         "name", "version", "dep-sets",
         "with", "vars", "paths",
-        "env", "setup-deps",
+        "env", "setup-deps", "hooks",
     }
 
     def _merge_pkg(self, local, incl, base, incl_path):
@@ -621,7 +636,7 @@ class IvpmYamlReader(object):
             (no deps concatenation across files).
           - ``with``/``vars`` deep-merge (local wins on scalar/list conflict).
           - ``paths`` deep-merge as a map; leaf lists append.
-          - ``env``/``setup-deps`` list-append.
+          - ``env``/``setup-deps``/``hooks`` list-append.
           - everything else (``type``, ``deps-dir``, ...): adopt if absent,
             otherwise local wins.
         """
@@ -682,8 +697,8 @@ class IvpmYamlReader(object):
                 self._deep_merge_map(
                     local["paths"], incl["paths"], append_lists=True)
 
-        # env/setup-deps: top-level list append (include after local).
-        for k in ("env", "setup-deps"):
+        # env/setup-deps/hooks: top-level list append (include after local).
+        for k in ("env", "setup-deps", "hooks"):
             if k in incl.keys():
                 if k not in local.keys():
                     local[k] = incl[k]
@@ -936,6 +951,102 @@ class IvpmYamlReader(object):
                           loc)
             out[src] = dict(vals)
         return out
+
+    def _read_hooks(self, ret, hooks, name, is_root):
+        """Parse ``package.hooks:`` into ``ret.hooks`` (a list of HookSpec).
+
+        Only the root manifest's hooks are read. A dependency's hooks are
+        ignored without being checked: fetching a dependency must never run
+        code its author chose, and a dependency's malformed hooks must not
+        break the update of the project that uses it.
+        """
+        from .proj_info import HookSpec, HOOK_EVENTS, HOOK_KINDS
+
+        if not is_root:
+            if hooks:
+                _logger.debug("Ignoring hooks in dependency manifest %s", name)
+            return
+
+        if hooks is None:
+            return
+        if not isinstance(hooks, list):
+            fatal("'hooks' in %s must be a list of hook entries, not %s" % (
+                name, type(hooks).__name__), hooks)
+
+        valid_keys = _KNOWN_HOOK_KEYS | set(HOOK_KINDS)
+        named = {}
+        for h in hooks:
+            if not isinstance(h, dict):
+                # As for dependency entries: an empty '- ' item is None and has
+                # no srcinfo, so anchor on the enclosing list.
+                fatal("Hook entry must be a mapping with 'event' and one of: "
+                      "%s ; not %s" % (", ".join(HOOK_KINDS),
+                                       type(h).__name__), hooks)
+
+            for key in h.keys():
+                if key not in valid_keys:
+                    fatal("Unknown key '%s' in hook entry in %s.%s Valid keys: "
+                          "%s" % (key, name, _suggest(key, valid_keys),
+                                  ", ".join(sorted(valid_keys))),
+                          _keyloc(h, key))
+
+            # event: a string or a non-empty list of strings
+            if "event" not in h.keys():
+                fatal("Hook entry is missing 'event' (one of: %s)" % (
+                    ", ".join(HOOK_EVENTS)), h)
+            ev = h["event"]
+            events = ev if isinstance(ev, list) else [ev]
+            if len(events) == 0:
+                fatal("Hook 'event' list is empty", _keyloc(h, "event", ev))
+            for e in events:
+                if not isinstance(e, str) or e not in HOOK_EVENTS:
+                    fatal("Unknown hook event '%s'.%s Valid events: %s" % (
+                        e, _suggest(str(e), HOOK_EVENTS),
+                        ", ".join(HOOK_EVENTS)), _keyloc(h, "event", ev))
+
+            # Exactly one kind key
+            kinds = [k for k in HOOK_KINDS if k in h.keys()]
+            if len(kinds) != 1:
+                fatal("Hook entry must have exactly one of: %s" % (
+                    ", ".join(HOOK_KINDS)), h)
+            kind = kinds[0]
+
+            src = h[kind]
+            if not isinstance(src, str):
+                fatal("Hook '%s' must be a string of Python source, not %s" % (
+                    kind, type(src).__name__), _keyloc(h, kind, src))
+            # Left-justify: Python rejects an indented first line, and source
+            # reaches here as quoted strings, over-indented blocks or from
+            # included files. dedent removes only the common prefix, so
+            # relative indentation is kept.
+            src = textwrap.dedent(src).strip("\n")
+            if src.strip() == "":
+                fatal("Hook '%s' source is empty" % kind, _keyloc(h, kind))
+            if src[0].isspace():
+                fatal("Hook '%s' source has inconsistent indentation: its "
+                      "lines do not share a common left margin" % kind,
+                      _keyloc(h, kind))
+
+            hook_name = None
+            if "name" in h.keys():
+                hook_name = h["name"]
+                if not isinstance(hook_name, str) \
+                        or not _HOOK_NAME_RE.match(hook_name):
+                    fatal("Invalid hook name '%s': use letters, digits, '.', "
+                          "'_' and '-', starting with a letter or digit" % (
+                              hook_name,), _keyloc(h, "name", hook_name))
+                if hook_name in named:
+                    fatal("Duplicate hook '%s' @ %s ; previously defined @ %s"
+                          % (hook_name, getlocstr(h),
+                             getlocstr(named[hook_name])), h)
+                named[hook_name] = h
+
+            ret.hooks.append(HookSpec(
+                events=[str(e) for e in events],
+                kind=kind,
+                source=src,
+                name=str(hook_name) if hook_name is not None else None,
+                srcinfo=getattr(h, "srcinfo", None)))
 
     def _apply_dep_defaults(self, pkg, src, d):
         """Give *pkg* the manifest's ``dep-defaults`` for keys its own entry

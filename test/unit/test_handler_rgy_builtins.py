@@ -25,7 +25,7 @@ except ImportError:
     import tomli as tomllib  # type: ignore[no-redef]
 
 
-EXPECTED = ["agents", "direnv", "dv-flow", "fusesoc", "modules", "node", "python"]
+EXPECTED = ["agents", "direnv", "dv-flow", "fusesoc", "hooks", "modules", "node", "python"]
 
 
 def _pyproject_path():

@@ -71,6 +71,30 @@ class NodeConfig:
     link_root: bool = True
 
 
+# Lifecycle events a project hook may name. 'hooks:' in ivpm.yaml is rejected
+# for any other value.
+HOOK_EVENTS = ("post-update",)
+
+# Hook kinds: each hook entry carries exactly one of these keys.
+HOOK_KINDS = ("python",)
+
+
+@dc.dataclass
+class HookSpec:
+    """One entry of the root manifest's 'hooks:' list."""
+    events: List[str]
+    kind: str
+    # For 'python': source code, already dedented (see IvpmYamlReader)
+    source: str
+    name: Optional[str] = None
+    # Location of the entry in ivpm.yaml, for runtime diagnostics
+    srcinfo: object = None
+
+    def label(self, event: str, index: int) -> str:
+        """Display name: the hook's name, or '<event> hook #<index>' (1-based)."""
+        return self.name if self.name else "%s hook #%d" % (event, index)
+
+
 class ProjInfo():
     """Holds information read about a project from its IVPM file"""
     def __init__(self, is_src):
@@ -82,6 +106,8 @@ class ProjInfo():
         self.target_dep_set = "default"
         self.dep_set_m : Dict[str,PackagesInfo] = {}
         self.setup_deps = set()
+        # Root-manifest hooks, in declared order (see HookSpec)
+        self.hooks : List['HookSpec'] = []
         
         self.ivpm_info = {}
         self.requirements_txt = None
